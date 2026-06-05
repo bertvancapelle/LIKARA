@@ -54,6 +54,14 @@ meerdere vragen of adviezen te bundelen.
 
 ---
 
+## Opdrachtformaat CC-opdrachten (VERPLICHT — standaardwerkwijze)
+
+claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
+(downloadbaar), nooit als een los codeblok in de chat. Bert gebruikt dat
+.md-bestand in CC. Deze afspraak geldt in elke sessie.
+
+---
+
 {briefing}
 """
     OUTPUT.write_text(inhoud)
