@@ -40,6 +40,20 @@ def main():
 
 ---
 
+## Interactieregel (VERPLICHT — niet-onderhandelbaar)
+
+Geldt voor zowel CC als claude.ai, in elke sessie:
+
+- Stel vragen ALTIJD één voor één. Stel nooit meerdere vragen tegelijk.
+  Wacht op het antwoord van Bert voordat je een volgende vraag stelt.
+- Geef adviezen ALTIJD één voor één. Geef nooit meerdere adviezen tegelijk.
+  Wacht op de reactie van Bert voordat je een volgend advies geeft.
+
+Deze regel is niet-onderhandelbaar en overschrijft elke neiging om
+meerdere vragen of adviezen te bundelen.
+
+---
+
 {briefing}
 """
     OUTPUT.write_text(inhoud)
