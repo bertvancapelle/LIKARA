@@ -1,4 +1,4 @@
-# CompliData Platform V001 — Eraneos
+# CompliData Platform V001 — een product van G. van Capelle Beheer B.V.
 
 Modulair, multi-tenant databeheer- en migratieplatform voor Nederlandse
 overheidsorganisaties. Eerste module: **BWB Data-ontvlechting**.

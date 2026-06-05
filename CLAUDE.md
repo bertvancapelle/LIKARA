@@ -72,7 +72,8 @@ Daarna: wacht op START: [naam] van Bert.
 Nederlandse overheidsorganisaties. Het platform ondersteunt gecontroleerde data-inventarisatie,
 migratieanalyse en overdrachtsvoorbereiding — te beginnen met de BWB-ontvlechtingsmodule.
 
-- **Operator**: Eraneos — nooit hardcoded in code
+- **Eigenaar**: G. van Capelle Beheer B.V. — CompliData is een product van G. van Capelle Beheer B.V.
+- **Operator**: configureerbaar per deployment — nooit hardcoded in code
 - **Domain**: nader te bepalen
 - **Huidige build**: V001 (Juni 2026)
 - **Modules**: 1 (BWB Data-ontvlechting)

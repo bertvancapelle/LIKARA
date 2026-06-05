@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Aanvaard |
 | **Datum** | 2026-06-05 |
-| **Beslissers** | Bert van Capelle (Eraneos) |
+| **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-003 (multi-tenant RLS), ADR-005 (API), ADR-009 (eerste module) |
 
 ## Context

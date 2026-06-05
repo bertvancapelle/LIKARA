@@ -10,7 +10,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 - Status: `Voorgesteld` → `Aanvaard` → (`Vervangen door ADR-XXX` | `Vervallen`)
 - Vaste secties: **Status/metadata**, **Context**, **Besluit**, **Gevolgen**,
   **Alternatieven overwogen**
-- Operator (Eraneos) en platformnaam nooit hardcoden in code — ADR's mogen ze
+- Operator en platformnaam nooit hardcoden in code — ADR's mogen ze
   uiteraard benoemen.
 
 ## Register
