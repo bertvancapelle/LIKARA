@@ -30,6 +30,5 @@ cd frontend && npm install && npm run dev
 - `CLAUDE.md` — platform-architectuur, conventies, werkwijze
 - `docs/adr/` — Architecture Decision Records
 
-Dit platform-skelet is geëxtraheerd uit het CompliMan-framework
-(sessie 1, bootstrap). Applicatielogica wordt per module opgebouwd onder
-`modules/`.
+CompliData is een zelfstandig platform, ontwikkeld door G. van Capelle Beheer B.V.
+Applicatielogica wordt per module opgebouwd onder `modules/`.

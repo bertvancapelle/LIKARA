@@ -77,9 +77,9 @@ SECURITY` + `tenant_isolation`-policy. De applicatie verbindt als `cd_app`
 ### B7 — Frontend-conventies
 
 Vue 3 + Vite + Pinia + Vue Router + PrimeVue (Unstyled) + Tailwind CSS, met
-centrale design tokens (`--cd-*`) en PassThrough-presets (ADR-047-lijn,
-overgenomen uit het CompliMan-framework). Module-views leven onder
-`modules/<module>/frontend` en worden in de centrale router geregistreerd.
+centrale design tokens (`--cd-*`) en PassThrough-presets (ADR-047-lijn).
+Module-views leven onder `modules/<module>/frontend` en worden in de
+centrale router geregistreerd.
 
 ## Gevolgen
 

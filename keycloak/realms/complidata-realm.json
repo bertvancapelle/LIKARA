@@ -1,7 +1,7 @@
 {
   "realm": "complidata",
   "enabled": true,
-  "displayName": "CompliMan",
+  "displayName": "CompliData",
   "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
@@ -37,7 +37,7 @@
   "clients": [
     {
       "clientId": "complidata-api",
-      "name": "CompliMan Backend API",
+      "name": "CompliData Backend API",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "changeme_dev",
@@ -81,7 +81,7 @@
     },
     {
       "clientId": "complidata-ui",
-      "name": "CompliMan Frontend",
+      "name": "CompliData Frontend",
       "enabled": true,
       "publicClient": true,
       "directAccessGrantsEnabled": false,

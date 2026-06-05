@@ -134,9 +134,9 @@ docs/
 .claude/
   skills/
     complidata/      — platform-specifieke skills (aangemaakt in sessie 1)
-    engineering-team/     — overgenomen van CompliMan, ongewijzigd
-    engineering-advanced/ — overgenomen van CompliMan, ongewijzigd
-    security/             — overgenomen van CompliMan, ongewijzigd
+    engineering-team/     — platform engineering skills
+    engineering-advanced/ — platform engineering skills (advanced)
+    security/             — platform security skills
 ```
 
 ---
@@ -144,7 +144,7 @@ docs/
 ## Commands
 
 ```bash
-# Docker stack (basis: docker-compose.test.yml uit CompliMan, hernoemd)
+# Docker stack
 docker compose -f docker-compose.yml up -d
 
 # Backend (development)

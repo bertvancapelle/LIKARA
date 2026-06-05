@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Assembleert de CompliData sessie-start ZIP.
-Gebaseerd op CompliMan gen_sessiestart.py maar gestript van
-CompliMan-specifieke onderdelen (C1-C14, META-REG, viewer, word-batch).
+CompliData sessie-start ZIP assemblage.
 Eigenaar: G. van Capelle Beheer B.V.
 """
 
