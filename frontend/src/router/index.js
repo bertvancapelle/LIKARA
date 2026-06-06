@@ -3,6 +3,9 @@ import { useAuthStore } from '../store/auth'
 import LoginView from '../views/LoginView.vue'
 import AppLayout from '../layouts/AppLayout.vue'
 import DashboardView from '../views/DashboardView.vue'
+import ApplicatieLijst from '@modules/bwb_ontvlechting/frontend/views/ApplicatieLijst.vue'
+import ApplicatieDetail from '@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue'
+import ApplicatieFormulier from '@modules/bwb_ontvlechting/frontend/views/ApplicatieFormulier.vue'
 
 // Publieke routes staan standalone (geen app-shell). Geauthenticeerde routes
 // hangen als children onder AppLayout: door de meta-merge erven zij
@@ -23,6 +26,17 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'dashboard', component: DashboardView },
+      { path: 'applicaties', name: 'applicatie-lijst', component: ApplicatieLijst },
+      // Statische paden vóór de dynamische /:id (vue-router rankt static > param,
+      // maar expliciet vóór geplaatst voor leesbaarheid).
+      { path: 'applicaties/nieuw', name: 'applicatie-nieuw', component: ApplicatieFormulier },
+      { path: 'applicaties/:id', name: 'applicatie-detail', component: ApplicatieDetail, props: true },
+      {
+        path: 'applicaties/:id/bewerken',
+        name: 'applicatie-bewerken',
+        component: ApplicatieFormulier,
+        props: true,
+      },
     ],
   },
 

@@ -9,6 +9,7 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../store/auth'
 import Button from 'primevue/button'
+import Toast from 'primevue/toast'
 
 const auth = useAuthStore()
 const ingeklapt = ref(_laadVoorkeur())
@@ -93,15 +94,15 @@ async function uitloggen() {
           <span
             class="mt-[var(--cd-space-md)] px-[var(--cd-space-md)] text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]"
           >
-            Modules
+            BWB-ontvlechting
           </span>
-          <span
-            data-testid="nav-bwb-binnenkort"
-            aria-disabled="true"
-            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text-muted)] cursor-not-allowed select-none"
+          <router-link
+            :to="{ name: 'applicatie-lijst' }"
+            data-testid="nav-applicaties"
+            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
           >
-            BWB-ontvlechting (binnenkort)
-          </span>
+            Applicaties
+          </router-link>
         </nav>
       </aside>
 
@@ -110,5 +111,8 @@ async function uitloggen() {
         <router-view />
       </main>
     </div>
+
+    <!-- Toast-container voor feedback uit de geauthenticeerde views -->
+    <Toast />
   </div>
 </template>

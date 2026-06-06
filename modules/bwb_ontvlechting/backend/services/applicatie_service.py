@@ -18,7 +18,13 @@ import uuid
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Applicatie, LifecycleStatus
+from models.models import (
+    Applicatie,
+    HostingModel,
+    LifecycleStatus,
+    Migratiepad,
+    NiveauEnum,
+)
 from schemas.applicatie import ApplicatieCreate, ApplicatieUpdate
 from services.errors import NietGevonden, OngeldigeStatusovergang
 from services.pagination import decode_cursor, encode_cursor
@@ -31,6 +37,21 @@ _MAX_LIMIT = 100
 def _tenant_uuid(tenant_id) -> uuid.UUID:
     """Normaliseer de tenant-id (uit de sessie een str) naar UUID."""
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
+
+
+def enum_opties() -> dict[str, list[str]]:
+    """Read-only metadata: de keuzewaarden per Applicatie-enumveld (single source).
+
+    Pure (DB-vrij). Voert de frontend-dropdowns aan; de Nederlandse labels zijn
+    een frontend-presentatiezaak. `lifecycle_status` valt hier bewust buiten —
+    die is server-beheerd, geen invoerveld.
+    """
+    return {
+        "hostingmodel": [e.value for e in HostingModel],
+        "migratiepad": [e.value for e in Migratiepad],
+        "complexiteit": [e.value for e in NiveauEnum],
+        "prioriteit": [e.value for e in NiveauEnum],
+    }
 
 
 def volgende_status_na_start(huidige: LifecycleStatus) -> LifecycleStatus:

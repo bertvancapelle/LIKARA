@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
+import ToastService from 'primevue/toastservice'
 
 import App from '../App.vue'
 import AppLayout from './AppLayout.vue'
@@ -18,7 +19,10 @@ function maakRouter() {
         path: '/',
         component: AppLayout,
         meta: { requiresAuth: true },
-        children: [{ path: '', name: 'dashboard', component: DashStub }],
+        children: [
+          { path: '', name: 'dashboard', component: DashStub },
+          { path: 'applicaties', name: 'applicatie-lijst', component: { template: '<div/>' } },
+        ],
       },
       { path: '/login', name: 'login', component: { template: '<div/>' } },
     ],
@@ -36,7 +40,7 @@ async function mountShell() {
   await router.isReady()
 
   const wrapper = mount(App, {
-    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], router] },
+    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router] },
   })
   return { wrapper, logoutSpy }
 }
@@ -71,12 +75,13 @@ describe('AppLayout', () => {
     expect(link.attributes('aria-current')).toBe('page')
   })
 
-  it('toont de uitgeschakelde "binnenkort"-modulegroep (geen link)', async () => {
+  it('toont de echte Applicaties-modulelink (geen "binnenkort"-placeholder meer)', async () => {
     const { wrapper } = await mountShell()
-    const item = wrapper.find('[data-testid="nav-bwb-binnenkort"]')
-    expect(item.exists()).toBe(true)
-    expect(item.attributes('aria-disabled')).toBe('true')
-    expect(item.element.tagName).not.toBe('A')
+    expect(wrapper.find('[data-testid="nav-bwb-binnenkort"]').exists()).toBe(false)
+    const link = wrapper.find('[data-testid="nav-applicaties"]')
+    expect(link.exists()).toBe(true)
+    expect(link.element.tagName).toBe('A')
+    expect(link.attributes('href')).toContain('/applicaties')
   })
 
   it('toggelt de sidebar en werkt aria-expanded bij', async () => {

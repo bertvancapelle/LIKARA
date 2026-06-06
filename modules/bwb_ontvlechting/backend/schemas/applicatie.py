@@ -161,3 +161,12 @@ class ApplicatiePagina(BaseModel):
 
     items: list[ApplicatieRead]
     volgende_cursor: str | None = None
+
+
+class ApplicatieOpties(BaseModel):
+    """Read-only keuzewaarden per enumveld (voor de frontend-dropdowns)."""
+
+    hostingmodel: list[str]
+    migratiepad: list[str]
+    complexiteit: list[str]
+    prioriteit: list[str]

@@ -23,6 +23,7 @@ from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
 from schemas.applicatie import (
     ApplicatieCreate,
+    ApplicatieOpties,
     ApplicatiePagina,
     ApplicatieRead,
     ApplicatieUpdate,
@@ -53,6 +54,18 @@ async def lijst_applicaties(
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")
     return {"items": items, "volgende_cursor": volgende}
+
+
+@router.get("/opties", response_model=ApplicatieOpties)
+async def applicatie_opties(
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.APPLICATIE, Actie.LEZEN)),
+):
+    """Read-only keuzewaarden per enumveld (voert de frontend-dropdowns aan).
+
+    Vóór `/{applicatie_id}` gedeclareerd zodat 'opties' niet als UUID-pad wordt
+    geparsed. Geen DB-toegang; alleen de LEZEN-permissie als gate.
+    """
+    return svc.enum_opties()
 
 
 @router.get("/{applicatie_id}", response_model=ApplicatieRead)
