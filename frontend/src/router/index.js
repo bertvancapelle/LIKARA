@@ -1,10 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../store/auth'
 import LoginView from '../views/LoginView.vue'
+import AppLayout from '../layouts/AppLayout.vue'
+import DashboardView from '../views/DashboardView.vue'
 
-// Basisstructuur — module-routes worden toegevoegd onder
-// modules/<module>/frontend en hier geregistreerd. Platform-views staan in
-// src/views/. Placeholder-componenten houden de overige routes zelfstandig.
+// Publieke routes staan standalone (geen app-shell). Geauthenticeerde routes
+// hangen als children onder AppLayout: door de meta-merge erven zij
+// `requiresAuth`, zodat de guard ongewijzigd blijft werken. Module-views worden
+// later als extra children toegevoegd (eventueel met meta.roles).
 const Placeholder = { template: '<div />' }
 
 const routes = [
@@ -13,8 +16,15 @@ const routes = [
   { path: '/auth/callback', name: 'auth-callback', component: Placeholder, meta: { public: true } },
   { path: '/403', name: 'verboden', component: Placeholder, meta: { public: true } },
 
-  // Beveiligde basisroute
-  { path: '/', name: 'dashboard', component: Placeholder, meta: { requiresAuth: true } },
+  // Geauthenticeerde app-shell + geneste views
+  {
+    path: '/',
+    component: AppLayout,
+    meta: { requiresAuth: true },
+    children: [
+      { path: '', name: 'dashboard', component: DashboardView },
+    ],
+  },
 
   // Catch-all
   { path: '/:pathMatch(.*)*', redirect: '/' },
