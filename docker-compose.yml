@@ -156,6 +156,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      # Module-code (routers/services/schemas) valt buiten de api-build-context
+      # (./backend) en wordt hier bijgemount op het pad dat app.main verwacht
+      # (/modules/...), net als bij de migrate-container.
+      - ./modules:/modules
     depends_on:
       postgres:
         condition: service_healthy

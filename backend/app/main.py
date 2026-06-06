@@ -5,6 +5,8 @@ Module-routers worden hier geregistreerd onder `/api/v1` zodra modules
 worden gebouwd (zie `modules/`).
 """
 import logging
+import pathlib
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -18,6 +20,26 @@ from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from app.middleware.security_headers import SecurityHeadersMiddleware
 
 logger = logging.getLogger("cd.main")
+
+# Module-backend op sys.path zodat de module-routers/-excepties importeerbaar
+# zijn (zelfde patroon als `app.platform_init`). In de api-container wordt
+# ./modules op /modules gemount (docker-compose) — parents[2] is dan `/`.
+_MOD_BACKEND = (
+    pathlib.Path(__file__).resolve().parents[2]
+    / "modules"
+    / "bwb_ontvlechting"
+    / "backend"
+)
+if str(_MOD_BACKEND) not in sys.path:
+    sys.path.insert(0, str(_MOD_BACKEND))
+
+from routes.applicatie import router as applicatie_router  # noqa: E402
+from services.errors import (  # noqa: E402
+    NietGevonden,
+    OngeldigeStatusovergang,
+    niet_gevonden_handler,
+    ongeldige_statusovergang_handler,
+)
 
 
 @asynccontextmanager
@@ -46,7 +68,12 @@ app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 # Autorisatie (RBAC, ADR-010) — 403 bij onvoldoende rechten
 app.add_exception_handler(OnvoldoendeRechten, onvoldoende_rechten_handler)
 
+# Module-domeinfouten (bwb_ontvlechting) — canoniek foutformaat
+app.add_exception_handler(NietGevonden, niet_gevonden_handler)
+app.add_exception_handler(OngeldigeStatusovergang, ongeldige_statusovergang_handler)
+
 # Routers
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(platform.router, prefix="/api/v1")
+app.include_router(applicatie_router, prefix="/api/v1")

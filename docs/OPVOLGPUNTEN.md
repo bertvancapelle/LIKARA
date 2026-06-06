@@ -20,12 +20,20 @@ de 8-uurs refresh-grens (CLAUDE.md). Geen token client-leesbaar.
 sessie blijft staan, waardoor een volgende `/login` stil kan herinloggen.
 Aanvulling: Keycloak end-session-endpoint aanroepen bij logout.
 
-### OP-6 — Resource-ownership binnen tenant (P5/ADR-010) — OPEN
+### OP-6 — Resource-ownership binnen tenant (P5/ADR-010) — AFGEDEKT (fase 1, P5)
 
-De RBAC-guard checkt entiteit × actie; fijnmazig eigenaarschap (mag deze
-gebruiker DIT specifieke record) zit er nog niet in. Tenant-isolatie is al via
-RLS afgedekt; voeg record-niveau-ownership toe zodra dat nodig is bij de
-module-CRUD.
+Afgedekt voor fase 1 — tenant-scoped record-resolutie (kruis-tenant → 404) +
+rol + RLS volstaan; per-gebruiker-eigenaarschap niet nodig in fase 1
+(collaboratief register, ADR-009).
+
+Geïmplementeerd in P5 (Applicatie-CRUD, referentie voor de overige entiteiten):
+record-resolutie strikt binnen de tenant-sessie (RLS + expliciete
+`tenant_id`-filter); een id buiten de tenant is niet vindbaar ⇒ HTTP 404
+`NIET_GEVONDEN` (geen 403, geen onderscheid "bestaat niet" vs "andere tenant",
+dus geen lek). Binnen de tenant geldt rol-gebaseerde autorisatie via
+`vereist_permissie`; elke Medewerker/Beheerder mag elk record in de eigen tenant
+bewerken. Fijnmazig per-gebruiker-eigenaarschap is bewust uitgesteld en pas te
+heroverwegen als een toekomstige eis daarom vraagt.
 
 ### OP-7 — 401 en 403 in hetzelfde foutformaat (uit P3) — OPEN
 
