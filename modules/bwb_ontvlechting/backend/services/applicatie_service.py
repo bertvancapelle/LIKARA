@@ -14,6 +14,7 @@ Lifecycle (ADR-009): nieuw ⇒ `concept`. In P5 is uitsluitend de overgang
 zodra Checklistscore-/Blokkade-CRUD bestaat.
 """
 import uuid
+from datetime import datetime
 
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,11 +28,39 @@ from models.models import (
 )
 from schemas.applicatie import ApplicatieCreate, ApplicatieUpdate
 from services.errors import NietGevonden, OngeldigeStatusovergang
-from services.pagination import decode_cursor, encode_cursor
+from services.pagination import decode_sort_cursor, encode_sort_cursor
 
 _ENTITEIT = "applicatie"
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
+
+# Default-sortering = exact het pre-ADR-017-gedrag (created_at oplopend).
+_STANDAARD_SORT = "created_at"
+_STANDAARD_ORDER = "asc"
+
+# Allowlist-kolommen (ADR-017 B2) — single source naast de schema-enum
+# `ApplicatieSorteerveld`; `test_applicatie_sort` borgt dat beide gelijk zijn.
+_SORTEERBARE_KOLOMMEN = {
+    "created_at": Applicatie.created_at,
+    "naam": Applicatie.naam,
+    "eigenaar_organisatie": Applicatie.eigenaar_organisatie,
+    "hostingmodel": Applicatie.hostingmodel,
+    "complexiteit": Applicatie.complexiteit,
+    "prioriteit": Applicatie.prioriteit,
+    "lifecycle_status": Applicatie.lifecycle_status,
+}
+
+# Parsers die een cursor-waarde (tekst) terug naar het kolomtype brengen voor de
+# keyset-seek (`tuple_`-vergelijking bindt het juiste type).
+_WAARDE_PARSERS = {
+    "created_at": datetime.fromisoformat,
+    "naam": str,
+    "eigenaar_organisatie": str,
+    "hostingmodel": HostingModel,
+    "complexiteit": NiveauEnum,
+    "prioriteit": NiveauEnum,
+    "lifecycle_status": LifecycleStatus,
+}
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -72,27 +101,55 @@ async def lijst(
     *,
     limit: int = _STANDAARD_LIMIT,
     after: str | None = None,
+    sort: str = _STANDAARD_SORT,
+    order: str = _STANDAARD_ORDER,
 ) -> tuple[list[Applicatie], str | None]:
-    """Cursor-gepagineerde lijst binnen de tenant, gesorteerd op (created_at, id).
+    """Server-side sorteerbare keyset-lijst binnen de tenant (ADR-017).
 
-    Returnt `(items, volgende_cursor)`; `volgende_cursor` is None op de laatste
-    pagina. Een ongeldige `after`-cursor levert `ValueError` (route ⇒ 400).
+    Sorteert op `(kolom, id)` met dezelfde richting voor kolom én tiebreaker, zodat
+    één `tuple_`-rijvergelijking de seek uitdrukt (`>` asc, `<` desc). De cursor is
+    zelfbeschrijvend: een `after` die niet bij `sort`/`order` past ⇒ `ValueError`
+    (route ⇒ 400). Default (`created_at`/`asc`) = exact het pre-ADR-017-gedrag.
+
+    `sort`/`order` worden op de API-rand al gevalideerd (allowlist-enum + `asc|desc`);
+    de checks hier zijn een defensieve backstop. Een ongeldige `after`-cursor levert
+    `ValueError` (route ⇒ 400).
     """
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
 
+    if sort not in _SORTEERBARE_KOLOMMEN:
+        raise ValueError(f"onbekend sorteerveld: {sort}")
+    if order not in (_STANDAARD_ORDER, "desc"):
+        raise ValueError(f"onbekende sorteerrichting: {order}")
+    kolom = _SORTEERBARE_KOLOMMEN[sort]
+    oplopend = order == "asc"
+
     stmt = select(Applicatie).where(Applicatie.tenant_id == tid)
     if after:
-        cursor_created_at, cursor_id = decode_cursor(after)
-        stmt = stmt.where(
-            tuple_(Applicatie.created_at, Applicatie.id) > (cursor_created_at, cursor_id)
-        )
-    stmt = stmt.order_by(Applicatie.created_at, Applicatie.id).limit(limit + 1)
+        c_sort, c_order, c_waarde_str, c_id = decode_sort_cursor(after)
+        if c_sort != sort or c_order != order:
+            raise ValueError("cursor past niet bij de actieve sortering")
+        c_waarde = _WAARDE_PARSERS[sort](c_waarde_str)
+        if oplopend:
+            stmt = stmt.where(tuple_(kolom, Applicatie.id) > (c_waarde, c_id))
+        else:
+            stmt = stmt.where(tuple_(kolom, Applicatie.id) < (c_waarde, c_id))
+
+    if oplopend:
+        stmt = stmt.order_by(kolom.asc(), Applicatie.id.asc())
+    else:
+        stmt = stmt.order_by(kolom.desc(), Applicatie.id.desc())
+    stmt = stmt.limit(limit + 1)
 
     rijen = list((await session.execute(stmt)).scalars().all())
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
-    volgende = encode_cursor(items[-1]) if heeft_meer else None
+    volgende = (
+        encode_sort_cursor(sort=sort, order=order, waarde=getattr(items[-1], sort), id=items[-1].id)
+        if heeft_meer
+        else None
+    )
     return items, volgende
 
 

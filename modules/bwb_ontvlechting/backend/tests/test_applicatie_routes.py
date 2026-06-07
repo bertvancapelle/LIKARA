@@ -208,6 +208,29 @@ def test_ongeldige_uuid_pad_geeft_422(monkeypatch):
     assert resp.status_code == 422
 
 
+# ── Sorteren (ADR-017): allowlist-validatie op de API-rand ──────────────────
+
+def test_geldige_sort_en_order_geeft_200(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    resp = client.get("/api/v1/applicaties?sort=naam&order=desc")
+    assert resp.status_code == 200, resp.text
+
+
+def test_onbekend_sortveld_geeft_422(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    resp = client.get("/api/v1/applicaties?sort=geheim_veld")
+    assert resp.status_code == 422
+
+
+def test_ongeldige_order_geeft_422(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    resp = client.get("/api/v1/applicaties?order=zijwaarts")
+    assert resp.status_code == 422
+
+
 # ── Paginerings-mechaniek (service met fake-sessie; keyset is DB-zijdig) ─────
 
 class _FakeResult:
@@ -238,13 +261,16 @@ def _rij(i):
 
 def test_lijst_geeft_cursor_bij_volgende_pagina():
     from services import applicatie_service as svc
-    from services.pagination import decode_cursor
+    from services.pagination import decode_sort_cursor
 
     rows = [_rij(i) for i in range(26)]  # limit 25 → 26 rijen ⇒ er is meer
     items, cursor = asyncio.run(svc.lijst(_FakeSession(rows), TENANT_A, limit=25))
     assert len(items) == 25
     assert cursor is not None
-    _, ident = decode_cursor(cursor)
+    # White-box: de Applicatie-service geeft het zelfbeschrijvende v2-formaat uit
+    # (ADR-017). Default-pad = created_at/asc (regressie: gedrag ongewijzigd).
+    sort, order, _waarde, ident = decode_sort_cursor(cursor)
+    assert (sort, order) == ("created_at", "asc")
     assert ident == items[-1].id  # cursor verwijst naar laatste geziene rij
 
 

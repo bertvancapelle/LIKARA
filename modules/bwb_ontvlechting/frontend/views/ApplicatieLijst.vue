@@ -2,9 +2,11 @@
 /**
  * ApplicatieLijst — overzicht van applicaties (BWB-ontvlechtingsmodule).
  *
- * DataTable met cursor-paginering ("Meer laden" o.b.v. `volgende_cursor`).
- * Lifecycle-status read-only als Tag. Navigatie naar detail via een
- * toetsenbord-toegankelijke link op de naam.
+ * DataTable met server-side sorteerbare keyset-paginering (ADR-017): kolommen
+ * `sortable`, `@sort` → refetch met `sort`/`order` + **cursor-reset**; "Meer laden"
+ * (o.b.v. `volgende_cursor`) blijft binnen de actieve sortering. Lazy-modus zodat
+ * de tabel niet zelf client-side sorteert. Lifecycle-status read-only als Tag.
+ * Navigatie naar detail via een toetsenbord-toegankelijke link op de naam.
  */
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
@@ -21,12 +23,24 @@ const laden = ref(false)
 const fout = ref(null)
 const eersteGeladen = ref(false)
 
+// Sortering — null = server-default (created_at asc), niet expliciet meegestuurd
+// (backwards-compatible). PrimeVue gebruikt sortOrder 1/-1; de API asc/desc.
+const sortVeld = ref(null)
+const sortRichting = ref(null) // 'asc' | 'desc'
+const primeSortOrder = computed(() =>
+  sortRichting.value === 'asc' ? 1 : sortRichting.value === 'desc' ? -1 : 0,
+)
+
 async function laad({ reset = false } = {}) {
   laden.value = true
   fout.value = null
   try {
-    const after = reset ? undefined : cursor.value
-    const pagina = await api.applicaties.lijst({ limit: 25, after })
+    const params = { limit: 25, after: reset ? undefined : cursor.value }
+    if (sortVeld.value) {
+      params.sort = sortVeld.value
+      params.order = sortRichting.value
+    }
+    const pagina = await api.applicaties.lijst(params)
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
     cursor.value = pagina.volgende_cursor
   } catch (e) {
@@ -35,6 +49,14 @@ async function laad({ reset = false } = {}) {
     laden.value = false
     eersteGeladen.value = true
   }
+}
+
+function onSort(event) {
+  // Nieuwe sortering → cursor resetten en vanaf pagina 1 opnieuw ophalen.
+  sortVeld.value = event.sortField
+  sortRichting.value = event.sortOrder === 1 ? 'asc' : 'desc'
+  cursor.value = null
+  laad({ reset: true })
 }
 
 const hosting = (c) => label(HOSTINGMODEL, c)
@@ -73,8 +95,16 @@ onMounted(() => laad({ reset: true }))
       {{ fout }}
     </p>
 
-    <DataTable :value="items" data-testid="applicaties-tabel" class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]">
-      <Column field="naam" header="Naam">
+    <DataTable
+      :value="items"
+      lazy
+      :sort-field="sortVeld"
+      :sort-order="primeSortOrder"
+      data-testid="applicaties-tabel"
+      class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]"
+      @sort="onSort"
+    >
+      <Column field="naam" header="Naam" sortable>
         <template #body="{ data }">
           <router-link
             :to="{ name: 'applicatie-detail', params: { id: data.id } }"
@@ -85,17 +115,17 @@ onMounted(() => laad({ reset: true }))
           </router-link>
         </template>
       </Column>
-      <Column field="eigenaar_organisatie" header="Eigenaar" />
-      <Column header="Hosting">
+      <Column field="eigenaar_organisatie" header="Eigenaar" sortable />
+      <Column header="Hosting" sort-field="hostingmodel" sortable>
         <template #body="{ data }">{{ hosting(data.hostingmodel) }}</template>
       </Column>
-      <Column header="Complexiteit">
+      <Column header="Complexiteit" sort-field="complexiteit" sortable>
         <template #body="{ data }">{{ niveau(data.complexiteit) }}</template>
       </Column>
-      <Column header="Prioriteit">
+      <Column header="Prioriteit" sort-field="prioriteit" sortable>
         <template #body="{ data }">{{ niveau(data.prioriteit) }}</template>
       </Column>
-      <Column header="Status">
+      <Column header="Status" sort-field="lifecycle_status" sortable>
         <template #body="{ data }">
           <Tag
             :value="lifecycleLabel(data.lifecycle_status)"

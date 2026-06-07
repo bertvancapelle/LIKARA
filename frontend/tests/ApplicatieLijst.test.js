@@ -16,6 +16,7 @@ vi.mock('@/api', () => ({
 }))
 
 import { api } from '@/api'
+import { DataTable } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import ApplicatieLijst from '@modules/bwb_ontvlechting/frontend/views/ApplicatieLijst.vue'
 
@@ -129,5 +130,59 @@ describe('ApplicatieLijst', () => {
 
     const viewer = await mountLijst({ rollen: ['viewer'] })
     expect(viewer.find('[data-testid="nieuwe-applicatie"]').exists()).toBe(false)
+  })
+})
+
+describe('ApplicatieLijst — server-side sortering (ADR-017)', () => {
+  it('haalt opnieuw op met sort/order en reset de cursor bij een sorteerklik', async () => {
+    api.applicaties.lijst
+      .mockResolvedValueOnce({ items: [_app('Eerste', 'id-1')], volgende_cursor: 'cursor-1' })
+      .mockResolvedValueOnce({ items: [_app('Archief', 'id-2')], volgende_cursor: null })
+
+    const w = await mountLijst()
+    // eerste (default) call stuurt géén sort/order mee → backwards-compatible
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith({ limit: 25, after: undefined })
+
+    w.findComponent(DataTable).vm.$emit('sort', { sortField: 'naam', sortOrder: -1 })
+    await flushPromises()
+
+    // refetch met sort/order én cursor-reset (after: undefined)
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith({
+      limit: 25,
+      after: undefined,
+      sort: 'naam',
+      order: 'desc',
+    })
+  })
+
+  it('vertaalt sortOrder 1 naar asc', async () => {
+    api.applicaties.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+
+    w.findComponent(DataTable).vm.$emit('sort', { sortField: 'eigenaar_organisatie', sortOrder: 1 })
+    await flushPromises()
+
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith({
+      limit: 25,
+      after: undefined,
+      sort: 'eigenaar_organisatie',
+      order: 'asc',
+    })
+  })
+
+  it('zet aria-sort op de actieve kolomheader', async () => {
+    api.applicaties.lijst.mockResolvedValue({
+      items: [_app('Zaaksysteem', 'id-1')],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+
+    w.findComponent(DataTable).vm.$emit('sort', { sortField: 'naam', sortOrder: -1 })
+    await flushPromises()
+
+    const gesorteerd = w.findAll('th').filter(
+      (th) => th.attributes('aria-sort') && th.attributes('aria-sort') !== 'none',
+    )
+    expect(gesorteerd.length).toBeGreaterThan(0)
   })
 })

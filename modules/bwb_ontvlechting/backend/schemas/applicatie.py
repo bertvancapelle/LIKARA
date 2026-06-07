@@ -13,10 +13,30 @@ waarheid); een ongeldige waarde wordt door Pydantic automatisch geweigerd.
 """
 import uuid
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from models.models import HostingModel, LifecycleStatus, Migratiepad, NiveauEnum
+
+
+class ApplicatieSorteerveld(str, Enum):
+    """Allowlist van sorteerbare Applicatie-velden (ADR-017 B2).
+
+    Uitsluitend deze namen mogen in `?sort=` — een onbekende waarde wordt door
+    FastAPI op de API-rand met 422 geweigerd; geen rauwe kolomnaam bereikt ooit
+    `ORDER BY`. De service (`applicatie_service`) mapt deze namen 1-op-1 op een
+    kolom-object; een test borgt dat beide synchroon blijven. Alle velden zijn
+    NOT NULL (NULLS-randgeval treedt niet op — ADR-017 B5).
+    """
+
+    created_at = "created_at"
+    naam = "naam"
+    eigenaar_organisatie = "eigenaar_organisatie"
+    hostingmodel = "hostingmodel"
+    complexiteit = "complexiteit"
+    prioriteit = "prioriteit"
+    lifecycle_status = "lifecycle_status"
 
 # Verplichte, niet-nullbare tekstvelden mogen bij een PATCH niet expliciet op
 # null worden gezet (zou een DB NOT NULL-overtreding lekken).

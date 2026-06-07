@@ -70,7 +70,10 @@ export const api = {
   dashboard: () => request('/dashboard'),
 
   applicaties: {
-    lijst: ({ limit, after } = {}) => request(`/applicaties${_query({ limit, after })}`),
+    // sort/order optioneel — weggelaten (leeg) → server-default (created_at asc),
+    // exact backwards-compatible (ADR-017).
+    lijst: ({ limit, after, sort, order } = {}) =>
+      request(`/applicaties${_query({ limit, after, sort, order })}`),
     haal: (id) => request(`/applicaties/${id}`),
     maak: (data) => request('/applicaties', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>

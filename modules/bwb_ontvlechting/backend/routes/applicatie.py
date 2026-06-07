@@ -26,9 +26,11 @@ from schemas.applicatie import (
     ApplicatieOpties,
     ApplicatiePagina,
     ApplicatieRead,
+    ApplicatieSorteerveld,
     ApplicatieUpdate,
 )
 from services import applicatie_service as svc
+from services.pagination import Sorteerrichting
 
 router = APIRouter(prefix="/applicaties", tags=["bwb:applicatie"])
 
@@ -45,12 +47,22 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
 async def lijst_applicaties(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
+    sort: ApplicatieSorteerveld = Query(ApplicatieSorteerveld.created_at),
+    order: Sorteerrichting = Query(Sorteerrichting.asc),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.APPLICATIE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Cursor-gepagineerde lijst binnen de tenant."""
+    """Server-side sorteerbare keyset-lijst binnen de tenant (ADR-017).
+
+    `sort`/`order` zijn optioneel; weglaten = het pre-ADR-017-gedrag
+    (`created_at` oplopend). Een onbekend `sort`-veld of ongeldige `order` wordt
+    door FastAPI met 422 geweigerd (allowlist-enum); een cursor die niet bij de
+    actieve sortering past ⇒ 400 `ONGELDIGE_CURSOR`.
+    """
     try:
-        items, volgende = await svc.lijst(session, user.tenant_id, limit=limit, after=after)
+        items, volgende = await svc.lijst(
+            session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value
+        )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")
     return {"items": items, "volgende_cursor": volgende}
