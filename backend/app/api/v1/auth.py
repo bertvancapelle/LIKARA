@@ -21,6 +21,7 @@ from app.core.keycloak import (
     AUTHORIZATION_URL,
     decode_id_token,
     exchange_code_for_tokens,
+    get_end_session_url,
     refresh_access_token,
 )
 from app.core.pkce import (
@@ -247,14 +248,33 @@ async def me(
     return asdict(user)
 
 
-@router.post("/logout")
-async def logout(response: Response):
-    """Wis de sessie-cookie. SSO-logout via Keycloak volgt met de auth-flow."""
+def _wis_cookie(response: Response, naam: str) -> None:
+    """Wis een cookie met dezelfde attributen als bij het zetten."""
     response.delete_cookie(
-        key=settings.cookie_name,
+        key=naam,
         domain=settings.cookie_domain,
         samesite=settings.cookie_samesite,
         secure=settings.cookie_secure,
         httponly=True,
+        path="/",
     )
-    return {"status": "uitgelogd"}
+
+
+@router.post("/logout")
+async def logout(request: Request, response: Response):
+    """RP-initiated logout (OP-4): lokale intrekking + Keycloak end-session.
+
+    1. Verwijder het Redis-refresh-handle (ADR-015-raakvlak; het OP-3-token mag
+       niet blijven leven), idempotent. 2. Wis `cd_session` én `cd_refresh`.
+       3. Geef de Keycloak end-session-URL terug; de frontend navigeert ernaartoe
+       zodat ook de SSO-sessie eindigt (anders logt de volgende /login stil weer in).
+    """
+    sessie_id = request.cookies.get(settings.refresh_cookie_name)
+    if sessie_id:
+        r = await get_redis()
+        await r.delete(f"{_REFRESH_PREFIX}{sessie_id}")  # idempotent
+
+    _wis_cookie(response, settings.cookie_name)
+    _wis_cookie(response, settings.refresh_cookie_name)
+
+    return {"status": "uitgelogd", "keycloak_logout_url": get_end_session_url()}

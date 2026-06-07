@@ -385,3 +385,46 @@ def test_refresh_keycloak_weigert_ruimt_handle_op(client, fake_redis, monkeypatc
     assert resp.status_code == 401
     assert resp.json()["fout"]["code"] == "NIET_GEAUTHENTICEERD"
     assert "auth_refresh:sid-2" not in fake_redis.store  # onbruikbaar handle opgeruimd (B5)
+
+
+# ── /auth/logout — RP-initiated (OP-4) ───────────────────────────────────────
+
+
+def test_logout_wist_beide_cookies_en_redis_handle(client, fake_redis):
+    fake_redis.store["auth_refresh:sid-9"] = "rt"
+    client.cookies.set(settings.refresh_cookie_name, "sid-9")
+
+    resp = client.post("/api/v1/auth/logout")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # Redis-refresh-handle verwijderd (ADR-015-raakvlak)
+    assert "auth_refresh:sid-9" not in fake_redis.store
+
+    # beide cookies gewist
+    rauw = " ".join(resp.headers.get_list("set-cookie")).lower()
+    assert f"{settings.cookie_name}=".lower() in rauw
+    assert f"{settings.refresh_cookie_name}=".lower() in rauw
+
+    # Keycloak end-session-URL: endpoint + post_logout_redirect_uri + client_id
+    url = body["keycloak_logout_url"]
+    assert "/protocol/openid-connect/logout" in url
+    assert "post_logout_redirect_uri=" in url
+    assert f"client_id={settings.keycloak_client_id}" in url
+
+
+def test_logout_idempotent_zonder_sessie(client, fake_redis):
+    # Geen cd_refresh-cookie / geen handle → geen fout, wel keycloak_logout_url.
+    resp = client.post("/api/v1/auth/logout")
+    assert resp.status_code == 200
+    assert "keycloak_logout_url" in resp.json()
+
+
+def test_logout_redirect_uri_is_serverconfig_geen_userinput(client, fake_redis):
+    # post_logout_redirect_uri komt uit config (platform_origin/login), niet uit
+    # een query-param → geen open redirect.
+    resp = client.post("/api/v1/auth/logout?post_logout_redirect_uri=https://kwaad.example")
+    url = resp.json()["keycloak_logout_url"]
+    assert "kwaad.example" not in url
+    q = parse_qs(urlparse(url).query)
+    assert q["post_logout_redirect_uri"][0] == f"{settings.platform_origin}/login"

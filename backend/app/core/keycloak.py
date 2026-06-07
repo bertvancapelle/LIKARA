@@ -1,4 +1,5 @@
 import logging
+from urllib.parse import urlencode
 
 import httpx
 from functools import lru_cache
@@ -90,13 +91,24 @@ def decode_id_token(token: str, expected_nonce: str | None = None) -> dict:
     return claims
 
 
-async def get_end_session_url(id_token_hint: str) -> str:
-    """Bouw de Keycloak end-session URL voor volledige SSO-logout."""
-    return (
-        f"{OIDC_EXTERNAL_BASE}/logout"
-        f"?id_token_hint={id_token_hint}"
-        f"&post_logout_redirect_uri={settings.platform_origin}/login"
-    )
+def get_end_session_url(id_token_hint: str | None = None) -> str:
+    """Bouw de Keycloak end-session URL voor RP-initiated logout (OP-4).
+
+    Browser-facing (`OIDC_EXTERNAL_BASE`). Zonder `id_token_hint` gebruiken we
+    `client_id` + `post_logout_redirect_uri` — Keycloak accepteert die combinatie
+    en valideert de redirect tegen `post.logout.redirect.uris` van de client. De
+    `post_logout_redirect_uri` is server-config (geen user-input → geen open
+    redirect).
+    """
+    params = {
+        "post_logout_redirect_uri": (
+            settings.post_logout_redirect_uri or f"{settings.platform_origin}/login"
+        ),
+        "client_id": settings.keycloak_client_id,
+    }
+    if id_token_hint:
+        params["id_token_hint"] = id_token_hint
+    return f"{OIDC_EXTERNAL_BASE}/logout?{urlencode(params)}"
 
 
 async def get_admin_token() -> str:

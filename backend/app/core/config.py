@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     # OAuth2/OIDC — Authorization Code + PKCE (ADR-002)
     # Leeg = afgeleid van platform_origin (+ /api/v1/auth/callback); configureerbaar via env.
     oidc_redirect_uri: str = ""
+    # RP-initiated logout (OP-4). Leeg = afgeleid van platform_origin (+ /login).
+    post_logout_redirect_uri: str = ""
     auth_state_ttl: int = 600  # login-state (verifier/nonce/next) in Redis — 10 min
 
     # Rate limiting
