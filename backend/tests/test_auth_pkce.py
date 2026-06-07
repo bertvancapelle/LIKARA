@@ -336,16 +336,20 @@ def test_callback_bewaart_refresh_token_in_redis(client, fake_redis, monkeypatch
     setcookie = resp.headers["set-cookie"].lower()
     assert settings.refresh_cookie_name.lower() in setcookie  # cd_refresh-cookie gezet
     handles = {k: v for k, v in fake_redis.store.items() if k.startswith("auth_refresh:")}
-    assert list(handles.values()) == ["rt-1"]  # refresh_token server-side bewaard
+    opgeslagen = json.loads(list(handles.values())[0])  # JSON {refresh_token, id_token}
+    assert opgeslagen["refresh_token"] == "rt-1"
+    assert opgeslagen["id_token"] == "id"  # id_token meebewaard voor logout-hint
 
 
 def test_refresh_geldig_handle_rouleert_en_zet_nieuwe_sessie(client, fake_redis, monkeypatch):
-    fake_redis.store["auth_refresh:sid-1"] = "rt-old"
+    fake_redis.store["auth_refresh:sid-1"] = json.dumps(
+        {"refresh_token": "rt-old", "id_token": "id-old"}
+    )
     client.cookies.set(settings.refresh_cookie_name, "sid-1")
 
     async def fake_refresh(refresh_token):
         assert refresh_token == "rt-old"
-        return {"access_token": "acc-new", "refresh_token": "rt-new"}
+        return {"access_token": "acc-new", "refresh_token": "rt-new", "id_token": "id-new"}
 
     monkeypatch.setattr("app.api.v1.auth.refresh_access_token", fake_refresh)
 
@@ -354,7 +358,10 @@ def test_refresh_geldig_handle_rouleert_en_zet_nieuwe_sessie(client, fake_redis,
     setcookie = resp.headers["set-cookie"].lower()
     assert f"{settings.cookie_name}=acc-new".lower() in setcookie  # nieuw cd_session
     assert "httponly" in setcookie
-    assert fake_redis.store["auth_refresh:sid-1"] == "rt-new"  # rotatie: nieuwste bewaard
+    # rotatie: nieuwste refresh + ververst id_token bewaard
+    opgeslagen = json.loads(fake_redis.store["auth_refresh:sid-1"])
+    assert opgeslagen["refresh_token"] == "rt-new"
+    assert opgeslagen["id_token"] == "id-new"
 
 
 def test_refresh_zonder_cookie_401_canoniek(client, fake_redis):
@@ -443,3 +450,27 @@ def test_me_token_zonder_tenant_403_canoniek(client, monkeypatch):
     assert body["fout"]["code"] == "TENANT_MISMATCH"
     assert body["fout"]["http_status"] == 403
     assert "detail" not in body  # geen oude detail-vorm meer
+
+
+def test_logout_met_id_token_zet_hint_in_url(client, fake_redis):
+    # Handle mét id_token → id_token_hint in de end-session-URL (naadloze logout).
+    fake_redis.store["auth_refresh:sid-h"] = json.dumps(
+        {"refresh_token": "rt", "id_token": "ID-TOK"}
+    )
+    client.cookies.set(settings.refresh_cookie_name, "sid-h")
+    resp = client.post("/api/v1/auth/logout")
+    assert resp.status_code == 200
+    url = resp.json()["keycloak_logout_url"]
+    q = parse_qs(urlparse(url).query)
+    assert q["id_token_hint"][0] == "ID-TOK"
+    assert "auth_refresh:sid-h" not in fake_redis.store  # handle opgeruimd
+
+
+def test_logout_zonder_id_token_valt_terug_op_client_id(client, fake_redis):
+    # Oud/edge handle zonder id_token → geen hint, client_id-fallback (backward-compat).
+    fake_redis.store["auth_refresh:sid-n"] = json.dumps({"refresh_token": "rt", "id_token": None})
+    client.cookies.set(settings.refresh_cookie_name, "sid-n")
+    url = client.post("/api/v1/auth/logout").json()["keycloak_logout_url"]
+    q = parse_qs(urlparse(url).query)
+    assert "id_token_hint" not in q
+    assert q["client_id"][0] == settings.keycloak_client_id

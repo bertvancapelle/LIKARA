@@ -76,6 +76,24 @@ def _zet_refresh_cookie(response: Response | RedirectResponse, sessie_id: str) -
     )
 
 
+def _serialize_handle(refresh_token: str, id_token: str | None) -> str:
+    """Redis-refresh-handle: refresh_token + id_token (voor id_token_hint bij logout)."""
+    return json.dumps({"refresh_token": refresh_token, "id_token": id_token})
+
+
+def _parse_handle(ruw: str | None) -> dict | None:
+    """Lees het handle; tolerant voor oude plain-string-handles (pre-CD010)."""
+    if not ruw:
+        return None
+    try:
+        data = json.loads(ruw)
+        if isinstance(data, dict):
+            return data
+    except (ValueError, TypeError):
+        pass
+    return {"refresh_token": ruw, "id_token": None}  # oud formaat
+
+
 def _effective_redirect_uri() -> str:
     """OAuth2 redirect_uri — configureerbaar, anders afgeleid van platform_origin."""
     return settings.oidc_redirect_uri or f"{settings.platform_origin}/api/v1/auth/callback"
@@ -193,7 +211,9 @@ async def callback(request: Request):
     if refresh_token:
         sessie_id = generate_state()
         await r.set(
-            f"{_REFRESH_PREFIX}{sessie_id}", refresh_token, ex=settings.refresh_token_max_age
+            f"{_REFRESH_PREFIX}{sessie_id}",
+            _serialize_handle(refresh_token, id_token),  # id_token → id_token_hint bij logout
+            ex=settings.refresh_token_max_age,
         )
         _zet_refresh_cookie(response, sessie_id)
     return response
@@ -214,12 +234,12 @@ async def refresh(request: Request):
 
     r = await get_redis()
     sleutel = f"{_REFRESH_PREFIX}{sessie_id}"
-    refresh_token = await r.get(sleutel)
-    if not refresh_token:
+    handle = _parse_handle(await r.get(sleutel))
+    if not handle or not handle.get("refresh_token"):
         raise NietGeauthenticeerd("Sessie verlopen.")
 
     try:
-        tokens = await refresh_access_token(refresh_token)
+        tokens = await refresh_access_token(handle["refresh_token"])
     except Exception:
         await r.delete(sleutel)  # onbruikbaar geworden handle opruimen (B5)
         raise NietGeauthenticeerd("Sessie verlopen.")
@@ -229,10 +249,16 @@ async def refresh(request: Request):
         await r.delete(sleutel)
         raise NietGeauthenticeerd("Sessie verlopen.")
 
-    # Rotatie (B3): bewaar het nieuwste refresh_token; overschrijf het oude.
-    nieuw_refresh = tokens.get("refresh_token")
-    if nieuw_refresh:
-        await r.set(sleutel, nieuw_refresh, ex=settings.refresh_token_max_age)
+    # Rotatie (B3): bewaar het nieuwste refresh_token + (indien aanwezig) het nieuwe
+    # id_token, zodat de logout-hint geldig blijft; anders behoud het bestaande.
+    await r.set(
+        sleutel,
+        _serialize_handle(
+            tokens.get("refresh_token") or handle["refresh_token"],
+            tokens.get("id_token") or handle.get("id_token"),
+        ),
+        ex=settings.refresh_token_max_age,
+    )
 
     response = Response(status_code=204)
     _zet_session_cookie(response, access_token)
@@ -269,12 +295,18 @@ async def logout(request: Request, response: Response):
        3. Geef de Keycloak end-session-URL terug; de frontend navigeert ernaartoe
        zodat ook de SSO-sessie eindigt (anders logt de volgende /login stil weer in).
     """
+    id_token_hint = None
     sessie_id = request.cookies.get(settings.refresh_cookie_name)
     if sessie_id:
         r = await get_redis()
-        await r.delete(f"{_REFRESH_PREFIX}{sessie_id}")  # idempotent
+        sleutel = f"{_REFRESH_PREFIX}{sessie_id}"
+        handle = _parse_handle(await r.get(sleutel))
+        if handle:
+            id_token_hint = handle.get("id_token")  # naadloze logout (geen confirm-scherm)
+        await r.delete(sleutel)  # idempotent
 
     _wis_cookie(response, settings.cookie_name)
     _wis_cookie(response, settings.refresh_cookie_name)
 
-    return {"status": "uitgelogd", "keycloak_logout_url": get_end_session_url()}
+    # Met id_token_hint slaat Keycloak het bevestigingsscherm over; zonder → client_id-fallback.
+    return {"status": "uitgelogd", "keycloak_logout_url": get_end_session_url(id_token_hint)}
