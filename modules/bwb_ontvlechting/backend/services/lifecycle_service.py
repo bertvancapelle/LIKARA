@@ -18,17 +18,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
+    ACTIEVE_BLOKKADE_STATUSSEN,
     Applicatie,
     Blokkade,
-    BlokkadeStatus,
     ChecklistVraag,
     Checklistscore,
     LifecycleStatus,
 )
 from services.errors import NietGevonden
-
-# Blokkades die nog niet zijn opgelost (tellen als "open" voor de afleiding).
-_ACTIEVE_BLOKKADE_STATUSSEN = (BlokkadeStatus.open, BlokkadeStatus.in_behandeling)
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -100,7 +97,7 @@ async def herbereken_lifecycle(
             .where(
                 Blokkade.tenant_id == tid,
                 Blokkade.applicatie_id == applicatie_id,
-                Blokkade.status.in_(_ACTIEVE_BLOKKADE_STATUSSEN),
+                Blokkade.status.in_(ACTIEVE_BLOKKADE_STATUSSEN),
             )
         )
     ).scalar_one()

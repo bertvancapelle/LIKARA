@@ -103,6 +103,13 @@ class BlokkadeStatus(str, Enum):
     opgelost = "opgelost"
 
 
+# Blokkades die nog niet zijn opgelost — de ADR-013-definitie van "open" waarop
+# een applicatie op `geblokkeerd` wordt gezet. Single source: zowel de
+# lifecycle-herberekening als het dashboard verwijzen hiernaar (geen kopieën die
+# stil uit elkaar lopen). Immutable.
+ACTIEVE_BLOKKADE_STATUSSEN = frozenset({BlokkadeStatus.open, BlokkadeStatus.in_behandeling})
+
+
 class ChecklistPrioriteit(str, Enum):
     hoog = "hoog"
     midden = "midden"

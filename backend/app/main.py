@@ -42,6 +42,7 @@ if str(_MOD_BACKEND) not in sys.path:
 from routes.applicatie import router as applicatie_router  # noqa: E402
 from routes.blokkade import router as blokkade_router  # noqa: E402
 from routes.checklistscore import router as checklistscore_router  # noqa: E402
+from routes.dashboard import router as dashboard_router  # noqa: E402
 from routes.checklistvraag import router as checklistvraag_router  # noqa: E402
 from routes.datatype import router as datatype_router  # noqa: E402
 from routes.gebruikersgroep import router as gebruikersgroep_router  # noqa: E402
@@ -106,3 +107,4 @@ app.include_router(koppeling_router, prefix="/api/v1")
 app.include_router(checklistscore_router, prefix="/api/v1")
 app.include_router(blokkade_router, prefix="/api/v1")
 app.include_router(checklistvraag_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")

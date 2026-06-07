@@ -66,6 +66,9 @@ export const api = {
   me: () => request('/auth/me'),
   logout: () => request('/auth/logout', { method: 'POST' }),
 
+  // Tenant-breed dashboard-overzicht (read-only aggregatie, één respons).
+  dashboard: () => request('/dashboard'),
+
   applicaties: {
     lijst: ({ limit, after } = {}) => request(`/applicaties${_query({ limit, after })}`),
     haal: (id) => request(`/applicaties/${id}`),
