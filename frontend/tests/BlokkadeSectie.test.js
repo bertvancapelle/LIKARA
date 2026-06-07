@@ -54,22 +54,41 @@ describe('BlokkadeSectie', () => {
     expect(w.text()).not.toContain('Verwijderen')
   })
 
-  it('bewerkt een blokkade via PATCH (status/toelichting/eigenaar)', async () => {
+  it('bewerkt een blokkade via PATCH; dropdown alleen open/in_behandeling (ADR-016)', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="bk-bewerk-b1"]').trigger('click')
     await flushPromises()
-    // status-dropdown bevat alle drie de waarden
-    expect(w.find('[data-testid="bk-veld-status"]').findAll('option').length).toBe(3)
-    await w.find('[data-testid="bk-veld-status"]').setValue('opgelost')
+    // ADR-016: handmatige keuze is open/in_behandeling — `opgelost` is GEEN optie.
+    const opties = w.find('[data-testid="bk-veld-status"]').findAll('option')
+    expect(opties.length).toBe(2)
+    expect(opties.map((o) => o.element.value)).toEqual(['open', 'in_behandeling'])
+    await w.find('[data-testid="bk-veld-status"]').setValue('in_behandeling')
     await w.find('[data-testid="bk-veld-eigenaar"]').setValue('Migratieteam')
     await w.find('[data-testid="bk-form"]').trigger('submit')
     await flushPromises()
     expect(api.blokkades.werkBij).toHaveBeenCalledWith('b1', {
-      status: 'opgelost',
+      status: 'in_behandeling',
       toelichting: 'iets',
       eigenaar: 'Migratieteam',
     })
     expect(w.emitted('gewijzigd')).toBeTruthy()
+  })
+
+  it('opgeloste blokkade: status read-only badge, geen select, status niet meegestuurd', async () => {
+    const w = await mountSectie({ items: [_blok('b2', 'opgelost')] })
+    await w.find('[data-testid="bk-bewerk-b2"]').trigger('click')
+    await flushPromises()
+    // read-only weergave i.p.v. een keuze
+    expect(w.find('[data-testid="bk-status-readonly"]').exists()).toBe(true)
+    expect(w.find('[data-testid="bk-veld-status"]').exists()).toBe(false)
+    await w.find('[data-testid="bk-veld-eigenaar"]').setValue('Nieuw Team')
+    await w.find('[data-testid="bk-form"]').trigger('submit')
+    await flushPromises()
+    // PATCH zonder status (anders 409 backend-guard)
+    expect(api.blokkades.werkBij).toHaveBeenCalledWith('b2', {
+      toelichting: 'iets',
+      eigenaar: 'Nieuw Team',
+    })
   })
 
   it('toont 422-veldfout in de Dialog op het juiste veld', async () => {

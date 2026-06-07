@@ -32,10 +32,15 @@ const aantalOpen = computed(
 
 const dialogOpen = ref(false)
 const bewerkenId = ref(null)
+const bewerkenOpgelost = ref(false) // ADR-016: opgelost = read-only, niet handmatig
 const bezig = ref(false)
 const form = reactive({ status: '', toelichting: '', eigenaar: '' })
 const fouten = reactive({})
 let laatsteTrigger = null
+
+// ADR-016: handmatig alleen open ↔ in_behandeling; `opgelost` ontstaat enkel via
+// de auto-logica (Checklistscore ja/nvt) → geen keuze-optie in de dropdown.
+const handmatigeStatusOpties = computed(() => opties.value.status.filter((s) => s !== 'opgelost'))
 
 function _toastFout(e) {
   const per = { 403: 'Geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Conflict.' }
@@ -70,6 +75,7 @@ async function _laadOptiesEenmalig() {
 async function openBewerken(e, rij) {
   laatsteTrigger = e?.currentTarget ?? null
   bewerkenId.value = rij.id
+  bewerkenOpgelost.value = rij.status === 'opgelost'
   Object.keys(fouten).forEach((k) => delete fouten[k])
   Object.assign(form, { status: rij.status, toelichting: rij.toelichting || '', eigenaar: rij.eigenaar || '' })
   await _laadOptiesEenmalig()
@@ -77,7 +83,11 @@ async function openBewerken(e, rij) {
 }
 
 function focusEerste() {
-  setTimeout(() => document.getElementById('bk-status')?.focus?.(), 0)
+  // Bij een opgeloste blokkade is er geen status-select → focus het eerste editbare veld.
+  setTimeout(
+    () => (document.getElementById('bk-status') || document.getElementById('bk-eigenaar'))?.focus?.(),
+    0,
+  )
 }
 function onHide() {
   laatsteTrigger?.focus?.()
@@ -100,17 +110,21 @@ function _serverveldfouten(e) {
 
 async function opslaan() {
   Object.keys(fouten).forEach((k) => delete fouten[k])
-  if (!form.status) {
-    fouten.status = 'Maak een keuze.'
-    return
+  const payload = {
+    toelichting: form.toelichting.trim() || null,
+    eigenaar: form.eigenaar.trim() || null,
+  }
+  // Opgeloste blokkade: status NIET meesturen (read-only; backend-guard ADR-016).
+  if (!bewerkenOpgelost.value) {
+    if (!form.status) {
+      fouten.status = 'Maak een keuze.'
+      return
+    }
+    payload.status = form.status
   }
   bezig.value = true
   try {
-    await api.blokkades.werkBij(bewerkenId.value, {
-      status: form.status,
-      toelichting: form.toelichting.trim() || null,
-      eigenaar: form.eigenaar.trim() || null,
-    })
+    await api.blokkades.werkBij(bewerkenId.value, payload)
     toast.add({ severity: 'success', summary: 'Blokkade bijgewerkt', life: 3000 })
     dialogOpen.value = false
     await laad({ reset: true })
@@ -153,9 +167,14 @@ laad({ reset: true })
     <Dialog v-model:visible="dialogOpen" modal :closable="false" header="Blokkade bewerken" data-testid="bk-dialog" @show="focusEerste" @hide="onHide">
       <form class="flex flex-col gap-[var(--cd-space-md)] min-w-[20rem]" data-testid="bk-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--cd-space-xs)]">
-          <label for="bk-status" class="font-semibold">Status *</label>
-          <select id="bk-status" autofocus v-model="form.status" data-testid="bk-veld-status" :aria-invalid="!!fouten.status" aria-describedby="bk-fout-status" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
-            <option v-for="s in opties.status" :key="s" :value="s">{{ label(BLOKKADE_STATUS, s) }}</option>
+          <label for="bk-status" class="font-semibold">Status<span v-if="!bewerkenOpgelost"> *</span></label>
+          <!-- ADR-016: opgelost is read-only (auto-afgeleid), niet handmatig kiesbaar. -->
+          <template v-if="bewerkenOpgelost">
+            <Tag data-testid="bk-status-readonly" :value="label(BLOKKADE_STATUS, 'opgelost')" :severity="BLOKKADE_STATUS_SEVERITY.opgelost" />
+            <span data-testid="bk-status-readonly-hint" class="text-[var(--cd-color-text-muted)] text-[length:var(--cd-text-sm)]">Auto-opgelost — niet handmatig wijzigbaar.</span>
+          </template>
+          <select v-else id="bk-status" autofocus v-model="form.status" data-testid="bk-veld-status" :aria-invalid="!!fouten.status" aria-describedby="bk-fout-status" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+            <option v-for="s in handmatigeStatusOpties" :key="s" :value="s">{{ label(BLOKKADE_STATUS, s) }}</option>
           </select>
           <span v-if="fouten.status" id="bk-fout-status" role="alert" data-testid="bk-fout-status" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.status }}</span>
         </div>

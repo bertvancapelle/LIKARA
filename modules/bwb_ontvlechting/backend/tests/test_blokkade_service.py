@@ -27,29 +27,32 @@ def test_geen_handmatige_aanmaak_of_verwijder():
     assert not hasattr(svc, "verwijder")
 
 
-def test_werk_bij_naar_opgelost_zet_tijd_en_herberekent(monkeypatch):
+def test_werk_bij_handmatig_opgelost_weigeren_409(monkeypatch):
+    # ADR-016: `opgelost` mag NIET handmatig — uitsluitend via de auto-logica.
     from models.models import BlokkadeStatus
     from schemas.blokkade import BlokkadeUpdate
     from services import blokkade_service as svc, lifecycle_service
+    from services.errors import OngeldigeStatusovergang
 
     blok = SimpleNamespace(status=BlokkadeStatus.open, opgelost_op=None, applicatie_id=_APP)
     session = AsyncMock()
     session.execute.return_value = _result(blok)
 
-    aangeroepen = {}
+    herberekend = {}
 
     async def _herb(session, tenant_id, app_id):
-        aangeroepen["app"] = app_id
+        herberekend["app"] = app_id
 
     monkeypatch.setattr(lifecycle_service, "herbereken_lifecycle", _herb)
 
-    obj = asyncio.run(
-        svc.werk_bij(session, uuid.uuid4(), uuid.uuid4(), BlokkadeUpdate(status="opgelost"))
-    )
+    with pytest.raises(OngeldigeStatusovergang):
+        asyncio.run(
+            svc.werk_bij(session, uuid.uuid4(), uuid.uuid4(), BlokkadeUpdate(status="opgelost"))
+        )
 
-    assert obj.status == BlokkadeStatus.opgelost
-    assert obj.opgelost_op is not None
-    assert aangeroepen.get("app") == _APP
+    # Geweigerd vóór mutatie/herberekening: status ongewijzigd, geen herbereken-call.
+    assert blok.status == BlokkadeStatus.open
+    assert "app" not in herberekend
 
 
 def test_werk_bij_terug_naar_open_leegt_tijd(monkeypatch):

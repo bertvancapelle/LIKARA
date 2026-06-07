@@ -29,6 +29,12 @@ deterministische, herhaalbare afleiding nodig.
 
 ### B1 — Model A: automatisch afgeleide blokkades
 
+> **Geamendeerd door [ADR-016](ADR-016_lifecycle-reconciliatie-blokkade-opgelost.md)
+> (V012):** handmatig alleen `open ↔ in_behandeling`; `opgelost` ontstaat
+> uitsluitend via de auto-logica (score `ja`/`nvt`). Een handmatige `opgelost` ⇒
+> 409. Lees de onderstaande zin "doorloopt handmatig `open → in_behandeling →
+> opgelost`" met die beperking.
+
 Een **Blokkade ontstaat automatisch** zodra een Checklistscore de waarde `nee`
 of `deels` krijgt (start in status `open`). De mens vult vervolgens
 `toelichting`/`eigenaar` en doorloopt handmatig `open → in_behandeling →

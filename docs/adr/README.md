@@ -24,6 +24,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-013 | Lifecycle-herberekening (Model A): afgeleide blokkades + deterministische status | Aanvaard |
 | ADR-014 | Canoniek foutformaat: 401 gelijktrekken, 422 bewust native | Aanvaard |
 | ADR-015 | Refresh-token-subsysteem: Keycloak-gedelegeerd, Redis-opslag | Aanvaard |
+| ADR-016 | Blokkade-`opgelost` volledig afgeleid (amendeert ADR-013 B1) | Aanvaard |
 
 ADR-002 t/m ADR-008 en ADR-010 zijn gereserveerd (zie `CLAUDE.md` →
 ADR-referentie) en worden geschreven wanneer de betreffende beslissing speelt.

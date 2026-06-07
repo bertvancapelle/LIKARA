@@ -38,7 +38,12 @@ def _maak_app(monkeypatch, payload):
     from app.middleware.tenant import get_tenant_session
     from routes.blokkade import router
     from services import blokkade_service as svc
-    from services.errors import NietGevonden, niet_gevonden_handler
+    from services.errors import (
+        NietGevonden,
+        OngeldigeStatusovergang,
+        niet_gevonden_handler,
+        ongeldige_statusovergang_handler,
+    )
 
     monkeypatch.setattr(auth_mod, "decode_token", lambda token: payload)
 
@@ -55,6 +60,7 @@ def _maak_app(monkeypatch, payload):
     app = FastAPI()
     app.add_exception_handler(OnvoldoendeRechten, onvoldoende_rechten_handler)
     app.add_exception_handler(NietGevonden, niet_gevonden_handler)
+    app.add_exception_handler(OngeldigeStatusovergang, ongeldige_statusovergang_handler)
     app.include_router(router, prefix="/api/v1")
 
     async def _fake_session():
@@ -100,6 +106,20 @@ def test_rolmatrix(monkeypatch, rol, actie, method, pad, body, ok_code):
     else:
         assert resp.status_code == 403, resp.text
         assert resp.json()["fout"]["code"] == "ONVOLDOENDE_RECHTEN"
+
+
+def test_handmatig_opgelost_geeft_409(monkeypatch):
+    # ADR-016: handmatige status=opgelost → 409 canoniek (auto-pad ongemoeid).
+    app, svc = _maak_app(monkeypatch, _payload("medewerker"))
+    from services.errors import OngeldigeStatusovergang
+
+    async def _raise(*a, **k):
+        raise OngeldigeStatusovergang("open", "opgelost")
+
+    monkeypatch.setattr(svc, "werk_bij", _raise)
+    resp = _client(app).patch(f"/api/v1/blokkades/{_ID}", json={"status": "opgelost"})
+    assert resp.status_code == 409
+    assert resp.json()["fout"]["code"] == "ONGELDIGE_STATUSOVERGANG"
 
 
 def test_geen_post_op_collectie(monkeypatch):

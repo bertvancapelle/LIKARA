@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import Blokkade, BlokkadeStatus
 from schemas.blokkade import BlokkadeUpdate
 from services import lifecycle_service
-from services.errors import NietGevonden
+from services.errors import NietGevonden, OngeldigeStatusovergang
 from services.pagination import decode_cursor, encode_cursor
 
 _ENTITEIT = "blokkade"
@@ -87,6 +87,13 @@ async def werk_bij(
     """
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, blokkade_id)
+
+    # ADR-016: handmatig alleen `open ↔ in_behandeling`. `opgelost` ontstaat
+    # UITSLUITEND via de auto-logica (Checklistscore `ja`/`nvt`), die buiten dit
+    # pad om loopt (checklistscore_service._synchroniseer_blokkade).
+    if data.status == BlokkadeStatus.opgelost:
+        raise OngeldigeStatusovergang(obj.status, BlokkadeStatus.opgelost)
+
     for veld, waarde in data.model_dump(exclude_unset=True).items():
         setattr(obj, veld, waarde)
 
