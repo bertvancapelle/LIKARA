@@ -9,7 +9,8 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isAuthenticated: (state) => !!state.user,
-    tenantSlug: (state) => state.user?.tenant_slug ?? null,
+    // /auth/me levert `tenant_id` (UUID); geen slug. (Was `tenant_slug` → altijd null.)
+    tenantId: (state) => state.user?.tenant_id ?? null,
     roles: (state) => state.user?.roles ?? [],
   },
   actions: {
