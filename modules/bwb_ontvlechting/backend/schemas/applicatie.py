@@ -38,6 +38,18 @@ class ApplicatieSorteerveld(str, Enum):
     prioriteit = "prioriteit"
     lifecycle_status = "lifecycle_status"
 
+
+class ApplicatieStatusFilter(str, Enum):
+    """Allowlist voor het `?status=`-filter (CD017) — de **4 reële** lifecycle-
+    statussen. De transient `checklist_compleet` (ADR-013 B4) ontbreekt bewust:
+    die wordt nooit opgeslagen, dus filteren erop zou altijd leeg zijn. Een
+    onbekende waarde ⇒ 422 (API-rand). Multi-select → `IN`-clause."""
+
+    concept = "concept"
+    in_inventarisatie = "in_inventarisatie"
+    geblokkeerd = "geblokkeerd"
+    migratieklaar = "migratieklaar"
+
 # Verplichte, niet-nullbare tekstvelden mogen bij een PATCH niet expliciet op
 # null worden gezet (zou een DB NOT NULL-overtreding lekken).
 _VERPLICHTE_VELDEN = frozenset(

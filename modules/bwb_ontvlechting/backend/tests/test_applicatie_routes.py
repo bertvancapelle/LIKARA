@@ -231,6 +231,40 @@ def test_ongeldige_order_geeft_422(monkeypatch):
     assert resp.status_code == 422
 
 
+# ── Registerfilters (CD017): allowlist + lengtevalidatie op de API-rand ─────
+
+def test_geldige_filters_geven_200(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    resp = client.get(
+        "/api/v1/applicaties?status=concept&status=geblokkeerd"
+        "&hostingmodel=saas&eigenaar=tiel&zoek=zaak"
+    )
+    assert resp.status_code == 200, resp.text
+
+
+def test_ongeldig_statusfilter_geeft_422(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    # checklist_compleet is transient en zit bewust niet in de filter-allowlist
+    assert client.get("/api/v1/applicaties?status=onzin").status_code == 422
+    assert client.get("/api/v1/applicaties?status=checklist_compleet").status_code == 422
+
+
+def test_ongeldig_hostingmodel_geeft_422(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    resp = client.get("/api/v1/applicaties?hostingmodel=mainframe")
+    assert resp.status_code == 422
+
+
+def test_te_lange_zoekterm_geeft_422(monkeypatch):
+    app, _ = _maak_app(monkeypatch, _payload("viewer"))
+    client = _client(app)
+    assert client.get(f"/api/v1/applicaties?zoek={'a' * 101}").status_code == 422
+    assert client.get(f"/api/v1/applicaties?eigenaar={'b' * 121}").status_code == 422
+
+
 # ── Paginerings-mechaniek (service met fake-sessie; keyset is DB-zijdig) ─────
 
 class _FakeResult:

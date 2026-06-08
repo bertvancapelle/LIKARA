@@ -54,7 +54,13 @@ async function request(path, options = {}, _isRetry = false) {
 function _query(params = {}) {
   const q = new URLSearchParams()
   for (const [sleutel, waarde] of Object.entries(params)) {
-    if (waarde !== undefined && waarde !== null && waarde !== '') {
+    if (Array.isArray(waarde)) {
+      // Array → herhaalde param (bv. status=concept&status=geblokkeerd). Lege
+      // array → niets (geen filter) — backwards-compatible.
+      for (const v of waarde) {
+        if (v !== undefined && v !== null && v !== '') q.append(sleutel, v)
+      }
+    } else if (waarde !== undefined && waarde !== null && waarde !== '') {
       q.set(sleutel, waarde)
     }
   }
@@ -70,10 +76,13 @@ export const api = {
   dashboard: () => request('/dashboard'),
 
   applicaties: {
-    // sort/order optioneel — weggelaten (leeg) → server-default (created_at asc),
-    // exact backwards-compatible (ADR-017).
-    lijst: ({ limit, after, sort, order } = {}) =>
-      request(`/applicaties${_query({ limit, after, sort, order })}`),
+    // sort/order/filters optioneel — alles weggelaten → server-default
+    // (created_at asc, geen filters), exact backwards-compatible (ADR-017/CD017).
+    // `status` is een array (herhaalde param); lege array → geen statusfilter.
+    lijst: ({ limit, after, sort, order, status, hostingmodel, eigenaar, zoek } = {}) =>
+      request(
+        `/applicaties${_query({ limit, after, sort, order, status, hostingmodel, eigenaar, zoek })}`,
+      ),
     haal: (id) => request(`/applicaties/${id}`),
     maak: (data) => request('/applicaties', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>

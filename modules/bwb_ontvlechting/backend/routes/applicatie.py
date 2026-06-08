@@ -21,12 +21,14 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
+from models.models import HostingModel
 from schemas.applicatie import (
     ApplicatieCreate,
     ApplicatieOpties,
     ApplicatiePagina,
     ApplicatieRead,
     ApplicatieSorteerveld,
+    ApplicatieStatusFilter,
     ApplicatieUpdate,
 )
 from services import applicatie_service as svc
@@ -49,19 +51,35 @@ async def lijst_applicaties(
     after: str | None = Query(None),
     sort: ApplicatieSorteerveld = Query(ApplicatieSorteerveld.created_at),
     order: Sorteerrichting = Query(Sorteerrichting.asc),
+    status: list[ApplicatieStatusFilter] = Query(default=[]),
+    hostingmodel: HostingModel | None = Query(None),
+    eigenaar: str | None = Query(None, max_length=120),
+    zoek: str | None = Query(None, max_length=100),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.APPLICATIE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Server-side sorteerbare keyset-lijst binnen de tenant (ADR-017).
+    """Server-side sorteerbare, filterbare keyset-lijst binnen de tenant
+    (ADR-017 + CD017).
 
-    `sort`/`order` zijn optioneel; weglaten = het pre-ADR-017-gedrag
-    (`created_at` oplopend). Een onbekend `sort`-veld of ongeldige `order` wordt
-    door FastAPI met 422 geweigerd (allowlist-enum); een cursor die niet bij de
-    actieve sortering past ⇒ 400 `ONGELDIGE_CURSOR`.
+    Alle filter-/sorteerparams zijn optioneel; **niets meesturen = het CD015-gedrag**
+    (`created_at` oplopend, geen filters). Filters zijn AND-gecombineerd:
+    `status` (herhaalbaar, reële lifecycle-statussen → `IN`), `hostingmodel`,
+    `eigenaar`/`zoek` (ge-escapete `ILIKE`-contains). Ongeldige enum-waarde of een
+    te lange `eigenaar`/`zoek` ⇒ 422; een cursor die niet bij `sort`/`order` past
+    ⇒ 400 `ONGELDIGE_CURSOR`. Lege `status`-lijst = geen statusfilter (toon alles).
     """
     try:
         items, volgende = await svc.lijst(
-            session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value
+            session,
+            user.tenant_id,
+            limit=limit,
+            after=after,
+            sort=sort.value,
+            order=order.value,
+            status=[s.value for s in status] or None,
+            hostingmodel=hostingmodel.value if hostingmodel else None,
+            eigenaar=eigenaar,
+            zoek=zoek,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")

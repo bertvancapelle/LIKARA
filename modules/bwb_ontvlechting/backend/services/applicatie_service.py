@@ -62,6 +62,23 @@ _WAARDE_PARSERS = {
     "lifecycle_status": LifecycleStatus,
 }
 
+_LIKE_ESCAPE = "\\"
+
+
+def _escape_like(term: str) -> str:
+    """Escape LIKE/ILIKE-metatekens zodat gebruikersinvoer letterlijk matcht (CD017).
+
+    Volgorde is essentieel: eerst het escape-teken zelf (`\\`), daarna de wildcards
+    (`%`, `_`). Resultaat wordt met `ilike(..., escape='\\')` gebruikt, zodat een `%`
+    of `_` in de zoekterm geen wildcard wordt (geen wildcard-injectie).
+    """
+    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
+
+
+def _ilike_contains(kolom, term: str):
+    """`kolom ILIKE '%<escaped>%' ESCAPE '\\'` — veilige contains-match."""
+    return kolom.ilike(f"%{_escape_like(term)}%", escape=_LIKE_ESCAPE)
+
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
     """Normaliseer de tenant-id (uit de sessie een str) naar UUID."""
@@ -103,17 +120,23 @@ async def lijst(
     after: str | None = None,
     sort: str = _STANDAARD_SORT,
     order: str = _STANDAARD_ORDER,
+    status: list[str] | None = None,
+    hostingmodel: str | None = None,
+    eigenaar: str | None = None,
+    zoek: str | None = None,
 ) -> tuple[list[Applicatie], str | None]:
-    """Server-side sorteerbare keyset-lijst binnen de tenant (ADR-017).
+    """Server-side sorteerbare, **filterbare** keyset-lijst binnen de tenant
+    (ADR-017 + CD017).
 
     Sorteert op `(kolom, id)` met dezelfde richting voor kolom én tiebreaker, zodat
     één `tuple_`-rijvergelijking de seek uitdrukt (`>` asc, `<` desc). De cursor is
     zelfbeschrijvend: een `after` die niet bij `sort`/`order` past ⇒ `ValueError`
-    (route ⇒ 400). Default (`created_at`/`asc`) = exact het pre-ADR-017-gedrag.
+    (route ⇒ 400). Default (`created_at`/`asc`, geen filters) = exact het CD015-gedrag.
 
-    `sort`/`order` worden op de API-rand al gevalideerd (allowlist-enum + `asc|desc`);
-    de checks hier zijn een defensieve backstop. Een ongeldige `after`-cursor levert
-    `ValueError` (route ⇒ 400).
+    Filters (AND-gecombineerd, alle optioneel): `status` (lijst reële lifecycle-
+    statussen → `IN`), `hostingmodel` (enum-gelijkheid), `eigenaar`/`zoek`
+    (ge-escapete `ILIKE`-contains op `eigenaar_organisatie` resp. `naam`). De
+    enum-/lengtevalidatie zit op de API-rand; de checks hier zijn een backstop.
     """
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
@@ -126,6 +149,20 @@ async def lijst(
     oplopend = order == "asc"
 
     stmt = select(Applicatie).where(Applicatie.tenant_id == tid)
+
+    # Filters (AND). Lege/afwezige filters voegen GEEN clause toe → default-pad
+    # identiek aan CD015. Lege statuslijst = geen filter (toon alles).
+    if status:
+        stmt = stmt.where(
+            Applicatie.lifecycle_status.in_([LifecycleStatus(s) for s in status])
+        )
+    if hostingmodel:
+        stmt = stmt.where(Applicatie.hostingmodel == HostingModel(hostingmodel))
+    if eigenaar:
+        stmt = stmt.where(_ilike_contains(Applicatie.eigenaar_organisatie, eigenaar))
+    if zoek:
+        stmt = stmt.where(_ilike_contains(Applicatie.naam, zoek))
+
     if after:
         c_sort, c_order, c_waarde_str, c_id = decode_sort_cursor(after)
         if c_sort != sort or c_order != order:

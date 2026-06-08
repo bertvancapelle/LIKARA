@@ -31,6 +31,21 @@ const primeSortOrder = computed(() =>
   sortRichting.value === 'asc' ? 1 : sortRichting.value === 'desc' ? -1 : 0,
 )
 
+// Filters (CD017) — AND-gecombineerd, alle optioneel. Lege selectie = geen filter.
+const STATUS_OPTIES = ['concept', 'in_inventarisatie', 'geblokkeerd', 'migratieklaar']
+const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
+const filterStatus = ref([]) // array van geselecteerde statussen
+const filterHosting = ref('') // '' = alle
+const filterEigenaar = ref('')
+const filterZoek = ref('')
+const heeftFilters = computed(
+  () =>
+    filterStatus.value.length > 0 ||
+    !!filterHosting.value ||
+    !!filterEigenaar.value.trim() ||
+    !!filterZoek.value.trim(),
+)
+
 async function laad({ reset = false } = {}) {
   laden.value = true
   fout.value = null
@@ -40,6 +55,10 @@ async function laad({ reset = false } = {}) {
       params.sort = sortVeld.value
       params.order = sortRichting.value
     }
+    if (filterStatus.value.length) params.status = filterStatus.value
+    if (filterHosting.value) params.hostingmodel = filterHosting.value
+    if (filterEigenaar.value.trim()) params.eigenaar = filterEigenaar.value.trim()
+    if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
     const pagina = await api.applicaties.lijst(params)
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
     cursor.value = pagina.volgende_cursor
@@ -57,6 +76,27 @@ function onSort(event) {
   sortRichting.value = event.sortOrder === 1 ? 'asc' : 'desc'
   cursor.value = null
   laad({ reset: true })
+}
+
+// Elke filterwijziging reset de cursor en haalt vanaf pagina 1 opnieuw op.
+function herfilter() {
+  cursor.value = null
+  laad({ reset: true })
+}
+
+// Debounce voor de tekstvelden (geen request per toetsaanslag).
+let _zoekTimer = null
+function herfilterDebounced() {
+  clearTimeout(_zoekTimer)
+  _zoekTimer = setTimeout(herfilter, 300)
+}
+
+function wisFilters() {
+  filterStatus.value = []
+  filterHosting.value = ''
+  filterEigenaar.value = ''
+  filterZoek.value = ''
+  herfilter()
 }
 
 const hosting = (c) => label(HOSTINGMODEL, c)
@@ -84,6 +124,86 @@ onMounted(() => laad({ reset: true }))
       >
         Nieuwe applicatie
       </router-link>
+    </div>
+
+    <!-- Filterbalk (CD017) — AND-gecombineerd; elke wijziging reset de cursor. -->
+    <div
+      data-testid="filterbalk"
+      class="mb-[var(--cd-space-md)] flex flex-wrap items-end gap-[var(--cd-space-md)] rounded-[var(--cd-radius-card)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]"
+    >
+      <fieldset class="flex flex-col gap-[var(--cd-space-xs)]">
+        <legend class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">
+          Status
+        </legend>
+        <div class="flex flex-wrap gap-[var(--cd-space-md)]">
+          <label
+            v-for="s in STATUS_OPTIES"
+            :key="s"
+            class="flex items-center gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]"
+          >
+            <input
+              v-model="filterStatus"
+              type="checkbox"
+              :value="s"
+              :data-testid="`filter-status-${s}`"
+              @change="herfilter"
+            />
+            {{ lifecycleLabel(s) }}
+          </label>
+        </div>
+      </fieldset>
+
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Hosting</span>
+        <select
+          v-model="filterHosting"
+          data-testid="filter-hosting"
+          aria-label="Filter op hostingmodel"
+          class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Eigenaar</span>
+        <input
+          v-model="filterEigenaar"
+          type="search"
+          maxlength="120"
+          data-testid="filter-eigenaar"
+          aria-label="Filter op eigenaar-organisatie"
+          placeholder="bevat…"
+          class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          @input="herfilterDebounced"
+        />
+      </label>
+
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Naam</span>
+        <input
+          v-model="filterZoek"
+          type="search"
+          maxlength="100"
+          data-testid="filter-zoek"
+          aria-label="Zoek op applicatienaam"
+          placeholder="zoeken…"
+          class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          @input="herfilterDebounced"
+        />
+      </label>
+
+      <button
+        v-if="heeftFilters"
+        type="button"
+        data-testid="filters-wissen"
+        class="ml-auto rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+        @click="wisFilters"
+      >
+        Filters wissen
+      </button>
     </div>
 
     <p
@@ -134,7 +254,10 @@ onMounted(() => laad({ reset: true }))
         </template>
       </Column>
       <template #empty>
-        <span v-if="eersteGeladen && !laden" data-testid="lijst-leeg">
+        <span v-if="eersteGeladen && !laden && heeftFilters" data-testid="lijst-geen-match">
+          Geen applicaties komen overeen met de filters.
+        </span>
+        <span v-else-if="eersteGeladen && !laden" data-testid="lijst-leeg">
           Er zijn nog geen applicaties in deze tenant.
         </span>
         <span v-else data-testid="lijst-laden-leeg">Laden…</span>

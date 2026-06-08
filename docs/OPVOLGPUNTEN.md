@@ -75,6 +75,14 @@ gegenereerd — niet met de hand bewerken; de generator-fix is een aparte beslis
 De productie-bundle overschrijdt 500 kB (PrimeVue DataTable). Route-level
 lazy-loading / code-splitting als optimalisatie.
 
+### OP-21 — Eigenaar-filter als distinct-dropdown (UX, optioneel) — OPEN
+
+CD017 filtert `eigenaar_organisatie` met een vrije-tekst `ilike`-contains (robuust
+bij ongecontroleerde vrije tekst). Als de organisatie-waardenset per tenant klein
+en stabiel blijkt, is een tenant-scoped distinct-waarden-dropdown
+(`GET .../eigenaar-organisaties`) een nettere UX. Geen verplichting; pas oppakken
+als de praktijk erom vraagt.
+
 ### OP-20 — Live-DB-verificatie NULLS-LAST-paginering blokkadesoverzicht (#23) — OPEN
 
 De NULLS-LAST-keyset van het tenant-brede blokkadesoverzicht (CD016, ADR-017 B5:

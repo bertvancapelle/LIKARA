@@ -186,3 +186,60 @@ describe('ApplicatieLijst — server-side sortering (ADR-017)', () => {
     expect(gesorteerd.length).toBeGreaterThan(0)
   })
 })
+
+describe('ApplicatieLijst — registerfilters (CD017)', () => {
+  beforeEach(() => {
+    api.applicaties.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+  })
+
+  it('stuurt default géén filterparams mee (backwards-compatible)', async () => {
+    await mountLijst()
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith({ limit: 25, after: undefined })
+  })
+
+  it('status-checkbox → refetch met status-array + cursor-reset', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-status-concept"]').setValue(true)
+    await flushPromises()
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: ['concept'], after: undefined }),
+    )
+  })
+
+  it('hostingmodel-select → refetch met hostingmodel', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-hosting"]').setValue('saas')
+    await flushPromises()
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ hostingmodel: 'saas' }),
+    )
+  })
+
+  it('debounced naam-zoek → één refetch met zoek na de debounce', async () => {
+    const w = await mountLijst()
+    vi.useFakeTimers()
+    await w.find('[data-testid="filter-zoek"]').setValue('zaak')
+    vi.advanceTimersByTime(300)
+    vi.useRealTimers()
+    await flushPromises()
+    expect(api.applicaties.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ zoek: 'zaak' }))
+  })
+
+  it('"Filters wissen" reset alle filters (geen filterparams meer)', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-status-concept"]').setValue(true)
+    await flushPromises()
+    await w.find('[data-testid="filters-wissen"]').trigger('click')
+    await flushPromises()
+    const laatste = api.applicaties.lijst.mock.calls.at(-1)[0]
+    expect(laatste).toEqual({ limit: 25, after: undefined })
+  })
+
+  it('onderscheidt lege-match (filters actief) van lege-data', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-status-concept"]').setValue(true)
+    await flushPromises()
+    expect(w.find('[data-testid="lijst-geen-match"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lijst-leeg"]').exists()).toBe(false)
+  })
+})
