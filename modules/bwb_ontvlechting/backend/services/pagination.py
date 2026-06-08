@@ -20,6 +20,8 @@ import uuid
 from datetime import datetime
 from enum import Enum
 
+from sqlalchemy import and_, or_
+
 _SEP = "|"
 
 
@@ -80,6 +82,83 @@ def decode_sort_cursor(cursor: str) -> tuple[str, str, str, uuid.UUID]:
         return sort, order, waarde_str, uuid.UUID(id_str)
     except (ValueError, TypeError, UnicodeDecodeError) as exc:
         raise ValueError("ongeldige cursor") from exc
+
+
+# ── NULLS-LAST-variant — ADR-017 B5 (eerste implementatie: CD016) ───────────────
+#
+# Voor lijsten met een **nullable** sorteerkolom. NULL-waarden staan altijd
+# achteraan, ongeacht de richting (`asc` én `desc`). De cursor draagt een extra
+# **null-vlag** zodat de keyset-seek de NULL-grens deterministisch oversteekt; de
+# seek splitst in twee gevallen (niet-null-regio vs. null-staart). Generaliseert
+# over tekst- én timestamp-kolommen (geen type-specifieke sentinel). Apart van de
+# v2-cursor zodat bestaande v2-cursors ongewijzigd blijven decoderen.
+
+_CURSOR_VERSIE_NULLABLE = "v2n"
+
+
+def encode_sort_cursor_nullable(*, sort: str, order: str, waarde, id) -> str:
+    """Codeer een NULLS-LAST-bewuste cursor `v2n|sort|order|isnull|waarde|id`."""
+    is_null = "1" if waarde is None else "0"
+    waarde_str = "" if waarde is None else _serialiseer_waarde(waarde)
+    rauw = _SEP.join([_CURSOR_VERSIE_NULLABLE, sort, order, is_null, waarde_str, str(id)])
+    return base64.urlsafe_b64encode(rauw.encode("utf-8")).decode("ascii")
+
+
+def decode_sort_cursor_nullable(cursor: str) -> tuple[str, str, bool, str | None, uuid.UUID]:
+    """Decodeer een v2n-cursor naar `(sort, order, is_null, waarde_str, id)`.
+
+    `waarde_str` is None wanneer de sleutelwaarde NULL was (anders tekst; de
+    aanroeper parst naar het kolomtype). Robuust tegen een `|` in de waarde.
+
+    Raises:
+        ValueError: bij een ontbrekende, misvormde of verkeerd-geversioneerde cursor.
+    """
+    if not cursor:
+        raise ValueError("lege cursor")
+    try:
+        rauw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
+        versie, sort, order, is_null_str, rest = rauw.split(_SEP, 4)
+        if versie != _CURSOR_VERSIE_NULLABLE:
+            raise ValueError("onbekende cursorversie")
+        waarde_str, id_str = rest.rsplit(_SEP, 1)
+        is_null = is_null_str == "1"
+        return sort, order, is_null, (None if is_null else waarde_str), uuid.UUID(id_str)
+    except (ValueError, TypeError, UnicodeDecodeError) as exc:
+        raise ValueError("ongeldige cursor") from exc
+
+
+def keyset_order_by_nulls_last(kolom, id_kolom, order: str) -> list:
+    """ORDER BY `(kolom DIR NULLS LAST, id DIR)` — NULLs altijd achteraan."""
+    if order == "asc":
+        return [kolom.asc().nulls_last(), id_kolom.asc()]
+    return [kolom.desc().nulls_last(), id_kolom.desc()]
+
+
+def keyset_seek_nulls_last(kolom, id_kolom, *, order: str, is_null: bool, waarde, cursor_id):
+    """WHERE-predicaat voor de keyset-seek ná de cursor, met NULLS-LAST-semantiek.
+
+    Twee gevallen, symmetrisch voor `asc`/`desc` (NULLs altijd laatst):
+    - **niet-null-regio** (cursorwaarde niet-null): rijen met `kolom <op> waarde`,
+      of gelijke waarde met `id <op> cursor_id`, **plus de volledige null-staart**
+      (`kolom IS NULL`);
+    - **null-staart** (cursorwaarde null): uitsluitend `kolom IS NULL` met
+      `id <op> cursor_id`.
+
+    `<op>` = `>` voor `asc`, `<` voor `desc`. Voor NOT NULL-kolommen is de
+    `kolom IS NULL`-tak altijd onwaar (onschadelijk) — dezelfde helper werkt dus
+    uniform.
+    """
+    oplopend = order == "asc"
+    if is_null:
+        id_cmp = id_kolom > cursor_id if oplopend else id_kolom < cursor_id
+        return and_(kolom.is_(None), id_cmp)
+    if oplopend:
+        kol_cmp = kolom > waarde
+        id_cmp = id_kolom > cursor_id
+    else:
+        kol_cmp = kolom < waarde
+        id_cmp = id_kolom < cursor_id
+    return or_(kol_cmp, and_(kolom == waarde, id_cmp), kolom.is_(None))
 
 
 def encode_cursor(item) -> str:

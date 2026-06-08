@@ -7,6 +7,7 @@ server-beheerd (afgeleid uit `status`) en zit niet in Update.
 """
 import uuid
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -14,6 +15,38 @@ from models.models import BlokkadeStatus
 from schemas.applicatie import _optionele_tekst
 
 _VERPLICHTE_VELDEN = frozenset({"status"})
+
+
+class BlokkadeStatusFilter(str, Enum):
+    """Statusfilter voor het tenant-brede overzicht (CD016).
+
+    `actief` = de gedeelde `ACTIEVE_BLOKKADE_STATUSSEN` (open + in_behandeling) —
+    de werklijst; `alle` = geen filter. Een onbekende waarde ⇒ 422 (API-rand).
+    """
+
+    actief = "actief"
+    open = "open"
+    in_behandeling = "in_behandeling"
+    opgelost = "opgelost"
+    alle = "alle"
+
+
+class BlokkadeSorteerveld(str, Enum):
+    """Allowlist van sorteerbare overzicht-velden (ADR-017 B2).
+
+    Dekt alle getoonde kolommen. NOT NULL: `applicatie_naam`/`vraag_code` (join),
+    `status`, `gewijzigd_op`. Nullable (NULLS LAST, ADR-017 B5): `toelichting`,
+    `eigenaar`, `opgelost_op`. De service mapt deze namen 1-op-1 op een kolom; een
+    test borgt de synchroniteit.
+    """
+
+    applicatie_naam = "applicatie_naam"
+    vraag_code = "vraag_code"
+    status = "status"
+    toelichting = "toelichting"
+    eigenaar = "eigenaar"
+    opgelost_op = "opgelost_op"
+    gewijzigd_op = "gewijzigd_op"
 
 
 class BlokkadeUpdate(BaseModel):
@@ -59,6 +92,28 @@ class BlokkadeRead(BaseModel):
 
 class BlokkadePagina(BaseModel):
     items: list[BlokkadeRead]
+    volgende_cursor: str | None = None
+
+
+class BlokkadeOverzichtItem(BaseModel):
+    """Eén blokkade in het tenant-brede overzicht — verrijkt met applicatie-naam
+    (join) en de veroorzakende `vraag_code` (join op Checklistscore)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    applicatie_id: uuid.UUID
+    applicatie_naam: str
+    vraag_code: str
+    status: BlokkadeStatus
+    toelichting: str | None
+    eigenaar: str | None
+    opgelost_op: datetime | None
+    gewijzigd_op: datetime
+
+
+class BlokkadeOverzichtPagina(BaseModel):
+    items: list[BlokkadeOverzichtItem]
     volgende_cursor: str | None = None
 
 

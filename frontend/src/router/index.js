@@ -8,6 +8,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 // zijn eigen async chunk. Module-loading (Optie A / @modules + cross-root-barrels)
 // en de guard blijven ongewijzigd; alleen het laadmoment verschuift.
 const DashboardView = () => import('../views/DashboardView.vue')
+const BlokkadeOverzichtView = () => import('../views/BlokkadeOverzichtView.vue')
 const ApplicatieLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieLijst.vue')
 const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
 const ApplicatieFormulier = () =>
@@ -32,6 +33,7 @@ const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '', name: 'dashboard', component: DashboardView },
+      { path: 'blokkades', name: 'blokkades', component: BlokkadeOverzichtView },
       { path: 'applicaties', name: 'applicatie-lijst', component: ApplicatieLijst },
       // Statische paden vóór de dynamische /:id (vue-router rankt static > param,
       // maar expliciet vóór geplaatst voor leesbaarheid).

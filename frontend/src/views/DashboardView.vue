@@ -119,9 +119,10 @@ onMounted(laad)
         >
           Open blokkades
         </h2>
-        <div
+        <router-link
+          :to="{ name: 'blokkades', query: { status: 'actief' } }"
           data-testid="open-blokkades"
-          class="card inline-flex items-baseline gap-[var(--cd-space-sm)] bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)] px-[var(--cd-space-lg)] py-[var(--cd-space-md)]"
+          class="card inline-flex items-baseline gap-[var(--cd-space-sm)] bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)] px-[var(--cd-space-lg)] py-[var(--cd-space-md)] hover:shadow-[var(--cd-shadow-md)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
         >
           <span
             class="text-[length:var(--cd-text-2xl)] font-semibold"
@@ -132,7 +133,7 @@ onMounted(laad)
           <span class="text-[var(--cd-color-text-muted)]">
             {{ data.open_blokkades === 1 ? 'open blokkade' : 'open blokkades' }}
           </span>
-        </div>
+        </router-link>
       </div>
 
       <!-- (c) Recent gewijzigd -->

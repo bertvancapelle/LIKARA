@@ -100,12 +100,21 @@ beide richtingen), zodat ontbrekende waarden deterministisch achteraan komen en 
 keyset-seek consistent blijft. Een NULLS-correcte keyset-seek vergt een uitbreiding
 op de enkele `tuple_`-vergelijking (een extra predicaat op de NULL-grens).
 
-**Reikwijdte nu**: de referentie-allowlist (Applicatie) bevat **uitsluitend
+**Reikwijdte**: de referentie-allowlist (Applicatie) bevat **uitsluitend
 NOT NULL-kolommen** (`naam`, `eigenaar_organisatie`, de enum-kolommen,
-`created_at`), zodat dit randgeval in de referentie-implementatie niet optreedt.
-De NULLS-LAST-uitbreiding wordt gebouwd zodra de **eerste nullable sorteerkolom**
-nodig is (vermoedelijk bij #12 blokkadesoverzicht, bv. `opgelost_op`). Tot dan
-weigert de allowlist nullable kolommen bewust.
+`created_at`), zodat dit randgeval daar niet optrad.
+
+> **Geïmplementeerd in CD016 (#12 blokkadesoverzicht)** — eerste consument met
+> nullable sorteerkolommen (`toelichting`, `eigenaar`, `opgelost_op`). De
+> NULLS-LAST-keyset zit in `services/pagination.py`
+> (`encode_sort_cursor_nullable`/`decode_sort_cursor_nullable` met een **null-vlag**
+> in de cursor, plus `keyset_order_by_nulls_last`/`keyset_seek_nulls_last` met de
+> **case-split-seek**: niet-null-regio vs. null-staart). NULLs staan in **beide**
+> richtingen achteraan; de aanpak generaliseert over tekst- én timestamp-kolommen
+> (geen type-sentinel). De v2-cursor (Applicatie-lijst) blijft ongemoeid (aparte
+> `v2n`-variant). **Caveat**: de NULL-ordening is offline **structureel** getest,
+> nog niet **empirisch** tegen Postgres — bevestiging staat als opvolgpunt bij de
+> live-DB-run (#23).
 
 ### B6 — Indexen: afweging
 

@@ -22,6 +22,7 @@ function maakRouter() {
         children: [
           { path: '', name: 'dashboard', component: DashStub },
           { path: 'applicaties', name: 'applicatie-lijst', component: { template: '<div/>' } },
+          { path: 'blokkades', name: 'blokkades', component: { template: '<div/>' } },
         ],
       },
       { path: '/login', name: 'login', component: { template: '<div/>' } },

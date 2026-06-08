@@ -141,6 +141,9 @@ export const api = {
   blokkades: {
     lijst: ({ applicatieId, status, limit, after } = {}) =>
       request(`/blokkades${_query({ applicatie_id: applicatieId, status, limit, after })}`),
+    // Tenant-breed sorteerbaar overzicht (CD016, consument ADR-017).
+    overzicht: ({ limit, after, status, sort, order } = {}) =>
+      request(`/blokkades/overzicht${_query({ limit, after, status, sort, order })}`),
     haal: (id) => request(`/blokkades/${id}`),
     werkBij: (id, data) =>
       request(`/blokkades/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

@@ -75,6 +75,16 @@ gegenereerd — niet met de hand bewerken; de generator-fix is een aparte beslis
 De productie-bundle overschrijdt 500 kB (PrimeVue DataTable). Route-level
 lazy-loading / code-splitting als optimalisatie.
 
+### OP-20 — Live-DB-verificatie NULLS-LAST-paginering blokkadesoverzicht (#23) — OPEN
+
+De NULLS-LAST-keyset van het tenant-brede blokkadesoverzicht (CD016, ADR-017 B5:
+`encode/decode_sort_cursor_nullable` + `keyset_seek_nulls_last`) is offline
+**structureel** getest (cursor-roundtrip met null-vlag, `.nulls_last()` in de
+ORDER BY, IS NULL-takken in de seek), maar nog niet **empirisch** tegen Postgres.
+Bevestig tijdens de **live-DB-run (#23 / Laag 5)** dat het over de NULL-grens
+correct pagineert op de nullable kolommen (`toelichting`, `eigenaar`, `opgelost_op`),
+in zowel `asc` als `desc`, zonder duplicaten of overgeslagen rijen.
+
 ---
 
 ## AFGEROND (sessie 2–3)

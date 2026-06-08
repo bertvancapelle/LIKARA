@@ -34,6 +34,7 @@ function maakRouter() {
     routes: [
       { path: '/', name: 'dashboard', component: DashboardView },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
+      { path: '/blokkades', name: 'blokkades', component: { template: '<div/>' } },
     ],
   })
 }
@@ -89,12 +90,15 @@ describe('DashboardView — data', () => {
     expect(w.find('[data-testid="telling-migratieklaar"]').text()).toContain('4')
   })
 
-  it('toont de open-blokkades-teller', async () => {
+  it('toont de open-blokkades-teller als doorklik naar het blokkadesoverzicht', async () => {
     const w = await mountDashboard()
     const teller = w.find('[data-testid="open-blokkades"]')
     expect(teller.exists()).toBe(true)
     expect(teller.text()).toContain('5')
     expect(teller.text()).toContain('open blokkades')
+    // doorklik naar de blokkades-route met het actieve-statusfilter voorgeselecteerd
+    expect(teller.attributes('href')).toContain('/blokkades')
+    expect(teller.attributes('href')).toContain('status=actief')
   })
 
   it('toont de recent gewijzigde applicaties met links naar detail', async () => {
