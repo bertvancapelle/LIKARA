@@ -26,6 +26,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-015 | Refresh-token-subsysteem: Keycloak-gedelegeerd, Redis-opslag | Aanvaard |
 | ADR-016 | Blokkade-`opgelost` volledig afgeleid (amendeert ADR-013 B1) | Aanvaard |
 | ADR-017 | Server-side sorteerbare keyset-paginering (allowlist + zelfbeschrijvende cursor) | Aanvaard |
+| ADR-018 | Relatievisualisatie: gefocuste ego-graaf, geen graaf-dependency | Aanvaard |
 
 ADR-002 t/m ADR-008 en ADR-010 zijn gereserveerd (zie `CLAUDE.md` →
 ADR-referentie) en worden geschreven wanneer de betreffende beslissing speelt.

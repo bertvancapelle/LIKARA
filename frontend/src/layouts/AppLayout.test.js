@@ -23,6 +23,7 @@ function maakRouter() {
           { path: '', name: 'dashboard', component: DashStub },
           { path: 'applicaties', name: 'applicatie-lijst', component: { template: '<div/>' } },
           { path: 'blokkades', name: 'blokkades', component: { template: '<div/>' } },
+          { path: 'koppelingenkaart', name: 'koppelingenkaart', component: { template: '<div/>' } },
         ],
       },
       { path: '/login', name: 'login', component: { template: '<div/>' } },
@@ -83,6 +84,13 @@ describe('AppLayout', () => {
     expect(link.exists()).toBe(true)
     expect(link.element.tagName).toBe('A')
     expect(link.attributes('href')).toContain('/applicaties')
+  })
+
+  it('toont de Koppelingenkaart-navlink (CD023)', async () => {
+    const { wrapper } = await mountShell()
+    const link = wrapper.find('[data-testid="nav-koppelingenkaart"]')
+    expect(link.exists()).toBe(true)
+    expect(link.attributes('href')).toContain('/koppelingenkaart')
   })
 
   it('toggelt de sidebar en werkt aria-expanded bij', async () => {

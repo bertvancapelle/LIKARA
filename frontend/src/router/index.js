@@ -9,6 +9,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 // en de guard blijven ongewijzigd; alleen het laadmoment verschuift.
 const DashboardView = () => import('../views/DashboardView.vue')
 const BlokkadeOverzichtView = () => import('../views/BlokkadeOverzichtView.vue')
+const KoppelingenkaartView = () => import('../views/KoppelingenkaartView.vue')
 const ApplicatieLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieLijst.vue')
 const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
 const ApplicatieFormulier = () =>
@@ -34,6 +35,7 @@ const routes = [
     children: [
       { path: '', name: 'dashboard', component: DashboardView },
       { path: 'blokkades', name: 'blokkades', component: BlokkadeOverzichtView },
+      { path: 'koppelingenkaart', name: 'koppelingenkaart', component: KoppelingenkaartView },
       { path: 'applicaties', name: 'applicatie-lijst', component: ApplicatieLijst },
       // Statische paden vóór de dynamische /:id (vue-router rankt static > param,
       // maar expliciet vóór geplaatst voor leesbaarheid).
