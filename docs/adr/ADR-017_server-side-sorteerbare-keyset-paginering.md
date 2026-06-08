@@ -78,9 +78,10 @@ v2 | sort | order | <sorteerwaarde> | <id>
   request ⇒ **400 `ONGELDIGE_CURSOR`** (geen stille, verkeerde paginering).
 - De **frontend reset de cursor** bij elke sorteerwissel (begint weer op pagina 1).
 
-De legacy-helpers (`encode_cursor`/`decode_cursor`, 2-delig `created_at|id`)
-blijven **ongewijzigd** bestaan voor de nog niet geretrofitte entiteiten; de
-sorteerbare helpers zijn een additieve uitbreiding.
+De legacy-helpers (`encode_cursor`/`decode_cursor`, 2-delig `created_at|id`) waren
+een additieve, tijdelijke laag voor de nog niet geretrofitte entiteiten. Na de
+volledige retrofit (CD016 + CD020) hadden ze geen consumenten meer en zijn ze met
+**CD021** verwijderd; alle lijsten gebruiken nu de zelfbeschrijvende v2/v2n-cursors.
 
 ### B4 — Richting en tiebreaker
 

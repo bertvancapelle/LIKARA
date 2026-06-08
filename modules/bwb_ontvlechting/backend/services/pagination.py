@@ -7,13 +7,13 @@ ondoorzichtige, URL-veilige base64-string die het laatste geziene
 
 Hergebruikbaar door de overige module-entiteiten zodra die CRUD krijgen.
 
-Twee lagen:
-- **Legacy** (`encode_cursor`/`decode_cursor`): vast `created_at|id`-paar — in
-  gebruik door de nog niet geretrofitte lijsten (datatype, gebruikersgroep,
-  koppeling, checklistscore, blokkade). Byte-voor-byte ongewijzigd.
-- **Sorteerbaar** (`encode_sort_cursor`/`decode_sort_cursor`, ADR-017): een
-  zelfbeschrijvende v2-cursor die naast de sleutelwaarde ook `sort` en `order`
-  draagt, zodat een cursor die niet bij de actieve sortering past, herkend wordt.
+Zelfbeschrijvende cursors (de legacy `created_at|id`-cursor is met CD021 verwijderd
+— alle lijsten zijn op onderstaande sorteerbare cursors geretrofit, ADR-017/CD020):
+- **v2** (`encode_sort_cursor`/`decode_sort_cursor`): draagt naast de sleutelwaarde
+  ook `sort` en `order`, zodat een cursor die niet bij de actieve sortering past,
+  herkend wordt.
+- **v2n** (`encode_sort_cursor_nullable`/`decode_sort_cursor_nullable` +
+  `keyset_*_nulls_last`): NULLS-LAST-variant voor nullable sorteerkolommen.
 """
 import base64
 import uuid
@@ -159,25 +159,3 @@ def keyset_seek_nulls_last(kolom, id_kolom, *, order: str, is_null: bool, waarde
         kol_cmp = kolom < waarde
         id_cmp = id_kolom < cursor_id
     return or_(kol_cmp, and_(kolom == waarde, id_cmp), kolom.is_(None))
-
-
-def encode_cursor(item) -> str:
-    """Codeer het `(created_at, id)`-paar van `item` tot een opaque cursor."""
-    rauw = f"{item.created_at.isoformat()}{_SEP}{item.id}"
-    return base64.urlsafe_b64encode(rauw.encode("utf-8")).decode("ascii")
-
-
-def decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
-    """Decodeer een cursor naar `(created_at, id)`.
-
-    Raises:
-        ValueError: bij een ontbrekende of misvormde cursor.
-    """
-    if not cursor:
-        raise ValueError("lege cursor")
-    try:
-        rauw = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("utf-8")
-        ts_str, id_str = rauw.split(_SEP, 1)
-        return datetime.fromisoformat(ts_str), uuid.UUID(id_str)
-    except (ValueError, TypeError, UnicodeDecodeError) as exc:
-        raise ValueError("ongeldige cursor") from exc

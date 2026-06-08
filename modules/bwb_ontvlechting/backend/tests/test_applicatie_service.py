@@ -6,7 +6,6 @@ ongeldig), tenant-scoped niet-gevonden (OP-6) en de cursor-paginering-helper.
 """
 import asyncio
 import uuid
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -82,31 +81,3 @@ def test_haal_op_niet_gevonden_geeft_nietgevonden():
 
     with pytest.raises(NietGevonden):
         asyncio.run(svc.haal_op(session, uuid.uuid4(), uuid.uuid4()))
-
-
-# ── cursor-paginering ───────────────────────────────────────────────────────
-
-def test_cursor_roundtrip():
-    from services.pagination import decode_cursor, encode_cursor
-
-    item = MagicMock()
-    item.created_at = datetime(2026, 6, 6, 12, 0, 0, tzinfo=timezone.utc)
-    item.id = uuid.uuid4()
-
-    ts, ident = decode_cursor(encode_cursor(item))
-    assert ts == item.created_at
-    assert ident == item.id
-
-
-def test_cursor_malformed_geeft_valueerror():
-    from services.pagination import decode_cursor
-
-    with pytest.raises(ValueError):
-        decode_cursor("!!!geen-geldige-cursor!!!")
-
-
-def test_cursor_leeg_geeft_valueerror():
-    from services.pagination import decode_cursor
-
-    with pytest.raises(ValueError):
-        decode_cursor("")

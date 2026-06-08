@@ -1,7 +1,8 @@
 """Unit-tests — zelfbeschrijvende sorteer-cursor (ADR-017).
 
-Pure helper-tests (geen DB). De legacy `encode_cursor`/`decode_cursor` blijven
-elders getest (`test_applicatie_service.test_cursor_roundtrip`) en ongewijzigd.
+Pure helper-tests (geen DB) voor de v2/v2n-cursors. De legacy
+`encode_cursor`/`decode_cursor` zijn met CD021 verwijderd (geen consumenten meer
+na de ADR-017-retrofit).
 """
 import base64
 import uuid
