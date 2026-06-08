@@ -268,26 +268,33 @@ def main():
     build_label = bouw_label(data)
     print(f"🔢 Build: {build_label} ({data['sessie_datum']})\n")
 
-    # 2. Changelog aanmaken
-    maak_changelog(build_label)
-
-    # 3. NEXT_SESSION.md genereren
-    roep_generator_aan("gen_next_session.py", [build_label])
-
-    # 4. SESSIE_BRIEFING.md genereren
-    roep_generator_aan("gen_sessie_briefing.py", [build_label])
-
-    # 5. SESSIESTART.md genereren
-    roep_generator_aan("gen_sessiestart_md.py", [build_label])
-
-    # 6. Integriteitscheck (blokkeert bij falen)
-    integriteitscheck(build_label)
-
-    # 7. CLAUDE.md bouwstatus bijwerken
-    # Test-status wordt als argument meegegeven of gelezen uit TST-rapport
+    # 2. CLAUDE.md bouwstatus bijwerken — MOET vóór de generators (CD018/OP-18):
+    #    gen_sessie_briefing.py leest het BOUWSTATUS-blok uit CLAUDE.md. Stond deze
+    #    update ná de briefing, dan kreeg de briefing een stale blok (titel = nieuw
+    #    build_label, body = vorige build).
+    #    Trade-off: de update draait nu óók vóór de integriteitscheck (stap 7). Dat is
+    #    geen regressie — build_counter.json wordt in beide volgordes al vóór die check
+    #    gebumpt; bij een abnormale afbreking wordt hooguit CLAUDE.md toegevoegd aan de
+    #    set die toch al gewijzigd is. Het normale, geslaagde pad wijzigt niet.
+    #    Test-status wordt als argument meegegeven of gelezen uit TST-rapport.
     test_status = sys.argv[1] if len(sys.argv) > 1 else "zie TST-rapport"
     kritieken = sys.argv[2] if len(sys.argv) > 2 else "0"
     update_claude_bouwstatus(build_label, test_status, kritieken)
+
+    # 3. Changelog aanmaken
+    maak_changelog(build_label)
+
+    # 4. NEXT_SESSION.md genereren
+    roep_generator_aan("gen_next_session.py", [build_label])
+
+    # 5. SESSIE_BRIEFING.md genereren
+    roep_generator_aan("gen_sessie_briefing.py", [build_label])
+
+    # 6. SESSIESTART.md genereren
+    roep_generator_aan("gen_sessiestart_md.py", [build_label])
+
+    # 7. Integriteitscheck (blokkeert bij falen)
+    integriteitscheck(build_label)
 
     # 8. Sessie-start ZIP assembleren
     roep_generator_aan("gen_sessiestart.py", [build_label])

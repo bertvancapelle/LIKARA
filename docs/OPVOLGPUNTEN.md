@@ -61,14 +61,14 @@ productie-realm.
 geeft `tenant_id` → altijd `null`. Raakt `useTheme`/per-tenant-thema's zodra die
 gebouwd worden.
 
-### OP-18 — Stale V001-docs (IMPLEMENTATIEPLAN / SESSIE_BRIEFING) — DEELS AFGEROND
+### OP-18 — Stale V001-docs (IMPLEMENTATIEPLAN / SESSIE_BRIEFING) — AFGEROND (CD018)
 
 `IMPLEMENTATIEPLAN.md` is voorzien van een *HISTORISCH — V001-snapshot*-banner die naar
-de live bronnen verwijst (CD013). **Resteert:** `SESSIE_BRIEFING.md` toont een stale
-bouwstatus (titel = nieuwe build, body = vorige build). Oorzaak is een volgorde-bug in
-`gen_build.py`: `gen_sessie_briefing.py` (stap 4) leest het `BOUWSTATUS`-blok uit
-CLAUDE.md vóór `update_claude_bouwstatus` (stap 7) het bijwerkt. Het bestand is
-gegenereerd — niet met de hand bewerken; de generator-fix is een aparte beslissing.
+de live bronnen verwijst (CD013). De stale `SESSIE_BRIEFING.md`-bouwstatus is opgelost
+in **CD018**: `update_claude_bouwstatus` draait nu vóór de generators (i.p.v. ná de
+briefing-generatie), zodat `gen_sessie_briefing.py` het nieuwe `BOUWSTATUS`-blok leest.
+Geborgd met `backend/tests/test_gen_build_volgorde.py` (functionele write-then-read +
+statische volgorde-guard via `inspect.getsource`).
 
 ### OP-19 — Frontend bundle >500 kB — OPEN
 
