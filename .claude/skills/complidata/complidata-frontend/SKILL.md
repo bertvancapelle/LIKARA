@@ -2,7 +2,7 @@
 name: complidata-frontend
 description: Frontend-patronen voor CompliData (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V004
+bijgewerkt: V005
 ---
 
 # CompliData Frontend Skill
@@ -179,3 +179,27 @@ Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
 - **Route-level lazy-loading** (OP-19): zware route-componenten als `() => import(...)`;
   LoginView + AppLayout eager (first paint). Houdt Optie-A/`@modules`/cross-root-barrels
   + guard intact; alleen het laadmoment verschuift. [CD012]
+
+## V005-patronen (CD022/CD023, geverifieerd)
+
+- **`AppTabs.vue` — herbruikbare toegankelijke tablist** (`modules/.../frontend/views/AppTabs.vue`):
+  rendert de tablist (`role="tablist"` + `role="tab"` met `aria-selected`/`aria-controls`/
+  roving `tabindex`); de **ouder rendert de panelen** (`role="tabpanel"`, `aria-labelledby`).
+  **Automatic activation**: ←/→ (↑/↓ bij `orientation="vertical"`) + Home/End verplaatsen de focus
+  **én** selecteren direct (panelen zijn gemount, dus goedkoop); Enter/Space selecteren het
+  gefocuste tabblad eveneens (idempotent — het is dan al geselecteerd). Props
+  `tabs`/`modelValue`/`ariaLabel`/`orientation`/`idPrefix`; `--cd-`-tokens, geen `<style>`. [CD022]
+- **2-laags tabs + deep-link** (ApplicatieDetail, CD022): top- én sub-niveau zijn elk een echte
+  `AppTabs`; de actieve tab(s) in de URL via query-params (`?tab=`/`&cat=`), `router.replace`
+  (geen history-spam), default = schone URL. Alle panelen blijven **gemount** (`v-show`) → geen
+  state-verlies bij wisselen, en refs/voortgang-tellers blijven geldig. De 12 categorie-tabs
+  voeden **één gedeelde** sectie-instantie met een `categorieNr`-filterprop (één load, gedeelde
+  state) i.p.v. N× mounten/laden. [CD022]
+- **Visualisatie → toegankelijk tabel-alternatief is de waarheidsbron** (ADR-018, CD023): een
+  grafiek (hand-rolled SVG, `role="img"` + samenvattende `aria-label`) is **verrijking**; de
+  toetsenbord-/screenreader-toegankelijke tabel ernaast ontsluit dezelfde data en is de primaire
+  interface. **Gefocuste ego-graaf** (één entiteit + directe buren, hercentreerbaar) i.p.v. een
+  volledige graaf → schaalt naar honderden knopen zonder hairball; **geen** zware graaf-dependency. [CD023]
+- **Platform-view consumeert module-data**: tenant-brede views (`DashboardView`,
+  `BlokkadeOverzichtView`, `KoppelingenkaartView`) staan in `frontend/src/views/`, als lazy-route
+  child onder `AppLayout` + nav-item; labels via `@modules/bwb_ontvlechting/frontend/labels`. [CD016/CD023]

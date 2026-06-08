@@ -2,7 +2,7 @@
 name: complidata-db
 description: Database-patronen voor CompliData (PostgreSQL 16, RLS, Alembic). Beschrijft de werkelijke V001-staat.
 stack: PostgreSQL 16, SQLAlchemy asyncio, Alembic
-bijgewerkt: V004
+bijgewerkt: V005
 ---
 
 # CompliData Database Skill
@@ -158,12 +158,54 @@ zijn niet leidend — **de code is leidend**: `hostingmodel` = **7** waarden,
   "nee + opgelost" is een stabiele eindtoestand. `checklist_compleet` is **transient**
   (enum blijft, status wordt nooit gezet).
 
-## Keyset-cursor-paginering
+## Keyset-cursor-paginering — sorteerbaar (ADR-017, v2/v2n)
 
-Opaque base64-cursor van `created_at|id`; ORDER BY `(created_at, id)`,
-`WHERE (created_at, id) > (cursor)` via `sqlalchemy.tuple_`, `limit+1`-detectie.
-Misvormde cursor → `ValueError` → route geeft **400 `ONGELDIGE_CURSOR`**.
-Helper: `modules/bwb_ontvlechting/backend/services/pagination.py`.
+Helper: `modules/bwb_ontvlechting/backend/services/pagination.py`. De legacy
+2-delige `created_at|id`-cursor (`encode_cursor`/`decode_cursor`) is met **CD021**
+verwijderd — alle lijsten gebruiken nu zelfbeschrijvende sorteer-cursors.
+
+**v2 (allowlist-sortering, ADR-017)**:
+- Cursor `v2|sort|order|waarde|id` (`encode_sort_cursor`/`decode_sort_cursor`); `id`
+  is de stabiele tiebreaker (totale ordening, ook bij een niet-unieke sorteerkolom).
+- `ORDER BY (kolom DIR, id DIR)` met **dezelfde** richting voor kolom én tiebreaker;
+  de seek is één `tuple_`-rijvergelijking: `> (waarde, id)` bij `asc`, `< (…)` bij `desc`.
+- **Allowlist-enum**: een rauwe kolomnaam uit de querystring komt **nooit** in
+  `ORDER BY` — alleen via een `*Sorteerveld`-enum (single source naast een
+  `_SORTEERBARE_KOLOMMEN`-map + `_WAARDE_PARSERS`; een test borgt de synchroniteit).
+  Onbekend sorteerveld/ongeldige richting ⇒ **422** (API-rand).
+- Een `after`-cursor die **niet bij de actieve `sort`/`order`** past ⇒ **400 `ONGELDIGE_CURSOR`**
+  (de cursor draagt `sort`+`order`; een mismatch wordt geweigerd i.p.v. stil verkeerd gepagineerd).
+- Default (geen `sort`/`order`) = `created_at` oplopend = exact het pre-ADR-017-gedrag.
+
+**v2n (NULLS-LAST, CD016) — voor een nullable sorteerkolom**:
+- Cursor `v2n|sort|order|isnull|waarde|id` (`*_sort_cursor_nullable`) met een
+  **null-vlag** (`isnull` vóór `waarde`); `keyset_order_by_nulls_last` (`.nulls_last()`,
+  NULLs altijd achteraan in asc én desc) + `keyset_seek_nulls_last` (case-split:
+  niet-null-regio inclusief de volledige null-staart, óf alleen de null-staart).
+- Generaliseert over tekst- én timestamp-kolommen; op een NOT NULL-kolom is de
+  `IS NULL`-tak een no-op → **uniform** bruikbaar (CD020 gebruikt v2n voor álle
+  geretrofitte lijsten, ook waar alle kolommen NOT NULL zijn). De cursor-waarde wordt
+  uit het ORM-object gelezen via `getattr(item, kolom.key)` (mapt `gewijzigd_op`→`updated_at`).
+- Empirische NULL-ordening rijdt mee tot de live-DB-run (OP-20 / #23).
+
+**Join-sortering** (CD016 blokkadesoverzicht, CD020 koppeling-`tegenpartij_naam`):
+de sorteerkolom mag een **gejoinde** kolom zijn (bv. `Applicatie.naam`); de keyset/
+tiebreaker blijft de eigen `id`. Bij koppeling is de join **richting-afhankelijk**
+(filter op bron → join doel, op doel → join bron).
+
+## Server-side filters (CD017)
+
+- **LIKE/ILIKE-escaping** tegen wildcard-injectie: escape in de volgorde
+  `\` → `%` → `_`, dan `kolom.ilike(f"%{escaped}%", escape="\\")`. Lengte-limieten op
+  de API-rand (`Query(max_length=…)` → 422), niet alleen in de service.
+- **AND-combinatie** van alle filters; afwezige/lege filters voegen géén clause toe
+  (default-pad byte-identiek). **Lege multi-select = géén filter** (toon alles), niet
+  "toon niets". Multi-select via een herhaalbare `?status=`-param + enum-allowlist → `IN`.
+
+## Cursor-discipline (frontend)
+
+De frontend **reset de cursor** bij elke sorteer-, filter- of statuswissel (begint weer
+op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
 
 ## V004-patronen (CD003–CD012, geverifieerd)
 

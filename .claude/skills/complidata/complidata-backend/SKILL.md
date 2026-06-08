@@ -2,7 +2,7 @@
 name: complidata-backend
 description: Backend-patronen voor CompliData (FastAPI + SQLAlchemy + Alembic). Beschrijft de werkelijke V001-staat.
 stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy asyncio, Alembic, PostgreSQL 16
-bijgewerkt: V004
+bijgewerkt: V005
 ---
 
 # CompliData Backend Skill
@@ -213,3 +213,22 @@ ongedefinieerde methodes → 405.
   (`checklistscore_service._synchroniseer_blokkade`) buiten de handmatige PATCH-route
   houden; guard op het **handmatige** pad (`blokkade_service.werk_bij`: handmatig
   `opgelost` → 409) zonder het auto-pad te raken. [CD011]
+
+## V005-patronen (CD016/CD020/CD023, geverifieerd)
+
+- **Nieuw endpoint vs. bestaand contract oprekken**: een **bevroren** contract (CD016
+  tenant-breed blokkadesoverzicht) krijgt een **apart** endpoint (`GET /blokkades/overzicht`),
+  niet het bestaande `GET /blokkades` opgerekt. Statische subpaden (`/overzicht`, `/opties`)
+  vóór de dynamische `/{id}`. Een additieve uitbreiding van een bestaand contract (sort/order op
+  de per-app lijst, CD020) mag wél: puur **optionele** params, default = exact het oude gedrag
+  (geen gedragsbreuk). [CD016/CD020]
+- **Gedeelde domein-constante = single source bij de enum in `models.py`**: een constante met
+  meerdere consumenten (bv. `ACTIEVE_BLOKKADE_STATUSSEN` = `{open, in_behandeling}`, gebruikt
+  door de lifecycle-herberekening, het dashboard én het overzicht-statusfilter) leeft **bij de
+  enum**, niet gedupliceerd per service — losse kopieën lopen stil uit elkaar. [CD014/CD016]
+- **Sorteer-retrofit per lijst-service (ADR-017/CD020)**: `sort`/`order` als optionele params,
+  een `*Sorteerveld`-enum op de route (onbekend veld → 422), een allowlist-kolommen-map + parsers
+  in de service, v2n-keyset (zie complidata-db). Levert de service **dicts** (join, bv. koppeling-
+  `tegenpartij_naam`) → een apart `*LijstItem`/`*LijstPagina`-schema náást de enkel-item `*Read`.
+  White-box cursor-/route-tests bewegen mee met het cursorformaat; een default-pad-assertie is het
+  bewijs dat het gedrag niet wijzigde. [CD020]

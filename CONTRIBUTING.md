@@ -78,3 +78,19 @@ Inhoud minimaal:
 - Resultaat per as (geslaagd / gefaald)
 - Aantal kritieken
 - Geaccepteerde afwijkingen (indien van toepassing)
+
+## Sectie 7 — Commit-hygiëne & ontwarringsprocedure
+
+Eén commit per opdracht; elke `AKKOORD: commit` landt (push bevestigd) vóór de volgende
+opdracht start (CLAUDE.md → Commit-discipline). Raakt de werktree tóch verstrengeld
+(meerdere opdrachten ongecommit), ontwar dan **sequentieel, één commit per opdracht**:
+
+1. Classificeer elk gewijzigd/nieuw bestand per opdracht (heel bestand) of als **gemengd**
+   (meerdere opdrachten in één bestand). Een bestand dat in géén categorie past → stop en rapporteer.
+2. Stage de hele-bestand-set van opdracht A; split de **gemengde** bestanden op hunk-niveau.
+   `git add -p` is in deze omgeving **niet-interactief** → genereer per opdracht een deel-patch
+   en pas hem toe met `git apply --cached` (whole-hunk; voor een binnen-hunk-split een
+   herberekende patch met aangepaste `@@`-telling). Verifieer met `git diff --cached --stat` dat
+   **exact** opdracht A gestaged is.
+3. Commit opdracht A; daarna is al het resterende per definitie opdracht B → `git add -A` + commit.
+4. Schone tree + hertest + push; bevestig met `git log` dat de commits gescheiden zijn.

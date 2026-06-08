@@ -395,6 +395,14 @@ Bert expliciet anders aangeeft.
 - **Verificatie tegen de code, niet tegen geheugen**: bij discrepantie
   skill↔code → melden, niet de aanname opschrijven.
 
+### Commit-discipline (les uit CD016/CD017)
+- Elke `AKKOORD: commit` moet **landen (push bevestigd) vóór de volgende opdracht start**.
+  De werktree bevat zo **nooit meer dan één opdracht tegelijk**; meld na elke commit eerst het
+  push-resultaat, pas dan de volgende `START:`.
+- Raakt de tree tóch verstrengeld (meerdere opdrachten ongecommit): ontwar met **sequentiële
+  commits, één per opdracht**, en split gemengde bestanden op **hunk-niveau** (zie
+  CONTRIBUTING.md sectie 7 — `git add -p` is hier niet-interactief; gebruik `git apply --cached`).
+
 ### Definition of Done (elke uitbreiding)
 Een uitbreiding is pas klaar als ALLE stappen zijn afgevinkt:
 1. Relevante skills gelezen en toegepast (CC én claude.ai)
