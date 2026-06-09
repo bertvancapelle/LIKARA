@@ -18,7 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TenantMixin, TimestampMixin
@@ -116,6 +116,17 @@ class ChecklistPrioriteit(str, Enum):
     laag = "laag"
 
 
+class AntwoordType(str, Enum):
+    """Type van het additionele gestructureerde antwoordveld per checklistvraag
+    (ADR-019). `geen` (default) = alléén de score, zoals vóór ADR-019. De engine
+    leest dit type NOOIT — het stuurt enkel de validatie/UI van `antwoord_waarde`."""
+
+    geen = "geen"
+    enkelvoudige_keuze = "enkelvoudige_keuze"
+    meerkeuze = "meerkeuze"
+    getal = "getal"
+
+
 # Gedeelde sa.Enum-typeobjecten (één type per naam; migratie beheert de DDL).
 # `create_type=False`: de ORM emit nooit zelf CREATE TYPE — de migratie doet dat.
 hostingmodel_enum = sa.Enum(HostingModel, name="hostingmodel_enum")
@@ -129,6 +140,7 @@ impact_verbreking_enum = sa.Enum(ImpactVerbreking, name="impact_verbreking_enum"
 checklist_score_enum = sa.Enum(ChecklistScore, name="checklist_score_enum")
 blokkade_status_enum = sa.Enum(BlokkadeStatus, name="blokkade_status_enum")
 checklist_prioriteit_enum = sa.Enum(ChecklistPrioriteit, name="checklist_prioriteit_enum")
+antwoordtype_enum = sa.Enum(AntwoordType, name="antwoordtype_enum")
 
 
 def _pk() -> Mapped[uuid.UUID]:
@@ -222,6 +234,36 @@ class ChecklistVraag(Base):
     prioriteit: Mapped[ChecklistPrioriteit] = mapped_column(
         checklist_prioriteit_enum, nullable=False
     )
+    # ADR-019: type van het additionele antwoordveld. Default `geen` (server_default)
+    # → bestaande rijen blijven geldig zonder backfill; voedt de engine NIET.
+    antwoordtype: Mapped[AntwoordType] = mapped_column(
+        antwoordtype_enum, nullable=False, server_default=text("'geen'")
+    )
+
+
+class ChecklistVraagOptie(Base):
+    """Optie-catalogus per checklistvraag (ADR-019, Besluit 10) — platform-brede
+    referentiedata, GEEN RLS. Stabiel `optie_sleutel` (nooit hernummeren); bewerken
+    = soft-deactiveren via `actief` (Besluit 9). `afgeleid_bron` markeert een set die
+    uit een model-enum is afgeleid (2.1←HostingModel, 12.1←NiveauEnum) en in de
+    beheerder-UI structureel read-only is (alleen het label is aanpasbaar)."""
+
+    __tablename__ = "checklistvraag_optie"
+    __table_args__ = (
+        UniqueConstraint("vraag_code", "optie_sleutel", name="uq_checklistvraag_optie"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    vraag_code: Mapped[str] = mapped_column(
+        String(10), ForeignKey("checklistvraag.code"), nullable=False
+    )
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("true")
+    )
+    afgeleid_bron: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class Checklistscore(Base, TenantMixin, TimestampMixin):
@@ -244,6 +286,10 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
     bevinding: Mapped[str | None] = mapped_column(Text, nullable=True)
     eigenaar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     actie: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ADR-019: gestructureerd antwoord (jsonb, nullable). Envelope per antwoordtype:
+    # {"optie": "<sleutel>"} / {"opties": ["<sleutel>", …]} / {"getal": <int>}.
+    # Voedt de engine NOOIT — alleen `score` stuurt lifecycle/blokkade.
+    antwoord_waarde: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 
 class Blokkade(Base, TenantMixin, TimestampMixin):

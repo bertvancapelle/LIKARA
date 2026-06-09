@@ -10,7 +10,7 @@ def test_modellen_importeerbaar():
 
     for naam in [
         "Applicatie", "Datatype", "Gebruikersgroep", "Koppeling",
-        "ChecklistVraag", "Checklistscore", "Blokkade",
+        "ChecklistVraag", "ChecklistVraagOptie", "Checklistscore", "Blokkade",
     ]:
         assert hasattr(m, naam), f"ontbrekend model: {naam}"
 
@@ -39,6 +39,9 @@ def test_enum_waarden():
     assert [e.value for e in m.ChecklistScore] == ["ja", "deels", "nee", "nvt"]
     assert [e.value for e in m.BlokkadeStatus] == ["open", "in_behandeling", "opgelost"]
     assert [e.value for e in m.ChecklistPrioriteit] == ["hoog", "midden", "laag"]
+    assert [e.value for e in m.AntwoordType] == [
+        "geen", "enkelvoudige_keuze", "meerkeuze", "getal"
+    ]
 
 
 def test_seed_codes_uniek_en_89():
@@ -69,10 +72,24 @@ def test_seed_idempotent():
     assert eerste == tweede == 89
 
 
-def test_platform_init_zaait_via_platform_session():
-    """ChecklistVraag wordt platform-breed gezaaid via de geïnjecteerde
-    platform-sessie (géén RLS-/tenant-context)."""
+def test_platform_init_zaait_beide_seeds_via_platform_session(monkeypatch):
+    """platform_init zaait op de geïnjecteerde platform-sessie (géén RLS-/tenant-
+    context) BEIDE referentiesets: de 89 checklistvragen én de ADR-019-
+    antwoordconfiguratie, in die volgorde. Retourneert het vragen-aantal (89)."""
     import app.platform_init as pi
+
+    volgorde = []
+
+    async def fake_vragen(session):
+        volgorde.append("vragen")
+        return 89
+
+    async def fake_config(session):
+        volgorde.append("config")
+        return (27, 96)
+
+    monkeypatch.setattr(pi, "seed_checklist_vragen", fake_vragen)
+    monkeypatch.setattr(pi, "seed_antwoordconfig", fake_config)
 
     session = AsyncMock()
 
@@ -82,8 +99,7 @@ def test_platform_init_zaait_via_platform_session():
 
     aantal = asyncio.run(pi.platform_init(session_factory=fake_platform_session))
     assert aantal == 89
-    session.execute.assert_awaited_once()
-    session.commit.assert_awaited_once()
+    assert volgorde == ["vragen", "config"]  # beide gezaaid, vragen eerst
 
 
 def test_seed_niet_via_tenant_pad():
