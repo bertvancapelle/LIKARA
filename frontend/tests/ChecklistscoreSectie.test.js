@@ -149,6 +149,89 @@ describe('ChecklistscoreSectie', () => {
     expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').exists()).toBe(false)
   })
 
+  // ── CD029 (ADR-019): gestructureerd antwoordveld per type ──────────────────
+  function _gescoord(code, antwoord_waarde = null) {
+    return { items: [{ id: 's1', vraag_code: code, score: 'ja', antwoord_waarde }], volgende_cursor: null }
+  }
+
+  it('kolomkop is "Afgehandeld" i.p.v. "Score"', async () => {
+    const w = await mountSectie()
+    expect(w.find('thead').text()).toContain('Afgehandeld')
+    expect(w.find('thead').text()).not.toContain('Score')
+  })
+
+  it('enkelvoudige keuze: opslaan stuurt {optie}, zonder score', async () => {
+    api.checklistvragen.lijst.mockResolvedValue([{
+      id: 1, code: '2.1', categorie_nr: 2, categorie_naam: 'T', vraag: 'Hosting', prioriteit: 'hoog',
+      antwoordtype: 'enkelvoudige_keuze',
+      opties: [
+        { optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true, afgeleid_bron: 'HostingModel' },
+        { optie_sleutel: 'on_premise', label: 'On premise', volgorde: 1, actief: true, afgeleid_bron: 'HostingModel' },
+      ],
+    }])
+    api.checklistscores.lijst.mockResolvedValue(_gescoord('2.1'))
+    api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'ja', antwoord_waarde: { optie: 'saas' } })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-2.1"]').trigger('click')
+    await w.find('[data-testid="cs-antwoord-2.1"]').setValue('saas')
+    await w.find('[data-testid="cs-velden-opslaan-2.1"]').trigger('click')
+    await flushPromises()
+    const payload = api.checklistscores.werkBij.mock.calls.at(-1)[1]
+    expect(payload.antwoord_waarde).toEqual({ optie: 'saas' })
+    expect(payload).not.toHaveProperty('score')
+  })
+
+  it('meerkeuze: twee opties aanvinken → opslaan stuurt {opties:[...]}', async () => {
+    api.checklistvragen.lijst.mockResolvedValue([{
+      id: 1, code: '4.1', categorie_nr: 4, categorie_naam: 'D', vraag: 'Type', prioriteit: 'hoog',
+      antwoordtype: 'meerkeuze',
+      opties: [
+        { optie_sleutel: 'a', label: 'A', volgorde: 0, actief: true, afgeleid_bron: null },
+        { optie_sleutel: 'b', label: 'B', volgorde: 1, actief: true, afgeleid_bron: null },
+      ],
+    }])
+    api.checklistscores.lijst.mockResolvedValue(_gescoord('4.1'))
+    api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'ja', antwoord_waarde: { opties: ['a', 'b'] } })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-4.1"]').trigger('click')
+    await w.find('[data-testid="cs-antwoord-4.1-a"]').setValue(true)
+    await w.find('[data-testid="cs-antwoord-4.1-b"]').setValue(true)
+    await w.find('[data-testid="cs-velden-opslaan-4.1"]').trigger('click')
+    await flushPromises()
+    const payload = api.checklistscores.werkBij.mock.calls.at(-1)[1]
+    expect(payload.antwoord_waarde).toEqual({ opties: ['a', 'b'] })
+    expect(payload).not.toHaveProperty('score')
+  })
+
+  it('getal: waarde invullen → opslaan stuurt {getal:n}', async () => {
+    api.checklistvragen.lijst.mockResolvedValue([{
+      id: 1, code: '12.4', categorie_nr: 12, categorie_naam: 'R', vraag: 'Prioriteit', prioriteit: 'hoog',
+      antwoordtype: 'getal', opties: [],
+    }])
+    api.checklistscores.lijst.mockResolvedValue(_gescoord('12.4'))
+    api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'ja', antwoord_waarde: { getal: 3 } })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-12.4"]').trigger('click')
+    await w.find('[data-testid="cs-antwoord-12.4"]').setValue('3')
+    await w.find('[data-testid="cs-velden-opslaan-12.4"]').trigger('click')
+    await flushPromises()
+    const payload = api.checklistscores.werkBij.mock.calls.at(-1)[1]
+    expect(payload.antwoord_waarde).toEqual({ getal: 3 })
+  })
+
+  it('rol-gating: viewer ziet het antwoordveld disabled', async () => {
+    api.checklistvragen.lijst.mockResolvedValue([{
+      id: 1, code: '2.1', categorie_nr: 2, categorie_naam: 'T', vraag: 'Hosting', prioriteit: 'hoog',
+      antwoordtype: 'enkelvoudige_keuze',
+      opties: [{ optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true, afgeleid_bron: 'HostingModel' }],
+    }])
+    api.checklistscores.lijst.mockResolvedValue(_gescoord('2.1'))
+    const w = await mountSectie({ rollen: ['viewer'] })
+    await w.find('[data-testid="cs-toggle-2.1"]').trigger('click')
+    expect(w.find('[data-testid="cs-antwoord-2.1"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-testid="cs-velden-opslaan-2.1"]').exists()).toBe(false)
+  })
+
   // ── CD022: filtering op categorie + globale voortgang ──────────────────────
   it('toont met categorieNr alleen de vragen van die categorie (voortgang blijft globaal)', async () => {
     api.checklistvragen.lijst.mockResolvedValue([

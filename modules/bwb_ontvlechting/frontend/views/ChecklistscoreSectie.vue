@@ -86,6 +86,7 @@ function _zetScore(code, r) {
     bevinding: r.bevinding ?? '',
     eigenaar: r.eigenaar ?? '',
     actie: r.actie ?? '',
+    antwoord_waarde: r.antwoord_waarde ?? null,
   }
 }
 
@@ -124,6 +125,42 @@ function huidigeScore(code) {
 
 function isGescoord(code) {
   return !!scoreMap[code]?.id
+}
+
+// ── ADR-019: gestructureerd antwoordveld (CD029) ─────────────────────────────
+
+function vraagVan(code) {
+  return vragen.value.find((q) => q.code === code)
+}
+
+function antwoordType(code) {
+  return vraagVan(code)?.antwoordtype ?? 'geen'
+}
+
+// Alleen ACTIEVE opties zijn kiesbaar; gedeactiveerde komen wél mee in vraag.opties
+// (label-resolutie van een eerder gekozen, inmiddels inactieve sleutel).
+function actieveOpties(code) {
+  return (vraagVan(code)?.opties ?? []).filter((o) => o.actief)
+}
+
+function toggleOptie(code, sleutel) {
+  const arr = bewerk[code].antwoord_opties
+  const i = arr.indexOf(sleutel)
+  if (i >= 0) arr.splice(i, 1)
+  else arr.push(sleutel)
+}
+
+// Bouw de antwoord_waarde-envelope uit de lokale buffer naar het type; leeg → null.
+function _antwoordEnvelope(code) {
+  const b = bewerk[code]
+  const t = antwoordType(code)
+  if (t === 'enkelvoudige_keuze') return b.antwoord_optie ? { optie: b.antwoord_optie } : null
+  if (t === 'meerkeuze') return b.antwoord_opties.length ? { opties: [...b.antwoord_opties] } : null
+  if (t === 'getal') {
+    const n = Number.parseInt(b.antwoord_getal, 10)
+    return Number.isInteger(n) && n >= 1 ? { getal: n } : null
+  }
+  return null
 }
 
 async function onScoreChange(code, nieuweScore) {
@@ -173,11 +210,15 @@ function toggleDetail(code) {
   const open = !uitgeklapt[code]
   if (open) {
     const s = scoreMap[code]
+    const aw = s?.antwoord_waarde || {}
     // Verse buffer uit de huidige waarden — bewerken muteert scoreMap niet.
     bewerk[code] = {
       bevinding: s?.bevinding ?? '',
       eigenaar: s?.eigenaar ?? '',
       actie: s?.actie ?? '',
+      antwoord_optie: aw.optie ?? '',
+      antwoord_opties: Array.isArray(aw.opties) ? [...aw.opties] : [],
+      antwoord_getal: aw.getal ?? '',
     }
     delete veldFout[code]
     delete veldStatus[code]
@@ -193,11 +234,10 @@ async function opslaanVelden(code) {
   try {
     const b = bewerk[code]
     // BEWUST géén `score` → backend laat lifecycle/blokkade ongemoeid (ADR-013/016).
-    const r = await api.checklistscores.werkBij(s.id, {
-      bevinding: b.bevinding,
-      eigenaar: b.eigenaar,
-      actie: b.actie,
-    })
+    const payload = { bevinding: b.bevinding, eigenaar: b.eigenaar, actie: b.actie }
+    // Alleen waar geconfigureerd: het gestructureerde antwoord (envelope of null).
+    if (antwoordType(code) !== 'geen') payload.antwoord_waarde = _antwoordEnvelope(code)
+    const r = await api.checklistscores.werkBij(s.id, payload)
     _zetScore(code, r)
     veldStatus[code] = 'opgeslagen'
   } catch (e) {
@@ -228,7 +268,7 @@ laad()
 
     <table>
       <thead>
-        <tr><th>Code</th><th>Vraag</th><th>Score</th><th></th><th><span class="sr-only">Details</span></th></tr>
+        <tr><th>Code</th><th>Vraag</th><th>Afgehandeld</th><th></th><th><span class="sr-only">Details</span></th></tr>
       </thead>
       <tbody>
         <template v-for="v in zichtbareVragen" :key="v.code">
@@ -240,7 +280,7 @@ laad()
                 :id="`cs-score-${v.code}`"
                 :value="huidigeScore(v.code)"
                 :disabled="!mag"
-                :aria-label="`Score voor vraag ${v.code}`"
+                :aria-label="`Afgehandeld voor vraag ${v.code}`"
                 :aria-invalid="!!rijFout[v.code]"
                 :data-testid="`cs-score-${v.code}`"
                 class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-60"
@@ -280,6 +320,52 @@ laad()
                 Scoor eerst deze vraag om bevinding, eigenaar en actie vast te leggen.
               </p>
               <div v-else class="flex flex-col gap-[var(--cd-space-sm)]">
+                <!-- ADR-019: gestructureerd antwoordveld, alleen waar geconfigureerd -->
+                <div v-if="antwoordType(v.code) !== 'geen'" class="flex flex-col gap-[var(--cd-space-xs)]">
+                  <label :for="`cs-antwoord-${v.code}`" class="text-[length:var(--cd-text-sm)] font-medium">Antwoord</label>
+
+                  <select
+                    v-if="antwoordType(v.code) === 'enkelvoudige_keuze'"
+                    :id="`cs-antwoord-${v.code}`"
+                    :data-testid="`cs-antwoord-${v.code}`"
+                    v-model="bewerk[v.code].antwoord_optie"
+                    :disabled="!mag"
+                    class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-60"
+                  >
+                    <option value="">— geen —</option>
+                    <option v-for="o in actieveOpties(v.code)" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
+                  </select>
+
+                  <div
+                    v-else-if="antwoordType(v.code) === 'meerkeuze'"
+                    :data-testid="`cs-antwoord-${v.code}`"
+                    class="flex flex-col gap-[var(--cd-space-xs)]"
+                  >
+                    <label v-for="o in actieveOpties(v.code)" :key="o.optie_sleutel" class="flex items-center gap-[var(--cd-space-xs)]">
+                      <input
+                        type="checkbox"
+                        :data-testid="`cs-antwoord-${v.code}-${o.optie_sleutel}`"
+                        :value="o.optie_sleutel"
+                        :checked="bewerk[v.code].antwoord_opties.includes(o.optie_sleutel)"
+                        :disabled="!mag"
+                        @change="toggleOptie(v.code, o.optie_sleutel)"
+                      />
+                      <span>{{ o.label }}</span>
+                    </label>
+                  </div>
+
+                  <input
+                    v-else-if="antwoordType(v.code) === 'getal'"
+                    type="number"
+                    min="1"
+                    :id="`cs-antwoord-${v.code}`"
+                    :data-testid="`cs-antwoord-${v.code}`"
+                    v-model="bewerk[v.code].antwoord_getal"
+                    :disabled="!mag"
+                    class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-60 w-32"
+                  />
+                </div>
+
                 <div class="flex flex-col gap-[var(--cd-space-xs)]">
                   <label :for="`cs-bevinding-${v.code}`" class="text-[length:var(--cd-text-sm)] font-medium">Bevinding</label>
                   <textarea
