@@ -19,6 +19,7 @@ from app.middleware.authz import (
 
 # Onafhankelijke her-codering van de platform-matrix (= spec)
 _L = {Actie.LEZEN}
+_LAW = {Actie.LEZEN, Actie.AANMAKEN, Actie.WIJZIGEN}
 _LAWV = {Actie.LEZEN, Actie.AANMAKEN, Actie.WIJZIGEN, Actie.VERWIJDEREN}
 _GEEN: set = set()
 
@@ -26,7 +27,19 @@ VERWACHT = {
     PlatformEntiteit.TENANT: {PlatformRol.PLATFORMBEHEERDER: _LAWV, PlatformRol.PLATFORMOPERATOR: _L},
     PlatformEntiteit.PLATFORMINSTELLINGEN: {PlatformRol.PLATFORMBEHEERDER: _LAWV, PlatformRol.PLATFORMOPERATOR: _GEEN},
     PlatformEntiteit.PLATFORMMETADATA: {PlatformRol.PLATFORMBEHEERDER: _L, PlatformRol.PLATFORMOPERATOR: _L},
+    # ADR-012 Addendum A: checklistconfig — beheerder LAW (geen V), operator L.
+    PlatformEntiteit.CHECKLISTCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
 }
+
+
+def test_checklistconfig_geen_verwijderen_voor_wie_dan_ook():
+    # Addendum A: soft-deactivate (W), nooit hard delete → V voor niemand.
+    for rol in PlatformRol:
+        assert not heeft_platform_permissie(
+            [rol.value], PlatformEntiteit.CHECKLISTCONFIG, Actie.VERWIJDEREN
+        )
+    assert heeft_platform_permissie(["platformbeheerder"], PlatformEntiteit.CHECKLISTCONFIG, Actie.WIJZIGEN)
+    assert not heeft_platform_permissie(["platformoperator"], PlatformEntiteit.CHECKLISTCONFIG, Actie.WIJZIGEN)
 
 
 def test_platform_matrix_volledig_incl_negatief():

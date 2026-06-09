@@ -22,17 +22,21 @@ class PlatformEntiteit(str, Enum):
     TENANT = "tenant"
     PLATFORMINSTELLINGEN = "platforminstellingen"
     PLATFORMMETADATA = "platformmetadata"
+    # ADR-012 Addendum A / ADR-019: beheer van checklist-antwoordconfiguratie.
+    CHECKLISTCONFIG = "checklistconfig"
 
 
 KNOWN_PLATFORM_ROLES: frozenset[str] = frozenset(r.value for r in PlatformRol)
 
 _L = frozenset({Actie.LEZEN})
+_LAW = frozenset({Actie.LEZEN, Actie.AANMAKEN, Actie.WIJZIGEN})
 _LAWV = frozenset({Actie.LEZEN, Actie.AANMAKEN, Actie.WIJZIGEN, Actie.VERWIJDEREN})
 _GEEN: frozenset[Actie] = frozenset()
 
-# Platform-rechtenmatrix (LEIDEND — ADR-012):
-#   platformbeheerder: Tenant LAWV · Platforminstellingen LAWV · Platformmetadata L
-#   platformoperator : Tenant L    · Platforminstellingen —    · Platformmetadata L
+# Platform-rechtenmatrix (LEIDEND — ADR-012 + Addendum A):
+#   platformbeheerder: Tenant LAWV · Platforminstellingen LAWV · Platformmetadata L · Checklistconfig LAW
+#   platformoperator : Tenant L    · Platforminstellingen —    · Platformmetadata L · Checklistconfig L
+# Checklistconfig kent bewust GEEN V: een optie wordt soft-gedeactiveerd (W), nooit hard verwijderd.
 PLATFORM_PERMISSIES: dict[PlatformEntiteit, dict[PlatformRol, frozenset[Actie]]] = {
     PlatformEntiteit.TENANT: {
         PlatformRol.PLATFORMBEHEERDER: _LAWV,
@@ -44,6 +48,10 @@ PLATFORM_PERMISSIES: dict[PlatformEntiteit, dict[PlatformRol, frozenset[Actie]]]
     },
     PlatformEntiteit.PLATFORMMETADATA: {
         PlatformRol.PLATFORMBEHEERDER: _L,
+        PlatformRol.PLATFORMOPERATOR: _L,
+    },
+    PlatformEntiteit.CHECKLISTCONFIG: {
+        PlatformRol.PLATFORMBEHEERDER: _LAW,
         PlatformRol.PLATFORMOPERATOR: _L,
     },
 }

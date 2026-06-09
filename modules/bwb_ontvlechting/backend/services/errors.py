@@ -54,6 +54,18 @@ class ChecklistscoreConflict(Exception):
     """
 
 
+class ConfiguratieConflict(Exception):
+    """Een checklist-configuratiemutatie die een integriteitsregel schendt (ADR-019,
+    fase 2D): een reeds-getypeerde vraag van antwoordtype wisselen (zou tenant-
+    antwoorden kunnen verwezen), een afgeleide optieset structureel wijzigen
+    (alleen label mag), of een dubbele `optie_sleutel`. HTTP 409.
+    """
+
+    def __init__(self, bericht: str = "De configuratiemutatie is niet toegestaan."):
+        self.bericht = bericht
+        super().__init__(bericht)
+
+
 class OngeldigAntwoord(Exception):
     """Semantisch ongeldig `antwoord_waarde` (ADR-019): het type past niet bij de
     vraag, of de optiesleutel bestaat niet / is niet actief.
@@ -124,6 +136,21 @@ async def checklistscore_conflict_handler(
                 "code": "CHECKLISTSCORE_BESTAAT_AL",
                 "http_status": 409,
                 "bericht": "Voor deze vraag bestaat al een score voor deze applicatie.",
+            }
+        },
+    )
+
+
+async def configuratie_conflict_handler(
+    request: Request, exc: ConfiguratieConflict
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={
+            "fout": {
+                "code": "CONFIGURATIE_CONFLICT",
+                "http_status": 409,
+                "bericht": exc.bericht,
             }
         },
     )
