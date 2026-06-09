@@ -6,28 +6,44 @@ import { defineStore } from 'pinia'
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     user: null,
+    // 'tenant' | 'platform' | null — bepaalt welke app-sectie de gebruiker ziet (2E-b).
+    sessionType: null,
   }),
   getters: {
     isAuthenticated: (state) => !!state.user,
+    isPlatform: (state) => state.sessionType === 'platform',
+    isTenant: (state) => state.sessionType === 'tenant',
     // /auth/me levert `tenant_id` (UUID); geen slug. (Was `tenant_slug` → altijd null.)
     tenantId: (state) => state.user?.tenant_id ?? null,
     roles: (state) => state.user?.roles ?? [],
   },
   actions: {
     async fetchSession() {
+      // Sessietype-detectie (ADR-012 / 2E-b): tenant-account → /auth/me (heeft
+      // tenant_id); platform-account → /auth/me geeft 403 (TENANT_MISMATCH), dan
+      // /auth/platform/me. Beide via dezelfde httpOnly-cookie.
       try {
-        const res = await fetch('/api/v1/auth/me', { credentials: 'include' })
-        if (!res.ok) {
-          this.user = null
+        const me = await fetch('/api/v1/auth/me', { credentials: 'include' })
+        if (me.ok) {
+          this.user = await me.json()
+          this.sessionType = 'tenant'
           return
         }
-        this.user = await res.json()
+        const pme = await fetch('/api/v1/auth/platform/me', { credentials: 'include' })
+        if (pme.ok) {
+          this.user = await pme.json()
+          this.sessionType = 'platform'
+          return
+        }
       } catch {
-        this.user = null
+        /* netwerkfout → geen sessie */
       }
+      this.user = null
+      this.sessionType = null
     },
     async logout() {
       this.user = null
+      this.sessionType = null
       try {
         const res = await fetch('/api/v1/auth/logout', {
           method: 'POST',
