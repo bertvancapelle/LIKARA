@@ -51,10 +51,12 @@ from services.errors import (  # noqa: E402
     ChecklistscoreConflict,
     KoppelingConflict,
     NietGevonden,
+    OngeldigAntwoord,
     OngeldigeStatusovergang,
     checklistscore_conflict_handler,
     koppeling_conflict_handler,
     niet_gevonden_handler,
+    ongeldig_antwoord_handler,
     ongeldige_statusovergang_handler,
 )
 
@@ -95,6 +97,7 @@ app.add_exception_handler(NietGevonden, niet_gevonden_handler)
 app.add_exception_handler(OngeldigeStatusovergang, ongeldige_statusovergang_handler)
 app.add_exception_handler(KoppelingConflict, koppeling_conflict_handler)
 app.add_exception_handler(ChecklistscoreConflict, checklistscore_conflict_handler)
+app.add_exception_handler(OngeldigAntwoord, ongeldig_antwoord_handler)
 
 # Routers
 app.include_router(health.router, prefix="/api/v1")

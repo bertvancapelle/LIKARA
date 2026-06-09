@@ -18,15 +18,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
+    AntwoordType,
     Blokkade,
     BlokkadeStatus,
     ChecklistScore,
     ChecklistVraag,
+    ChecklistVraagOptie,
     Checklistscore,
 )
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate
 from services import applicatie_service, lifecycle_service
-from services.errors import ChecklistscoreConflict, NietGevonden
+from services.errors import ChecklistscoreConflict, NietGevonden, OngeldigAntwoord
 from services.pagination import (
     decode_sort_cursor_nullable,
     encode_sort_cursor_nullable,
@@ -84,6 +86,54 @@ async def _valideer_vraag_code(session: AsyncSession, vraag_code: str) -> None:
 def _is_blokkerend(score) -> bool:
     """Score die een blokkade rechtvaardigt (`nee`/`deels`)."""
     return score in _BLOKKADE_VEREIST
+
+
+async def _valideer_antwoord_waarde(
+    session: AsyncSession, vraag_code: str, antwoord_waarde
+) -> None:
+    """Semantische validatie van `antwoord_waarde` tegen de vraagconfiguratie (ADR-019).
+
+    Onafhankelijk van het score-pad — raakt blokkade/lifecycle NIET. De structurele
+    vorm (envelope/typen) is al door Pydantic gevalideerd; hier de betekenis: past
+    het type bij de vraag, en is de gekozen optiesleutel een ACTIEVE optie van die
+    vraag. Ongeldig ⇒ `OngeldigAntwoord` (HTTP 422-envelope).
+    """
+    if antwoord_waarde is None:
+        return
+    vraag = (
+        await session.execute(select(ChecklistVraag).where(ChecklistVraag.code == vraag_code))
+    ).scalar_one_or_none()
+    if vraag is None:
+        return  # vraag_code-bestaan wordt elders afgedwongen (maak_aan)
+
+    if vraag.antwoordtype == AntwoordType.geen:
+        raise OngeldigAntwoord("Deze vraag heeft geen gestructureerd antwoordveld.")
+    if vraag.antwoordtype == AntwoordType.getal:
+        if "getal" not in antwoord_waarde:
+            raise OngeldigAntwoord("Voor deze vraag wordt een getal verwacht.")
+        return  # bereik (>= 1) al door de schema-validatie afgedwongen
+
+    actieve = {
+        sleutel
+        for (sleutel,) in (
+            await session.execute(
+                select(ChecklistVraagOptie.optie_sleutel).where(
+                    ChecklistVraagOptie.vraag_code == vraag_code,
+                    ChecklistVraagOptie.actief.is_(True),
+                )
+            )
+        ).all()
+    }
+    if vraag.antwoordtype == AntwoordType.enkelvoudige_keuze:
+        if "optie" not in antwoord_waarde:
+            raise OngeldigAntwoord("Voor deze vraag wordt één optie verwacht.")
+        if antwoord_waarde["optie"] not in actieve:
+            raise OngeldigAntwoord("De gekozen optie is onbekend of niet (meer) actief.")
+    else:  # meerkeuze
+        if "opties" not in antwoord_waarde:
+            raise OngeldigAntwoord("Voor deze vraag wordt een lijst opties verwacht.")
+        if not set(antwoord_waarde["opties"]) <= actieve:
+            raise OngeldigAntwoord("Eén of meer gekozen opties zijn onbekend of niet (meer) actief.")
 
 
 async def _synchroniseer_blokkade(
@@ -229,6 +279,9 @@ async def maak_aan(
     if bestaat is not None:
         raise ChecklistscoreConflict()
 
+    # ADR-019: antwoord_waarde semantisch valideren (los van score/engine).
+    await _valideer_antwoord_waarde(session, data.vraag_code, data.antwoord_waarde)
+
     obj = Checklistscore(tenant_id=tid, **data.model_dump())
     session.add(obj)
     try:
@@ -249,6 +302,9 @@ async def werk_bij(
 ) -> Checklistscore:
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, checklistscore_id)
+    # ADR-019: alleen valideren als antwoord_waarde wérd meegestuurd (los van score).
+    if "antwoord_waarde" in data.model_fields_set:
+        await _valideer_antwoord_waarde(session, obj.vraag_code, data.antwoord_waarde)
     oude_score = obj.score  # vóór de update — bepaalt de transitie
     for veld, waarde in data.model_dump(exclude_unset=True).items():
         setattr(obj, veld, waarde)

@@ -98,3 +98,50 @@ def test_read_geen_tenant_id():
 
     assert "tenant_id" not in ChecklistscoreRead.model_fields
     assert "vraag_code" in ChecklistscoreRead.model_fields
+    assert "antwoord_waarde" in ChecklistscoreRead.model_fields
+
+
+# ── ADR-019: antwoord_waarde envelope-validatie (structureel, Pydantic → 422) ──
+
+@pytest.mark.parametrize("waarde", [
+    None,
+    {"optie": "saas"},
+    {"opties": ["api", "middleware"]},
+    {"opties": []},
+    {"getal": 1},
+    {"getal": 7},
+])
+def test_create_antwoord_waarde_geldig(waarde):
+    from schemas.checklistscore import ChecklistscoreCreate
+
+    m = ChecklistscoreCreate(**_basis(), antwoord_waarde=waarde)
+    assert m.antwoord_waarde == waarde
+
+
+@pytest.mark.parametrize("waarde", [
+    {},                              # geen sleutel
+    {"optie": "a", "getal": 1},      # meer dan één sleutel
+    {"onbekend": "x"},               # onbekende sleutel
+    {"optie": ""},                   # lege optie
+    {"optie": 3},                    # optie geen str
+    {"opties": "api"},               # opties geen lijst
+    {"opties": ["api", "api"]},      # dubbele sleutels
+    {"opties": ["api", 2]},          # niet-str element
+    {"getal": 0},                    # < 1
+    {"getal": -1},                   # < 1
+    {"getal": 1.5},                  # geen int
+    {"getal": True},                 # bool uitgesloten
+])
+def test_create_antwoord_waarde_ongeldig(waarde):
+    from schemas.checklistscore import ChecklistscoreCreate
+
+    with pytest.raises(ValidationError):
+        ChecklistscoreCreate(**_basis(), antwoord_waarde=waarde)
+
+
+def test_update_antwoord_waarde_mag_null():
+    from schemas.checklistscore import ChecklistscoreUpdate
+
+    m = ChecklistscoreUpdate(antwoord_waarde=None)
+    assert "antwoord_waarde" in m.model_fields_set
+    assert m.model_dump(exclude_unset=True) == {"antwoord_waarde": None}

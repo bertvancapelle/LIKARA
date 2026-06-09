@@ -25,6 +25,7 @@ def _fake_score():
         bevinding=None,
         eigenaar=None,
         actie=None,
+        antwoord_waarde=None,
         created_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
         updated_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
     )

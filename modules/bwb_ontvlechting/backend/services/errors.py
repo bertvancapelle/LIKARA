@@ -54,6 +54,21 @@ class ChecklistscoreConflict(Exception):
     """
 
 
+class OngeldigAntwoord(Exception):
+    """Semantisch ongeldig `antwoord_waarde` (ADR-019): het type past niet bij de
+    vraag, of de optiesleutel bestaat niet / is niet actief.
+
+    HTTP **422** (validatie), maar via het canonieke envelope i.p.v. native
+    FastAPI: deze check vereist de optie-catalogus uit de DB en kan dus niet in
+    een Pydantic-validator (die structureel/DB-vrij blijft, ADR-014). Raakt de
+    score-/lifecycle-/blokkade-engine niet.
+    """
+
+    def __init__(self, bericht: str = "Het opgegeven antwoord is ongeldig."):
+        self.bericht = bericht
+        super().__init__(bericht)
+
+
 # ── HTTP-handlers (canoniek foutformaat; geen architectuurdetails) ──────────
 
 async def niet_gevonden_handler(request: Request, exc: NietGevonden) -> JSONResponse:
@@ -109,6 +124,21 @@ async def checklistscore_conflict_handler(
                 "code": "CHECKLISTSCORE_BESTAAT_AL",
                 "http_status": 409,
                 "bericht": "Voor deze vraag bestaat al een score voor deze applicatie.",
+            }
+        },
+    )
+
+
+async def ongeldig_antwoord_handler(
+    request: Request, exc: OngeldigAntwoord
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "fout": {
+                "code": "ONGELDIG_ANTWOORD",
+                "http_status": 422,
+                "bericht": exc.bericht,
             }
         },
     )

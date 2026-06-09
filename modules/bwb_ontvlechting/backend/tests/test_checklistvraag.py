@@ -12,7 +12,8 @@ TENANT_B = "22222222-2222-2222-2222-222222222222"
 
 def _vraag(code, nr=1):
     return SimpleNamespace(
-        id=nr, code=code, categorie_nr=nr, categorie_naam="Cat", vraag="?", prioriteit="hoog"
+        id=nr, code=code, categorie_nr=nr, categorie_naam="Cat", vraag="?", prioriteit="hoog",
+        antwoordtype="geen", opties=[],
     )
 
 
@@ -51,13 +52,23 @@ def test_service_lijst_alle_zonder_tenantfilter():
 
     from services.checklistvraag_service import lijst_alle
 
-    rijen = [_vraag("1.1"), _vraag("1.2")]
-    res = MagicMock()
-    res.scalars.return_value.all.return_value = rijen
+    vragen = [_vraag("1.1"), _vraag("1.2")]
+    optie = SimpleNamespace(
+        vraag_code="1.1", optie_sleutel="a", label="A", volgorde=0, actief=True, afgeleid_bron=None
+    )
+    vres = MagicMock()
+    vres.scalars.return_value.all.return_value = vragen
+    ores = MagicMock()
+    ores.scalars.return_value.all.return_value = [optie]
     session = AsyncMock()
-    session.execute.return_value = res
-    # signatuur neemt geen tenant_id → kan per definitie niet tenant-filteren
-    assert asyncio.run(lijst_alle(session)) == rijen
+    # twee queries: vragen, daarna opties (geen tenant_id in de signatuur)
+    session.execute.side_effect = [vres, ores]
+
+    out = asyncio.run(lijst_alle(session))
+    assert [r["code"] for r in out] == ["1.1", "1.2"]
+    assert out[0]["antwoordtype"] == "geen"
+    assert out[0]["opties"] == [optie]  # gegroepeerd op vraag_code
+    assert out[1]["opties"] == []
 
 
 def test_route_geeft_vragen_voor_viewer(monkeypatch):
@@ -70,7 +81,10 @@ def test_route_geeft_vragen_voor_viewer(monkeypatch):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert [r["code"] for r in body] == ["1.1", "2.1"]
-    assert set(body[0].keys()) == {"id", "code", "categorie_nr", "categorie_naam", "vraag", "prioriteit"}
+    assert set(body[0].keys()) == {
+        "id", "code", "categorie_nr", "categorie_naam", "vraag", "prioriteit",
+        "antwoordtype", "opties",
+    }
 
 
 def test_route_cross_tenant_identieke_set(monkeypatch):

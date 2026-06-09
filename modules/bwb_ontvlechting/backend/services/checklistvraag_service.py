@@ -4,14 +4,51 @@
 `tenant_id` (89 vaste vragen, gedeeld over alle tenants). Daarom géén
 `tenant_id`-filter en géén `set_config`-afhankelijkheid; alle tenants zien
 dezelfde set. (Wijk hier niet van af door "scoping toe te voegen".)
+
+Sinds ADR-019 levert `lijst_alle` per vraag ook het `antwoordtype` en de
+optie-catalogus mee. De opties worden in één query opgehaald (geen N+1) en op
+`vraag_code` gegroepeerd; gedeactiveerde opties komen mee (label-resolutie van
+historische antwoorden), oplopend op `volgorde`.
 """
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import ChecklistVraag
+from models.models import ChecklistVraag, ChecklistVraagOptie
 
 
-async def lijst_alle(session: AsyncSession) -> list[ChecklistVraag]:
-    """Alle ChecklistVragen, gesorteerd op `code`. Geen tenant-filter (referentiedata)."""
-    stmt = select(ChecklistVraag).order_by(ChecklistVraag.code)
-    return list((await session.execute(stmt)).scalars().all())
+async def lijst_alle(session: AsyncSession) -> list[dict]:
+    """Alle ChecklistVragen (gesorteerd op `code`) + hun opties. Geen tenant-filter."""
+    vragen = list(
+        (await session.execute(select(ChecklistVraag).order_by(ChecklistVraag.code)))
+        .scalars()
+        .all()
+    )
+    opties = list(
+        (
+            await session.execute(
+                select(ChecklistVraagOptie).order_by(
+                    ChecklistVraagOptie.vraag_code, ChecklistVraagOptie.volgorde
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    per_code: dict[str, list[ChecklistVraagOptie]] = {}
+    for o in opties:
+        per_code.setdefault(o.vraag_code, []).append(o)
+
+    return [
+        {
+            "id": v.id,
+            "code": v.code,
+            "categorie_nr": v.categorie_nr,
+            "categorie_naam": v.categorie_naam,
+            "vraag": v.vraag,
+            "prioriteit": v.prioriteit,
+            "antwoordtype": v.antwoordtype,
+            "opties": per_code.get(v.code, []),
+        }
+        for v in vragen
+    ]
