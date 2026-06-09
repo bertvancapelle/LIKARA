@@ -172,4 +172,27 @@ export const api = {
   checklistvragen: {
     lijst: () => request('/checklistvragen'),
   },
+
+  // Platform-beheer van de checklist-antwoordconfiguratie (ADR-019 fase 2D/2E,
+  // platform-sessie). Server handhaaft alle regels (orphan-409, afgeleid, type).
+  platformChecklistconfig: {
+    lijst: () => request('/platform/checklistconfig'),
+    zetAntwoordtype: (code, antwoordtype) =>
+      request(`/platform/checklistconfig/vragen/${encodeURIComponent(code)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ antwoordtype }),
+      }),
+    voegOptieToe: (code, data) =>
+      request(`/platform/checklistconfig/vragen/${encodeURIComponent(code)}/opties`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    wijzigOptie: (id, data) =>
+      request(`/platform/checklistconfig/opties/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    deactiveerOptie: (id) =>
+      request(`/platform/checklistconfig/opties/${id}/deactiveren`, { method: 'POST' }),
+  },
 }

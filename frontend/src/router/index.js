@@ -17,6 +17,8 @@ const ApplicatieLijst = () => import('@modules/bwb_ontvlechting/frontend/views/A
 const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
 const ApplicatieFormulier = () =>
   import('@modules/bwb_ontvlechting/frontend/views/ApplicatieFormulier.vue')
+// Platform-beheer-view (2E-c), lazy.
+const ChecklistConfigBeheer = () => import('../views/ChecklistConfigBeheer.vue')
 
 // Publieke routes staan standalone (geen app-shell). Geauthenticeerde routes
 // hangen als children onder AppLayout: door de meta-merge erven zij
@@ -61,7 +63,7 @@ const routes = [
     meta: { requiresAuth: true, platform: true },
     children: [
       { path: '', name: 'beheer-home', redirect: { name: 'beheer-checklistconfig' } },
-      { path: 'checklistconfig', name: 'beheer-checklistconfig', component: Placeholder },
+      { path: 'checklistconfig', name: 'beheer-checklistconfig', component: ChecklistConfigBeheer },
     ],
   },
 
