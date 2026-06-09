@@ -34,9 +34,12 @@ from app.core.redis import get_redis
 from app.middleware.auth import (
     AuthenticatedUser,
     NietGeauthenticeerd,
+    PlatformUser,
     _increment_fail_counter,
+    get_current_platform_user,
     get_current_user,
 )
+from app.middleware.authz import OnvoldoendeRechten
 from app.schemas.auth import CallbackParams, LoginParams
 from app.utils.crypto import hash_waarde
 
@@ -271,6 +274,20 @@ async def me(
     user: AuthenticatedUser = Depends(get_current_user),
 ):
     """Geef de huidige geauthenticeerde gebruiker terug (401 zonder geldige sessie)."""
+    return asdict(user)
+
+
+@router.get("/platform/me")
+async def platform_me(
+    request: Request,
+    user: PlatformUser = Depends(get_current_platform_user),
+):
+    """Platform-identiteit (ADR-012) — géén `tenant_id` (platform-accounts hebben er
+    geen). Levert `{sub, roles, email}`. 401 zonder geldige sessie; een sessie
+    zónder platform-rol (bv. een tenant-account) ⇒ 403 (strikte domein-scheiding).
+    Raakt het tenant-pad `/auth/me` niet."""
+    if not user.roles:
+        raise OnvoldoendeRechten("platform", "identiteit")
     return asdict(user)
 
 

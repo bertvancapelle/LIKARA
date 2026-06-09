@@ -222,6 +222,41 @@ def test_me_zonder_cookie_401(client):
     assert "detail" not in body
 
 
+# ── /auth/platform/me (2E-a) ─────────────────────────────────────────────────
+
+
+def test_platform_me_platform_account_200(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.middleware.auth.decode_token",
+        lambda t: {"sub": "p1", "email": "p@x.nl", "realm_access": {"roles": ["platformbeheerder"]}},
+    )
+    client.cookies.set(settings.cookie_name, "acc-token")
+    r = client.get("/api/v1/auth/platform/me")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["roles"] == ["platformbeheerder"]
+    assert body["sub"] == "p1"
+    assert "tenant_id" not in body  # platform-identiteit kent geen tenant
+
+
+def test_platform_me_tenant_account_403(client, monkeypatch):
+    # Tenant-account heeft geen platform-rol ⇒ strikte scheiding (ADR-012).
+    monkeypatch.setattr(
+        "app.middleware.auth.decode_token",
+        lambda t: {"sub": "t1", "tenant_id": "t", "realm_access": {"roles": ["beheerder"]}},
+    )
+    client.cookies.set(settings.cookie_name, "acc-token")
+    r = client.get("/api/v1/auth/platform/me")
+    assert r.status_code == 403
+    assert r.json()["fout"]["code"] == "ONVOLDOENDE_RECHTEN"
+
+
+def test_platform_me_zonder_cookie_401(client):
+    r = client.get("/api/v1/auth/platform/me")
+    assert r.status_code == 401
+    assert r.json()["fout"]["code"] == "NIET_GEAUTHENTICEERD"
+
+
 # ── /callback — foutpaden ────────────────────────────────────────────────────
 
 
