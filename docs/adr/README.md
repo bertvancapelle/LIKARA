@@ -27,6 +27,10 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-016 | Blokkade-`opgelost` volledig afgeleid (amendeert ADR-013 B1) | Aanvaard |
 | ADR-017 | Server-side sorteerbare keyset-paginering (allowlist + zelfbeschrijvende cursor) | Aanvaard |
 | ADR-018 | Relatievisualisatie: gefocuste ego-graaf, geen graaf-dependency | Aanvaard |
+| ADR-019 | Configureerbare antwoordopties per checklistvraag (additioneel veld, score behouden) | Aanvaard |
+| ADR-012 Addendum A | `PlatformEntiteit.CHECKLISTCONFIG` | Aanvaard |
+| ADR-020 | Leverancier- en contractregister (registratief; koppeling applicatie ↔ contract) | Aanvaard |
+| ADR-012 Addendum B | `PlatformEntiteit.CONTRACTCONFIG` | Aanvaard |
 
 ADR-002 t/m ADR-008 en ADR-010 zijn gereserveerd (zie `CLAUDE.md` →
 ADR-referentie) en worden geschreven wanneer de betreffende beslissing speelt.
