@@ -247,4 +247,14 @@ export const api = {
     deactiveerOptie: (id) =>
       request(`/platform/checklistconfig/opties/${id}/deactiveren`, { method: 'POST' }),
   },
+
+  // ADR-020 Besluit 6/7 — platform-beheer van de contract-classificatie-catalogus
+  // (ADR-012 Addendum B). GÉÉN verwijder: er is geen DELETE-endpoint (soft-deactivate
+  // via werkBij `actief`). Zelfde platform-auth-pad als het checklistconfig-beheer.
+  platformContractconfig: {
+    lijst: ({ dimensie } = {}) => request(`/platform/contractconfig${_query({ dimensie })}`),
+    maak: (data) => request('/platform/contractconfig', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) =>
+      request(`/platform/contractconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
 }

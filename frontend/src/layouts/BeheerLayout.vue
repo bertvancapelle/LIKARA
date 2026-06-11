@@ -65,6 +65,13 @@ async function uitloggen() {
           >
             Checklistconfiguratie
           </router-link>
+          <router-link
+            :to="{ name: 'beheer-contractconfig' }"
+            data-testid="nav-contractconfig"
+            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Contractcatalogus
+          </router-link>
         </nav>
       </aside>
 
