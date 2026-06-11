@@ -23,6 +23,7 @@ from schemas.contract import (
     ContractRead,
     ContractSorteerveld,
     ContractUpdate,
+    DeelcontractItem,
 )
 from services import contract_service as svc
 from services import contractconfig_catalog as catalog
@@ -84,7 +85,7 @@ async def haal_contract(
     return await svc.lees_detail(session, user.tenant_id, contract_id)
 
 
-@router.get("/{contract_id}/deelcontracten", response_model=list[ContractLijstItem])
+@router.get("/{contract_id}/deelcontracten", response_model=list[DeelcontractItem])
 async def deelcontracten(
     contract_id: uuid.UUID,
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.CONTRACT, Actie.LEZEN)),

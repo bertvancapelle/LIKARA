@@ -399,7 +399,12 @@ async def verwijder(session: AsyncSession, tenant_id, contract_id) -> None:
 
 
 async def deelcontracten(session: AsyncSession, tenant_id, contract_id) -> list[dict]:
-    """De deelcontracten onder een mantel (ContractLijstItem-vorm). Mantel onbekend ⇒ 404."""
+    """De deelcontracten onder een mantel, met gelabelde dekking (CD044 §0c).
+
+    Eigen `DeelcontractItem`-vorm, **los van de gedeelde `ContractLijstItem`**: de
+    dekking-resolutie blijft begrensd tot deze kleine per-mantel-lijst (de grote
+    contractenlijst krijgt géén per-rij-resolutie). Mantel onbekend ⇒ 404.
+    """
     tid = _tenant_uuid(tenant_id)
     await haal_op(session, tenant_id, contract_id)
     rijen = (
@@ -408,27 +413,37 @@ async def deelcontracten(session: AsyncSession, tenant_id, contract_id) -> list[
                 Contract.id.label("id"),
                 Contract.contractnaam.label("contractnaam"),
                 Contract.contracttype.label("contracttype"),
-                Contract.leverancier_id.label("leverancier_id"),
-                Leverancier.naam.label("leverancier_naam"),
-                Contract.mantelcontract_id.label("mantelcontract_id"),
                 Contract.begindatum.label("begindatum"),
                 Contract.einddatum.label("einddatum"),
                 Contract.vernieuwingsdatum.label("vernieuwingsdatum"),
-                Contract.created_at.label("created_at"),
-                Contract.updated_at.label("updated_at"),
             )
-            .join(Leverancier, Leverancier.id == Contract.leverancier_id)
             .where(Contract.tenant_id == tid, Contract.mantelcontract_id == contract_id)
             .order_by(Contract.contractnaam, Contract.id)
         )
     ).all()
+    # Dekking-tags voor álle deelcontracten in één query → groeperen → labelresolutie.
+    ids = [r.id for r in rijen]
+    dekking_per: dict = {}
+    if ids:
+        tagrijen = (
+            await session.execute(
+                select(ContractDekking.contract_id, ContractDekking.optie_sleutel)
+                .where(ContractDekking.tenant_id == tid, ContractDekking.contract_id.in_(ids))
+                .order_by(ContractDekking.optie_sleutel)
+            )
+        ).all()
+        for t in tagrijen:
+            dekking_per.setdefault(t.contract_id, []).append(t.optie_sleutel)
+    dekking_labels = await catalog.labels(session, ContractConfigDimensie.dekking)
     return [
         {
-            "id": r.id, "contractnaam": r.contractnaam, "contracttype": r.contracttype,
-            "leverancier_id": r.leverancier_id, "leverancier_naam": r.leverancier_naam,
-            "mantelcontract_id": r.mantelcontract_id, "begindatum": r.begindatum,
-            "einddatum": r.einddatum, "vernieuwingsdatum": r.vernieuwingsdatum,
-            "created_at": r.created_at, "updated_at": r.updated_at,
+            "id": r.id,
+            "contractnaam": r.contractnaam,
+            "contracttype": r.contracttype,
+            "begindatum": r.begindatum,
+            "einddatum": r.einddatum,
+            "vernieuwingsdatum": r.vernieuwingsdatum,
+            "dekking": catalog.resolveer(dekking_per.get(r.id, []), dekking_labels),
         }
         for r in rijen
     ]
@@ -445,6 +460,7 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
                 ApplicatieContract.id.label("koppeling_id"),
                 ApplicatieContract.applicatie_id.label("applicatie_id"),
                 Applicatie.naam.label("applicatie_naam"),
+                Applicatie.lifecycle_status.label("lifecycle_status"),
                 ApplicatieContract.relatie_rol.label("relatie_rol"),
             )
             .join(Applicatie, Applicatie.id == ApplicatieContract.applicatie_id)
@@ -457,6 +473,7 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
             "koppeling_id": r.koppeling_id,
             "applicatie_id": r.applicatie_id,
             "applicatie_naam": r.applicatie_naam,
+            "lifecycle_status": r.lifecycle_status,
             "relatie_rol": r.relatie_rol,
             "relatie_rol_label": catalog.resolveer_een(r.relatie_rol, rol_labels),
         }

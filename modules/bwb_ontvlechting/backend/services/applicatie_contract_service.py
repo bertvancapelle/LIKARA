@@ -124,6 +124,8 @@ async def contracten_van_applicatie(session: AsyncSession, tenant_id, applicatie
                 Contract.contracttype.label("contracttype"),
                 Contract.leverancier_id.label("leverancier_id"),
                 Leverancier.naam.label("leverancier_naam"),
+                Contract.begindatum.label("begindatum"),
+                Contract.einddatum.label("einddatum"),
                 ApplicatieContract.relatie_rol.label("relatie_rol"),
             )
             .join(Contract, Contract.id == ApplicatieContract.contract_id)
@@ -140,6 +142,8 @@ async def contracten_van_applicatie(session: AsyncSession, tenant_id, applicatie
             "contracttype": r.contracttype,
             "leverancier_id": r.leverancier_id,
             "leverancier_naam": r.leverancier_naam,
+            "begindatum": r.begindatum,
+            "einddatum": r.einddatum,
             "relatie_rol": r.relatie_rol,
             "relatie_rol_label": catalog.resolveer_een(r.relatie_rol, rol_labels),
         }

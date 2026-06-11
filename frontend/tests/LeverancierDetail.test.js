@@ -6,7 +6,9 @@ import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 
-vi.mock('@/api', () => ({ api: { leveranciers: { haal: vi.fn(), verwijder: vi.fn() } } }))
+vi.mock('@/api', () => ({
+  api: { leveranciers: { haal: vi.fn(), verwijder: vi.fn() }, contracten: { lijst: vi.fn() } },
+}))
 
 import { api } from '@/api'
 import { useAuthStore } from '@/store/auth'
@@ -19,6 +21,7 @@ function maakRouter() {
       { path: '/leveranciers', name: 'leverancier-lijst', component: { template: '<div/>' } },
       { path: '/leveranciers/:id', name: 'leverancier-detail', component: LeverancierDetail, props: true },
       { path: '/leveranciers/:id/bewerken', name: 'leverancier-bewerken', component: { template: '<div/>' } },
+      { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
     ],
   })
 }
@@ -42,6 +45,7 @@ async function mountDetail({ rollen = ['beheerder'] } = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   api.leveranciers.haal.mockResolvedValue({ id: 'l1', naam: 'Acme BV', plaats: 'Tiel' })
+  api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -71,5 +75,34 @@ describe('LeverancierDetail', () => {
   it('rol-gating: viewer ziet geen verwijder-knop', async () => {
     const { w } = await mountDetail({ rollen: ['viewer'] })
     expect(w.find('[data-testid="verwijder-knop"]').exists()).toBe(false)
+  })
+})
+
+describe('LeverancierDetail — §4 contractenketen', () => {
+  const _c = (naam, id, extra = {}) => ({
+    id, contractnaam: naam, contracttype: 'los_contract', begindatum: null, einddatum: null, ...extra,
+  })
+
+  it('toont de contracten van de leverancier met type-Tag en rij-link', async () => {
+    api.contracten.lijst.mockResolvedValueOnce({ items: [_c('Onderhoud 2026', 'c1')], volgende_cursor: null })
+    const { w } = await mountDetail()
+    expect(api.contracten.lijst).toHaveBeenCalledWith({ leverancierId: 'l1', limit: 25, after: undefined })
+    expect(w.find('[data-testid="lev-contracten-tabel"]').text()).toContain('Onderhoud 2026')
+    expect(w.find('[data-testid="lev-contract-link"]').attributes('href')).toContain('/contracten/c1')
+  })
+
+  it('"Meer laden" pagineert met de cursor', async () => {
+    api.contracten.lijst
+      .mockResolvedValueOnce({ items: [_c('Eerste', 'c1')], volgende_cursor: 'cur-1' })
+      .mockResolvedValueOnce({ items: [_c('Tweede', 'c2')], volgende_cursor: null })
+    const { w } = await mountDetail()
+    await w.find('[data-testid="lev-contracten-meer"]').trigger('click')
+    await flushPromises()
+    expect(api.contracten.lijst).toHaveBeenLastCalledWith({ leverancierId: 'l1', limit: 25, after: 'cur-1' })
+  })
+
+  it('lege-staat: "Geen contracten van deze leverancier."', async () => {
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="lev-contracten-leeg"]').exists()).toBe(true)
   })
 })

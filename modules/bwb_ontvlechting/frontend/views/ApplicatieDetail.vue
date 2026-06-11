@@ -13,6 +13,7 @@ import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import {
+  CONTRACTTYPE,
   HOSTINGMODEL,
   LIFECYCLE,
   LIFECYCLE_SEVERITY,
@@ -110,6 +111,10 @@ function naarBewerken() {
 // score/blokkade-mutatie wordt de status opnieuw bij de backend opgehaald.
 const scoreSectie = ref(null)
 const blokkadeSectie = ref(null)
+// §5 — het context-paneel bij categorie 8 hergebruikt de al geladen koppeling-state
+// uit ContractSectie (geen extra fetch, ADR-020 Besluit 9/10: read-only, niet besturend).
+const contractSectie = ref(null)
+const contractenVoorContext = computed(() => contractSectie.value?.items ?? [])
 
 // ── 2-laags tabnavigatie (CD022, #11) ───────────────────────────────────────
 // Top-niveau = applicatie-aspecten; "Checklist" bevat de 12 categorieën als
@@ -288,6 +293,43 @@ onMounted(async () => {
           :aria-labelledby="`checklisttabs-tab-${activeCat}`"
           class="grow"
         >
+          <!-- §5 — read-only context-paneel bij categorie 8 (Contractuele positie).
+               Strikt eenrichtings: registratie, geen oordeel, geen schrijf-affordances. -->
+          <aside
+            v-if="actieveCategorieNr === 8"
+            role="complementary"
+            aria-label="Geregistreerde contracten bij deze applicatie"
+            data-testid="context-paneel-cat8"
+            class="card mb-[var(--cd-space-md)] border-l-4 border-[var(--cd-color-primary)]"
+          >
+            <h3 class="font-semibold">Geregistreerde contracten (registratie)</h3>
+            <p class="mb-[var(--cd-space-sm)] text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">
+              Ter context bij het beoordelen — registratie, geen oordeel.
+            </p>
+            <ul
+              v-if="contractenVoorContext.length"
+              data-testid="context-paneel-lijst"
+              class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]"
+            >
+              <li v-for="r in contractenVoorContext" :key="r.koppeling_id">
+                <span class="font-medium">{{ r.contractnaam }}</span> — {{ r.leverancier_naam }} ·
+                {{ label(CONTRACTTYPE, r.contracttype) }} · rol: {{ r.relatie_rol_label }} ·
+                {{ r.begindatum || '—' }} t/m {{ r.einddatum || '—' }}
+              </li>
+            </ul>
+            <p v-else data-testid="context-paneel-leeg" class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
+              Geen contracten geregistreerd.
+              <button
+                type="button"
+                data-testid="context-paneel-naar-sectie"
+                class="text-[var(--cd-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+                @click="activeTop = 'contracten'"
+              >
+                Naar de Contracten-sectie
+              </button>
+            </p>
+          </aside>
+
           <ChecklistscoreSectie
             ref="scoreSectie"
             :applicatie-id="props.id"
@@ -328,7 +370,7 @@ onMounted(async () => {
         role="tabpanel"
         aria-labelledby="detailtabs-tab-contracten"
       >
-        <ContractSectie :applicatie-id="props.id" />
+        <ContractSectie ref="contractSectie" :applicatie-id="props.id" />
       </div>
       <div
         v-show="activeTop === 'blokkades'"

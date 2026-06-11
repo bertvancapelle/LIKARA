@@ -19,6 +19,8 @@ const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const items = ref([])
+// §3 — 'valt onder'-conventie (model garandeert geen uniciteit: 0, 1 of meer).
+const valtOnder = computed(() => items.value.filter((r) => r.relatie_rol === 'valt_onder'))
 const laden = ref(false)
 const fout = ref(null)
 
@@ -159,6 +161,9 @@ async function bevestigOntkoppel() {
 const typeLabel = (c) => label(CONTRACTTYPE, c)
 
 onMounted(() => Promise.all([laad(), _zorgRolOpties()]))
+
+// §5 — het context-paneel bij categorie 8 hergebruikt deze al geladen koppeling-state.
+defineExpose({ items, laad })
 </script>
 
 <template>
@@ -169,6 +174,18 @@ onMounted(() => Promise.all([laad(), _zorgRolOpties()]))
     </div>
 
     <p v-if="fout" role="alert" data-testid="ct-fout" class="text-[var(--cd-color-danger)] mb-[var(--cd-space-sm)]">{{ fout }}</p>
+
+    <!-- §3 — 'valt onder'-samenvatting boven de tabel -->
+    <p data-testid="ct-valt-onder" class="mb-[var(--cd-space-sm)] text-[length:var(--cd-text-sm)]">
+      <template v-if="valtOnder.length">
+        <span class="font-semibold">Valt onder:</span>
+        <span v-for="(r, i) in valtOnder" :key="r.koppeling_id">
+          <router-link :to="{ name: 'contract-detail', params: { id: r.contract_id } }" class="text-[var(--cd-color-primary)] hover:underline">{{ r.contractnaam }}</router-link>
+          ({{ r.leverancier_naam }}){{ i < valtOnder.length - 1 ? ', ' : '' }}
+        </span>
+      </template>
+      <span v-else class="text-[var(--cd-color-text-muted)]">Geen valt-onder-contract geregistreerd.</span>
+    </p>
 
     <table v-if="items.length" class="w-full text-[length:var(--cd-text-sm)]" data-testid="ct-tabel">
       <thead>

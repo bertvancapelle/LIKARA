@@ -8,11 +8,18 @@
  * levert 409 `IN_GEBRUIK` → nette Toast. (Overzichten mantel→deel = Fase D2.)
  */
 import { computed, onMounted, ref } from 'vue'
-import { Button, Dialog, Tag, useToast } from '@/primevue'
+import { Button, Column, DataTable, Dialog, Tag, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, REGISTER_FOUT, label } from '../labels'
+import {
+  CONTRACTTYPE,
+  CONTRACTTYPE_SEVERITY,
+  LIFECYCLE,
+  LIFECYCLE_SEVERITY,
+  REGISTER_FOUT,
+  label,
+} from '../labels'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -23,6 +30,11 @@ const contract = ref(null)
 const fout = ref(null)
 const bezig = ref(false)
 const verwijderDialog = ref(false)
+
+// Read-only register-overzichten (CD044 §1/§2).
+const deelcontracten = ref([])
+const gekoppeldeApps = ref([])
+const isMantel = computed(() => contract.value?.contracttype === 'mantelcontract')
 
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
@@ -44,6 +56,17 @@ async function laad() {
   } catch (e) {
     fout.value = e?.status === 404 ? 'Dit contract bestaat niet (meer).' : e?.message || 'Er ging iets mis.'
     _toastFout(e)
+    return
+  }
+  // Overzichten (read-only). Falen stil — het contract zelf is leidend.
+  try {
+    gekoppeldeApps.value = await api.contracten.applicaties(props.id)
+    deelcontracten.value =
+      contract.value.contracttype === 'mantelcontract'
+        ? await api.contracten.deelcontracten(props.id)
+        : []
+  } catch {
+    /* overzichten optioneel */
   }
 }
 
@@ -123,6 +146,59 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="router.push({ name: 'contract-bewerken', params: { id: props.id } })" />
         <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
       </div>
+
+      <!-- §1 — deelcontracten (alleen bij een mantelcontract) -->
+      <section
+        v-if="isMantel"
+        class="card mt-[var(--cd-space-lg)]"
+        aria-labelledby="sectie-deelcontracten"
+        data-testid="deelcontracten-sectie"
+      >
+        <h2 id="sectie-deelcontracten" class="text-[length:var(--cd-text-lg)] font-semibold mb-[var(--cd-space-sm)]">
+          Deelcontracten
+        </h2>
+        <DataTable :value="deelcontracten" data-testid="deelcontracten-tabel">
+          <Column header="Contractnaam">
+            <template #body="{ data }">
+              <router-link :to="{ name: 'contract-detail', params: { id: data.id } }" data-testid="deel-link" class="text-[var(--cd-color-primary)] hover:underline">{{ data.contractnaam }}</router-link>
+            </template>
+          </Column>
+          <Column header="Begindatum"><template #body="{ data }">{{ data.begindatum || '—' }}</template></Column>
+          <Column header="Einddatum"><template #body="{ data }">{{ data.einddatum || '—' }}</template></Column>
+          <Column header="Dekking">
+            <template #body="{ data }">
+              <span class="flex flex-wrap gap-[var(--cd-space-xs)]">
+                <Tag v-for="o in data.dekking" :key="o.optie_sleutel" :value="o.label" :severity="o.actief ? 'info' : 'secondary'" />
+                <span v-if="!data.dekking?.length">—</span>
+              </span>
+            </template>
+          </Column>
+          <template #empty><span data-testid="deelcontracten-leeg">Geen deelcontracten.</span></template>
+        </DataTable>
+      </section>
+
+      <!-- §2 — direct gekoppelde applicaties (elk contracttype) -->
+      <section
+        class="card mt-[var(--cd-space-lg)]"
+        aria-labelledby="sectie-gekoppelde-apps"
+        data-testid="gekoppelde-apps-sectie"
+      >
+        <h2 id="sectie-gekoppelde-apps" class="text-[length:var(--cd-text-lg)] font-semibold mb-[var(--cd-space-sm)]">
+          Gekoppelde applicaties
+        </h2>
+        <DataTable :value="gekoppeldeApps" data-testid="gekoppelde-apps-tabel">
+          <Column header="Applicatie">
+            <template #body="{ data }">
+              <router-link :to="{ name: 'applicatie-detail', params: { id: data.applicatie_id } }" data-testid="app-link" class="text-[var(--cd-color-primary)] hover:underline">{{ data.applicatie_naam }}</router-link>
+            </template>
+          </Column>
+          <Column header="Rol"><template #body="{ data }">{{ data.relatie_rol_label }}</template></Column>
+          <Column header="Status">
+            <template #body="{ data }"><Tag :value="label(LIFECYCLE, data.lifecycle_status)" :severity="LIFECYCLE_SEVERITY[data.lifecycle_status] || 'info'" /></template>
+          </Column>
+          <template #empty><span data-testid="gekoppelde-apps-leeg">Geen gekoppelde applicaties.</span></template>
+        </DataTable>
+      </section>
     </template>
 
     <Dialog v-model:visible="verwijderDialog" modal header="Contract verwijderen" data-testid="verwijder-dialog">

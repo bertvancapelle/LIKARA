@@ -15,6 +15,7 @@ vi.mock('@/api', () => {
         startInventarisatie: vi.fn(),
         verwijder: vi.fn(),
         lijst: vi.fn(leeg), // KoppelingSectie-pickers (bij dialog-open)
+        contracten: vi.fn(() => Promise.resolve([])), // ContractSectie (app→contracten)
       },
       // Embedded child-secties laden bij mount hun lijst (default: leeg).
       datatypes: { lijst: vi.fn(leeg) },
@@ -23,6 +24,8 @@ vi.mock('@/api', () => {
       checklistscores: { lijst: vi.fn(leeg), opties: vi.fn(() => Promise.resolve({ score: [] })) },
       blokkades: { lijst: vi.fn(leeg) },
       checklistvragen: { lijst: vi.fn(() => Promise.resolve([])) },
+      contracten: { lijst: vi.fn(leeg) },
+      contractconfig: { opties: vi.fn(() => Promise.resolve({ dekking: [], kostenmodel: [], relatie_rol: [] })) },
     },
   }
 })
@@ -59,6 +62,8 @@ async function mountDetail({ rollen = ['beheerder'], query = '' } = {}) {
       { path: '/applicaties', name: 'applicatie-lijst', component: { template: '<div/>' } },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: ApplicatieDetail, props: true },
       { path: '/applicaties/:id/bewerken', name: 'applicatie-bewerken', component: { template: '<div/>' } },
+      // ContractSectie (in het contracten-tabpaneel) rendert links naar contract-detail.
+      { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
     ],
   })
   await router.push(`/applicaties/${_ID}${query}`)
@@ -244,5 +249,51 @@ describe('ApplicatieDetail — categorie-tabs (CD022, #11)', () => {
     expect(wrapper.find('[data-testid="checklisttabs-tab-2"]').attributes('aria-selected')).toBe('true')
     expect(wrapper.find('[data-testid="cs-rij-2.1"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="cs-rij-1.1"]').exists()).toBe(false)
+  })
+})
+
+describe('ApplicatieDetail — context-paneel categorie 8 (CD044 §5)', () => {
+  const _vragen = [
+    { id: 1, code: '1.1', categorie_nr: 1, categorie_naam: 'Identiteit', vraag: 'a', prioriteit: 'hoog' },
+    { id: 8, code: '8.1', categorie_nr: 8, categorie_naam: 'Contractuele positie', vraag: 'c', prioriteit: 'hoog' },
+  ]
+  const _koppeling = {
+    koppeling_id: 'k1', contract_id: 'c1', contractnaam: 'Mantel X', contracttype: 'mantelcontract',
+    leverancier_id: 'l1', leverancier_naam: 'Acme BV', begindatum: '2026-01-01', einddatum: '2026-12-31',
+    relatie_rol: 'valt_onder', relatie_rol_label: 'Valt onder / aanschaf',
+  }
+
+  it('is alleen zichtbaar op categorie-tab 8', async () => {
+    api.applicaties.haal.mockResolvedValue(_app())
+    api.checklistvragen.lijst.mockResolvedValue(_vragen)
+    const op8 = await mountDetail({ query: '?tab=checklist&cat=8' })
+    expect(op8.wrapper.find('[data-testid="context-paneel-cat8"]').exists()).toBe(true)
+    const op1 = await mountDetail({ query: '?tab=checklist&cat=1' })
+    expect(op1.wrapper.find('[data-testid="context-paneel-cat8"]').exists()).toBe(false)
+  })
+
+  it('toont de geregistreerde contracten incl. datums en is read-only', async () => {
+    api.applicaties.haal.mockResolvedValue(_app())
+    api.checklistvragen.lijst.mockResolvedValue(_vragen)
+    api.applicaties.contracten.mockResolvedValue([_koppeling])
+    const { wrapper } = await mountDetail({ query: '?tab=checklist&cat=8' })
+    const paneel = wrapper.find('[data-testid="context-paneel-cat8"]')
+    expect(paneel.attributes('role')).toBe('complementary')
+    const lijst = wrapper.find('[data-testid="context-paneel-lijst"]')
+    expect(lijst.text()).toContain('Mantel X')
+    expect(lijst.text()).toContain('Acme BV')
+    expect(lijst.text()).toContain('2026-01-01')
+    expect(lijst.text()).toContain('2026-12-31')
+    // read-only: geen invoer/keuze/schrijf-knoppen in het paneel
+    expect(paneel.findAll('input, select, button').length).toBe(0)
+  })
+
+  it('lege-staat: paneel met melding + link naar de Contracten-sectie', async () => {
+    api.applicaties.haal.mockResolvedValue(_app())
+    api.checklistvragen.lijst.mockResolvedValue(_vragen)
+    api.applicaties.contracten.mockResolvedValue([])
+    const { wrapper } = await mountDetail({ query: '?tab=checklist&cat=8' })
+    expect(wrapper.find('[data-testid="context-paneel-leeg"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="context-paneel-naar-sectie"]').exists()).toBe(true)
   })
 })

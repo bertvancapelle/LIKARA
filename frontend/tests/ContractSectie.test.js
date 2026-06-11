@@ -144,3 +144,31 @@ describe('ContractSectie', () => {
     expect(api.applicaties.contracten.mock.calls.length).toBe(voor + 1)
   })
 })
+
+describe('ContractSectie — §3 valt-onder-samenvatting', () => {
+  it('één valt_onder-koppeling toont de samenvatting met link', async () => {
+    const w = await mountSectie()
+    const s = w.find('[data-testid="ct-valt-onder"]')
+    expect(s.text()).toContain('Valt onder:')
+    expect(s.text()).toContain('Contract A')
+  })
+
+  it('geen koppeling met rol valt_onder → expliciete melding', async () => {
+    api.applicaties.contracten.mockResolvedValueOnce([
+      { ..._rij(), relatie_rol: 'onderhoud', relatie_rol_label: 'Onderhoud' },
+    ])
+    const w = await mountSectie()
+    expect(w.find('[data-testid="ct-valt-onder"]').text()).toContain('Geen valt-onder-contract geregistreerd')
+  })
+
+  it('meerdere valt_onder-koppelingen → alle getoond (conventie A)', async () => {
+    api.applicaties.contracten.mockResolvedValueOnce([
+      { ..._rij(), koppeling_id: 'k1', contract_id: 'c1', contractnaam: 'Contract A' },
+      { ..._rij(), koppeling_id: 'k2', contract_id: 'c2', contractnaam: 'Contract B' },
+    ])
+    const w = await mountSectie()
+    const t = w.find('[data-testid="ct-valt-onder"]').text()
+    expect(t).toContain('Contract A')
+    expect(t).toContain('Contract B')
+  })
+})

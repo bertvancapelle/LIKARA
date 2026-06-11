@@ -5,11 +5,11 @@ gevalideerd). Plus de twee read-only overzicht-items: app → gekoppelde contrac
 contract → gekoppelde applicaties (elk met de rol, geresolveerd naar label).
 """
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from models.models import ContractType
+from models.models import ContractType, LifecycleStatus
 from schemas.applicatie import _verplichte_tekst
 
 
@@ -52,7 +52,8 @@ class ApplicatieContractRead(BaseModel):
 
 
 class ContractVoorApplicatie(BaseModel):
-    """Item van 'app → waar valt hij onder': het gekoppelde contract + rol."""
+    """Item van 'app → waar valt hij onder': het gekoppelde contract + rol.
+    `begindatum`/`einddatum` (CD044 §0b) voeden o.a. het context-paneel bij categorie 8."""
 
     koppeling_id: uuid.UUID
     contract_id: uuid.UUID
@@ -60,15 +61,19 @@ class ContractVoorApplicatie(BaseModel):
     contracttype: ContractType
     leverancier_id: uuid.UUID
     leverancier_naam: str
+    begindatum: date | None
+    einddatum: date | None
     relatie_rol: str
     relatie_rol_label: str
 
 
 class ApplicatieVoorContract(BaseModel):
-    """Item van 'contract → welke applicaties': de gekoppelde applicatie + rol."""
+    """Item van 'contract → welke applicaties': de gekoppelde applicatie + rol.
+    `lifecycle_status` (CD044 §0a) toont de gereedheid van de app naast het contract."""
 
     koppeling_id: uuid.UUID
     applicatie_id: uuid.UUID
     applicatie_naam: str
+    lifecycle_status: LifecycleStatus
     relatie_rol: str
     relatie_rol_label: str

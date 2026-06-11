@@ -203,3 +203,18 @@ class CatalogusOpties(BaseModel):
     dekking: list[CatalogusKeuze] = []
     kostenmodel: list[CatalogusKeuze] = []
     relatie_rol: list[CatalogusKeuze] = []
+
+
+class DeelcontractItem(BaseModel):
+    """Eigen, rijkere deelcontracten-respons (CD044 §0c) — los van `ContractLijstItem`:
+    bevat gelabelde `dekking` (de gedeelde lijst blijft onaangeroerd)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    contractnaam: str
+    contracttype: ContractType
+    begindatum: date | None
+    einddatum: date | None
+    vernieuwingsdatum: date | None
+    dekking: list[OptieRef]
