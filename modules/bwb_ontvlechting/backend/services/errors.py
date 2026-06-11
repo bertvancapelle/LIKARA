@@ -81,6 +81,40 @@ class OngeldigAntwoord(Exception):
         super().__init__(bericht)
 
 
+class OngeldigeRegistratie(Exception):
+    """Semantisch ongeldige invoer in het contractregister (ADR-020, fase B): een
+    onbekende/inactieve/verkeerd-gedimensioneerde catalogus-optie (`ONGELDIGE_OPTIE`),
+    een mantel die geen `mantelcontract` is (`ONGELDIGE_MANTEL`), een deelcontract-
+    leverancier die niet matcht met de mantel (`LEVERANCIER_MISMATCH`), of het wijzigen
+    van type/leverancier van een mantel mét deelcontracten (`MANTEL_IN_GEBRUIK`).
+
+    HTTP **422** via het canonieke envelope (de check vereist een DB-lookup en kan dus
+    niet in een Pydantic-validator, ADR-014). De `code` staat op de raise-site (greppable)
+    en wordt door de handler doorgegeven. Raakt de engine niet.
+    """
+
+    def __init__(self, code: str, bericht: str):
+        self.code = code
+        self.bericht = bericht
+        super().__init__(bericht)
+
+
+class RegistratieConflict(Exception):
+    """Een registratie-mutatie die afketst op een afhankelijkheid/uniciteit in het
+    contractregister (ADR-020, fase B): een dubbele applicatie↔contract-koppeling
+    (`KOPPELING_BESTAAT`), of het verwijderen van een mantel/leverancier/contract waar
+    nog records onder hangen (`IN_GEBRUIK`).
+
+    HTTP **409** via het canonieke envelope — een nette app-fout vóór de
+    DB-RESTRICT/UNIQUE afgaat. De `code` staat op de raise-site (greppable).
+    """
+
+    def __init__(self, code: str, bericht: str):
+        self.code = code
+        self.bericht = bericht
+        super().__init__(bericht)
+
+
 # ── HTTP-handlers (canoniek foutformaat; geen architectuurdetails) ──────────
 
 async def niet_gevonden_handler(request: Request, exc: NietGevonden) -> JSONResponse:
@@ -168,4 +202,22 @@ async def ongeldig_antwoord_handler(
                 "bericht": exc.bericht,
             }
         },
+    )
+
+
+async def ongeldige_registratie_handler(
+    request: Request, exc: OngeldigeRegistratie
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={"fout": {"code": exc.code, "http_status": 422, "bericht": exc.bericht}},
+    )
+
+
+async def registratie_conflict_handler(
+    request: Request, exc: RegistratieConflict
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"fout": {"code": exc.code, "http_status": 409, "bericht": exc.bericht}},
     )

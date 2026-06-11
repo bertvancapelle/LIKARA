@@ -40,27 +40,34 @@ if str(_MOD_BACKEND) not in sys.path:
     sys.path.insert(0, str(_MOD_BACKEND))
 
 from routes.applicatie import router as applicatie_router  # noqa: E402
+from routes.applicatie_contract import router as applicatie_contract_router  # noqa: E402
 from routes.blokkade import router as blokkade_router  # noqa: E402
 from routes.checklistconfig import router as checklistconfig_router  # noqa: E402
 from routes.checklistscore import router as checklistscore_router  # noqa: E402
+from routes.contract import router as contract_router  # noqa: E402
 from routes.dashboard import router as dashboard_router  # noqa: E402
 from routes.checklistvraag import router as checklistvraag_router  # noqa: E402
 from routes.datatype import router as datatype_router  # noqa: E402
 from routes.gebruikersgroep import router as gebruikersgroep_router  # noqa: E402
 from routes.koppeling import router as koppeling_router  # noqa: E402
+from routes.leverancier import router as leverancier_router  # noqa: E402
 from services.errors import (  # noqa: E402
     ChecklistscoreConflict,
     ConfiguratieConflict,
     KoppelingConflict,
     NietGevonden,
     OngeldigAntwoord,
+    OngeldigeRegistratie,
     OngeldigeStatusovergang,
+    RegistratieConflict,
     checklistscore_conflict_handler,
     configuratie_conflict_handler,
     koppeling_conflict_handler,
     niet_gevonden_handler,
     ongeldig_antwoord_handler,
+    ongeldige_registratie_handler,
     ongeldige_statusovergang_handler,
+    registratie_conflict_handler,
 )
 
 
@@ -102,12 +109,18 @@ app.add_exception_handler(KoppelingConflict, koppeling_conflict_handler)
 app.add_exception_handler(ChecklistscoreConflict, checklistscore_conflict_handler)
 app.add_exception_handler(OngeldigAntwoord, ongeldig_antwoord_handler)
 app.add_exception_handler(ConfiguratieConflict, configuratie_conflict_handler)
+# ADR-020 contractregister (fase B) — 422-/409-envelope met code op de raise-site
+app.add_exception_handler(OngeldigeRegistratie, ongeldige_registratie_handler)
+app.add_exception_handler(RegistratieConflict, registratie_conflict_handler)
 
 # Routers
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(platform.router, prefix="/api/v1")
 app.include_router(applicatie_router, prefix="/api/v1")
+app.include_router(leverancier_router, prefix="/api/v1")
+app.include_router(contract_router, prefix="/api/v1")
+app.include_router(applicatie_contract_router, prefix="/api/v1")
 app.include_router(datatype_router, prefix="/api/v1")
 app.include_router(gebruikersgroep_router, prefix="/api/v1")
 app.include_router(koppeling_router, prefix="/api/v1")

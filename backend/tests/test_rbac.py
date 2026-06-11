@@ -40,6 +40,9 @@ VERWACHT = {
     Entiteit.KOPPELING: _INHOUD,
     Entiteit.CHECKLISTSCORE: _INHOUD,
     Entiteit.BLOKKADE: _INHOUD,
+    Entiteit.LEVERANCIER: _INHOUD,
+    Entiteit.CONTRACT: _INHOUD,
+    Entiteit.APPLICATIE_CONTRACT: _INHOUD,
     Entiteit.CHECKLISTVRAAG: {r: _L for r in Rol},
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN, Rol.MEDEWERKER: _GEEN, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,
@@ -54,7 +57,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (160 combinaties) tegen de spec."""
+    """Elke entiteit × rol × actie (13×4×4 = 208 combinaties) tegen de spec."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist
     for entiteit, per_rol in VERWACHT.items():
         for rol in Rol:

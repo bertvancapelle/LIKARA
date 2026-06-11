@@ -26,6 +26,10 @@ class Entiteit(str, Enum):
     KOPPELING = "koppeling"
     CHECKLISTSCORE = "checklistscore"
     BLOKKADE = "blokkade"
+    # ADR-020 — contractregister (tenant-zijde, inhoud-entiteiten)
+    LEVERANCIER = "leverancier"
+    CONTRACT = "contract"
+    APPLICATIE_CONTRACT = "applicatie_contract"
     CHECKLISTVRAAG = "checklistvraag"
     AUDITLOG = "auditlog"
     GEBRUIKERSBEHEER = "gebruikersbeheer"
@@ -64,6 +68,10 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.KOPPELING: dict(_INHOUD),
     Entiteit.CHECKLISTSCORE: dict(_INHOUD),
     Entiteit.BLOKKADE: dict(_INHOUD),
+    # ADR-020 contractregister — zelfde inhoud-patroon als Applicatie.
+    Entiteit.LEVERANCIER: dict(_INHOUD),
+    Entiteit.CONTRACT: dict(_INHOUD),
+    Entiteit.APPLICATIE_CONTRACT: dict(_INHOUD),
     # Referentietabel — voor iedereen alleen-lezen.
     Entiteit.CHECKLISTVRAAG: {
         Rol.VIEWER: _L,
