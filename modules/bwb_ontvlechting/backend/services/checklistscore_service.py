@@ -72,11 +72,20 @@ def enum_opties() -> dict[str, list[str]]:
     return {"score": [e.value for e in ChecklistScore]}
 
 
-async def _valideer_checklistvraag_id(session: AsyncSession, checklistvraag_id) -> None:
-    """Onbekende `checklistvraag_id` (globale vragenset) ⇒ NietGevonden (404)."""
+async def _valideer_checklistvraag_id(
+    session: AsyncSession, checklistvraag_id, componenttype: str
+) -> None:
+    """Type-bewuste vraagvalidatie (ADR-022 Fase B): een score mag alleen verwijzen
+    naar een `checklistvraag` waarvan `componenttype` gelijk is aan dat van het
+    betrokken component. Onbekende vraag óf type-mismatch ⇒ `NietGevonden` (404) —
+    de vraag is geen geldige checklistvraag voor dít component (geen aparte/nieuwe
+    foutcode; OP-6-stijl: geen onderscheid 'bestaat niet' vs 'ander type')."""
     bestaat = (
         await session.execute(
-            select(ChecklistVraag.id).where(ChecklistVraag.id == checklistvraag_id)
+            select(ChecklistVraag.id).where(
+                ChecklistVraag.id == checklistvraag_id,
+                ChecklistVraag.componenttype == componenttype,
+            )
         )
     ).scalar_one_or_none()
     if bestaat is None:
@@ -263,9 +272,12 @@ async def maak_aan(
 ) -> Checklistscore:
     tid = _tenant_uuid(tenant_id)
     # Ouder (applicatie-profiel; component_id == applicatie-id, shared-PK) + vraag
-    # valideren (beide tenant-/referentie-scoped) → 404.
-    await applicatie_service.haal_op(session, tenant_id, data.component_id)
-    await _valideer_checklistvraag_id(session, data.checklistvraag_id)
+    # valideren (beide tenant-/referentie-scoped) → 404. De vraagvalidatie is
+    # type-bewust (ADR-022 Fase B): de vraag moet bij het componenttype horen.
+    parent = await applicatie_service.haal_op(session, tenant_id, data.component_id)
+    await _valideer_checklistvraag_id(
+        session, data.checklistvraag_id, parent.component.componenttype
+    )
 
     # Uniciteit up-front (tenant, component, checklistvraag) → 409.
     bestaat = (

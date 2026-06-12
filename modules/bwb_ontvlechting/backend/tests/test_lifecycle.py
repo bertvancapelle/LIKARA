@@ -105,15 +105,23 @@ def _resultaat(waarde):
     return r
 
 
+def _rij(profiel, componenttype="applicatie"):
+    """ADR-022 Fase B: herbereken leest (profiel, componenttype) via `.first()`
+    (join profiel→component). None ⇒ niet gevonden."""
+    r = MagicMock()
+    r.first.return_value = None if profiel is None else (profiel, componenttype)
+    return r
+
+
 def test_herbereken_zet_geblokkeerd():
     from models.models import LifecycleStatus
     from services import lifecycle_service as ls
 
-    app_obj = SimpleNamespace(lifecycle_status=LifecycleStatus.in_inventarisatie)
+    profiel = SimpleNamespace(lifecycle_status=LifecycleStatus.in_inventarisatie)
     session = AsyncMock()
-    # Volgorde: applicatie-select, vragen-count, gescoord-count, open-blokkade-count
+    # Volgorde: (profiel, type)-select, per-type vragen-count, gescoord-count, open-blokkade-count
     session.execute.side_effect = [
-        _resultaat(app_obj),
+        _rij(profiel),
         _resultaat(89),
         _resultaat(89),
         _resultaat(2),
@@ -121,17 +129,17 @@ def test_herbereken_zet_geblokkeerd():
 
     nieuwe = asyncio.run(ls.herbereken_lifecycle(session, _TID, _APP))
     assert nieuwe == LifecycleStatus.geblokkeerd
-    assert app_obj.lifecycle_status == LifecycleStatus.geblokkeerd
+    assert profiel.lifecycle_status == LifecycleStatus.geblokkeerd
 
 
 def test_herbereken_concept_blijft_concept():
     from models.models import LifecycleStatus
     from services import lifecycle_service as ls
 
-    app_obj = SimpleNamespace(lifecycle_status=LifecycleStatus.concept)
+    profiel = SimpleNamespace(lifecycle_status=LifecycleStatus.concept)
     session = AsyncMock()
     session.execute.side_effect = [
-        _resultaat(app_obj),
+        _rij(profiel),
         _resultaat(89),
         _resultaat(89),
         _resultaat(0),
@@ -139,7 +147,7 @@ def test_herbereken_concept_blijft_concept():
 
     nieuwe = asyncio.run(ls.herbereken_lifecycle(session, _TID, _APP))
     assert nieuwe == LifecycleStatus.concept
-    assert app_obj.lifecycle_status == LifecycleStatus.concept
+    assert profiel.lifecycle_status == LifecycleStatus.concept
 
 
 def test_herbereken_onbekende_applicatie_geeft_nietgevonden():
@@ -148,7 +156,7 @@ def test_herbereken_onbekende_applicatie_geeft_nietgevonden():
     import pytest
 
     session = AsyncMock()
-    session.execute.side_effect = [_resultaat(None)]
+    session.execute.side_effect = [_rij(None)]
     with pytest.raises(NietGevonden):
         asyncio.run(ls.herbereken_lifecycle(session, _TID, _APP))
 

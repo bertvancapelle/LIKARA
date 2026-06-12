@@ -46,7 +46,9 @@ def test_maak_aan_onbekende_checklistvraag_id(monkeypatch):
     from services.errors import NietGevonden
 
     async def _ok(*a, **k):
-        return object()
+        # ADR-022 Fase B: maak_aan leest parent.component.componenttype (type-bewuste
+        # vraagvalidatie).
+        return SimpleNamespace(component=SimpleNamespace(componenttype="applicatie"))
 
     monkeypatch.setattr(applicatie_service, "haal_op", _ok)
     session = AsyncMock()
@@ -60,7 +62,9 @@ def test_maak_aan_dubbele_score(monkeypatch):
     from services.errors import ChecklistscoreConflict
 
     async def _ok(*a, **k):
-        return object()
+        # ADR-022 Fase B: maak_aan leest parent.component.componenttype (type-bewuste
+        # vraagvalidatie).
+        return SimpleNamespace(component=SimpleNamespace(componenttype="applicatie"))
 
     monkeypatch.setattr(applicatie_service, "haal_op", _ok)
     session = AsyncMock()
@@ -76,7 +80,9 @@ def test_maak_aan_roept_herbereken(monkeypatch):
     from services import applicatie_service, checklistscore_service as svc, lifecycle_service
 
     async def _ok(*a, **k):
-        return object()
+        # ADR-022 Fase B: maak_aan leest parent.component.componenttype (type-bewuste
+        # vraagvalidatie).
+        return SimpleNamespace(component=SimpleNamespace(componenttype="applicatie"))
 
     monkeypatch.setattr(applicatie_service, "haal_op", _ok)
     aangeroepen = {}

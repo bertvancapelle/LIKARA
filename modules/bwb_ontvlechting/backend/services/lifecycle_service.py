@@ -22,6 +22,7 @@ from models.models import (
     Blokkade,
     ChecklistVraag,
     Checklistscore,
+    Component,
     ComponentProfiel,
     LifecycleStatus,
 )
@@ -38,16 +39,24 @@ def bepaal_lifecycle(
     aantal_vragen: int,
     aantal_open_blokkades: int,
 ) -> LifecycleStatus:
-    """Pure canonieke afleiding (ADR-013). Zet nooit terug naar `concept`.
+    """Pure canonieke afleiding (ADR-013, per-type vragenset ADR-022 Fase B).
+    Zet nooit terug naar `concept`.
 
     - `concept` blijft `concept` (alleen handmatige start verlaat die vloer);
-    - niet alle vragen gescoord (of lege vragenset) → `in_inventarisatie`;
+    - **lege vragenset** (`aantal_vragen == 0`): een checklist-dragend type zónder
+      vragen kan per definitie nooit "compleet" zijn en mag dus nooit vals-positief
+      als gereed tellen → blijft `in_inventarisatie` (niet-groen, buiten de
+      readiness-schaal). Bewust binnen de bestaande ADR-013-enum: geen sentinel,
+      geen nieuwe waarde (ADR-022 Fase B structurele bewaking);
+    - niet alle vragen gescoord → `in_inventarisatie`;
     - alles gescoord + ≥1 open blokkade → `geblokkeerd`;
     - alles gescoord + geen open blokkade → `migratieklaar`.
     """
     if huidige == LifecycleStatus.concept:
         return LifecycleStatus.concept
-    if aantal_vragen <= 0 or aantal_gescoord < aantal_vragen:
+    if aantal_vragen <= 0:
+        return LifecycleStatus.in_inventarisatie  # lege vragenset → nooit gereed
+    if aantal_gescoord < aantal_vragen:
         return LifecycleStatus.in_inventarisatie
     if aantal_open_blokkades > 0:
         return LifecycleStatus.geblokkeerd
@@ -59,30 +68,38 @@ async def herbereken_lifecycle(
 ) -> LifecycleStatus:
     """Herbereken en zet de canonieke `lifecycle_status` (tenant-scoped).
 
-    ADR-022 Fase A: het anker is het generieke `ComponentProfiel`
+    Het anker is het generieke `ComponentProfiel`
     (`component_profiel.id == component.id == applicatie.id`, shared-PK). Leest de
     actuele tellingen (autoflush zorgt dat een net toegevoegde score/blokkade
     meetelt), past `bepaal_lifecycle` toe en schrijft het resultaat op het profiel.
     De aanroepende service commit. Profiel buiten de tenant ⇒ `NietGevonden`.
 
-    De vragenset-telling is in Fase A nog GLOBAAL (alle `ChecklistVraag`) — de
-    per-type scoping volgt in Fase B; alleen het anker verschuift hier.
+    ADR-022 Fase B: de vragenset-telling is **per type** — het aantal vragen voor
+    een component is het aantal `ChecklistVraag`-rijen waarvan `componenttype` gelijk
+    is aan het componenttype van dít component (niet langer de globale set). Het type
+    leeft op `component` (Besluit 1b); we joinen via het profiel-anker.
     """
     tid = _tenant_uuid(tenant_id)
 
-    profiel = (
+    rij = (
         await session.execute(
-            select(ComponentProfiel).where(
-                ComponentProfiel.id == component_id, ComponentProfiel.tenant_id == tid
-            )
+            select(ComponentProfiel, Component.componenttype)
+            .join(Component, Component.id == ComponentProfiel.id)
+            .where(ComponentProfiel.id == component_id, ComponentProfiel.tenant_id == tid)
         )
-    ).scalar_one_or_none()
-    if profiel is None:
+    ).first()
+    if rij is None:
         raise NietGevonden("component_profiel", component_id)
+    profiel, componenttype = rij
 
-    # Actieve vragenset is platform-breed (ChecklistVraag, geen tenant/RLS).
+    # Per-type vragenset (platform-breed, geen tenant/RLS) — alleen de vragen van
+    # het componenttype van dít component tellen mee (ADR-022 Fase B).
     aantal_vragen = (
-        await session.execute(select(func.count()).select_from(ChecklistVraag))
+        await session.execute(
+            select(func.count())
+            .select_from(ChecklistVraag)
+            .where(ChecklistVraag.componenttype == componenttype)
+        )
     ).scalar_one()
     aantal_gescoord = (
         await session.execute(
