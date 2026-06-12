@@ -113,17 +113,52 @@ Bevestig tijdens de **live-DB-run (#23 / Laag 5)** dat het over de NULL-grens
 correct pagineert op de nullable kolommen (`toelichting`, `eigenaar`, `opgelost_op`),
 in zowel `asc` als `desc`, zonder duplicaten of overgeslagen rijen.
 
-### OP-22 — Backup-scope / secops: Keycloak-secrets in de DB-dump — OPEN (dev-risico geaccepteerd)
+### OP-23 — Cyclus-padbewaking bij invoer van structuurrelaties (B3) — OPEN
 
-De iCloud-DB-backup (`gen_build.py` → `pg_dump complidata`) bevat momenteel **óók** het
-Keycloak-auth-schema (`credential`, `client`, …) — wachtwoord-hashes + het `complidata-api`
-client-secret — omdat **Keycloak de `complidata`-database deelt**. De CD024-inhoudscheck heeft dit
-correct gevonden. In **dev** is dit een **bewust geaccepteerd risico** (continuïteitsbackup,
-dev-placeholders zoals `changeme_dev`, niet blootgesteld aan buiten). De file-niveau
-secret-uitsluiting (alleen de `.sql` kopiëren) is dus **onvoldoende**: de `.sql` zelf bevat de
-secrets. **Vóór productie oplossen**: óf de backup scopen tot uitsluitend de CompliData-tabellen
-(schema-afgeleid, niet hand-gelijst), óf Keycloak in een eigen database/schema scheiden.
-Mogelijk ADR-waardig.
+`component_structuur` staat cycli toe (B3): `ZELFVERWIJZING` (self) wordt geweigerd, maar een
+indirecte cyclus (A→B, B→A, …) niet. De **leeskant is al cyclus-veilig** (visited-set in elke
+traversal, o.a. de impactanalyse CD056). Open vraag: willen we cycli **bij invoer** detecteren/
+waarschuwen (pad-bewaking in `component_structuur_service.maak_aan`), of blijft de data-laag
+cycli toestaan en bewaakt alleen het leeswerk? Geen verplichting; oppakken als de praktijk
+verwarrende cycli oplevert.
+
+### OP-24 — C-drempel: catalogus-keuzevelden zoekbaar boven ~10 opties — OPEN
+
+Catalogus-gedreven keuzevelden (componenttype, relatietype, contract-rol) zijn nu native
+`<select>`. Zodra een dimensie structureel **>~10 actieve opties** krijgt, heroverwegen naar een
+`ZoekSelect` (zelfde regel als entiteit-referenties, zie complidata-frontend). Geen verplichting;
+drempel-gedreven. [CD049]
+
+### OP-25 — Uvicorn-accesslog zonder timestamps — OPEN
+
+De Uvicorn-accesslog mist timestamps, wat live-debugging bemoeilijkt. Logformat configureren
+(timestamp + niveau) bij een logging-/observability-pass. Klein, nice-to-have. [CD048]
+
+### OP-26 — `component.eigenaar_organisatie` NOT NULL vs. optionele eigenaar — OPEN
+
+De kolom `component.eigenaar_organisatie` is in de DB **NOT NULL**, terwijl een kaal component
+(database/fileshare) en de convergente aanmaak een **lege** eigenaar toestaan (service defaultt
+`None`→`""`). De `""`-default is een workaround; bij een volgende migratie-gelegenheid de kolom
+**nullable** maken en de API/schema's `None` laten dragen i.p.v. lege string. Geen functionele
+bug; opruimpunt. [CD054]
+
+### OP-27 — Dev-seed in een dev-guarded init-stap — OPEN (nice-to-have)
+
+De dev-testdata (`dev_seed_testdata.py`) is een **handmatige** fixture (niet in de init-container,
+bewust dev-only/prod-veilig). Na een reset (`down -v && up -d`) moet hij apart gedraaid worden.
+Optioneel: een **dev-guarded** init-stap (bv. env-flag `SEED_DEV=true`) die de dev-seed
+automatisch draait in lokale/dev-omgevingen, zodat `down -v && up -d` direct de volledige baseline
+geeft — zonder risico op prod-seeding. Raakt de seed-pipeline → eigen besluit. [CD055]
+
+### OP-22 — Backup-scope / secops: Keycloak-secrets in de DB-dump — AFGEROND (geverifieerd CD055)
+
+Opgelost via de tweede optie: **Keycloak draait op een eigen database** `keycloak` (rol
+`kc_user`, `init-db/02_keycloak.sql`), losgekoppeld van de app-DB `complidata`. De backup
+(`gen_build.py` → `pg_dump complidata`) bevat daardoor **geen** Keycloak-auth-schema meer
+(`credential`/`client`/…); geverifieerd in CD055: `pg_dump --schema-only` van `complidata` levert
+**0** Keycloak-tabellen. Loste tegelijk de `COMPONENT`-naamruimte-collision op (onze ADR-021-tabel
+schaduwde Keycloak's interne `COMPONENT` in het gedeelde `public`-schema → Keycloak startte niet).
+Zie complidata-db "V007-patronen" en `docs/LOKAAL-TESTEN.md` (named volume + reset).
 
 ---
 

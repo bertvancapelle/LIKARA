@@ -2,7 +2,7 @@
 name: complidata-frontend
 description: Frontend-patronen voor CompliData (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V005
+bijgewerkt: V007
 ---
 
 # CompliData Frontend Skill
@@ -225,3 +225,25 @@ Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
 - **Categoriefilter zonder categorie-naam**: de platform-config-read kent geen `categorie_naam` (en het
   platform-account mag het tenant-`/checklistvragen` niet) → filter afgeleid uit de **code-prefix**
   (`code.split('.')[0]`). [CD034]
+
+## V007-patronen (CD039–CD056, geverifieerd)
+
+- **ZoekSelect-regel**: elk keuzeveld dat een **entiteit-referentie** is (onbegrensd groeibaar —
+  leverancier, contract, applicatie, doel-component) is een **server-side zoekende `ZoekSelect`**
+  (`modules/.../views/ZoekSelect.vue`): debounce, ~10 resultaten + "verfijn"-regel, leeg-veld =
+  startlijst (gedraagt zich als dropdown bij kleine sets), combobox-a11y (↑/↓/Enter/Escape,
+  `aria-activedescendant`), `extraFilters`, `defineExpose({focus})` voor Dialog-autofocus,
+  `testid`-prefix per instantie. Vaste **enums** blijven native `<select>`; catalogus-gedreven
+  lijsten heroverwegen boven ~10 opties (opvolgpunt C-drempel). [CD049]
+- **Verenigde Componenten-lijst (doelbeeld sinds CD054b-v2)**: één werkscherm met een Type-kolom +
+  **besturingskolommen** (Eigenaar/Complexiteit/Prioriteit/Status), **"—"** voor niet-beoordeelde
+  typen, vaste kolommenset (voorspelbaar scherm), filterbalk incl. status. Subtype-rijen linken
+  naar **ApplicatieDetail** (rijk detail, één waarheid per perspectief); aanmaak met type
+  `applicatie` redirect naar de checklist (convergentie). **Geen apart Applicaties-menu** — de oude
+  lijstroute `/applicaties` is een **redirect** naar de Componenten-lijst met `?type=applicatie`;
+  `/applicaties/:id` blijft de subtype-detailview. [CD054]
+- **Impact-paneel (ADR-021 Fase E)**: **read-only**, **knop-getriggerd** (geen eager load), de
+  toegankelijke **tabel is de waarheidsbron** (geen graaf-visual); samenvatting + geraakte
+  componenten (naam·type·niveau·relatie·lifecycle·open blokkades), pad uitgeklapt bij niveau > 1,
+  subtype-rij → ApplicatieDetail. Gemount op zowel ComponentDetail (sectie) als ApplicatieDetail
+  (tab) — élk type kan onderlegger zijn. Géén acties/schrijf-affordances. [CD056]

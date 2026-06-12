@@ -2,7 +2,7 @@
 name: complidata-db
 description: Database-patronen voor CompliData (PostgreSQL 16, RLS, Alembic). Beschrijft de werkelijke V001-staat.
 stack: PostgreSQL 16, SQLAlchemy asyncio, Alembic
-bijgewerkt: V005
+bijgewerkt: V007
 ---
 
 # CompliData Database Skill
@@ -243,3 +243,27 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
 - **Additieve migratie + grants**: `0003_antwoordconfig` voegt kolom + tabel + jsonb toe (bestaande
   tabellen ongemoeid). Grants least-privilege: `cd_app` **SELECT-only** op de catalogus (validatie),
   `cd_platform` SELECT/INSERT/UPDATE (beheer); `cd_platform` SELECT/UPDATE op `checklistvraag`. [CD027]
+
+## V007-patronen (CD039–CD056, geverifieerd)
+
+- **Tenant-context is transactie-lokaal (norm sinds CD048)** — niet onderhandelbaar:
+  een request-scoped **ContextVar** (`app/core/tenant_context.py`) + een SQLAlchemy
+  **`after_begin`-sessiehook** (`app/core/database.py`) zet per transactie
+  `SELECT set_config('app.tenant_id', :tid, true)` op sessies gemarkeerd met
+  `session.sync_session.info['rls']=True`; **fail-fast** (`RuntimeError`) bij een
+  RLS-sessie zonder context. **Verboden patroon**: eenmalig per-sessie
+  `set_config(..., false)` — een `commit`→`refresh` kan dan een **contextloze
+  poolverbinding** treffen (`''::uuid`-fout ná een geslaagde INSERT; duplicaat-risico
+  door client-retries; latent cross-tenant-risico). `pool_pre_ping=True` op de engines.
+  Aandachtspunt bij hooks: verifieer ContextVar-zichtbaarheid over de greenlet-bridge
+  (asyncio ↔ sync `Session`). De `set_config(..., false)`-voorbeelden elders zijn
+  historisch — de transactie-lokale `true`-variant is de norm.
+- **Keycloak scheidt van de app-DB (norm sinds CD055)**: Keycloak draait op een **eigen
+  database** `keycloak` met eigen rol `kc_user` (init-db/`02_keycloak.sql`: rol + DB +
+  `public`-schema-owner voor PG16) — **nooit** de app-DB `complidata` delen. Een gedeeld
+  `public`-schema gaf een naamruimte-collision (onze ADR-021-tabel `component` schaduwde
+  Keycloak's interne `COMPONENT` → Keycloak startte niet) én lekte Keycloak-secrets in de
+  `complidata`-dump (OP-22, nu gesloten). Postgres-data op een **named volume**
+  (`cd_postgres_data`), zodat `down -v && up -d` echt reset; de dev-seed
+  (`dev_seed_testdata.py`) is een bewuste **handmatige** fixture (niet in de init-container,
+  dev-only). Reset-procedure: zie `docs/LOKAAL-TESTEN.md`.

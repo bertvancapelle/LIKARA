@@ -157,6 +157,17 @@ is de laatste van dit soort.
 - **Strangler-/plateau-migratie**: verworpen — over-engineering zonder productiedata;
   herfunderen + herseeden is korter en schoner (besluit Bert).
 
+## Realisatienotitie — shared-PK (CD051)
+
+Het kernmodel hierboven beschrijft het subtype als een 1-op-1 met een eigen `component_id`-FK.
+De **realisatie koos Optie 2: shared-PK** (class-table inheritance): `applicatie.id` ís tegelijk
+de primaire sleutel **én** de FK naar `component.id` (zelfde waarde — er is geen aparte
+`component_id`-kolom). Voordeel: bestaande API-responsen blijven byte-compatibel doordat
+`Applicatie` **read-only proxy-properties** heeft (`naam`/`hostingmodel`/`eigenaar_*`/
+`leverancier`/`beschrijving` → de component), en de relatie `Applicatie.component` is
+`lazy="joined"`. Dit is de gerealiseerde norm; zie complidata-backend "V007-patronen"
+(subtype-patroon).
+
 ## Wijziging W1 (CD054b) — verenigde Componenten-UI
 
 Besluit 9 (UI-perspectief) herzien op grond van een ontwerp-bevinding tijdens de

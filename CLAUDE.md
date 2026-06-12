@@ -395,6 +395,23 @@ Bert expliciet anders aangeeft.
 - **Verificatie tegen de code, niet tegen geheugen**: bij discrepantie
   skill↔code → melden, niet de aanname opschrijven.
 
+### Triggerdiscipline (norm)
+- Elke opdracht-`.md` begint op **regel 1** met `START: [taaknaam]` en wordt bij plakken direct
+  uitgevoerd (zonder die trigger: wachten — zie de Startregel bovenaan).
+- **`AKKOORD: commit` is exclusief gereserveerd** als commit-trigger op een compleet, groen
+  gevalideerd eindrapport. Instemming met een advies/aanpak heet "akkoord"/"doorgaan" en is
+  **geen** commit-toestemming.
+- **CC verifieert vóór élke commit zélf de groene staat** (suites + werktree) en **weigert te
+  committen op een rode/incomplete werktree**, óók bij een letterlijke `AKKOORD: commit`
+  (incident-les CD051: niet committen wat aantoonbaar gebroken/half is — melden waarom + opties).
+
+### Walkthrough-protocol (norm)
+- CC levert een **draaiboek** met een **✅-slaagcriterium per stap**; baseline-rapportage **vóór
+  én na** (benoemde tellingen — app-koppelingen vs. contract-koppelingen apart, vaste volgorde).
+- Walkthrough-/testdata wordt **opgeruimd**; CC checkt expliciet op restdata.
+- Bij een afwijking: CC **stopt zonder fix** en rapporteert stap/verwacht/gezien; commit pas na
+  Berts uitslagen + `AKKOORD: commit`.
+
 ### Commit-discipline (les uit CD016/CD017)
 - Elke `AKKOORD: commit` moet **landen (push bevestigd) vóór de volgende opdracht start**.
   De werktree bevat zo **nooit meer dan één opdracht tegelijk**; meld na elke commit eerst het
@@ -402,6 +419,12 @@ Bert expliciet anders aangeeft.
 - Raakt de tree tóch verstrengeld (meerdere opdrachten ongecommit): ontwar met **sequentiële
   commits, één per opdracht**, en split gemengde bestanden op **hunk-niveau** (zie
   CONTRIBUTING.md sectie 7 — `git add -p` is hier niet-interactief; gebruik `git apply --cached`).
+- **Gerichte-staging-uitzondering (noodprocedure)**: alleen op **expliciet akkoord van Bert**, bij
+  **disjuncte bestandensets**, met `git diff --cached --stat`-bewijs in het rapport dat niets van
+  de andere taak meelift (let op reeds-gestagede `git rm`-verwijderingen — die kunnen lekken;
+  controleer en un-stage). [CD055]
+- **Reset-referentie**: de reseed-procedure staat in `docs/LOKAAL-TESTEN.md` (named volume,
+  `down -v && up -d`; dev-seed handmatig) — niet in dit bestand dupliceren.
 
 ### Definition of Done (elke uitbreiding)
 Een uitbreiding is pas klaar als ALLE stappen zijn afgevinkt:

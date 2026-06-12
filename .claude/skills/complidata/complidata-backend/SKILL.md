@@ -2,7 +2,7 @@
 name: complidata-backend
 description: Backend-patronen voor CompliData (FastAPI + SQLAlchemy + Alembic). Beschrijft de werkelijke V001-staat.
 stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy asyncio, Alembic, PostgreSQL 16
-bijgewerkt: V005
+bijgewerkt: V007
 ---
 
 # CompliData Backend Skill
@@ -51,11 +51,15 @@ app.include_router(auth.router, prefix="/api/v1")
 | `get_worker_session(tenant_id)` | Achtergrond-workers (verse sessie per event) |
 | `get_platform_db_session()` | Platform-brede queries (geen RLS-context) |
 
-RLS-context — ALTIJD via `set_config`, NOOIT via `SET`:
+RLS-context — ALTIJD via `set_config`, NOOIT via `SET`, en **transactie-lokaal**
+(`true`, niet `false`) via de `after_begin`-hook (norm sinds CD048 — zie complidata-db
+"V007-patronen"). De eenmalige per-sessie `set_config(..., false)` is **verboden**
+(contextloze poolverbinding na `commit`→`refresh`):
 
 ```python
+# app/core/database.py — per transactie, op sessies met info['rls']=True
 await session.execute(
-    text("SELECT set_config('app.tenant_id', :tid, false)"),
+    text("SELECT set_config('app.tenant_id', :tid, true)"),  # true = transactie-lokaal
     {"tid": str(tenant_id)},
 )
 ```
@@ -257,3 +261,31 @@ ongedefinieerde methodes → 405.
 - **Platform-identiteit**: `GET /auth/platform/me` op `get_current_platform_user` (géén `tenant_id`);
   een sessie zonder platform-rol (tenant-account) ⇒ 403 (strikte scheiding). Additief naast
   `/auth/me`. [CD032]
+
+## V007-patronen (CD039–CD056, geverifieerd)
+
+- **Catalogus-familie (gevestigd patroon, 3 instanties)**: checklistconfig / contractconfig /
+  componentconfig — één relationele tabel per familie-lid met een **`dimensie`-discriminator**,
+  een **stabiele `optie_sleutel`** (lowercase snake_case) + `label`/`volgorde`/`actief`.
+  **Soft-deactivate** (`actief=false`), **nooit** hard verwijderen (sleutel blijft resolvebaar
+  voor historische waarden); de tenant-leeszijde resolvet óók gedeactiveerde sleutels.
+  Dubbele borging tegen muteren: `cd_app` **SELECT-only** + `cd_platform` **zonder DELETE**
+  (geen endpoint én geen grant). Eigen `PlatformEntiteit` (beheerder LAW, operator L, geen V).
+  **Systeem-sleutels** (bv. `componenttype.applicatie`) zijn niet deactiveerbaar
+  (`SYSTEEM_SLEUTEL_BESCHERMD`). Elke nieuwe configureerbare lijst volgt dit patroon. [CD053]
+- **Subtype-patroon (ADR-021)**: supertype `component` + subtype `applicatie` als **shared-PK**
+  (subtype-PK ís FK naar het supertype, zelfde waarde). Read-only **proxy-properties** op het
+  subtype houden bestaande API-responsen byte-compatibel. **Convergente aanmaak**: het
+  component-pad met type `applicatie` maakt atomair het subtype met defaults via dezelfde
+  service-kern (`maak_applicatie_subtype`) — één implementatie, twee routes. Een **typewijziging**
+  van/naar een subtype-dragend type is geweigerd (`SUBTYPE_BESCHERMD`); **delete** van een subtype
+  loopt via het subtype-delete-pad (engine-kinderen cascaden; alleen een onderlegger-relatie
+  blokkeert). Nieuw checklist-dragend type = nieuw subtype-besluit = eigen ADR. [CD050-CD054]
+- **Foutcontract-aanvulling**: `ZELFVERWIJZING` (422), `RELATIE_BESTAAT` (409),
+  `SUBTYPE_BESCHERMD` (422), `SYSTEEM_SLEUTEL_BESCHERMD` (422); `GEBRUIK_APPLICATIE_PAD` is
+  **vervallen** (convergente aanmaak). Nette app-fout vóór CHECK/UNIQUE blijft de norm.
+- **Graaf-leeswerk is altijd cyclus-veilig**: traversals over `component_structuur` gebruiken een
+  **visited-set** (B3 staat cycli in de data toe; een traversal mag nooit hangen — de
+  belangrijkste eis). **Iteratieve BFS per niveau** is het referentiepatroon: één query per niveau
+  op de structuurrelatie, gejoined met `component`; geeft van nature de kortste afstand (`niveau`)
+  + het pad. Read-only, geen schrijfpaden, geen engine-koppeling (ADR-021 Fase E). [CD056]

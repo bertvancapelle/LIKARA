@@ -2,7 +2,7 @@
 name: complidata-tests
 description: Test-patronen voor CompliData (pytest unit-tests + TST-validatiecyclus). Beschrijft de werkelijke V001-staat.
 stack: pytest, asyncio, unittest.mock, SQLAlchemy models, vitest, @vue/test-utils
-bijgewerkt: V004
+bijgewerkt: V007
 ---
 
 # CompliData Tests Skill
@@ -153,3 +153,22 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 - **Frontend single-flight/async-tests**: `vi.stubGlobal('fetch', …)` met per-URL-state
   (401-dan-200) om refresh-on-401 + retry te bewijzen; `attachTo: document.body` +
   macrotask-defer voor focus-asserts; `:closable="false"` Dialog focust het eerste veld. [CD007/CD003]
+
+## V007-patronen (CD039–CD056, geverifieerd)
+
+- **Tweeluik herbevestigd**: offline **structureel** (mocks/AsyncMock; FK-`ondelete`, schema-
+  invarianten, allowlist-synctests, pure beslisregels) + een **eenmalige empirische live-
+  verificatie** tegen de geseede `cd_app`-DB (skip-if-onbereikbaar via een verbindings-probe).
+  Live-tests **ruimen hun eigen testdata op** (structuurrelaties vóór componenten — anders
+  `IN_GEBRUIK`) zodat de baseline ongemoeid blijft. Cyclus-/graaftests bewijzen **terminatie**
+  (maak A↔B en assert dat de traversal eindigt + correct telt). [CD052/CD056]
+- **Force-recreate-les (niet onderhandelbaar)**: bind-mounts laden **geen** nieuwe code in een
+  draaiend proces — herstart de api-container (`docker compose up -d --force-recreate api`) vóór
+  élke live-check ná een codewijziging, anders test je de oude code. [CD048-sweep]
+- **Baseline-rapportage met benoemde tellingen**: tel categorieën **apart en benoemd**
+  (app-koppelingen **vs.** contract-koppelingen; engine apps/blokkades) in een vaste volgorde —
+  een kale "register=N" verbergt drift. Rapporteer de baseline vóór én na een walkthrough; check
+  expliciet op walkthrough-restdata (bv. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056]
+- **Allowlist-synctest per sorteerbare lijst**: `{e.value for e in <Sorteerveld>} == set(svc._SORTEERBARE_KOLOMMEN)`
+  — borgt dat de schema-enum en de service-allowlist 1-op-1 blijven (geen rauwe kolomnaam in
+  `ORDER BY`). [CD054]
