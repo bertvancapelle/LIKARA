@@ -68,7 +68,7 @@ _CONFIG = [
     (gebruikersgroep_service, "gebruikersgroep", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "gebruikersgroep.created_at", "afdeling", "gebruikersgroep.afdeling"),
     (koppeling_service, "koppeling", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
-     "koppeling.created_at", "tegenpartij_naam", "applicatie.naam"),
+     "koppeling.created_at", "tegenpartij_naam", "component.naam"),
     (checklistscore_service, "checklistscore", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "checklistscore.created_at", "score", "checklistscore.score"),
     (blokkade_service, "blokkade", "_LIJST_KOLOMMEN", "_LIJST_PARSERS",

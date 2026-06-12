@@ -76,18 +76,18 @@ def test_status_multi_geeft_in_clause():
 
 def test_hostingmodel_geeft_gelijkheid():
     sql = _sql(hostingmodel="saas")
-    assert "applicatie.hostingmodel =" in sql
+    assert "component.hostingmodel =" in sql
 
 
 def test_eigenaar_geeft_geescapte_ilike():
     sql = _sql(eigenaar="tiel")
-    assert "lower(applicatie.eigenaar_organisatie) LIKE" in sql
+    assert "lower(component.eigenaar_organisatie) LIKE" in sql
     assert "ESCAPE" in sql
 
 
 def test_zoek_geeft_geescapte_ilike_op_naam():
     sql = _sql(zoek="zaak")
-    assert "lower(applicatie.naam) LIKE" in sql
+    assert "lower(component.naam) LIKE" in sql
     assert "ESCAPE" in sql
 
 
@@ -96,17 +96,17 @@ def test_zoek_geeft_geescapte_ilike_op_naam():
 def test_alle_filters_and_gecombineerd():
     sql = _sql(status=["concept"], hostingmodel="saas", eigenaar="tiel", zoek="zaak")
     assert "lifecycle_status IN" in sql
-    assert "applicatie.hostingmodel =" in sql
-    assert "lower(applicatie.eigenaar_organisatie) LIKE" in sql
-    assert "lower(applicatie.naam) LIKE" in sql
+    assert "component.hostingmodel =" in sql
+    assert "lower(component.eigenaar_organisatie) LIKE" in sql
+    assert "lower(component.naam) LIKE" in sql
 
 
 # ── Filters combineren met sortering (CD015 blijft werken) ──────────────────
 
 def test_filter_met_sortering_behoudt_order_by():
     sql = _sql(zoek="zaak", sort="naam", order="desc")
-    assert "lower(applicatie.naam) LIKE" in sql
-    assert "ORDER BY applicatie.naam DESC, applicatie.id DESC" in sql
+    assert "lower(component.naam) LIKE" in sql
+    assert "ORDER BY component.naam DESC, applicatie.id DESC" in sql
 
 
 # ── Escaping is echt actief: een wildcard wordt letterlijk gebonden ─────────

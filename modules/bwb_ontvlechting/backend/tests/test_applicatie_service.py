@@ -27,19 +27,26 @@ def _create_data():
 # ── maak_aan: default lifecycle = concept ───────────────────────────────────
 
 def test_maak_aan_zet_lifecycle_concept():
-    from models.models import LifecycleStatus
+    # ADR-021: maak_aan creëert component (naam/identiteit) + applicatie-subtype
+    # (lifecycle) atomair — shared-PK class-table.
+    from models.models import Applicatie, Component, LifecycleStatus
     from services import applicatie_service as svc
 
     session = AsyncMock()
-    vastgelegd = {}
-    session.add = lambda obj: vastgelegd.setdefault("obj", obj)  # add is synchroon
+    toegevoegd = []
+    session.add = lambda obj: toegevoegd.append(obj)  # add is synchroon
 
     tid = "11111111-1111-1111-1111-111111111111"
-    obj = asyncio.run(svc.maak_aan(session, tid, _create_data()))
+    asyncio.run(svc.maak_aan(session, tid, _create_data()))
 
-    assert obj.lifecycle_status == LifecycleStatus.concept
-    assert obj.naam == "Zaaksysteem"
-    assert str(obj.tenant_id) == tid
+    comp = next(o for o in toegevoegd if isinstance(o, Component))
+    sub = next(o for o in toegevoegd if isinstance(o, Applicatie))
+    assert comp.naam == "Zaaksysteem"
+    assert comp.componenttype == "applicatie"
+    assert str(comp.tenant_id) == tid
+    assert sub.lifecycle_status == LifecycleStatus.concept
+    assert str(sub.tenant_id) == tid
+    session.flush.assert_awaited_once()  # component-id vóór het subtype
     session.commit.assert_awaited_once()
     session.refresh.assert_awaited_once()
 

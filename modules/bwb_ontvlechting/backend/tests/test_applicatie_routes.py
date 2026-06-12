@@ -320,22 +320,40 @@ def test_lijst_laatste_pagina_zonder_cursor():
 # ── Cascade-contract (offline: structurele verificatie van ON DELETE CASCADE) ─
 
 def test_kind_fks_cascaden_op_applicatie():
-    """De DB dwingt cascade af; offline verifiëren we het FK-contract: elke
-    directe FK naar `applicatie.id` heeft `ondelete='CASCADE'`."""
+    """De DB dwingt cascade af; offline verifiëren we het FK-contract (ADR-021).
+
+    Engine-kinderen (datatype/gebruikersgroep/checklistscore/blokkade) FK'en op
+    `applicatie.id` (CASCADE); `koppeling` herankerde naar `component` (CASCADE) en
+    `applicatie.id` is zelf een FK→component (CASCADE). Verwijderen van een applicatie
+    loopt via de component → cascade over alles."""
     from models.models import (
+        Applicatie,
         Blokkade,
         Checklistscore,
+        Component,  # noqa: F401
         Datatype,
         Gebruikersgroep,
         Koppeling,
     )
 
-    kinderen = [Datatype, Gebruikersgroep, Koppeling, Checklistscore, Blokkade]
+    engine_kinderen = [Datatype, Gebruikersgroep, Checklistscore, Blokkade]
     fks_naar_app = 0
-    for model in kinderen:
+    for model in engine_kinderen:
         for kolom in model.__table__.columns:
             for fk in kolom.foreign_keys:
                 if fk.column.table.name == "applicatie":
                     fks_naar_app += 1
                     assert fk.ondelete == "CASCADE", f"{model.__name__}.{kolom.name}"
-    assert fks_naar_app >= 5  # datatype, gebruikersgroep, koppeling×2, checklistscore, blokkade
+    assert fks_naar_app >= 4
+
+    kop_fks_component = 0
+    for kolom in Koppeling.__table__.columns:
+        for fk in kolom.foreign_keys:
+            if fk.column.table.name == "component":
+                kop_fks_component += 1
+                assert fk.ondelete == "CASCADE", f"koppeling.{kolom.name}"
+    assert kop_fks_component == 2
+
+    app_id_fk = next(iter(Applicatie.__table__.c.id.foreign_keys))
+    assert app_id_fk.column.table.name == "component"
+    assert app_id_fk.ondelete == "CASCADE"

@@ -61,10 +61,10 @@ def test_allowlist_enum_kolommen_parsers_synchroon():
 def test_join_en_default_sortering():
     sess, _, _ = _run()
     sql = _sql(sess)
-    assert "JOIN applicatie" in sql
+    assert "JOIN component" in sql  # naam verhuisde naar component (ADR-021)
     assert "JOIN checklistscore" in sql
     # default = applicatie_naam asc, NULLS LAST, met blokkade.id-tiebreaker
-    assert "ORDER BY applicatie.naam ASC NULLS LAST" in sql
+    assert "ORDER BY component.naam ASC NULLS LAST" in sql
     assert "blokkade.id ASC" in sql
 
 

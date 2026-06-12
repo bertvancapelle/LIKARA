@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
     ACTIEVE_BLOKKADE_STATUSSEN,
-    Applicatie,
+    Component,
     Blokkade,
     BlokkadeStatus,
     Checklistscore,
@@ -43,7 +43,7 @@ _STANDAARD_OVERZICHT_ORDER = "asc"
 # `BlokkadeSorteerveld`. `applicatie_naam`/`vraag_code` zijn gejoinde kolommen;
 # de keyset-tiebreaker blijft `Blokkade.id`. `gewijzigd_op` mapt op `updated_at`.
 _OVERZICHT_KOLOMMEN = {
-    "applicatie_naam": Applicatie.naam,
+    "applicatie_naam": Component.naam,
     "vraag_code": Checklistscore.vraag_code,
     "status": Blokkade.status,
     "toelichting": Blokkade.toelichting,
@@ -179,7 +179,7 @@ async def lijst_overzicht(
 ) -> tuple[list[dict], str | None]:
     """Tenant-breed blokkadesoverzicht over alle applicaties (CD016, ADR-017).
 
-    Join op `Applicatie` (naam) en `Checklistscore` (vraag_code). Server-side
+    Join op `Component` (naam) en `Checklistscore` (vraag_code). Server-side
     sorteerbaar met NULLS-LAST-keyset (nullable: `toelichting`/`eigenaar`/
     `opgelost_op`); `Blokkade.id` is de stabiele tiebreaker. Tenant-scoped via RLS
     + expliciete `tenant_id`-filter (dubbele bescherming). Een `after` die niet bij
@@ -198,7 +198,7 @@ async def lijst_overzicht(
         select(
             Blokkade.id.label("id"),
             Blokkade.applicatie_id.label("applicatie_id"),
-            Applicatie.naam.label("applicatie_naam"),
+            Component.naam.label("applicatie_naam"),
             Checklistscore.vraag_code.label("vraag_code"),
             Blokkade.status.label("status"),
             Blokkade.toelichting.label("toelichting"),
@@ -206,7 +206,7 @@ async def lijst_overzicht(
             Blokkade.opgelost_op.label("opgelost_op"),
             Blokkade.updated_at.label("gewijzigd_op"),
         )
-        .join(Applicatie, Applicatie.id == Blokkade.applicatie_id)
+        .join(Component, Component.id == Blokkade.applicatie_id)
         .join(Checklistscore, Checklistscore.id == Blokkade.checklistscore_id)
         .where(Blokkade.tenant_id == tid)
     )

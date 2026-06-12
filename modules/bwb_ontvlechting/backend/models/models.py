@@ -19,7 +19,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TenantMixin, TimestampMixin
 
@@ -146,6 +146,14 @@ class ContractConfigDimensie(str, Enum):
     relatie_rol = "relatie_rol"
 
 
+class ComponentConfigDimensie(str, Enum):
+    """ADR-021 / ADR-012 Addendum C — discriminator van de platform-brede
+    componentcatalogus `componentconfig_optie` (één tabel, twee dimensies)."""
+
+    componenttype = "componenttype"
+    structuurrelatie_type = "structuurrelatie_type"
+
+
 # Gedeelde sa.Enum-typeobjecten (één type per naam; migratie beheert de DDL).
 # `create_type=False`: de ORM emit nooit zelf CREATE TYPE — de migratie doet dat.
 hostingmodel_enum = sa.Enum(HostingModel, name="hostingmodel_enum")
@@ -164,6 +172,9 @@ contracttype_enum = sa.Enum(ContractType, name="contracttype_enum")
 contractconfig_dimensie_enum = sa.Enum(
     ContractConfigDimensie, name="contractconfig_dimensie_enum"
 )
+componentconfig_dimensie_enum = sa.Enum(
+    ComponentConfigDimensie, name="componentconfig_dimensie_enum"
+)
 
 
 def _pk() -> Mapped[uuid.UUID]:
@@ -176,23 +187,77 @@ def _pk() -> Mapped[uuid.UUID]:
 # Modellen
 # --------------------------------------------------------------------------
 
-class Applicatie(Base, TenantMixin, TimestampMixin):
-    __tablename__ = "applicatie"
+class Component(Base, TenantMixin, TimestampMixin):
+    """ADR-021 — supertype/knooppunt van de landschapsgraaf (tenant-scoped, RLS).
+
+    Draagt de technische identiteit (naam, type, hosting, eigenaarschap, leverancier).
+    `componenttype` is een tekst-sleutel uit de componentcatalogus (dimensie
+    `componenttype`); `applicatie` is een systeem-sleutel met een subtype-rij."""
+
+    __tablename__ = "component"
 
     id: Mapped[uuid.UUID] = _pk()
     naam: Mapped[str] = mapped_column(String(255), nullable=False)
-    beschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+    componenttype: Mapped[str] = mapped_column(String(60), nullable=False)
     hostingmodel: Mapped[HostingModel] = mapped_column(hostingmodel_enum, nullable=False)
-    # Configureerbaar per tenant — bewust geen hardcoded enum (ADR-009 / verboden patronen)
+    # Configureerbaar per tenant — bewust geen hardcoded enum (verboden patronen)
     eigenaar_organisatie: Mapped[str] = mapped_column(String(120), nullable=False)
     eigenaar_naam: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    leverancier: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    leverancier: Mapped[str | None] = mapped_column(String(255), nullable=True)  # B4
+    beschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class Applicatie(Base, TenantMixin, TimestampMixin):
+    """ADR-021 — subtype van Component (CD051 Optie 2: shared-PK class-table).
+
+    `id` is tegelijk PK én FK → `component.id` (1-op-1; een applicatie-rij kan niet
+    bestaan zonder component-rij — de subtype-grens is structureel). Draagt exclusief
+    het applicatie-apparaat (engine-relevant): lifecycle/migratiepad/complexiteit/
+    prioriteit. De naam en overige identiteit staan op de component."""
+
+    __tablename__ = "applicatie"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("component.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
     migratiepad: Mapped[Migratiepad] = mapped_column(migratiepad_enum, nullable=False)
     complexiteit: Mapped[NiveauEnum] = mapped_column(niveau_enum, nullable=False)
     prioriteit: Mapped[NiveauEnum] = mapped_column(niveau_enum, nullable=False)
     lifecycle_status: Mapped[LifecycleStatus] = mapped_column(
         lifecycle_status_enum, nullable=False, server_default=text("'concept'")
     )
+
+    # Shared-PK relatie naar het supertype (eager): de component draagt de identiteit.
+    component: Mapped["Component"] = relationship("Component", lazy="joined")
+
+    # Read-only proxy-properties → API-byte-compat (§5): de bestaande ApplicatieRead-
+    # velden (naam/hosting/eigenaar/leverancier/beschrijving) lezen door naar de
+    # component. Mutaties lopen via de service naar `obj.component.<veld>`.
+    @property
+    def naam(self) -> str:
+        return self.component.naam
+
+    @property
+    def beschrijving(self) -> str | None:
+        return self.component.beschrijving
+
+    @property
+    def hostingmodel(self) -> "HostingModel":
+        return self.component.hostingmodel
+
+    @property
+    def eigenaar_organisatie(self) -> str:
+        return self.component.eigenaar_organisatie
+
+    @property
+    def eigenaar_naam(self) -> str | None:
+        return self.component.eigenaar_naam
+
+    @property
+    def leverancier(self) -> str | None:
+        return self.component.leverancier
 
 
 class Datatype(Base, TenantMixin, TimestampMixin):
@@ -230,17 +295,50 @@ class Koppeling(Base, TenantMixin, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = _pk()
+    # ADR-021 Besluit 5: bron/doel zijn nu component-FK's (velden ongewijzigd; de FK
+    # herankert van applicatie → component). Met de shared-PK (CD051 Optie 2) blijven
+    # de bestaande waarden geldig: een applicatie-id ís het component-id.
     bron_applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
     )
     doel_applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
     )
     richting: Mapped[Koppelrichting] = mapped_column(koppelrichting_enum, nullable=False)
     protocol: Mapped[Koppelprotocol] = mapped_column(koppelprotocol_enum, nullable=False)
     impact_bij_verbreking: Mapped[ImpactVerbreking] = mapped_column(
         impact_verbreking_enum, nullable=False
     )
+    omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ComponentStructuur(Base, TenantMixin, TimestampMixin):
+    """ADR-021 Besluit 6 — opbouw/afhankelijkheid (tenant-scoped, RLS).
+
+    `component_id` (de afhankelijke) draait op / maakt deel uit van `op_component_id`.
+    `relatietype` is een tekst-sleutel uit de catalogus (dimensie `structuurrelatie_type`).
+    Self-FK RESTRICT op `op_component_id` (een onderlegger met afhankelijkheden
+    verdwijnt niet stil). B3: cyclusbewaking beperkt tot de self-ref-CHECK."""
+
+    __tablename__ = "component_structuur"
+    __table_args__ = (
+        CheckConstraint(
+            "component_id <> op_component_id", name="ck_component_structuur_self"
+        ),
+        UniqueConstraint(
+            "tenant_id", "component_id", "op_component_id", "relatietype",
+            name="uq_component_structuur",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    component_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
+    )
+    op_component_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("component.id", ondelete="RESTRICT"), nullable=False
+    )
+    relatietype: Mapped[str] = mapped_column(String(60), nullable=False)
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
@@ -439,22 +537,23 @@ class ContractKostenmodel(Base, TenantMixin, TimestampMixin):
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
 
 
-class ApplicatieContract(Base, TenantMixin, TimestampMixin):
-    """ADR-020 — koppeling applicatie ↔ contract met precies één `relatie_rol`
-    (dimensie `relatie_rol`, app-side gevalideerd in Fase B). Eén applicatie mag aan
-    meerdere contracten hangen, maar hoogstens één keer aan hetzelfde contract
-    (UNIQUE). 'Valt-onder'/aanschaf is rol-conventie, niet structureel afgedwongen."""
+class ComponentContract(Base, TenantMixin, TimestampMixin):
+    """ADR-021 Besluit 7 — koppeling component ↔ contract met precies één `relatie_rol`
+    (dimensie `relatie_rol`, app-side gevalideerd). Vervangt `applicatie_contract`:
+    élk component kan contracten dragen. Hoogstens één keer hetzelfde contract per
+    component (UNIQUE). Met de shared-PK is `component_id` voor een applicatie
+    identiek aan zijn applicatie-id — de bestaande API blijft applicatie_id spreken."""
 
-    __tablename__ = "applicatie_contract"
+    __tablename__ = "component_contract"
     __table_args__ = (
         UniqueConstraint(
-            "tenant_id", "applicatie_id", "contract_id", name="uq_applicatie_contract"
+            "tenant_id", "component_id", "contract_id", name="uq_component_contract"
         ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
-    applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+    component_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
     )
     contract_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contract.id", ondelete="CASCADE"), nullable=False
@@ -477,6 +576,30 @@ class ContractConfigOptie(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     dimensie: Mapped[ContractConfigDimensie] = mapped_column(
         contractconfig_dimensie_enum, nullable=False
+    )
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("true")
+    )
+
+
+class ComponentConfigOptie(Base):
+    """ADR-021 Besluit 8 / ADR-012 Addendum C — platform-brede componentcatalogus
+    (GEEN RLS, GEEN tenant_id), één tabel met `dimensie`-discriminator
+    {componenttype, structuurrelatie_type}. Zelfde vorm/grants als
+    `contractconfig_optie`. De sleutel `componenttype.applicatie` is een
+    systeem-sleutel (Fase C borgt de service-bescherming)."""
+
+    __tablename__ = "componentconfig_optie"
+    __table_args__ = (
+        UniqueConstraint("dimensie", "optie_sleutel", name="uq_componentconfig_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dimensie: Mapped[ComponentConfigDimensie] = mapped_column(
+        componentconfig_dimensie_enum, nullable=False
     )
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)

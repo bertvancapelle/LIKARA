@@ -44,14 +44,17 @@ from app.core.database import get_worker_session  # noqa: E402
 from models.models import (  # noqa: E402
     AntwoordType,
     Applicatie,
-    ApplicatieContract,
     Blokkade,
     BlokkadeStatus,
     ChecklistScore,
     ChecklistVraag,
     ChecklistVraagOptie,
     Checklistscore,
+    Component,
+    ComponentContract,
+    ComponentStructuur,
     Contract,
+    HostingModel,
     Koppeling,
     Leverancier,
 )
@@ -535,8 +538,8 @@ async def _seed_aanvulling_d(session, app_ids: dict) -> dict:
 
     # --- Koppelingen (idempotent op (applicatie_id, contract_id)) ---
     bestaande_kop = {
-        (r.applicatie_id, r.contract_id)
-        for r in (await session.execute(select(ApplicatieContract))).scalars().all()
+        (r.component_id, r.contract_id)  # shared-PK: component_id == applicatie_id
+        for r in (await session.execute(select(ComponentContract))).scalars().all()
     }
     for app_idx, contractnaam, rol in KOPPELINGEN_D:
         app_id = app_ids[app_idx]
@@ -551,6 +554,50 @@ async def _seed_aanvulling_d(session, app_ids: dict) -> dict:
         print(f"  + koppeling app{app_idx}→{contractnaam} ({rol})")
 
     return {"leveranciers": len(lev_ids), "contracten": len(con_ids)}
+
+
+async def _seed_technische_laag(session, app_ids: dict) -> dict:
+    """Aanvulling E (ADR-021 B5) — technische laag: een gedeelde database-component
+    onder Belastingsysteem + Financieel + structuurrelaties (+ GIS→fileshare), zodat
+    gedeelde infrastructuur en de impactanalyse demonstreerbaar zijn. Kale componenten
+    (geen subtype). Idempotent op component-naam resp. (component, op_component, type)."""
+    import uuid as _uuid
+
+    tid = _uuid.UUID(DEV_TENANT)
+    comps = {c.naam: c.id for c in (await session.execute(select(Component))).scalars().all()}
+
+    async def _ensure(naam, type_, host, org):
+        if naam in comps:
+            return comps[naam]
+        c = Component(tenant_id=tid, naam=naam, componenttype=type_, hostingmodel=host,
+                      eigenaar_organisatie=org)
+        session.add(c)
+        await session.flush()
+        comps[naam] = c.id
+        print(f"  + component {naam} ({type_})")
+        return c.id
+
+    db_id = await _ensure("Oracle FIN-DB", "database", HostingModel.on_premise, "Financiën")
+    fs_id = await _ensure("Geo-fileshare", "fileshare", HostingModel.on_premise, "Ruimte")
+
+    bestaand = {
+        (r.component_id, r.op_component_id, r.relatietype)
+        for r in (await session.execute(select(ComponentStructuur))).scalars().all()
+    }
+    relaties = [
+        (app_ids[6], db_id, "draait_op"),   # Belastingsysteem → Oracle FIN-DB (gedeeld)
+        (app_ids[7], db_id, "draait_op"),   # Financieel → Oracle FIN-DB (gedeeld)
+        (app_ids[9], fs_id, "draait_op"),   # GIS-viewer → Geo-fileshare
+    ]
+    for comp_id, op_id, rel in relaties:
+        if (comp_id, op_id, rel) in bestaand:
+            continue
+        session.add(ComponentStructuur(
+            tenant_id=tid, component_id=comp_id, op_component_id=op_id, relatietype=rel
+        ))
+        print(f"  + structuur: {rel} op {op_id}")
+    await session.commit()
+    return {"componenten_extra": 2, "structuurrelaties": len(relaties)}
 
 
 async def main() -> None:
@@ -588,6 +635,10 @@ async def main() -> None:
         print("Aanvulling D — contractlandschap (leveranciers/contracten/koppelingen):")
         telling = await _seed_aanvulling_d(session, app_ids)
         print(f"  leveranciers={telling['leveranciers']} contracten={telling['contracten']}")
+
+        print("Aanvulling E — technische laag (componenten + structuurrelaties):")
+        tl = await _seed_technische_laag(session, app_ids)
+        print(f"  extra componenten={tl['componenten_extra']} structuurrelaties={tl['structuurrelaties']}")
     print("dev-seed: klaar")
 
 

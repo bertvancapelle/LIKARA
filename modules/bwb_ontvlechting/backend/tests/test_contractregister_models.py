@@ -14,7 +14,7 @@ def test_nieuwe_modellen_importeerbaar():
 
     for naam in [
         "Leverancier", "Contract", "ContractDekking",
-        "ContractKostenmodel", "ApplicatieContract", "ContractConfigOptie",
+        "ContractKostenmodel", "ComponentContract", "ContractConfigOptie",
     ]:
         assert hasattr(m, naam), f"ontbrekend model: {naam}"
 
@@ -34,7 +34,7 @@ def test_tenant_tabellen_hebben_tenant_id():
     from models import models as m
 
     for model in (m.Leverancier, m.Contract, m.ContractDekking,
-                  m.ContractKostenmodel, m.ApplicatieContract):
+                  m.ContractKostenmodel, m.ComponentContract):
         assert "tenant_id" in model.__table__.columns, f"{model.__name__} mist tenant_id"
 
 
@@ -66,8 +66,8 @@ def test_unieke_constraints():
             if isinstance(c, UniqueConstraint)
         }
 
-    assert uniques(m.ApplicatieContract)["uq_applicatie_contract"] == (
-        "tenant_id", "applicatie_id", "contract_id"
+    assert uniques(m.ComponentContract)["uq_component_contract"] == (
+        "tenant_id", "component_id", "contract_id"
     )
     assert uniques(m.ContractDekking)["uq_contract_dekking"] == (
         "tenant_id", "contract_id", "optie_sleutel"
@@ -96,8 +96,8 @@ def test_fk_ondelete_gedrag():
     assert ondeletes(m.ContractDekking)["contract_id"] == "CASCADE"
     assert ondeletes(m.ContractKostenmodel)["contract_id"] == "CASCADE"
 
-    ac = ondeletes(m.ApplicatieContract)
-    assert ac["applicatie_id"] == "CASCADE"
+    ac = ondeletes(m.ComponentContract)
+    assert ac["component_id"] == "CASCADE"
     assert ac["contract_id"] == "CASCADE"
 
 
@@ -109,7 +109,7 @@ def test_verplichte_velden_not_null():
     assert m.Contract.__table__.c.contracttype.nullable is False
     assert m.Contract.__table__.c.leverancier_id.nullable is False
     assert m.Contract.__table__.c.mantelcontract_id.nullable is True
-    assert m.ApplicatieContract.__table__.c.relatie_rol.nullable is False
+    assert m.ComponentContract.__table__.c.relatie_rol.nullable is False
     # Datums vrij (B4: geen validatie/NOT NULL).
     for col in ("begindatum", "einddatum", "vernieuwingsdatum"):
         assert m.Contract.__table__.c[col].nullable is True

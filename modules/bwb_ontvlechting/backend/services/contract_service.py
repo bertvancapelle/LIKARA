@@ -21,7 +21,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
     Applicatie,
-    ApplicatieContract,
+    Component,
+    ComponentContract,
     Contract,
     ContractConfigDimensie,
     ContractDekking,
@@ -105,8 +106,8 @@ async def _heeft_deelcontracten(session: AsyncSession, tid: uuid.UUID, contract_
 async def _heeft_koppelingen(session: AsyncSession, tid: uuid.UUID, contract_id) -> bool:
     bestaat = (
         await session.execute(
-            select(ApplicatieContract.id)
-            .where(ApplicatieContract.tenant_id == tid, ApplicatieContract.contract_id == contract_id)
+            select(ComponentContract.id)
+            .where(ComponentContract.tenant_id == tid, ComponentContract.contract_id == contract_id)
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -457,15 +458,16 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
     rijen = (
         await session.execute(
             select(
-                ApplicatieContract.id.label("koppeling_id"),
-                ApplicatieContract.applicatie_id.label("applicatie_id"),
-                Applicatie.naam.label("applicatie_naam"),
+                ComponentContract.id.label("koppeling_id"),
+                ComponentContract.component_id.label("applicatie_id"),  # shared-PK
+                Component.naam.label("applicatie_naam"),
                 Applicatie.lifecycle_status.label("lifecycle_status"),
-                ApplicatieContract.relatie_rol.label("relatie_rol"),
+                ComponentContract.relatie_rol.label("relatie_rol"),
             )
-            .join(Applicatie, Applicatie.id == ApplicatieContract.applicatie_id)
-            .where(ApplicatieContract.tenant_id == tid, ApplicatieContract.contract_id == contract_id)
-            .order_by(Applicatie.naam, ApplicatieContract.id)
+            .join(Component, Component.id == ComponentContract.component_id)
+            .join(Applicatie, Applicatie.id == ComponentContract.component_id)
+            .where(ComponentContract.tenant_id == tid, ComponentContract.contract_id == contract_id)
+            .order_by(Component.naam, ComponentContract.id)
         )
     ).all()
     return [

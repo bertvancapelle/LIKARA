@@ -75,7 +75,7 @@ def test_default_pad_ordening_en_seek_ongewijzigd():
 def test_sort_naam_asc_zonder_cursor():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, sort="naam", order="asc"))
-    assert "ORDER BY applicatie.naam ASC, applicatie.id ASC" in _sql(sess)
+    assert "ORDER BY component.naam ASC, applicatie.id ASC" in _sql(sess)
 
 
 def test_sort_naam_desc_seek_is_kleiner_dan():
@@ -83,7 +83,7 @@ def test_sort_naam_desc_seek_is_kleiner_dan():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, after=cursor, sort="naam", order="desc"))
     sql = _sql(sess)
-    assert "ORDER BY applicatie.naam DESC, applicatie.id DESC" in sql
+    assert "ORDER BY component.naam DESC, applicatie.id DESC" in sql
     assert "< (" in sql  # aflopende keyset-seek
 
 

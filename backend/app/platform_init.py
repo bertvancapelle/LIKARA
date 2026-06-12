@@ -30,6 +30,7 @@ if str(_MOD_BACKEND) not in sys.path:
 
 from services.seed import seed_checklist_vragen  # noqa: E402
 from services.seed_antwoordconfig import seed_antwoordconfig  # noqa: E402
+from services.seed_componentconfig import seed_componentconfig  # noqa: E402
 from services.seed_contractconfig import seed_contractconfig  # noqa: E402
 
 
@@ -54,6 +55,7 @@ async def platform_init(session_factory=None) -> int:
         aantal_vragen = await seed_checklist_vragen(session)
         await seed_antwoordconfig(session)
         await seed_contractconfig(session)
+        await seed_componentconfig(session)
         return aantal_vragen
 
 

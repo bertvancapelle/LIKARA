@@ -17,6 +17,7 @@ from models.models import (
     ACTIEVE_BLOKKADE_STATUSSEN,
     Applicatie,
     Blokkade,
+    Component,
     LifecycleStatus,
 )
 
@@ -80,10 +81,11 @@ async def haal_dashboard(session: AsyncSession, tenant_id) -> dict:
         await session.execute(
             select(
                 Applicatie.id,
-                Applicatie.naam,
+                Component.naam,  # naam verhuisde naar de component (ADR-021)
                 Applicatie.lifecycle_status,
                 Applicatie.updated_at,
             )
+            .join(Component, Component.id == Applicatie.id)
             .where(Applicatie.tenant_id == tid)
             .order_by(Applicatie.updated_at.desc(), Applicatie.id.desc())
             .limit(_RECENT_LIMIT)

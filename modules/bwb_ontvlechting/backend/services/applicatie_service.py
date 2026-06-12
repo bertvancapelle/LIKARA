@@ -18,13 +18,20 @@ from datetime import datetime
 
 from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import contains_eager
 
 from models.models import (
     Applicatie,
+    Component,
     HostingModel,
     LifecycleStatus,
     Migratiepad,
     NiveauEnum,
+)
+
+# Velden die op de component leven (ADR-021 herfundering) — voor mutatie-routering.
+_COMPONENTVELDEN = frozenset(
+    {"naam", "beschrijving", "hostingmodel", "eigenaar_organisatie", "eigenaar_naam", "leverancier"}
 )
 from schemas.applicatie import ApplicatieCreate, ApplicatieUpdate
 from services.errors import NietGevonden, OngeldigeStatusovergang
@@ -40,11 +47,12 @@ _STANDAARD_ORDER = "asc"
 
 # Allowlist-kolommen (ADR-017 B2) — single source naast de schema-enum
 # `ApplicatieSorteerveld`; `test_applicatie_sort` borgt dat beide gelijk zijn.
+# naam/eigenaar/hosting verhuizen naar component (ADR-021); de keyset joint component.
 _SORTEERBARE_KOLOMMEN = {
     "created_at": Applicatie.created_at,
-    "naam": Applicatie.naam,
-    "eigenaar_organisatie": Applicatie.eigenaar_organisatie,
-    "hostingmodel": Applicatie.hostingmodel,
+    "naam": Component.naam,
+    "eigenaar_organisatie": Component.eigenaar_organisatie,
+    "hostingmodel": Component.hostingmodel,
     "complexiteit": Applicatie.complexiteit,
     "prioriteit": Applicatie.prioriteit,
     "lifecycle_status": Applicatie.lifecycle_status,
@@ -148,7 +156,12 @@ async def lijst(
     kolom = _SORTEERBARE_KOLOMMEN[sort]
     oplopend = order == "asc"
 
-    stmt = select(Applicatie).where(Applicatie.tenant_id == tid)
+    stmt = (
+        select(Applicatie)
+        .join(Component, Applicatie.id == Component.id)
+        .options(contains_eager(Applicatie.component))
+        .where(Applicatie.tenant_id == tid)
+    )
 
     # Filters (AND). Lege/afwezige filters voegen GEEN clause toe → default-pad
     # identiek aan CD015. Lege statuslijst = geen filter (toon alles).
@@ -157,11 +170,11 @@ async def lijst(
             Applicatie.lifecycle_status.in_([LifecycleStatus(s) for s in status])
         )
     if hostingmodel:
-        stmt = stmt.where(Applicatie.hostingmodel == HostingModel(hostingmodel))
+        stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
     if eigenaar:
-        stmt = stmt.where(_ilike_contains(Applicatie.eigenaar_organisatie, eigenaar))
+        stmt = stmt.where(_ilike_contains(Component.eigenaar_organisatie, eigenaar))
     if zoek:
-        stmt = stmt.where(_ilike_contains(Applicatie.naam, zoek))
+        stmt = stmt.where(_ilike_contains(Component.naam, zoek))
 
     if after:
         c_sort, c_order, c_waarde_str, c_id = decode_sort_cursor(after)
@@ -204,12 +217,32 @@ async def haal_op(session: AsyncSession, tenant_id, applicatie_id) -> Applicatie
 
 
 async def maak_aan(session: AsyncSession, tenant_id, data: ApplicatieCreate) -> Applicatie:
-    """Maak een applicatie aan; start altijd in lifecycle `concept`."""
+    """Maak een applicatie aan (ADR-021): component-supertype + subtype, atomair.
+
+    De component (componenttype `applicatie`) draagt naam/hosting/eigenaar/leverancier/
+    beschrijving; het subtype draagt lifecycle/migratiepad/complexiteit/prioriteit en
+    deelt zijn PK met de component (shared-PK). Start altijd in lifecycle `concept`."""
     tid = _tenant_uuid(tenant_id)
+    d = data.model_dump()
+    comp = Component(
+        tenant_id=tid,
+        naam=d["naam"],
+        componenttype="applicatie",
+        hostingmodel=d["hostingmodel"],
+        eigenaar_organisatie=d["eigenaar_organisatie"],
+        eigenaar_naam=d["eigenaar_naam"],
+        leverancier=d["leverancier"],
+        beschrijving=d["beschrijving"],
+    )
+    session.add(comp)
+    await session.flush()  # comp.id beschikbaar voor de shared-PK
     obj = Applicatie(
+        id=comp.id,
         tenant_id=tid,
         lifecycle_status=LifecycleStatus.concept,
-        **data.model_dump(),
+        migratiepad=d["migratiepad"],
+        complexiteit=d["complexiteit"],
+        prioriteit=d["prioriteit"],
     )
     session.add(obj)
     await session.commit()
@@ -220,24 +253,27 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ApplicatieCreate) -> 
 async def werk_bij(
     session: AsyncSession, tenant_id, applicatie_id, data: ApplicatieUpdate
 ) -> Applicatie:
-    """Partiële update binnen de tenant. `lifecycle_status` blijft onaangeraakt."""
+    """Partiële update binnen de tenant. `lifecycle_status` blijft onaangeraakt.
+
+    Component-velden (naam/hosting/eigenaar/leverancier/beschrijving) worden op de
+    component gezet, de overige op het subtype (ADR-021 herfundering)."""
     obj = await haal_op(session, tenant_id, applicatie_id)
     for veld, waarde in data.model_dump(exclude_unset=True).items():
-        setattr(obj, veld, waarde)
+        doel = obj.component if veld in _COMPONENTVELDEN else obj
+        setattr(doel, veld, waarde)
     await session.commit()
     await session.refresh(obj)
     return obj
 
 
 async def verwijder(session: AsyncSession, tenant_id, applicatie_id) -> None:
-    """Verwijder een applicatie binnen de tenant.
+    """Verwijder een applicatie binnen de tenant (atomair, via de component).
 
-    Kind-records (datatype, gebruikersgroep, koppeling, checklistscore,
-    blokkade) verdwijnen mee via `ON DELETE CASCADE` — alles onder dezelfde
-    tenant-scope (RLS).
-    """
+    De component verwijderen cascadeert naar het subtype én alle engine-kinderen
+    (datatype, gebruikersgroep, koppeling, checklistscore, blokkade) — alles onder
+    dezelfde tenant-scope (RLS)."""
     obj = await haal_op(session, tenant_id, applicatie_id)
-    await session.delete(obj)
+    await session.delete(obj.component)
     await session.commit()
 
 

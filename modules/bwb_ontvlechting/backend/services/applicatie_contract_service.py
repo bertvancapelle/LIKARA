@@ -1,4 +1,4 @@
-"""Service-laag voor de koppeltabel ApplicatieContract (ADR-020 Besluit 5).
+"""Service-laag voor de koppeltabel ComponentContract (ADR-020 Besluit 5).
 
 Tenant-scoped; applicatie/contract worden bij aanmaken tenant-scoped geresolved
 (404 buiten de tenant). `relatie_rol` wordt tegen de actieve catalogus-dimensie
@@ -12,8 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
-    Applicatie,
-    ApplicatieContract,
+    ComponentContract,
     Contract,
     ContractConfigDimensie,
     Leverancier,
@@ -33,12 +32,12 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
-async def haal_op(session: AsyncSession, tenant_id, koppeling_id) -> ApplicatieContract:
+async def haal_op(session: AsyncSession, tenant_id, koppeling_id) -> ComponentContract:
     tid = _tenant_uuid(tenant_id)
     obj = (
         await session.execute(
-            select(ApplicatieContract).where(
-                ApplicatieContract.id == koppeling_id, ApplicatieContract.tenant_id == tid
+            select(ComponentContract).where(
+                ComponentContract.id == koppeling_id, ComponentContract.tenant_id == tid
             )
         )
     ).scalar_one_or_none()
@@ -47,11 +46,12 @@ async def haal_op(session: AsyncSession, tenant_id, koppeling_id) -> ApplicatieC
     return obj
 
 
-async def _lees(session: AsyncSession, tenant_id, obj: ApplicatieContract) -> dict:
+async def _lees(session: AsyncSession, tenant_id, obj: ComponentContract) -> dict:
     rol_labels = await catalog.labels(session, ContractConfigDimensie.relatie_rol)
     return {
         "id": obj.id,
-        "applicatie_id": obj.applicatie_id,
+        # API-veld blijft `applicatie_id`; met de shared-PK is dat het component_id.
+        "applicatie_id": obj.component_id,
         "contract_id": obj.contract_id,
         "relatie_rol": obj.relatie_rol,
         "relatie_rol_label": catalog.resolveer_een(obj.relatie_rol, rol_labels),
@@ -69,10 +69,10 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ApplicatieContractCre
 
     bestaat = (
         await session.execute(
-            select(ApplicatieContract.id).where(
-                ApplicatieContract.tenant_id == tid,
-                ApplicatieContract.applicatie_id == data.applicatie_id,
-                ApplicatieContract.contract_id == data.contract_id,
+            select(ComponentContract.id).where(
+                ComponentContract.tenant_id == tid,
+                ComponentContract.component_id == data.applicatie_id,
+                ComponentContract.contract_id == data.contract_id,
             )
         )
     ).scalar_one_or_none()
@@ -81,7 +81,12 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ApplicatieContractCre
             "KOPPELING_BESTAAT", "Deze applicatie is al aan dit contract gekoppeld."
         )
 
-    obj = ApplicatieContract(tenant_id=tid, **data.model_dump())
+    obj = ComponentContract(
+        tenant_id=tid,
+        component_id=data.applicatie_id,  # shared-PK: applicatie_id == component_id
+        contract_id=data.contract_id,
+        relatie_rol=data.relatie_rol,
+    )
     session.add(obj)
     try:
         await session.commit()
@@ -118,7 +123,7 @@ async def contracten_van_applicatie(session: AsyncSession, tenant_id, applicatie
     rijen = (
         await session.execute(
             select(
-                ApplicatieContract.id.label("koppeling_id"),
+                ComponentContract.id.label("koppeling_id"),
                 Contract.id.label("contract_id"),
                 Contract.contractnaam.label("contractnaam"),
                 Contract.contracttype.label("contracttype"),
@@ -126,12 +131,12 @@ async def contracten_van_applicatie(session: AsyncSession, tenant_id, applicatie
                 Leverancier.naam.label("leverancier_naam"),
                 Contract.begindatum.label("begindatum"),
                 Contract.einddatum.label("einddatum"),
-                ApplicatieContract.relatie_rol.label("relatie_rol"),
+                ComponentContract.relatie_rol.label("relatie_rol"),
             )
-            .join(Contract, Contract.id == ApplicatieContract.contract_id)
+            .join(Contract, Contract.id == ComponentContract.contract_id)
             .join(Leverancier, Leverancier.id == Contract.leverancier_id)
-            .where(ApplicatieContract.tenant_id == tid, ApplicatieContract.applicatie_id == applicatie_id)
-            .order_by(Contract.contractnaam, ApplicatieContract.id)
+            .where(ComponentContract.tenant_id == tid, ComponentContract.component_id == applicatie_id)
+            .order_by(Contract.contractnaam, ComponentContract.id)
         )
     ).all()
     return [

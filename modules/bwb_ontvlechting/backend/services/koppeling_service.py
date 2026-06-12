@@ -1,6 +1,6 @@
 """Service-laag voor de entiteit Koppeling (P5-vervolg, ADR-009).
 
-Twee ouder-relaties naar Applicatie, zonder lifecycle. Beide ouders worden bij
+Twee ouder-relaties naar Component, zonder lifecycle. Beide ouders worden bij
 aanmaken tenant-scoped gevalideerd (`applicatie_service.haal_op`) → ontbrekend/
 kruis-tenant ⇒ 404 `NIET_GEVONDEN`. `bron ≠ doel` is al op schema-niveau
 afgedwongen; de DB-`CHECK ck_koppeling_bron_ne_doel` is backstop: een
@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
-    Applicatie,
+    Component,
     ImpactVerbreking,
     Koppeling,
     Koppelprotocol,
@@ -41,10 +41,10 @@ _STANDAARD_SORT = "created_at"
 _STANDAARD_ORDER = "asc"
 
 # Allowlist-kolommen (ADR-017 B2) — single source naast `KoppelingSorteerveld`.
-# `tegenpartij_naam` → de gejoinde `Applicatie.naam` (zie `_tegenpartij_fk`).
+# `tegenpartij_naam` → de gejoinde `Component.naam` (zie `_tegenpartij_fk`).
 _SORTEERBARE_KOLOMMEN = {
     "created_at": Koppeling.created_at,
-    "tegenpartij_naam": Applicatie.naam,
+    "tegenpartij_naam": Component.naam,
     "richting": Koppeling.richting,
     "protocol": Koppeling.protocol,
     "impact_bij_verbreking": Koppeling.impact_bij_verbreking,
@@ -100,7 +100,7 @@ async def lijst(
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare keyset-lijst binnen de tenant (ADR-017 + CD020).
 
-    Join op `Applicatie` voor de **tegenpartij-naam** (de andere kant dan het
+    Join op `Component` voor de **tegenpartij-naam** (de andere kant dan het
     filter; zie `_tegenpartij_fk`), zodat sorteren op naam overeenstemt met wat
     getoond wordt. Default (geen `sort`/`order`) = exact het pre-CD020-gedrag
     (`created_at` oplopend). Uniform NULLS-LAST-pad (CD016; alle allowlist-kolommen
@@ -122,7 +122,7 @@ async def lijst(
             Koppeling.id.label("id"),
             Koppeling.bron_applicatie_id.label("bron_applicatie_id"),
             Koppeling.doel_applicatie_id.label("doel_applicatie_id"),
-            Applicatie.naam.label("tegenpartij_naam"),
+            Component.naam.label("tegenpartij_naam"),
             Koppeling.richting.label("richting"),
             Koppeling.protocol.label("protocol"),
             Koppeling.impact_bij_verbreking.label("impact_bij_verbreking"),
@@ -130,7 +130,7 @@ async def lijst(
             Koppeling.created_at.label("created_at"),
             Koppeling.updated_at.label("updated_at"),
         )
-        .join(Applicatie, Applicatie.id == tegenpartij_fk)
+        .join(Component, Component.id == tegenpartij_fk)
         .where(Koppeling.tenant_id == tid)
     )
     if bron_applicatie_id is not None:
