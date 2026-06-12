@@ -196,6 +196,8 @@ export const api = {
     structuur: (id) => request(`/componenten/${id}/structuur`),
     // 'component → contracten' (vervangt het oude app→contracten-overzicht, CD054).
     contracten: (id) => request(`/componenten/${id}/contracten`),
+    // ADR-021 Fase E — read-only impactanalyse (afhankelijke componenten + readiness).
+    impact: (id) => request(`/componenten/${id}/impact`),
   },
 
   componentStructuren: {

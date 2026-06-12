@@ -16,6 +16,7 @@ import { api } from '@/api'
 import { HOSTINGMODEL, REGISTER_FOUT, label } from '../labels'
 import StructuurSectie from './StructuurSectie.vue'
 import ContractSectie from './ContractSectie.vue'
+import ImpactSectie from './ImpactSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -120,6 +121,7 @@ onMounted(laad)
       <div class="mt-[var(--cd-space-lg)] flex flex-col gap-[var(--cd-space-lg)]">
         <StructuurSectie :component-id="props.id" />
         <ContractSectie :applicatie-id="props.id" />
+        <ImpactSectie :component-id="props.id" />
       </div>
     </template>
 

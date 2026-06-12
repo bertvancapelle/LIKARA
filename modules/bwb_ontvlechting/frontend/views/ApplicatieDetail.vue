@@ -31,6 +31,8 @@ import ContractSectie from './ContractSectie.vue'
 // ADR-021 Fase D — de Opbouw-laag (structuurgraaf) van deze applicatie-component
 // (shared-PK: applicatie-id ís component-id).
 import StructuurSectie from './StructuurSectie.vue'
+// ADR-021 Fase E — impactanalyse (een applicatie kan zelf onderlegger zijn).
+import ImpactSectie from './ImpactSectie.vue'
 import ChecklistscoreSectie from './ChecklistscoreSectie.vue'
 import BlokkadeSectie from './BlokkadeSectie.vue'
 
@@ -131,6 +133,7 @@ const TOP_TABS = [
   { key: 'gebruikersgroepen', label: 'Gebruikersgroepen' },
   { key: 'koppelingen', label: 'Koppelingen' },
   { key: 'opbouw', label: 'Opbouw' },
+  { key: 'impact', label: 'Impact' },
   { key: 'contracten', label: 'Contracten' },
   { key: 'blokkades', label: 'Blokkades' },
 ]
@@ -375,6 +378,14 @@ onMounted(async () => {
         aria-labelledby="detailtabs-tab-opbouw"
       >
         <StructuurSectie :component-id="props.id" />
+      </div>
+      <div
+        v-show="activeTop === 'impact'"
+        id="detailtabs-panel-impact"
+        role="tabpanel"
+        aria-labelledby="detailtabs-tab-impact"
+      >
+        <ImpactSectie :component-id="props.id" />
       </div>
       <div
         v-show="activeTop === 'contracten'"

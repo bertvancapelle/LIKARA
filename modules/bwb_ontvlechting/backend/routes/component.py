@@ -17,6 +17,7 @@ from models.models import HostingModel
 from schemas.applicatie import ApplicatieStatusFilter
 from schemas.component import (
     ComponentCreate,
+    ComponentImpact,
     ComponentOpties,
     ComponentPagina,
     ComponentRead,
@@ -99,6 +100,17 @@ async def contracten_van_component(
     session: AsyncSession = Depends(get_tenant_session),
 ):
     return await cc_svc.contracten_van_component(session, user.tenant_id, component_id)
+
+
+@router.get("/{component_id}/impact", response_model=ComponentImpact)
+async def impact_analyse(
+    component_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Read-only impactanalyse (ADR-021 Fase E): wie steunt — direct/transitief — op
+    dit component, met readiness- (lifecycle/blokkades) en contractcontext."""
+    return await svc.impact_analyse(session, user.tenant_id, component_id)
 
 
 @router.post("", response_model=ComponentRead, status_code=201)

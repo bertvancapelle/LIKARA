@@ -8,11 +8,13 @@ componentcatalogus gevalideerd.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
     Applicatie,
+    Blokkade,
+    BlokkadeStatus,
     Component,
     ComponentConfigDimensie,
     ComponentContract,
@@ -345,4 +347,105 @@ async def structuur_overzicht(session: AsyncSession, tenant_id, component_id) ->
     return {
         "draait_op": await _kant(ComponentStructuur.component_id, ComponentStructuur.op_component_id),
         "gebruikt_door": await _kant(ComponentStructuur.op_component_id, ComponentStructuur.component_id),
+    }
+
+
+async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict:
+    """Read-only impactanalyse (ADR-021 Besluit 10 / Fase E).
+
+    Volgt de structuurgraaf in de richting `gebruikt_door` (wie steunt — direct of
+    transitief — op dít component), over álle relatietypen. Iteratieve BFS per niveau
+    (registratief leeswerk, geen prestatiekritiek pad): dat geeft van nature de
+    **kortste afstand** (`niveau`, 1=direct) en is **cyclus-veilig** via een visited-set
+    (B3 staat cycli toe; de traversal mag nooit hangen). Per geraakt component het pad
+    (namen bron→component), het relatietype van de eerste stap, en — uitsluitend bij
+    applicatie-subtypen — lifecycle + open-blokkade-telling. Schrijft niets."""
+    from services import component_contract_service as cc_svc
+
+    tid = _tenant_uuid(tenant_id)
+    bron = await haal_op(session, tenant_id, component_id)  # 404 kruis-tenant (OP-6)
+    type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
+    rel_labels = await catalog.labels(session, ComponentConfigDimensie.structuurrelatie_type)
+
+    geraakt: dict = {}
+    visited = {component_id}  # incl. de bron → cyclus-veilig + nooit dubbel
+    # frontier-item: (node_id, pad_namen, eerste_stap_relatietype_label | None)
+    frontier = [(component_id, [bron.naam], None)]
+    niveau = 0
+    while frontier:
+        niveau += 1
+        ouder = {n: (pad, eerste) for (n, pad, eerste) in frontier}
+        rijen = (
+            await session.execute(
+                select(
+                    ComponentStructuur.component_id.label("dep_id"),
+                    ComponentStructuur.op_component_id.label("op_id"),
+                    ComponentStructuur.relatietype.label("relatietype"),
+                    Component.naam.label("naam"),
+                    Component.componenttype.label("componenttype"),
+                )
+                .join(Component, Component.id == ComponentStructuur.component_id)
+                .where(
+                    ComponentStructuur.tenant_id == tid,
+                    ComponentStructuur.op_component_id.in_(list(ouder.keys())),
+                )
+                .order_by(Component.naam, ComponentStructuur.id)
+            )
+        ).all()
+        volgende = []
+        for r in rijen:
+            if r.dep_id in visited:
+                continue  # reeds (op ≤ dit niveau) gevonden of cyclus → overslaan
+            visited.add(r.dep_id)
+            ouder_pad, ouder_eerste = ouder[r.op_id]
+            eerste_rel = ouder_eerste if ouder_eerste is not None else catalog.resolveer_een(r.relatietype, rel_labels)
+            pad = ouder_pad + [r.naam]
+            geraakt[r.dep_id] = {
+                "component_id": r.dep_id, "naam": r.naam, "componenttype": r.componenttype,
+                "componenttype_label": catalog.resolveer_een(r.componenttype, type_labels),
+                "niveau": niveau, "pad": pad, "relatietype_label": eerste_rel,
+                "lifecycle_status": None, "open_blokkades": None,
+            }
+            volgende.append((r.dep_id, pad, eerste_rel))
+        frontier = volgende
+
+    # Applicatie-verrijking (alleen subtypen): lifecycle + open-blokkade-telling.
+    ids = list(geraakt.keys())
+    if ids:
+        for aid, lc in (
+            await session.execute(
+                select(Applicatie.id, Applicatie.lifecycle_status).where(
+                    Applicatie.tenant_id == tid, Applicatie.id.in_(ids)
+                )
+            )
+        ).all():
+            geraakt[aid]["lifecycle_status"] = lc
+            geraakt[aid]["open_blokkades"] = 0
+        for aid, aantal in (
+            await session.execute(
+                select(Blokkade.applicatie_id, func.count())
+                .where(
+                    Blokkade.tenant_id == tid, Blokkade.applicatie_id.in_(ids),
+                    Blokkade.status != BlokkadeStatus.opgelost,
+                )
+                .group_by(Blokkade.applicatie_id)
+            )
+        ).all():
+            geraakt[aid]["open_blokkades"] = aantal
+
+    lijst_geraakt = sorted(geraakt.values(), key=lambda g: (g["niveau"], g["naam"]))
+    aantal_app = sum(1 for g in lijst_geraakt if g["lifecycle_status"] is not None)
+    aantal_geblokkeerd = sum(1 for g in lijst_geraakt if g["lifecycle_status"] == LifecycleStatus.geblokkeerd)
+    return {
+        "component": {
+            "id": bron.id, "naam": bron.naam,
+            "componenttype_label": catalog.resolveer_een(bron.componenttype, type_labels),
+        },
+        "contracten": await cc_svc.contracten_van_component(session, tenant_id, component_id),
+        "geraakt": lijst_geraakt,
+        "samenvatting": {
+            "aantal_geraakt": len(lijst_geraakt),
+            "aantal_applicaties": aantal_app,
+            "aantal_geblokkeerd": aantal_geblokkeerd,
+        },
     }

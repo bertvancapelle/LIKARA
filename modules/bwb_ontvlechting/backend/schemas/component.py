@@ -135,3 +135,48 @@ class ComponentStructuurOverzicht(BaseModel):
 
     draait_op: list[StructuurRelatieItem] = []      # waar dit component op steunt
     gebruikt_door: list[StructuurRelatieItem] = []  # wie op dit component steunt
+
+
+# ── ADR-021 Besluit 10 / Fase E — impactanalyse (read-only afgeleide view) ──────
+
+class ImpactBron(BaseModel):
+    """Het bronobject van de analyse."""
+
+    id: uuid.UUID
+    naam: str
+    componenttype_label: str
+
+
+class GeraaktComponent(BaseModel):
+    """Eén afhankelijk component (direct/transitief) met readiness-context."""
+
+    component_id: uuid.UUID
+    naam: str
+    componenttype_label: str
+    niveau: int                       # 1 = direct afhankelijk
+    pad: list[str]                    # componentnamen van bron → dit component
+    relatietype_label: str            # relatietype van de eerste stap van het pad
+    # Uitsluitend bij applicatie-subtypen; null voor kale infra.
+    lifecycle_status: LifecycleStatus | None = None
+    open_blokkades: int | None = None
+
+
+class ImpactSamenvatting(BaseModel):
+    aantal_geraakt: int
+    aantal_applicaties: int
+    aantal_geblokkeerd: int
+
+
+class ComponentImpact(BaseModel):
+    """Afgeleide, read-only impact-respons (geen schrijfpaden, geen engine-koppeling)."""
+
+    component: ImpactBron
+    contracten: list["ContractVoorComponent"]
+    geraakt: list[GeraaktComponent]
+    samenvatting: ImpactSamenvatting
+
+
+# Laat-geïmporteerd om een schema-importcyclus te vermijden; herbouwt het model.
+from schemas.component_contract import ContractVoorComponent  # noqa: E402
+
+ComponentImpact.model_rebuild()
