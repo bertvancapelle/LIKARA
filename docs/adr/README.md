@@ -33,6 +33,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-012 Addendum B | `PlatformEntiteit.CONTRACTCONFIG` | Aanvaard |
 | ADR-021 | Component-herfundering: supertype Component, subtype Applicatie, landschapsgraaf | Aanvaard |
 | ADR-012 Addendum C | `PlatformEntiteit.COMPONENTCONFIG` | Aanvaard |
+| ADR-022 | Beoordelingsprofiel / checklist per componenttype | Aanvaard (besluit), implementatie openstaand |
 
 ADR-002 t/m ADR-008 en ADR-010 zijn gereserveerd (zie `CLAUDE.md` →
 ADR-referentie) en worden geschreven wanneer de betreffende beslissing speelt.
