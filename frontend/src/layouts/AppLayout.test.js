@@ -22,6 +22,7 @@ function maakRouter() {
         children: [
           { path: '', name: 'dashboard', component: DashStub },
           { path: 'applicaties', name: 'applicatie-lijst', component: { template: '<div/>' } },
+          { path: 'componenten', name: 'component-lijst', component: { template: '<div/>' } },
           { path: 'leveranciers', name: 'leverancier-lijst', component: { template: '<div/>' } },
           { path: 'contracten', name: 'contract-lijst', component: { template: '<div/>' } },
           { path: 'blokkades', name: 'blokkades', component: { template: '<div/>' } },
@@ -79,13 +80,15 @@ describe('AppLayout', () => {
     expect(link.attributes('aria-current')).toBe('page')
   })
 
-  it('toont de echte Applicaties-modulelink (geen "binnenkort"-placeholder meer)', async () => {
+  it('toont Componenten als enige ingang; "Applicaties" als apart menu-item is vervallen (CD054b W1)', async () => {
     const { wrapper } = await mountShell()
     expect(wrapper.find('[data-testid="nav-bwb-binnenkort"]').exists()).toBe(false)
-    const link = wrapper.find('[data-testid="nav-applicaties"]')
+    // Menu-sanering: geen apart Applicaties-item meer.
+    expect(wrapper.find('[data-testid="nav-applicaties"]').exists()).toBe(false)
+    const link = wrapper.find('[data-testid="nav-componenten"]')
     expect(link.exists()).toBe(true)
     expect(link.element.tagName).toBe('A')
-    expect(link.attributes('href')).toContain('/applicaties')
+    expect(link.attributes('href')).toContain('/componenten')
   })
 
   it('toont de Koppelingenkaart-navlink (CD023)', async () => {

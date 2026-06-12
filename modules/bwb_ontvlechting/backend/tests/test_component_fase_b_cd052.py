@@ -17,14 +17,40 @@ _CD_APP_URL = "postgresql+asyncpg://cd_app:changeme_dev@localhost:5432/complidat
 
 # ── Offline-invarianten ─────────────────────────────────────────────────────────
 
-def test_maak_aan_weigert_applicatie_type():
+def test_maak_aan_applicatie_type_convergeert(monkeypatch):
+    # CD054b W1: type 'applicatie' via het component-pad wordt NIET geweigerd, maar
+    # maakt atomair het subtype met defaults via dezelfde service-kern.
+    from models.models import Migratiepad, NiveauEnum
     from schemas.component import ComponentCreate
-    from services import component_service as svc
-    from services.errors import OngeldigeRegistratie
+    from services import applicatie_service, component_service as svc
 
-    with pytest.raises(OngeldigeRegistratie) as ei:
-        asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentCreate(naam="X", componenttype="applicatie")))
-    assert ei.value.code == "GEBRUIK_APPLICATIE_PAD"
+    vastgelegd = {}
+
+    async def _kern(session, tid, **kw):
+        vastgelegd.update(kw)
+        return SimpleNamespace(component=SimpleNamespace(id=uuid.uuid4()))
+
+    async def _lees(session, tid, comp):
+        return {"id": comp.id, "heeft_applicatie_subtype": True}
+
+    monkeypatch.setattr(applicatie_service, "maak_applicatie_subtype", _kern)
+    monkeypatch.setattr(svc, "_lees", _lees)
+
+    out = asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentCreate(naam="Nieuwe app", componenttype="applicatie")))
+    assert out["heeft_applicatie_subtype"] is True
+    assert vastgelegd["naam"] == "Nieuwe app"
+    assert vastgelegd["eigenaar_organisatie"] == ""  # leeg toegestaan (bewerkbaar op detail)
+    assert vastgelegd["migratiepad"] == Migratiepad.onbekend
+    assert vastgelegd["complexiteit"] == NiveauEnum.midden
+    assert vastgelegd["prioriteit"] == NiveauEnum.midden
+
+
+def test_component_sort_allowlist_synchroon():
+    # ADR-017 B2: de schema-enum en de service-allowlist blijven 1-op-1.
+    from schemas.component import ComponentSorteerveld
+    from services import component_service as svc
+
+    assert {e.value for e in ComponentSorteerveld} == set(svc._SORTEERBARE_KOLOMMEN)
 
 
 def test_werk_bij_weigert_subtype_wijziging(monkeypatch):
@@ -139,19 +165,69 @@ def test_component_crud_roundtrip():
     asyncio.run(_sessie_run(_flow))
 
 
-@integratie
-def test_subtype_component_delete_geweigerd():
-    from sqlalchemy import text
-    from services import component_service as svc
+def test_subtype_component_delete_convergeert(monkeypatch):
+    # CD054b W1: delete van een subtype via het component-pad delegeert naar het
+    # applicatie-delete-pad; alleen een onderlegger-relatie (iets draait OP deze
+    # applicatie, op_component_id) blokkeert met 409 IN_GEBRUIK.
+    from services import applicatie_service, component_service as svc
     from services.errors import RegistratieConflict
 
-    async def _flow(s):
-        row = (await s.execute(text("select id from component where naam='Burgerzaken'"))).first()
-        with pytest.raises(RegistratieConflict) as ei:
-            await svc.verwijder(s, _TID, row[0])
-        return ei.value.code
+    cid = uuid.uuid4()
 
-    assert asyncio.run(_sessie_run(_flow)) == "GEBRUIK_APPLICATIE_PAD"
+    async def _haal(*a, **k):
+        return SimpleNamespace(id=cid)
+
+    async def _subtype(*a, **k):
+        return True
+
+    monkeypatch.setattr(svc, "haal_op", _haal)
+    monkeypatch.setattr(svc, "_heeft_subtype", _subtype)
+
+    # geval 1: onderlegger aanwezig → IN_GEBRUIK
+    sess1 = AsyncMock()
+    row = MagicMock()
+    row.scalar_one_or_none.return_value = uuid.uuid4()
+    sess1.execute.return_value = row
+    with pytest.raises(RegistratieConflict) as ei:
+        asyncio.run(svc.verwijder(sess1, _TID, cid))
+    assert ei.value.code == "IN_GEBRUIK"
+
+    # geval 2: geen onderlegger → delegeert naar applicatie_service.verwijder
+    gedelegeerd = {}
+
+    async def _verwijder(session, tenant_id, aid):
+        gedelegeerd["id"] = aid
+
+    monkeypatch.setattr(applicatie_service, "verwijder", _verwijder)
+    sess2 = AsyncMock()
+    leeg = MagicMock()
+    leeg.scalar_one_or_none.return_value = None
+    sess2.execute.return_value = leeg
+    asyncio.run(svc.verwijder(sess2, _TID, cid))
+    assert gedelegeerd["id"] == cid
+
+
+@integratie
+def test_lijst_levert_besturingsvelden_en_statusfilter():
+    # CD054b W1: de verenigde lijst joint het subtype — besturingsvelden gevuld voor
+    # applicaties, null voor kale infra; status-filter matcht alleen subtypen.
+    from services import component_service as svc
+
+    async def _flow(s):
+        items, _ = await svc.lijst(s, _TID, limit=100)
+        per_naam = {i["naam"]: i for i in items}
+        app = per_naam["Belastingsysteem"]
+        infra = per_naam["Oracle FIN-DB"]
+        gefilterd, _ = await svc.lijst(s, _TID, limit=100, status=["concept", "in_inventarisatie", "geblokkeerd", "migratieklaar"])
+        return app, infra, gefilterd
+
+    app, infra, gefilterd = asyncio.run(_sessie_run(_flow))
+    assert app["heeft_applicatie_subtype"] is True
+    assert app["lifecycle_status"] is not None and app["complexiteit"] is not None
+    assert infra["heeft_applicatie_subtype"] is False
+    assert infra["lifecycle_status"] is None and infra["complexiteit"] is None
+    # status-filter levert uitsluitend subtypen (kale infra heeft geen lifecycle).
+    assert gefilterd and all(i["heeft_applicatie_subtype"] for i in gefilterd)
 
 
 @integratie

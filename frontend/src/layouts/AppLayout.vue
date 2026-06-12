@@ -95,12 +95,14 @@ async function uitloggen() {
           >
             BWB-ontvlechting
           </span>
+          <!-- ADR-021 W1 (CD054b): "Applicaties" als apart menu-item vervallen —
+               Componenten is de enige ingang; "alle applicaties" = typefilter Applicatie. -->
           <router-link
-            :to="{ name: 'applicatie-lijst' }"
-            data-testid="nav-applicaties"
+            :to="{ name: 'component-lijst' }"
+            data-testid="nav-componenten"
             class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
           >
-            Applicaties
+            Componenten
           </router-link>
           <router-link
             :to="{ name: 'leverancier-lijst' }"

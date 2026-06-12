@@ -16,8 +16,14 @@ vi.mock('@/api', () => {
         verwijder: vi.fn(),
         lijst: vi.fn(leeg), // KoppelingSectie-pickers (bij dialog-open)
       },
-      // ContractSectie laadt nu via component→contracten (CD054 padconsolidatie).
-      componenten: { contracten: vi.fn(() => Promise.resolve([])) },
+      // ContractSectie laadt nu via component→contracten (CD054 padconsolidatie);
+      // de Opbouw-tab (StructuurSectie) leest de structuurgraaf + catalogus-opties.
+      componenten: {
+        contracten: vi.fn(() => Promise.resolve([])),
+        structuur: vi.fn(() => Promise.resolve({ draait_op: [], gebruikt_door: [] })),
+        lijst: vi.fn(leeg), // StructuurSectie doel-picker (bij dialog-open)
+        opties: vi.fn(() => Promise.resolve({ componenttype: [], structuurrelatie_type: [] })),
+      },
       // Embedded child-secties laden bij mount hun lijst (default: leeg).
       datatypes: { lijst: vi.fn(leeg) },
       gebruikersgroepen: { lijst: vi.fn(leeg) },

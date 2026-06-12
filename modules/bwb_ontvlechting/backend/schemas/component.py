@@ -7,11 +7,25 @@ is in de DB NOT NULL maar API-optioneel — de service defaultt None → "" voor
 """
 import uuid
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from models.models import HostingModel
+from models.models import HostingModel, LifecycleStatus, NiveauEnum
 from schemas.applicatie import _verplichte_tekst
+
+
+class ComponentSorteerveld(str, Enum):
+    """Allowlist van sorteerbare component-velden (ADR-017 B2). De drie subtype-
+    kolommen zijn nullable (LEFT JOIN) → NULLS-LAST. `test_component_sort` borgt
+    dat dit 1-op-1 synchroon loopt met `component_service._SORTEERBARE_KOLOMMEN`."""
+
+    created_at = "created_at"
+    naam = "naam"
+    componenttype = "componenttype"
+    complexiteit = "complexiteit"
+    prioriteit = "prioriteit"
+    lifecycle_status = "lifecycle_status"
 
 
 class ComponentCreate(BaseModel):
@@ -80,6 +94,11 @@ class ComponentLijstItem(BaseModel):
     componenttype_label: str
     hostingmodel: HostingModel
     heeft_applicatie_subtype: bool
+    # Besturingsvelden uit het subtype (CD054b W1) — null voor niet-applicatie-typen.
+    eigenaar_organisatie: str | None = None
+    complexiteit: NiveauEnum | None = None
+    prioriteit: NiveauEnum | None = None
+    lifecycle_status: LifecycleStatus | None = None
 
 
 class ComponentPagina(BaseModel):

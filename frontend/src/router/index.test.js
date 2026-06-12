@@ -22,4 +22,18 @@ describe('router-structuur', () => {
     expect(router.resolve({ name: 'auth-callback' }).meta.public).toBe(true)
     expect(router.resolve({ name: 'verboden' }).meta.public).toBe(true)
   })
+
+  it('leidt /applicaties (lijst) door naar Componenten met typefilter=applicatie (CD054b W1)', () => {
+    // De oude Applicaties-lijst is opgegaan in de verenigde Componenten-lijst;
+    // de naam blijft bestaan zodat bestaande navigaties/bookmarks niet breken.
+    // (router.resolve volgt geen redirect — we inspecteren de route-definitie zelf.)
+    const route = router.getRoutes().find((r) => r.name === 'applicatie-lijst')
+    expect(route.redirect).toEqual({ name: 'component-lijst', query: { type: 'applicatie' } })
+  })
+
+  it('behoudt het rijke applicatie-detail (/applicaties/:id) als subtype-view', () => {
+    const resolved = router.resolve({ name: 'applicatie-detail', params: { id: 'x' } })
+    expect(resolved.name).toBe('applicatie-detail')
+    expect(resolved.matched.length).toBe(2)
+  })
 })

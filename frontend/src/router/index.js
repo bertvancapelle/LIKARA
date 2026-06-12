@@ -13,10 +13,14 @@ import BeheerLayout from '../layouts/BeheerLayout.vue'
 const DashboardView = () => import('../views/DashboardView.vue')
 const BlokkadeOverzichtView = () => import('../views/BlokkadeOverzichtView.vue')
 const KoppelingenkaartView = () => import('../views/KoppelingenkaartView.vue')
-const ApplicatieLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieLijst.vue')
 const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
 const ApplicatieFormulier = () =>
   import('@modules/bwb_ontvlechting/frontend/views/ApplicatieFormulier.vue')
+// ADR-021 Fase D — componenten (technische laag), lazy (OP-19).
+const ComponentLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ComponentLijst.vue')
+const ComponentDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ComponentDetail.vue')
+const ComponentFormulier = () =>
+  import('@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue')
 // ADR-020 contractregister (Fase D1), lazy (OP-19).
 const LeverancierLijst = () => import('@modules/bwb_ontvlechting/frontend/views/LeverancierLijst.vue')
 const LeverancierFormulier = () =>
@@ -53,7 +57,11 @@ const routes = [
       { path: '', name: 'dashboard', component: DashboardView },
       { path: 'blokkades', name: 'blokkades', component: BlokkadeOverzichtView },
       { path: 'koppelingenkaart', name: 'koppelingenkaart', component: KoppelingenkaartView },
-      { path: 'applicaties', name: 'applicatie-lijst', component: ApplicatieLijst },
+      // ADR-021 W1 (CD054b): de Applicaties-lijst is opgegaan in de verenigde
+      // Componenten-lijst. `/applicaties` redirect (naam behouden zodat bestaande
+      // navigaties/bookmarks niet breken) naar Componenten met typefilter=applicatie.
+      // Het detail `/applicaties/:id` blijft de rijke subtype-view.
+      { path: 'applicaties', name: 'applicatie-lijst', redirect: { name: 'component-lijst', query: { type: 'applicatie' } } },
       // Statische paden vóór de dynamische /:id (vue-router rankt static > param,
       // maar expliciet vóór geplaatst voor leesbaarheid).
       { path: 'applicaties/nieuw', name: 'applicatie-nieuw', component: ApplicatieFormulier },
@@ -62,6 +70,16 @@ const routes = [
         path: 'applicaties/:id/bewerken',
         name: 'applicatie-bewerken',
         component: ApplicatieFormulier,
+        props: true,
+      },
+      // ADR-021 componenten — statische subpaden vóór de dynamische /:id.
+      { path: 'componenten', name: 'component-lijst', component: ComponentLijst },
+      { path: 'componenten/nieuw', name: 'component-nieuw', component: ComponentFormulier },
+      { path: 'componenten/:id', name: 'component-detail', component: ComponentDetail, props: true },
+      {
+        path: 'componenten/:id/bewerken',
+        name: 'component-bewerken',
+        component: ComponentFormulier,
         props: true,
       },
       // ADR-020 contractregister — statische subpaden vóór de dynamische /:id.

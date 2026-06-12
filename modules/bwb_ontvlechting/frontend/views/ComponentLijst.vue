@@ -1,19 +1,24 @@
 <script setup>
 /**
- * ApplicatieLijst — overzicht van applicaties (BWB-ontvlechtingsmodule).
+ * ComponentLijst — het verenigde werkscherm (ADR-021 W1 / CD054b). Eén ingang voor
+ * de hele technische laag: applicatie-subtypen én kale infra (database, fileshare, …).
  *
- * DataTable met server-side sorteerbare keyset-paginering (ADR-017): kolommen
- * `sortable`, `@sort` → refetch met `sort`/`order` + **cursor-reset**; "Meer laden"
- * (o.b.v. `volgende_cursor`) blijft binnen de actieve sortering. Lazy-modus zodat
- * de tabel niet zelf client-side sorteert. Lifecycle-status read-only als Tag.
- * Navigatie naar detail via een toetsenbord-toegankelijke link op de naam.
+ * Vaste kolommenset (voorspelbaar scherm): Naam · Type · Eigenaar · Hosting ·
+ * Complexiteit · Prioriteit · Status — besturingsvelden tonen "—" voor typen zonder
+ * beoordeling. Filterbalk gespiegeld aan de oude Applicaties-lijst: Status-checkboxes,
+ * Type-select (catalogus), Hosting, Eigenaar-bevat, Naam-zoek. Keyset-"Meer laden".
+ * Subtype-rijen linken naar ApplicatieDetail (rijk detail, één waarheid); overige naar
+ * ComponentDetail. Een `?type=`-query (bv. via de /applicaties-redirect) preselecteert
+ * het typefilter.
  */
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
+import { useRoute } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { HOSTINGMODEL, LIFECYCLE, LIFECYCLE_SEVERITY, NIVEAU, label } from '../labels'
 
+const route = useRoute()
 const auth = useAuthStore()
 const magAanmaken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
@@ -23,24 +28,19 @@ const laden = ref(false)
 const fout = ref(null)
 const eersteGeladen = ref(false)
 
-// Sortering — null = server-default (created_at asc), niet expliciet meegestuurd
-// (backwards-compatible). PrimeVue gebruikt sortOrder 1/-1; de API asc/desc.
-const sortVeld = ref(null)
-const sortRichting = ref(null) // 'asc' | 'desc'
-const primeSortOrder = computed(() =>
-  sortRichting.value === 'asc' ? 1 : sortRichting.value === 'desc' ? -1 : 0,
-)
-
-// Filters (CD017) — AND-gecombineerd, alle optioneel. Lege selectie = geen filter.
+// Filters — gespiegeld aan de Applicaties-lijst (CD017), AND-gecombineerd.
 const STATUS_OPTIES = ['concept', 'in_inventarisatie', 'geblokkeerd', 'migratieklaar']
 const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
-const filterStatus = ref([]) // array van geselecteerde statussen
-const filterHosting = ref('') // '' = alle
+const typeOpties = ref([]) // [{ optie_sleutel, label }]
+const filterStatus = ref([])
+const filterType = ref('') // '' = alle; kan via ?type= worden voorgezet
+const filterHosting = ref('')
 const filterEigenaar = ref('')
 const filterZoek = ref('')
 const heeftFilters = computed(
   () =>
     filterStatus.value.length > 0 ||
+    !!filterType.value ||
     !!filterHosting.value ||
     !!filterEigenaar.value.trim() ||
     !!filterZoek.value.trim(),
@@ -51,78 +51,79 @@ async function laad({ reset = false } = {}) {
   fout.value = null
   try {
     const params = { limit: 25, after: reset ? undefined : cursor.value }
-    if (sortVeld.value) {
-      params.sort = sortVeld.value
-      params.order = sortRichting.value
-    }
     if (filterStatus.value.length) params.status = filterStatus.value
+    if (filterType.value) params.componenttype = filterType.value
     if (filterHosting.value) params.hostingmodel = filterHosting.value
     if (filterEigenaar.value.trim()) params.eigenaar = filterEigenaar.value.trim()
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
-    const pagina = await api.applicaties.lijst(params)
+    const pagina = await api.componenten.lijst(params)
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
     cursor.value = pagina.volgende_cursor
   } catch (e) {
-    fout.value = e?.message || 'Er ging iets mis bij het laden van de applicaties.'
+    fout.value = e?.message || 'Er ging iets mis bij het laden van de componenten.'
   } finally {
     laden.value = false
     eersteGeladen.value = true
   }
 }
 
-function onSort(event) {
-  // Nieuwe sortering → cursor resetten en vanaf pagina 1 opnieuw ophalen.
-  sortVeld.value = event.sortField
-  sortRichting.value = event.sortOrder === 1 ? 'asc' : 'desc'
-  cursor.value = null
-  laad({ reset: true })
-}
-
-// Elke filterwijziging reset de cursor en haalt vanaf pagina 1 opnieuw op.
 function herfilter() {
   cursor.value = null
   laad({ reset: true })
 }
-
-// Debounce voor de tekstvelden (geen request per toetsaanslag).
 let _zoekTimer = null
 function herfilterDebounced() {
   clearTimeout(_zoekTimer)
   _zoekTimer = setTimeout(herfilter, 300)
 }
-
 function wisFilters() {
   filterStatus.value = []
+  filterType.value = ''
   filterHosting.value = ''
   filterEigenaar.value = ''
   filterZoek.value = ''
   herfilter()
 }
 
+function rijRoute(rij) {
+  return rij.heeft_applicatie_subtype
+    ? { name: 'applicatie-detail', params: { id: rij.id } }
+    : { name: 'component-detail', params: { id: rij.id } }
+}
+
 const hosting = (c) => label(HOSTINGMODEL, c)
-const niveau = (c) => label(NIVEAU, c)
+const niveau = (c) => (c ? label(NIVEAU, c) : '—')
 const lifecycleLabel = (c) => label(LIFECYCLE, c)
 const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'
 
-onMounted(() => laad({ reset: true }))
+onMounted(async () => {
+  const q = String(route.query.type ?? '')
+  if (q) filterType.value = q
+  try {
+    typeOpties.value = (await api.componenten.opties()).componenttype || []
+  } catch {
+    /* filterlijst optioneel — het overzicht laadt sowieso */
+  }
+  laad({ reset: true })
+})
 </script>
 
 <template>
-  <section aria-labelledby="applicaties-titel">
+  <section aria-labelledby="componenten-titel">
     <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-md)]">
       <h1
-        id="applicaties-titel"
+        id="componenten-titel"
         class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]"
       >
-        Applicaties
+        Componenten
       </h1>
       <router-link
         v-if="magAanmaken"
-        :to="{ name: 'applicatie-nieuw' }"
-        data-testid="nieuwe-applicatie"
+        :to="{ name: 'component-nieuw' }"
+        data-testid="nieuw-component"
         class="ml-auto inline-flex items-center rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-white text-[length:var(--cd-text-sm)] font-semibold hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
       >
-        Nieuwe applicatie
+        Nieuw component
       </router-link>
     </div>
 
@@ -141,17 +142,25 @@ onMounted(() => laad({ reset: true }))
             :key="s"
             class="flex items-center gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]"
           >
-            <input
-              v-model="filterStatus"
-              type="checkbox"
-              :value="s"
-              :data-testid="`filter-status-${s}`"
-              @change="herfilter"
-            />
+            <input v-model="filterStatus" type="checkbox" :value="s" :data-testid="`filter-status-${s}`" @change="herfilter" />
             {{ lifecycleLabel(s) }}
           </label>
         </div>
       </fieldset>
+
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Type</span>
+        <select
+          v-model="filterType"
+          data-testid="filter-type"
+          aria-label="Filter op componenttype"
+          class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="o in typeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
+        </select>
+      </label>
 
       <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
         <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Hosting</span>
@@ -188,7 +197,7 @@ onMounted(() => laad({ reset: true }))
           type="search"
           maxlength="100"
           data-testid="filter-zoek"
-          aria-label="Zoek op applicatienaam"
+          aria-label="Zoek op componentnaam"
           placeholder="zoeken…"
           class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
           @input="herfilterDebounced"
@@ -217,17 +226,13 @@ onMounted(() => laad({ reset: true }))
 
     <DataTable
       :value="items"
-      lazy
-      :sort-field="sortVeld"
-      :sort-order="primeSortOrder"
-      data-testid="applicaties-tabel"
+      data-testid="componenten-tabel"
       class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]"
-      @sort="onSort"
     >
-      <Column field="naam" header="Naam" sortable>
+      <Column field="naam" header="Naam">
         <template #body="{ data }">
           <router-link
-            :to="{ name: 'applicatie-detail', params: { id: data.id } }"
+            :to="rijRoute(data)"
             data-testid="rij-link"
             class="text-[var(--cd-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
           >
@@ -235,30 +240,35 @@ onMounted(() => laad({ reset: true }))
           </router-link>
         </template>
       </Column>
-      <Column field="eigenaar_organisatie" header="Eigenaar" sortable />
-      <Column header="Hosting" sort-field="hostingmodel" sortable>
+      <Column header="Type">
+        <template #body="{ data }">
+          <Tag :value="data.componenttype_label" :severity="data.heeft_applicatie_subtype ? 'info' : 'secondary'" />
+        </template>
+      </Column>
+      <Column header="Eigenaar">
+        <template #body="{ data }">{{ data.eigenaar_organisatie || '—' }}</template>
+      </Column>
+      <Column header="Hosting">
         <template #body="{ data }">{{ hosting(data.hostingmodel) }}</template>
       </Column>
-      <Column header="Complexiteit" sort-field="complexiteit" sortable>
+      <Column header="Complexiteit">
         <template #body="{ data }">{{ niveau(data.complexiteit) }}</template>
       </Column>
-      <Column header="Prioriteit" sort-field="prioriteit" sortable>
+      <Column header="Prioriteit">
         <template #body="{ data }">{{ niveau(data.prioriteit) }}</template>
       </Column>
-      <Column header="Status" sort-field="lifecycle_status" sortable>
+      <Column header="Status">
         <template #body="{ data }">
-          <Tag
-            :value="lifecycleLabel(data.lifecycle_status)"
-            :severity="lifecycleSeverity(data.lifecycle_status)"
-          />
+          <Tag v-if="data.lifecycle_status" :value="lifecycleLabel(data.lifecycle_status)" :severity="lifecycleSeverity(data.lifecycle_status)" />
+          <span v-else data-testid="status-leeg">—</span>
         </template>
       </Column>
       <template #empty>
         <span v-if="eersteGeladen && !laden && heeftFilters" data-testid="lijst-geen-match">
-          Geen applicaties komen overeen met de filters.
+          Geen componenten komen overeen met de filters.
         </span>
         <span v-else-if="eersteGeladen && !laden" data-testid="lijst-leeg">
-          Er zijn nog geen applicaties in deze tenant.
+          Er zijn nog geen componenten in deze tenant.
         </span>
         <span v-else data-testid="lijst-laden-leeg">Laden…</span>
       </template>

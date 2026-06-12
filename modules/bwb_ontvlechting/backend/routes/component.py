@@ -13,17 +13,21 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
+from models.models import HostingModel
+from schemas.applicatie import ApplicatieStatusFilter
 from schemas.component import (
     ComponentCreate,
     ComponentOpties,
     ComponentPagina,
     ComponentRead,
+    ComponentSorteerveld,
     ComponentStructuurOverzicht,
     ComponentUpdate,
 )
 from schemas.component_contract import ContractVoorComponent
 from services import component_contract_service as cc_svc
 from services import component_service as svc
+from services.pagination import Sorteerrichting
 
 router = APIRouter(prefix="/componenten", tags=["bwb:component"])
 
@@ -39,17 +43,21 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
 async def lijst_componenten(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
-    sort: str = Query("created_at", max_length=40),
-    order: str = Query("asc", pattern="^(asc|desc)$"),
+    sort: ComponentSorteerveld = Query(ComponentSorteerveld.created_at),
+    order: Sorteerrichting = Query(Sorteerrichting.asc),
     componenttype: str | None = Query(None, max_length=60),
+    status: list[ApplicatieStatusFilter] = Query(default=[]),
+    hostingmodel: HostingModel | None = Query(None),
+    eigenaar: str | None = Query(None, max_length=120),
     zoek: str | None = Query(None, max_length=255),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     try:
         items, volgende = await svc.lijst(
-            session, user.tenant_id, limit=limit, after=after, sort=sort, order=order,
-            componenttype=componenttype, zoek=zoek,
+            session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value,
+            componenttype=componenttype, status=[s.value for s in status] or None,
+            hostingmodel=hostingmodel.value if hostingmodel else None, eigenaar=eigenaar, zoek=zoek,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De sorteer-/paginatieparameters zijn ongeldig.")

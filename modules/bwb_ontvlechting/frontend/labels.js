@@ -144,4 +144,9 @@ export const REGISTER_FOUT = {
   IN_GEBRUIK: 'Dit record is nog in gebruik en kan niet worden verwijderd.',
   KOPPELING_BESTAAT: 'Deze applicatie is al aan dit contract gekoppeld.',
   ONGELDIGE_OPTIE: 'De gekozen optie is onbekend of niet actief.',
+  // ADR-021 (CD054) — componenten + structuurgraaf.
+  GEBRUIK_APPLICATIE_PAD: 'Componenten van het type applicatie beheer je via de applicatie zelf.',
+  SUBTYPE_BESCHERMD: 'Dit component is een applicatie-subtype en wordt via de applicatie beheerd.',
+  ZELFVERWIJZING: 'Een component kan geen structuurrelatie met zichzelf hebben.',
+  RELATIE_BESTAAT: 'Deze structuurrelatie bestaat al.',
 }

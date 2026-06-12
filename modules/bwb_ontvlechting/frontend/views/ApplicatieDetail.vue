@@ -28,6 +28,9 @@ import DatatypeSectie from './DatatypeSectie.vue'
 import GebruikersgroepSectie from './GebruikersgroepSectie.vue'
 import KoppelingSectie from './KoppelingSectie.vue'
 import ContractSectie from './ContractSectie.vue'
+// ADR-021 Fase D — de Opbouw-laag (structuurgraaf) van deze applicatie-component
+// (shared-PK: applicatie-id ís component-id).
+import StructuurSectie from './StructuurSectie.vue'
 import ChecklistscoreSectie from './ChecklistscoreSectie.vue'
 import BlokkadeSectie from './BlokkadeSectie.vue'
 
@@ -127,6 +130,7 @@ const TOP_TABS = [
   { key: 'datatypes', label: 'Datatypes' },
   { key: 'gebruikersgroepen', label: 'Gebruikersgroepen' },
   { key: 'koppelingen', label: 'Koppelingen' },
+  { key: 'opbouw', label: 'Opbouw' },
   { key: 'contracten', label: 'Contracten' },
   { key: 'blokkades', label: 'Blokkades' },
 ]
@@ -363,6 +367,14 @@ onMounted(async () => {
         aria-labelledby="detailtabs-tab-koppelingen"
       >
         <KoppelingSectie :applicatie-id="props.id" />
+      </div>
+      <div
+        v-show="activeTop === 'opbouw'"
+        id="detailtabs-panel-opbouw"
+        role="tabpanel"
+        aria-labelledby="detailtabs-tab-opbouw"
+      >
+        <StructuurSectie :component-id="props.id" />
       </div>
       <div
         v-show="activeTop === 'contracten'"

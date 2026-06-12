@@ -156,3 +156,25 @@ is de laatste van dit soort.
   richting/protocol af (functionele verdieping in de sessie).
 - **Strangler-/plateau-migratie**: verworpen — over-engineering zonder productiedata;
   herfunderen + herseeden is korter en schoner (besluit Bert).
+
+## Wijziging W1 (CD054b) — verenigde Componenten-UI
+
+Besluit 9 (UI-perspectief) herzien op grond van een ontwerp-bevinding tijdens de
+walkthrough. De tenant-UI hanteert nu één **verenigde Componenten-ingang**:
+
+- **Menu-sanering**: het aparte menu-item "Applicaties" vervalt. "Componenten" is de
+  enige ingang; "alle applicaties" = het typefilter Applicatie. De route `/applicaties`
+  (lijst) redirect naar de Componenten-lijst met `type=applicatie`; het detail
+  `/applicaties/:id` (ApplicatieDetail) blijft de rijke subtype-view.
+- **Convergente aanmaak**: een component aanmaken met type `applicatie` wordt niet langer
+  geweigerd, maar maakt atomair het applicatie-subtype met defaults (`lifecycle=concept`,
+  `migratiepad=onbekend`, `complexiteit/prioriteit=midden`) via dezelfde service-kern —
+  één implementatie, twee routes. Verwijderen van een subtype via het component-pad
+  delegeert naar het applicatie-delete-pad (engine-kinderen cascaden; een onderlegger-
+  relatie blokkeert met 409 `IN_GEBRUIK`). Het TYPE wijzigen van/naar `applicatie` blijft
+  beschermd (422 `SUBTYPE_BESCHERMD`) — nu de enige plek waar die bescherming leeft.
+- **Besturingskolommen**: de verenigde lijst toont Eigenaar/Complexiteit/Prioriteit/Status
+  via een LEFT JOIN op het subtype — gevuld voor checklist-dragende typen, "—" voor de rest.
+
+Checklist-per-componenttype (beoordelingsprofielen voor niet-applicatie-typen) volgt als
+eigen ontwerpblok in **ADR-022** en valt buiten deze wijziging.

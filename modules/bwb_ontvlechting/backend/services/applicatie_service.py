@@ -216,6 +216,52 @@ async def haal_op(session: AsyncSession, tenant_id, applicatie_id) -> Applicatie
     return obj
 
 
+async def maak_applicatie_subtype(
+    session: AsyncSession,
+    tid: uuid.UUID,
+    *,
+    naam: str,
+    beschrijving: str | None,
+    hostingmodel: HostingModel,
+    eigenaar_organisatie: str,
+    eigenaar_naam: str | None,
+    leverancier: str | None,
+    migratiepad: Migratiepad,
+    complexiteit: NiveauEnum,
+    prioriteit: NiveauEnum,
+) -> Applicatie:
+    """Service-kern: maak component-supertype + applicatie-subtype atomair (shared-PK).
+
+    Eén implementatie achter twee routes (ADR-021 W1/CD054b): het applicatie-pad
+    (`ApplicatieCreate`, alle velden verplicht) én de convergente aanmaak via het
+    component-pad (`componenttype='applicatie'`, met defaults). Start altijd in
+    lifecycle `concept`. De aanroeper heeft de waarden al gevalideerd/gedefault."""
+    comp = Component(
+        tenant_id=tid,
+        naam=naam,
+        componenttype="applicatie",
+        hostingmodel=hostingmodel,
+        eigenaar_organisatie=eigenaar_organisatie,
+        eigenaar_naam=eigenaar_naam,
+        leverancier=leverancier,
+        beschrijving=beschrijving,
+    )
+    session.add(comp)
+    await session.flush()  # comp.id beschikbaar voor de shared-PK
+    obj = Applicatie(
+        id=comp.id,
+        tenant_id=tid,
+        lifecycle_status=LifecycleStatus.concept,
+        migratiepad=migratiepad,
+        complexiteit=complexiteit,
+        prioriteit=prioriteit,
+    )
+    session.add(obj)
+    await session.commit()
+    await session.refresh(obj)
+    return obj
+
+
 async def maak_aan(session: AsyncSession, tenant_id, data: ApplicatieCreate) -> Applicatie:
     """Maak een applicatie aan (ADR-021): component-supertype + subtype, atomair.
 
@@ -224,30 +270,19 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ApplicatieCreate) -> 
     deelt zijn PK met de component (shared-PK). Start altijd in lifecycle `concept`."""
     tid = _tenant_uuid(tenant_id)
     d = data.model_dump()
-    comp = Component(
-        tenant_id=tid,
+    return await maak_applicatie_subtype(
+        session,
+        tid,
         naam=d["naam"],
-        componenttype="applicatie",
+        beschrijving=d["beschrijving"],
         hostingmodel=d["hostingmodel"],
         eigenaar_organisatie=d["eigenaar_organisatie"],
         eigenaar_naam=d["eigenaar_naam"],
         leverancier=d["leverancier"],
-        beschrijving=d["beschrijving"],
-    )
-    session.add(comp)
-    await session.flush()  # comp.id beschikbaar voor de shared-PK
-    obj = Applicatie(
-        id=comp.id,
-        tenant_id=tid,
-        lifecycle_status=LifecycleStatus.concept,
         migratiepad=d["migratiepad"],
         complexiteit=d["complexiteit"],
         prioriteit=d["prioriteit"],
     )
-    session.add(obj)
-    await session.commit()
-    await session.refresh(obj)
-    return obj
 
 
 async def werk_bij(

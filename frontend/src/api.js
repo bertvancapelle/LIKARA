@@ -182,8 +182,12 @@ export const api = {
   // ADR-021 — componenten (technische laag) + structuurgraaf. Met de shared-PK is een
   // applicatie-id identiek aan zijn component-id (zelfde waarden).
   componenten: {
-    lijst: ({ limit, after, sort, order, componenttype, zoek } = {}) =>
-      request(`/componenten${_query({ limit, after, sort, order, componenttype, zoek })}`),
+    // Verenigde lijst (CD054b W1): besturingsfilters status/hostingmodel/eigenaar
+    // naast componenttype + zoek. `status` is een array (herhaalde param).
+    lijst: ({ limit, after, sort, order, componenttype, status, hostingmodel, eigenaar, zoek } = {}) =>
+      request(
+        `/componenten${_query({ limit, after, sort, order, componenttype, status, hostingmodel, eigenaar, zoek })}`,
+      ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/componenten/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

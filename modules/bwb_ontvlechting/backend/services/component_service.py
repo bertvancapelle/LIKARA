@@ -8,7 +8,7 @@ componentcatalogus gevalideerd.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, or_, select, tuple_
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
@@ -19,11 +19,19 @@ from models.models import (
     ComponentStructuur,
     HostingModel,
     Koppeling,
+    LifecycleStatus,
+    Migratiepad,
+    NiveauEnum,
 )
 from schemas.component import ComponentCreate, ComponentUpdate
 from services import componentconfig_catalog as catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
-from services.pagination import decode_sort_cursor, encode_sort_cursor
+from services.pagination import (
+    decode_sort_cursor_nullable,
+    encode_sort_cursor_nullable,
+    keyset_order_by_nulls_last,
+    keyset_seek_nulls_last,
+)
 
 _ENTITEIT = "component"
 _APPLICATIE_TYPE = "applicatie"
@@ -31,12 +39,34 @@ _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
 _LIKE_ESCAPE = "\\"
 
+# Allowlist (ADR-017 B2). De drie subtype-kolommen zijn nullable (LEFT JOIN op het
+# subtype) → de hele lijst draait op de NULLS-LAST-cursor (v2n); de helper werkt
+# uniform ook voor de NOT NULL-kolommen. `ComponentSorteerveld` (schema-enum) blijft
+# hiermee synchroon — geborgd door `test_component_sort`.
 _SORTEERBARE_KOLOMMEN = {
     "created_at": Component.created_at,
     "naam": Component.naam,
     "componenttype": Component.componenttype,
+    "complexiteit": Applicatie.complexiteit,
+    "prioriteit": Applicatie.prioriteit,
+    "lifecycle_status": Applicatie.lifecycle_status,
 }
-_WAARDE_PARSERS = {"created_at": datetime.fromisoformat, "naam": str, "componenttype": str}
+_WAARDE_PARSERS = {
+    "created_at": datetime.fromisoformat,
+    "naam": str,
+    "componenttype": str,
+    "complexiteit": NiveauEnum,
+    "prioriteit": NiveauEnum,
+    "lifecycle_status": LifecycleStatus,
+}
+
+# Convergente aanmaak (CD054b W1): een component met type `applicatie` maakt atomair
+# het subtype met deze defaults; eigenaar leeg toegestaan ("" — bewerkbaar op het detail).
+_SUBTYPE_DEFAULTS = {
+    "migratiepad": Migratiepad.onbekend,
+    "complexiteit": NiveauEnum.midden,
+    "prioriteit": NiveauEnum.midden,
+}
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -90,13 +120,30 @@ async def lees_detail(session: AsyncSession, tenant_id, component_id) -> dict:
     return await _lees(session, tid, await haal_op(session, tenant_id, component_id))
 
 
+def _sorteer_waarde(comp: Component, app: Applicatie | None, sort: str):
+    """Sleutelwaarde voor de cursor: subtype-kolommen van het (mogelijk afwezige)
+    subtype, overige van de component."""
+    if sort in ("complexiteit", "prioriteit", "lifecycle_status"):
+        return getattr(app, sort) if app is not None else None
+    return getattr(comp, sort)
+
+
 async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
-    zoek: str | None = None,
+    status: list[str] | None = None, hostingmodel: str | None = None,
+    eigenaar: str | None = None, zoek: str | None = None,
 ) -> tuple[list[dict], str | None]:
-    """Server-side sorteerbare keyset-lijst (ADR-017). Toont álle componenten
-    (technisch perspectief), incl. applicatie-subtypen."""
+    """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
+
+    Verenigd werkscherm (CD054b W1): LEFT JOIN op het applicatie-subtype levert de
+    besturingsvelden (`eigenaar_organisatie`/`complexiteit`/`prioriteit`/
+    `lifecycle_status` — null voor niet-subtypen). Sortering op een nullable
+    subtype-kolom plaatst NULLs altijd achteraan (NULLS-LAST, v2n-cursor).
+
+    Filters (AND, alle optioneel): `componenttype` (gelijkheid), `status` (reële
+    lifecycle-statussen → IN, alleen subtypen matchen), `hostingmodel` (enum-
+    gelijkheid), `eigenaar`/`zoek` (ge-escapete ILIKE-contains)."""
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
     if sort not in _SORTEERBARE_KOLOMMEN:
@@ -104,63 +151,79 @@ async def lijst(
     if order not in ("asc", "desc"):
         raise ValueError(f"onbekende sorteerrichting: {order}")
     kolom = _SORTEERBARE_KOLOMMEN[sort]
-    oplopend = order == "asc"
 
-    stmt = select(Component).where(Component.tenant_id == tid)
+    stmt = (
+        select(Component, Applicatie)
+        .outerjoin(Applicatie, and_(Applicatie.id == Component.id, Applicatie.tenant_id == tid))
+        .where(Component.tenant_id == tid)
+    )
     if componenttype:
         stmt = stmt.where(Component.componenttype == componenttype)
+    if status:
+        stmt = stmt.where(Applicatie.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
+    if hostingmodel:
+        stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
+    if eigenaar:
+        stmt = stmt.where(
+            Component.eigenaar_organisatie.ilike(f"%{_escape_like(eigenaar)}%", escape=_LIKE_ESCAPE)
+        )
     if zoek:
         stmt = stmt.where(Component.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
     if after:
-        c_sort, c_order, c_waarde_str, c_id = decode_sort_cursor(after)
+        c_sort, c_order, c_isnull, c_waarde_str, c_id = decode_sort_cursor_nullable(after)
         if c_sort != sort or c_order != order:
             raise ValueError("cursor past niet bij de actieve sortering")
-        c_waarde = _WAARDE_PARSERS[sort](c_waarde_str)
-        seek = tuple_(kolom, Component.id)
-        stmt = stmt.where(seek > (c_waarde, c_id) if oplopend else seek < (c_waarde, c_id))
-    if oplopend:
-        stmt = stmt.order_by(kolom.asc(), Component.id.asc())
-    else:
-        stmt = stmt.order_by(kolom.desc(), Component.id.desc())
-    stmt = stmt.limit(limit + 1)
+        c_waarde = None if c_isnull else _WAARDE_PARSERS[sort](c_waarde_str)
+        stmt = stmt.where(
+            keyset_seek_nulls_last(
+                kolom, Component.id, order=order, is_null=c_isnull, waarde=c_waarde, cursor_id=c_id
+            )
+        )
+    stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Component.id, order)).limit(limit + 1)
 
-    rijen = list((await session.execute(stmt)).scalars().all())
+    rijen = list((await session.execute(stmt)).all())  # rijen van (Component, Applicatie|None)
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
-    subtypes = set()
-    if items:
-        ids = [c.id for c in items]
-        subtypes = {
-            r for (r,) in (
-                await session.execute(
-                    select(Applicatie.id).where(Applicatie.tenant_id == tid, Applicatie.id.in_(ids))
-                )
-            ).all()
-        }
     out = [
         {
             "id": c.id, "naam": c.naam, "componenttype": c.componenttype,
             "componenttype_label": catalog.resolveer_een(c.componenttype, type_labels),
             "hostingmodel": c.hostingmodel,
-            "heeft_applicatie_subtype": c.id in subtypes,
+            "heeft_applicatie_subtype": a is not None,
+            "eigenaar_organisatie": c.eigenaar_organisatie,
+            "complexiteit": a.complexiteit if a is not None else None,
+            "prioriteit": a.prioriteit if a is not None else None,
+            "lifecycle_status": a.lifecycle_status if a is not None else None,
         }
-        for c in items
+        for (c, a) in items
     ]
-    volgende = (
-        encode_sort_cursor(sort=sort, order=order, waarde=getattr(items[-1], sort), id=items[-1].id)
-        if heeft_meer else None
-    )
+    if heeft_meer:
+        laatste_comp, laatste_app = items[-1]
+        volgende = encode_sort_cursor_nullable(
+            sort=sort, order=order,
+            waarde=_sorteer_waarde(laatste_comp, laatste_app, sort), id=laatste_comp.id,
+        )
+    else:
+        volgende = None
     return out, volgende
 
 
 async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
     if data.componenttype == _APPLICATIE_TYPE:
-        raise OngeldigeRegistratie(
-            "GEBRUIK_APPLICATIE_PAD",
-            "Componenttype 'applicatie' kan niet los worden aangemaakt — gebruik het applicatie-pad.",
+        # Convergente aanmaak (CD054b W1): atomair het applicatie-subtype met defaults,
+        # via dezelfde service-kern als het applicatie-pad. Eigenaar mag leeg ("").
+        from services import applicatie_service
+
+        obj = await applicatie_service.maak_applicatie_subtype(
+            session, tid,
+            naam=data.naam, beschrijving=data.beschrijving, hostingmodel=data.hostingmodel,
+            eigenaar_organisatie=data.eigenaar_organisatie or "",
+            eigenaar_naam=data.eigenaar_naam, leverancier=data.leverancier,
+            **_SUBTYPE_DEFAULTS,
         )
+        return await _lees(session, tid, obj.component)
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
     obj = Component(
         tenant_id=tid, naam=data.naam, componenttype=data.componenttype,
@@ -199,13 +262,26 @@ async def werk_bij(session: AsyncSession, tenant_id, component_id, data: Compone
 async def verwijder(session: AsyncSession, tenant_id, component_id) -> None:
     tid = _tenant_uuid(tenant_id)
     await haal_op(session, tenant_id, component_id)
+
     if await _heeft_subtype(session, tid, component_id):
-        raise RegistratieConflict(
-            "GEBRUIK_APPLICATIE_PAD",
-            "Dit component heeft een applicatie-subtype — verwijderen gaat via het applicatie-pad.",
+        # Convergent (CD054b W1): een subtype verwijdert via het applicatie-delete-pad —
+        # eigen contracten/draait_op-structuur + engine-kinderen cascaden (bestaand gedrag).
+        # Alleen de RESTRICT-relatie blokkeert: iets anders draait OP deze applicatie
+        # (op_component_id) → 409 IN_GEBRUIK, vóór de DB-RESTRICT.
+        onderlegger = select(ComponentStructuur.id).where(
+            ComponentStructuur.tenant_id == tid, ComponentStructuur.op_component_id == component_id
         )
-    # Relaties beschermen (409 IN_GEBRUIK): koppelingen, structuurrelaties (bron of doel),
-    # contract-koppelingen.
+        if (await session.execute(onderlegger.limit(1))).scalar_one_or_none() is not None:
+            raise RegistratieConflict(
+                "IN_GEBRUIK", "Andere componenten draaien op deze applicatie; verwijderen niet toegestaan."
+            )
+        from services import applicatie_service
+
+        await applicatie_service.verwijder(session, tenant_id, component_id)
+        return
+
+    # Kaal component: relaties beschermen (409 IN_GEBRUIK) — koppelingen, structuurrelaties
+    # (beide richtingen), contract-koppelingen — vóór de DB CASCADE/RESTRICT.
     checks = [
         select(Koppeling.id).where(
             Koppeling.tenant_id == tid,
