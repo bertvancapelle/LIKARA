@@ -10,6 +10,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import lazyload
 
 from models.models import (
     Applicatie,
@@ -18,6 +19,7 @@ from models.models import (
     Component,
     ComponentConfigDimensie,
     ComponentContract,
+    ComponentProfiel,
     ComponentStructuur,
     HostingModel,
     Koppeling,
@@ -51,7 +53,8 @@ _SORTEERBARE_KOLOMMEN = {
     "componenttype": Component.componenttype,
     "complexiteit": Applicatie.complexiteit,
     "prioriteit": Applicatie.prioriteit,
-    "lifecycle_status": Applicatie.lifecycle_status,
+    # ADR-022 Fase A: lifecycle_status leeft op het generieke profiel (shared-PK).
+    "lifecycle_status": ComponentProfiel.lifecycle_status,
 }
 _WAARDE_PARSERS = {
     "created_at": datetime.fromisoformat,
@@ -122,10 +125,12 @@ async def lees_detail(session: AsyncSession, tenant_id, component_id) -> dict:
     return await _lees(session, tid, await haal_op(session, tenant_id, component_id))
 
 
-def _sorteer_waarde(comp: Component, app: Applicatie | None, sort: str):
+def _sorteer_waarde(comp: Component, app: Applicatie | None, lifecycle, sort: str):
     """Sleutelwaarde voor de cursor: subtype-kolommen van het (mogelijk afwezige)
-    subtype, overige van de component."""
-    if sort in ("complexiteit", "prioriteit", "lifecycle_status"):
+    subtype, `lifecycle_status` van het profiel, overige van de component."""
+    if sort == "lifecycle_status":
+        return lifecycle
+    if sort in ("complexiteit", "prioriteit"):
         return getattr(app, sort) if app is not None else None
     return getattr(comp, sort)
 
@@ -155,14 +160,19 @@ async def lijst(
     kolom = _SORTEERBARE_KOLOMMEN[sort]
 
     stmt = (
-        select(Component, Applicatie)
+        # ADR-022 Fase A: lifecycle_status komt expliciet uit het profiel; de
+        # Applicatie-eager-load van `profiel` wordt onderdrukt (`lazyload`) zodat de
+        # query één join naar component_profiel houdt.
+        select(Component, Applicatie, ComponentProfiel.lifecycle_status.label("lifecycle_status"))
         .outerjoin(Applicatie, and_(Applicatie.id == Component.id, Applicatie.tenant_id == tid))
+        .outerjoin(ComponentProfiel, and_(ComponentProfiel.id == Component.id, ComponentProfiel.tenant_id == tid))
+        .options(lazyload(Applicatie.profiel))
         .where(Component.tenant_id == tid)
     )
     if componenttype:
         stmt = stmt.where(Component.componenttype == componenttype)
     if status:
-        stmt = stmt.where(Applicatie.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
+        stmt = stmt.where(ComponentProfiel.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
     if hostingmodel:
         stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
     if eigenaar:
@@ -183,7 +193,7 @@ async def lijst(
         )
     stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Component.id, order)).limit(limit + 1)
 
-    rijen = list((await session.execute(stmt)).all())  # rijen van (Component, Applicatie|None)
+    rijen = list((await session.execute(stmt)).all())  # rijen van (Component, Applicatie|None, lifecycle|None)
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
@@ -196,15 +206,15 @@ async def lijst(
             "eigenaar_organisatie": c.eigenaar_organisatie,
             "complexiteit": a.complexiteit if a is not None else None,
             "prioriteit": a.prioriteit if a is not None else None,
-            "lifecycle_status": a.lifecycle_status if a is not None else None,
+            "lifecycle_status": lc,
         }
-        for (c, a) in items
+        for (c, a, lc) in items
     ]
     if heeft_meer:
-        laatste_comp, laatste_app = items[-1]
+        laatste_comp, laatste_app, laatste_lc = items[-1]
         volgende = encode_sort_cursor_nullable(
             sort=sort, order=order,
-            waarde=_sorteer_waarde(laatste_comp, laatste_app, sort), id=laatste_comp.id,
+            waarde=_sorteer_waarde(laatste_comp, laatste_app, laatste_lc, sort), id=laatste_comp.id,
         )
     else:
         volgende = None
@@ -414,8 +424,8 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
     if ids:
         for aid, lc in (
             await session.execute(
-                select(Applicatie.id, Applicatie.lifecycle_status).where(
-                    Applicatie.tenant_id == tid, Applicatie.id.in_(ids)
+                select(ComponentProfiel.id, ComponentProfiel.lifecycle_status).where(
+                    ComponentProfiel.tenant_id == tid, ComponentProfiel.id.in_(ids)
                 )
             )
         ).all():
@@ -423,12 +433,12 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
             geraakt[aid]["open_blokkades"] = 0
         for aid, aantal in (
             await session.execute(
-                select(Blokkade.applicatie_id, func.count())
+                select(Blokkade.component_id, func.count())
                 .where(
-                    Blokkade.tenant_id == tid, Blokkade.applicatie_id.in_(ids),
+                    Blokkade.tenant_id == tid, Blokkade.component_id.in_(ids),
                     Blokkade.status != BlokkadeStatus.opgelost,
                 )
-                .group_by(Blokkade.applicatie_id)
+                .group_by(Blokkade.component_id)
             )
         ).all():
             geraakt[aid]["open_blokkades"] = aantal

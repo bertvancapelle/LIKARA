@@ -22,7 +22,7 @@ def _fake_blokkade():
     return SimpleNamespace(
         id=uuid.UUID(_ID),
         checklistscore_id=uuid.UUID(_SCORE_ID),
-        applicatie_id=uuid.UUID(_APP_ID),
+        component_id=uuid.UUID(_APP_ID),
         status="open",
         toelichting=None,
         eigenaar=None,
@@ -169,15 +169,15 @@ def test_lijst_filters_doorgegeven(monkeypatch):
     app, svc = _maak_app(monkeypatch, _payload("viewer"))
     ontvangen = {}
 
-    async def _capture(session, tenant_id, *, limit, after, applicatie_id, status, sort=None, order=None):
-        ontvangen["applicatie_id"] = applicatie_id
+    async def _capture(session, tenant_id, *, limit, after, component_id, status, sort=None, order=None):
+        ontvangen["component_id"] = component_id
         ontvangen["status"] = status
         return ([], None)
 
     monkeypatch.setattr(svc, "lijst", _capture)
-    resp = _client(app).get(f"/api/v1/blokkades?applicatie_id={_APP_ID}&status=open")
+    resp = _client(app).get(f"/api/v1/blokkades?component_id={_APP_ID}&status=open")
     assert resp.status_code == 200
-    assert str(ontvangen["applicatie_id"]) == _APP_ID
+    assert str(ontvangen["component_id"]) == _APP_ID
     assert ontvangen["status"].value == "open"
 
 

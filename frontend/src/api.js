@@ -221,8 +221,9 @@ export const api = {
   },
 
   checklistscores: {
+    // ADR-022 Fase A: scores ankeren op component_id (== applicatie-id, shared-PK).
     lijst: ({ applicatieId, limit, after } = {}) =>
-      request(`/checklistscores${_query({ applicatie_id: applicatieId, limit, after })}`),
+      request(`/checklistscores${_query({ component_id: applicatieId, limit, after })}`),
     maak: (data) => request('/checklistscores', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
       request(`/checklistscores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -235,7 +236,7 @@ export const api = {
     // sort/order optioneel (CD020, per-app lijst) — weglaten = server-default.
     lijst: ({ applicatieId, status, limit, after, sort, order } = {}) =>
       request(
-        `/blokkades${_query({ applicatie_id: applicatieId, status, limit, after, sort, order })}`,
+        `/blokkades${_query({ component_id: applicatieId, status, limit, after, sort, order })}`,
       ),
     // Tenant-breed sorteerbaar overzicht (CD016, consument ADR-017).
     overzicht: ({ limit, after, status, sort, order } = {}) =>

@@ -225,12 +225,27 @@ class Applicatie(Base, TenantMixin, TimestampMixin):
     migratiepad: Mapped[Migratiepad] = mapped_column(migratiepad_enum, nullable=False)
     complexiteit: Mapped[NiveauEnum] = mapped_column(niveau_enum, nullable=False)
     prioriteit: Mapped[NiveauEnum] = mapped_column(niveau_enum, nullable=False)
-    lifecycle_status: Mapped[LifecycleStatus] = mapped_column(
-        lifecycle_status_enum, nullable=False, server_default=text("'concept'")
-    )
 
     # Shared-PK relatie naar het supertype (eager): de component draagt de identiteit.
     component: Mapped["Component"] = relationship("Component", lazy="joined")
+    # ADR-022 Fase A: de engine-state (lifecycle_status) verhuist naar het generieke
+    # ComponentProfiel (shared-PK). Elke applicatie heeft precies één profiel; eager
+    # geladen zodat de `lifecycle_status`-proxy zonder async lazy-IO werkt. Geen
+    # directe FK applicatie↔profiel (beide delen de component-PK) → expliciete
+    # shared-PK-primaryjoin met `foreign()`; viewonly (persist gaat via de service).
+    profiel: Mapped["ComponentProfiel"] = relationship(
+        "ComponentProfiel",
+        primaryjoin="Applicatie.id == foreign(ComponentProfiel.id)",
+        uselist=False,
+        lazy="joined",
+        viewonly=True,
+    )
+
+    @property
+    def lifecycle_status(self) -> "LifecycleStatus":
+        """Read-only proxy → het generieke profiel (ADR-022). Schrijven gaat via
+        `obj.profiel.lifecycle_status` (service-laag)."""
+        return self.profiel.lifecycle_status
 
     # Read-only proxy-properties → API-byte-compat (§5): de bestaande ApplicatieRead-
     # velden (naam/hosting/eigenaar/leverancier/beschrijving) lezen door naar de
@@ -258,6 +273,26 @@ class Applicatie(Base, TenantMixin, TimestampMixin):
     @property
     def leverancier(self) -> str | None:
         return self.component.leverancier
+
+
+class ComponentProfiel(Base, TenantMixin, TimestampMixin):
+    """ADR-022 — generiek beoordelingsprofiel: drager van de engine-state
+    (lifecycle_status; anker voor checklistscores/blokkades), shared-PK met
+    `component` (CD051 Optie 2: `id` = PK én FK → `component.id`). Eén profiel per
+    component; bestaat alleen voor checklist-dragende typen (in Fase A: `applicatie`).
+    Tenant-scoped (RLS). `componenttype` wordt NIET gedenormaliseerd — het type leeft
+    op de component (Besluit 1b)."""
+
+    __tablename__ = "component_profiel"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("component.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    lifecycle_status: Mapped[LifecycleStatus] = mapped_column(
+        lifecycle_status_enum, nullable=False, server_default=text("'concept'")
+    )
 
 
 class Datatype(Base, TenantMixin, TimestampMixin):
@@ -343,12 +378,22 @@ class ComponentStructuur(Base, TenantMixin, TimestampMixin):
 
 
 class ChecklistVraag(Base):
-    """Referentietabel — NIET tenant-scoped, geen RLS. Geseed (89 vragen)."""
+    """Referentietabel — NIET tenant-scoped, geen RLS. Geseed (89 vragen).
+
+    ADR-022 Fase A: surrogate UUID-PK (`id`), `componenttype`-discriminator
+    (één vraag → precies één componenttype; app-side gevalideerd tegen de
+    componentcatalogus, géén harde FK). `code` is uniek BINNEN een componenttype
+    (`uq_checklistvraag_type_code`), niet meer globaal — kind-FK's verwijzen naar
+    `id` (Knoop 3 Optie B)."""
 
     __tablename__ = "checklistvraag"
+    __table_args__ = (
+        UniqueConstraint("componenttype", "code", name="uq_checklistvraag_type_code"),
+    )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
+    id: Mapped[uuid.UUID] = _pk()
+    componenttype: Mapped[str] = mapped_column(String(60), nullable=False)
+    code: Mapped[str] = mapped_column(String(10), nullable=False)
     categorie_nr: Mapped[int] = mapped_column(Integer, nullable=False)
     categorie_naam: Mapped[str] = mapped_column(String(120), nullable=False)
     vraag: Mapped[str] = mapped_column(Text, nullable=False)
@@ -371,12 +416,15 @@ class ChecklistVraagOptie(Base):
 
     __tablename__ = "checklistvraag_optie"
     __table_args__ = (
-        UniqueConstraint("vraag_code", "optie_sleutel", name="uq_checklistvraag_optie"),
+        UniqueConstraint(
+            "checklistvraag_id", "optie_sleutel", name="uq_checklistvraag_optie"
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
-    vraag_code: Mapped[str] = mapped_column(
-        String(10), ForeignKey("checklistvraag.code"), nullable=False
+    # ADR-022 Fase A: FK naar de surrogate-PK i.p.v. `code` (Knoop 3 Optie B).
+    checklistvraag_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checklistvraag.id"), nullable=False
     )
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -391,17 +439,19 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
     __tablename__ = "checklistscore"
     __table_args__ = (
         UniqueConstraint(
-            "tenant_id", "applicatie_id", "vraag_code",
+            "tenant_id", "component_id", "checklistvraag_id",
             name="uq_checklistscore_app_vraag",
         ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
-    applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+    # ADR-022 Fase A: anker verschuift van applicatie → het generieke profiel
+    # (component_profiel.id == component.id == applicatie.id, shared-PK).
+    component_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("component_profiel.id", ondelete="CASCADE"), nullable=False
     )
-    vraag_code: Mapped[str] = mapped_column(
-        String(10), ForeignKey("checklistvraag.code"), nullable=False
+    checklistvraag_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("checklistvraag.id"), nullable=False
     )
     score: Mapped[ChecklistScore | None] = mapped_column(checklist_score_enum, nullable=True)
     bevinding: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -423,9 +473,9 @@ class Blokkade(Base, TenantMixin, TimestampMixin):
         nullable=False,
         unique=True,
     )
-    # Gedenormaliseerd voor filtering
-    applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+    # Gedenormaliseerd voor filtering — ADR-022 Fase A: anker = generiek profiel.
+    component_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("component_profiel.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[BlokkadeStatus] = mapped_column(
         blokkade_status_enum, nullable=False, server_default=text("'open'")

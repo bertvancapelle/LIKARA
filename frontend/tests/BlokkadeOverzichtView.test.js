@@ -21,7 +21,7 @@ import BlokkadeOverzichtView from '@/views/BlokkadeOverzichtView.vue'
 
 const _item = (naam, id) => ({
   id,
-  applicatie_id: `app-${id}`,
+  component_id: `app-${id}`,
   applicatie_naam: naam,
   vraag_code: 'A1',
   status: 'open',

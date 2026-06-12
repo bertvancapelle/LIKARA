@@ -32,12 +32,12 @@ async def _async(waarde):
 
 
 def _vraag(code, antwoordtype):
-    return SimpleNamespace(code=code, vraag="?", antwoordtype=antwoordtype)
+    return SimpleNamespace(id=uuid.uuid4(), code=code, componenttype="applicatie", vraag="?", antwoordtype=antwoordtype)
 
 
 def _optie(afgeleid_bron=None, actief=True, label="L", volgorde=0):
     return SimpleNamespace(
-        id=uuid.uuid4(), vraag_code="9.1", optie_sleutel="s", label=label,
+        id=uuid.uuid4(), checklistvraag_id=uuid.uuid4(), optie_sleutel="s", label=label,
         volgorde=volgorde, actief=actief, afgeleid_bron=afgeleid_bron,
     )
 

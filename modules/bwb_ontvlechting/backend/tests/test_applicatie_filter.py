@@ -71,7 +71,8 @@ def test_lege_statuslijst_is_geen_filter():
 
 def test_status_multi_geeft_in_clause():
     sql = _sql(status=["concept", "geblokkeerd"])
-    assert "applicatie.lifecycle_status IN" in sql
+    # ADR-022 Fase A: lifecycle_status leeft op het generieke profiel (shared-PK).
+    assert "component_profiel.lifecycle_status IN" in sql
 
 
 def test_hostingmodel_geeft_gelijkheid():

@@ -1,4 +1,5 @@
 """Tests — GET /checklistvragen (read-only, platform-brede referentiedata)."""
+import uuid
 from types import SimpleNamespace
 
 from fastapi import FastAPI
@@ -12,7 +13,8 @@ TENANT_B = "22222222-2222-2222-2222-222222222222"
 
 def _vraag(code, nr=1):
     return SimpleNamespace(
-        id=nr, code=code, categorie_nr=nr, categorie_naam="Cat", vraag="?", prioriteit="hoog",
+        id=uuid.uuid4(), code=code, componenttype="applicatie", categorie_nr=nr,
+        categorie_naam="Cat", vraag="?", prioriteit="hoog",
         antwoordtype="geen", opties=[],
     )
 
@@ -54,7 +56,8 @@ def test_service_lijst_alle_zonder_tenantfilter():
 
     vragen = [_vraag("1.1"), _vraag("1.2")]
     optie = SimpleNamespace(
-        vraag_code="1.1", optie_sleutel="a", label="A", volgorde=0, actief=True, afgeleid_bron=None
+        checklistvraag_id=vragen[0].id, optie_sleutel="a", label="A", volgorde=0,
+        actief=True, afgeleid_bron=None
     )
     vres = MagicMock()
     vres.scalars.return_value.all.return_value = vragen
@@ -67,7 +70,7 @@ def test_service_lijst_alle_zonder_tenantfilter():
     out = asyncio.run(lijst_alle(session))
     assert [r["code"] for r in out] == ["1.1", "1.2"]
     assert out[0]["antwoordtype"] == "geen"
-    assert out[0]["opties"] == [optie]  # gegroepeerd op vraag_code
+    assert out[0]["opties"] == [optie]  # gegroepeerd op checklistvraag_id
     assert out[1]["opties"] == []
 
 
@@ -82,7 +85,7 @@ def test_route_geeft_vragen_voor_viewer(monkeypatch):
     body = resp.json()
     assert [r["code"] for r in body] == ["1.1", "2.1"]
     assert set(body[0].keys()) == {
-        "id", "code", "categorie_nr", "categorie_naam", "vraag", "prioriteit",
+        "id", "code", "componenttype", "categorie_nr", "categorie_naam", "vraag", "prioriteit",
         "antwoordtype", "opties",
     }
 

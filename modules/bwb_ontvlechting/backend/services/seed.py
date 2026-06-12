@@ -101,12 +101,17 @@ CHECKLIST_VRAGEN = [
 
 
 async def seed_checklist_vragen(session) -> int:
-    """Voegt de 89 checklist-vragen idempotent toe. Geeft het aantal vragen terug."""
+    """Voegt de 89 checklist-vragen idempotent toe. Geeft het aantal vragen terug.
+
+    ADR-022 Fase A: elke vraag krijgt `componenttype='applicatie'`; uniciteit is
+    nu `(componenttype, code)`. De surrogate-PK `id` wordt door de DB gegenereerd."""
     rows = [
-        {**v, "prioriteit": ChecklistPrioriteit(v["prioriteit"])}
+        {**v, "componenttype": "applicatie", "prioriteit": ChecklistPrioriteit(v["prioriteit"])}
         for v in CHECKLIST_VRAGEN
     ]
-    stmt = pg_insert(ChecklistVraag).values(rows).on_conflict_do_nothing(index_elements=["code"])
+    stmt = pg_insert(ChecklistVraag).values(rows).on_conflict_do_nothing(
+        index_elements=["componenttype", "code"]
+    )
     await session.execute(stmt)
     await session.commit()
     return len(CHECKLIST_VRAGEN)

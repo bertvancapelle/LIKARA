@@ -47,13 +47,13 @@ _STANDAARD_ORDER = "asc"
 # Allowlist-kolommen (ADR-017 B2) — single source naast `ChecklistscoreSorteerveld`.
 _SORTEERBARE_KOLOMMEN = {
     "created_at": Checklistscore.created_at,
-    "vraag_code": Checklistscore.vraag_code,
+    "checklistvraag_id": Checklistscore.checklistvraag_id,
     "score": Checklistscore.score,
     "eigenaar": Checklistscore.eigenaar,
 }
 _WAARDE_PARSERS = {
     "created_at": datetime.fromisoformat,
-    "vraag_code": str,
+    "checklistvraag_id": uuid.UUID,
     "score": ChecklistScore,
     "eigenaar": str,
 }
@@ -72,15 +72,15 @@ def enum_opties() -> dict[str, list[str]]:
     return {"score": [e.value for e in ChecklistScore]}
 
 
-async def _valideer_vraag_code(session: AsyncSession, vraag_code: str) -> None:
-    """Onbekende `vraag_code` (globale vragenset) ⇒ NietGevonden (404)."""
+async def _valideer_checklistvraag_id(session: AsyncSession, checklistvraag_id) -> None:
+    """Onbekende `checklistvraag_id` (globale vragenset) ⇒ NietGevonden (404)."""
     bestaat = (
         await session.execute(
-            select(ChecklistVraag.code).where(ChecklistVraag.code == vraag_code)
+            select(ChecklistVraag.id).where(ChecklistVraag.id == checklistvraag_id)
         )
     ).scalar_one_or_none()
     if bestaat is None:
-        raise NietGevonden("checklistvraag", vraag_code)
+        raise NietGevonden("checklistvraag", checklistvraag_id)
 
 
 def _is_blokkerend(score) -> bool:
@@ -89,7 +89,7 @@ def _is_blokkerend(score) -> bool:
 
 
 async def _valideer_antwoord_waarde(
-    session: AsyncSession, vraag_code: str, antwoord_waarde
+    session: AsyncSession, checklistvraag_id, antwoord_waarde
 ) -> None:
     """Semantische validatie van `antwoord_waarde` tegen de vraagconfiguratie (ADR-019).
 
@@ -101,10 +101,10 @@ async def _valideer_antwoord_waarde(
     if antwoord_waarde is None:
         return
     vraag = (
-        await session.execute(select(ChecklistVraag).where(ChecklistVraag.code == vraag_code))
+        await session.execute(select(ChecklistVraag).where(ChecklistVraag.id == checklistvraag_id))
     ).scalar_one_or_none()
     if vraag is None:
-        return  # vraag_code-bestaan wordt elders afgedwongen (maak_aan)
+        return  # checklistvraag_id-bestaan wordt elders afgedwongen (maak_aan)
 
     if vraag.antwoordtype == AntwoordType.geen:
         raise OngeldigAntwoord("Deze vraag heeft geen gestructureerd antwoordveld.")
@@ -118,7 +118,7 @@ async def _valideer_antwoord_waarde(
         for (sleutel,) in (
             await session.execute(
                 select(ChecklistVraagOptie.optie_sleutel).where(
-                    ChecklistVraagOptie.vraag_code == vraag_code,
+                    ChecklistVraagOptie.checklistvraag_id == checklistvraag_id,
                     ChecklistVraagOptie.actief.is_(True),
                 )
             )
@@ -173,7 +173,7 @@ async def _synchroniseer_blokkade(
                 Blokkade(
                     tenant_id=tid,
                     checklistscore_id=score_obj.id,
-                    applicatie_id=score_obj.applicatie_id,
+                    component_id=score_obj.component_id,
                     status=BlokkadeStatus.open,
                 )
             )
@@ -196,7 +196,7 @@ async def lijst(
     *,
     limit: int = _STANDAARD_LIMIT,
     after: str | None = None,
-    applicatie_id: uuid.UUID | None = None,
+    component_id: uuid.UUID | None = None,
     sort: str = _STANDAARD_SORT,
     order: str = _STANDAARD_ORDER,
 ) -> tuple[list[Checklistscore], str | None]:
@@ -216,8 +216,8 @@ async def lijst(
     kolom = _SORTEERBARE_KOLOMMEN[sort]
 
     stmt = select(Checklistscore).where(Checklistscore.tenant_id == tid)
-    if applicatie_id is not None:
-        stmt = stmt.where(Checklistscore.applicatie_id == applicatie_id)
+    if component_id is not None:
+        stmt = stmt.where(Checklistscore.component_id == component_id)
     if after:
         c_sort, c_order, c_is_null, c_waarde_str, c_id = decode_sort_cursor_nullable(after)
         if c_sort != sort or c_order != order:
@@ -262,17 +262,18 @@ async def maak_aan(
     session: AsyncSession, tenant_id, data: ChecklistscoreCreate
 ) -> Checklistscore:
     tid = _tenant_uuid(tenant_id)
-    # Ouder + vraag_code valideren (beide tenant-/referentie-scoped) → 404.
-    await applicatie_service.haal_op(session, tenant_id, data.applicatie_id)
-    await _valideer_vraag_code(session, data.vraag_code)
+    # Ouder (applicatie-profiel; component_id == applicatie-id, shared-PK) + vraag
+    # valideren (beide tenant-/referentie-scoped) → 404.
+    await applicatie_service.haal_op(session, tenant_id, data.component_id)
+    await _valideer_checklistvraag_id(session, data.checklistvraag_id)
 
-    # Uniciteit up-front (tenant, applicatie, vraag_code) → 409.
+    # Uniciteit up-front (tenant, component, checklistvraag) → 409.
     bestaat = (
         await session.execute(
             select(Checklistscore.id).where(
                 Checklistscore.tenant_id == tid,
-                Checklistscore.applicatie_id == data.applicatie_id,
-                Checklistscore.vraag_code == data.vraag_code,
+                Checklistscore.component_id == data.component_id,
+                Checklistscore.checklistvraag_id == data.checklistvraag_id,
             )
         )
     ).scalar_one_or_none()
@@ -280,7 +281,7 @@ async def maak_aan(
         raise ChecklistscoreConflict()
 
     # ADR-019: antwoord_waarde semantisch valideren (los van score/engine).
-    await _valideer_antwoord_waarde(session, data.vraag_code, data.antwoord_waarde)
+    await _valideer_antwoord_waarde(session, data.checklistvraag_id, data.antwoord_waarde)
 
     obj = Checklistscore(tenant_id=tid, **data.model_dump())
     session.add(obj)
@@ -291,7 +292,7 @@ async def maak_aan(
         raise ChecklistscoreConflict() from exc
 
     await _synchroniseer_blokkade(session, tid, obj, oude_score=None)
-    await lifecycle_service.herbereken_lifecycle(session, tid, obj.applicatie_id)
+    await lifecycle_service.herbereken_lifecycle(session, tid, obj.component_id)
     await session.commit()
     await session.refresh(obj)
     return obj
@@ -304,14 +305,14 @@ async def werk_bij(
     obj = await haal_op(session, tenant_id, checklistscore_id)
     # ADR-019: alleen valideren als antwoord_waarde wérd meegestuurd (los van score).
     if "antwoord_waarde" in data.model_fields_set:
-        await _valideer_antwoord_waarde(session, obj.vraag_code, data.antwoord_waarde)
+        await _valideer_antwoord_waarde(session, obj.checklistvraag_id, data.antwoord_waarde)
     oude_score = obj.score  # vóór de update — bepaalt de transitie
     for veld, waarde in data.model_dump(exclude_unset=True).items():
         setattr(obj, veld, waarde)
     await session.flush()
 
     await _synchroniseer_blokkade(session, tid, obj, oude_score)
-    await lifecycle_service.herbereken_lifecycle(session, tid, obj.applicatie_id)
+    await lifecycle_service.herbereken_lifecycle(session, tid, obj.component_id)
     await session.commit()
     await session.refresh(obj)
     return obj
@@ -320,8 +321,8 @@ async def werk_bij(
 async def verwijder(session: AsyncSession, tenant_id, checklistscore_id) -> None:
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, checklistscore_id)
-    applicatie_id = obj.applicatie_id
+    component_id = obj.component_id
     await session.delete(obj)  # 1-op-1 blokkade gaat mee via ON DELETE CASCADE
     await session.flush()
-    await lifecycle_service.herbereken_lifecycle(session, tid, applicatie_id)
+    await lifecycle_service.herbereken_lifecycle(session, tid, component_id)
     await session.commit()

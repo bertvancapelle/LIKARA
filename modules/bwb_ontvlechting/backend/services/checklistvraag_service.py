@@ -27,7 +27,7 @@ async def lijst_alle(session: AsyncSession) -> list[dict]:
         (
             await session.execute(
                 select(ChecklistVraagOptie).order_by(
-                    ChecklistVraagOptie.vraag_code, ChecklistVraagOptie.volgorde
+                    ChecklistVraagOptie.checklistvraag_id, ChecklistVraagOptie.volgorde
                 )
             )
         )
@@ -35,20 +35,21 @@ async def lijst_alle(session: AsyncSession) -> list[dict]:
         .all()
     )
 
-    per_code: dict[str, list[ChecklistVraagOptie]] = {}
+    per_vraag: dict = {}
     for o in opties:
-        per_code.setdefault(o.vraag_code, []).append(o)
+        per_vraag.setdefault(o.checklistvraag_id, []).append(o)
 
     return [
         {
             "id": v.id,
             "code": v.code,
+            "componenttype": v.componenttype,
             "categorie_nr": v.categorie_nr,
             "categorie_naam": v.categorie_naam,
             "vraag": v.vraag,
             "prioriteit": v.prioriteit,
             "antwoordtype": v.antwoordtype,
-            "opties": per_code.get(v.code, []),
+            "opties": per_vraag.get(v.id, []),
         }
         for v in vragen
     ]

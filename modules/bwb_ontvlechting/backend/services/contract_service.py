@@ -20,9 +20,9 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
-    Applicatie,
     Component,
     ComponentContract,
+    ComponentProfiel,
     Contract,
     ContractConfigDimensie,
     ContractDekking,
@@ -461,11 +461,12 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
                 ComponentContract.id.label("koppeling_id"),
                 ComponentContract.component_id.label("applicatie_id"),  # shared-PK
                 Component.naam.label("applicatie_naam"),
-                Applicatie.lifecycle_status.label("lifecycle_status"),
+                # ADR-022 Fase A: lifecycle leeft op het generieke profiel (shared-PK).
+                ComponentProfiel.lifecycle_status.label("lifecycle_status"),
                 ComponentContract.relatie_rol.label("relatie_rol"),
             )
             .join(Component, Component.id == ComponentContract.component_id)
-            .join(Applicatie, Applicatie.id == ComponentContract.component_id)
+            .join(ComponentProfiel, ComponentProfiel.id == ComponentContract.component_id)
             .where(ComponentContract.tenant_id == tid, ComponentContract.contract_id == contract_id)
             .order_by(Component.naam, ComponentContract.id)
         )

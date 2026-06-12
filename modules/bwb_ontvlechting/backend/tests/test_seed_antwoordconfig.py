@@ -3,7 +3,8 @@
 Toetst de pure config-bouw (DB-vrij) en de idempotente seed (DB gemockt).
 """
 import asyncio
-from unittest.mock import AsyncMock
+import uuid
+from unittest.mock import AsyncMock, MagicMock
 
 
 def test_bouw_config_27_vragen_96_opties():
@@ -70,10 +71,22 @@ def test_getal_vraag_heeft_geen_opties():
 
 
 def test_seed_idempotent_geeft_vaste_aantallen():
+    from services.seed import CHECKLIST_VRAGEN
     from services.seed_antwoordconfig import seed_antwoordconfig
 
-    session = AsyncMock()
-    eerste = asyncio.run(seed_antwoordconfig(session))
+    # ADR-022 Fase A: seed_antwoordconfig resolved eerst code → checklistvraag_id;
+    # de gemockte select-`.all()` levert die (code, id)-paren voor alle 89 vragen.
+    code_id_rows = [(v["code"], uuid.uuid4()) for v in CHECKLIST_VRAGEN]
+
+    def _maak_session():
+        session = AsyncMock()
+        result = MagicMock()
+        result.all.return_value = code_id_rows
+        session.execute.return_value = result
+        return session
+
+    eerste = asyncio.run(seed_antwoordconfig(_maak_session()))
+    session = _maak_session()
     tweede = asyncio.run(seed_antwoordconfig(session))
     assert eerste == tweede == (27, 96)
     session.commit.assert_awaited()

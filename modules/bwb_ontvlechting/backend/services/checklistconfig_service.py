@@ -38,22 +38,22 @@ async def lijst_config(session: AsyncSession) -> list[dict]:
         (
             await session.execute(
                 select(ChecklistVraagOptie).order_by(
-                    ChecklistVraagOptie.vraag_code, ChecklistVraagOptie.volgorde
+                    ChecklistVraagOptie.checklistvraag_id, ChecklistVraagOptie.volgorde
                 )
             )
         )
         .scalars()
         .all()
     )
-    per_code: dict[str, list[ChecklistVraagOptie]] = {}
+    per_vraag: dict[uuid.UUID, list[ChecklistVraagOptie]] = {}
     for o in opties:
-        per_code.setdefault(o.vraag_code, []).append(o)
+        per_vraag.setdefault(o.checklistvraag_id, []).append(o)
     return [
         {
             "code": v.code,
             "vraag": v.vraag,
             "antwoordtype": v.antwoordtype,
-            "opties": per_code.get(v.code, []),
+            "opties": per_vraag.get(v.id, []),
         }
         for v in vragen
     ]
@@ -79,13 +79,13 @@ async def _haal_optie(session: AsyncSession, optie_id: uuid.UUID) -> ChecklistVr
     return optie
 
 
-async def _is_afgeleide_set(session: AsyncSession, vraag_code: str) -> bool:
+async def _is_afgeleide_set(session: AsyncSession, checklistvraag_id: uuid.UUID) -> bool:
     """True als de optieset van deze vraag uit een model-enum is afgeleid."""
     bestaat = (
         await session.execute(
             select(ChecklistVraagOptie.id)
             .where(
-                ChecklistVraagOptie.vraag_code == vraag_code,
+                ChecklistVraagOptie.checklistvraag_id == checklistvraag_id,
                 ChecklistVraagOptie.afgeleid_bron.is_not(None),
             )
             .limit(1)
@@ -113,7 +113,7 @@ async def zet_antwoordtype(
         (
             await session.execute(
                 select(ChecklistVraagOptie)
-                .where(ChecklistVraagOptie.vraag_code == vraag_code)
+                .where(ChecklistVraagOptie.checklistvraag_id == vraag.id)
                 .order_by(ChecklistVraagOptie.volgorde)
             )
         )
@@ -132,14 +132,14 @@ async def voeg_optie_toe(
     session: AsyncSession, vraag_code: str, data: OptieCreate
 ) -> ChecklistVraagOptie:
     """Voeg een optie toe (niet-afgeleide vraag; unieke stabiele sleutel)."""
-    await _haal_vraag(session, vraag_code)
-    if await _is_afgeleide_set(session, vraag_code):
+    vraag = await _haal_vraag(session, vraag_code)
+    if await _is_afgeleide_set(session, vraag.id):
         raise ConfiguratieConflict("Aan een afgeleide optieset kan geen optie worden toegevoegd.")
 
     bestaat = (
         await session.execute(
             select(ChecklistVraagOptie.id).where(
-                ChecklistVraagOptie.vraag_code == vraag_code,
+                ChecklistVraagOptie.checklistvraag_id == vraag.id,
                 ChecklistVraagOptie.optie_sleutel == data.optie_sleutel,
             )
         )
@@ -148,7 +148,7 @@ async def voeg_optie_toe(
         raise ConfiguratieConflict("Een optie met deze sleutel bestaat al voor deze vraag.")
 
     optie = ChecklistVraagOptie(
-        vraag_code=vraag_code,
+        checklistvraag_id=vraag.id,
         optie_sleutel=data.optie_sleutel,
         label=data.label,
         volgorde=data.volgorde,

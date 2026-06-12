@@ -15,7 +15,7 @@ tenant-/app-pad. `bouw_antwoordconfig()` is puur (DB-vrij) en zo testbaar.
 import re
 import unicodedata
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from models.models import (
@@ -129,13 +129,38 @@ async def seed_antwoordconfig(session) -> tuple[int, int]:
 
     for code, antwoordtype in types.items():
         await session.execute(
-            update(ChecklistVraag).where(ChecklistVraag.code == code).values(antwoordtype=antwoordtype)
+            update(ChecklistVraag)
+            .where(ChecklistVraag.code == code, ChecklistVraag.componenttype == "applicatie")
+            .values(antwoordtype=antwoordtype)
         )
 
     if opties:
-        stmt = pg_insert(ChecklistVraagOptie).values(
-            [{**o, "actief": True} for o in opties]
-        ).on_conflict_do_nothing(index_elements=["vraag_code", "optie_sleutel"])
+        # ADR-022 Fase A: opties hangen aan de surrogate-PK; resolve code → id
+        # (binnen het applicatie-type) vóór de insert.
+        code_naar_id = {
+            code: vid
+            for (code, vid) in (
+                await session.execute(
+                    select(ChecklistVraag.code, ChecklistVraag.id).where(
+                        ChecklistVraag.componenttype == "applicatie"
+                    )
+                )
+            ).all()
+        }
+        rijen = [
+            {
+                "checklistvraag_id": code_naar_id[o["vraag_code"]],
+                "optie_sleutel": o["optie_sleutel"],
+                "label": o["label"],
+                "volgorde": o["volgorde"],
+                "afgeleid_bron": o["afgeleid_bron"],
+                "actief": True,
+            }
+            for o in opties
+        ]
+        stmt = pg_insert(ChecklistVraagOptie).values(rijen).on_conflict_do_nothing(
+            index_elements=["checklistvraag_id", "optie_sleutel"]
+        )
         await session.execute(stmt)
 
     await session.commit()

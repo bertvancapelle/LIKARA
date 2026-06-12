@@ -130,7 +130,7 @@ onMounted(() => laad({ reset: true }))
       <Column field="applicatie_naam" header="Applicatie" sortable>
         <template #body="{ data }">
           <router-link
-            :to="{ name: 'applicatie-detail', params: { id: data.applicatie_id } }"
+            :to="{ name: 'applicatie-detail', params: { id: data.component_id } }"
             data-testid="blokkade-app-link"
             class="text-[var(--cd-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
           >

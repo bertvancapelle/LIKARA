@@ -2,9 +2,9 @@
 /**
  * ChecklistscoreSectie — inline scoringslijst over de 89 ChecklistVragen.
  *
- * Join client-side op CODE: ChecklistVraag.code ↔ Checklistscore.vraag_code
- * (het datamodel kent geen vraag_id). Per vraag een ja/deels/nee/nvt-keuze die
- * direct opslaat: nog niet gescoord → maak({applicatie_id, vraag_code, score});
+ * Join client-side op CODE: ChecklistVraag.code ↔ Checklistscore (via
+ * checklistvraag_id ↔ vraag.id, ADR-022 Fase A). Per vraag een ja/deels/nee/nvt-
+ * keuze die direct opslaat: nog niet gescoord → maak({component_id, checklistvraag_id, score});
  * al gescoord → werkBij(scoreId, {score}). Per-rij inline feedback i.p.v. 89
  * toasts. Elke geslaagde score kan een blokkade laten ontstaan/oplossen en de
  * lifecycle herberekenen (backend) → de sectie emit 'gewijzigd' zodat de ouder
@@ -90,12 +90,23 @@ function _zetScore(code, r) {
   }
 }
 
+// ADR-022 Fase A: scores dragen `checklistvraag_id` (UUID), niet meer `vraag_code`.
+// De sectie blijft per CODE redeneren (display/join), dus we mappen id → code via
+// de geladen vragenlijst (single source).
+function _codeVoorVraagId(id) {
+  return vragen.value.find((q) => q.id === id)?.code
+}
+
 function _vulScoreMap(scores) {
   for (const k of Object.keys(scoreMap)) delete scoreMap[k]
-  for (const s of scores) _zetScore(s.vraag_code, s)
+  for (const s of scores) {
+    const code = _codeVoorVraagId(s.checklistvraag_id)
+    if (code) _zetScore(code, s)
+  }
 }
 
 async function _laadScores() {
+  // Vereist dat `vragen` al geladen is (id → code-resolutie); zie `laad()`.
   const p = await api.checklistscores.lijst({ applicatieId: props.applicatieId, limit: 100 })
   _vulScoreMap(p.items)
 }
@@ -104,14 +115,17 @@ async function laad() {
   laden.value = true
   fout.value = null
   try {
-    const [vragenResp] = await Promise.all([
+    // Vragen + scores parallel ophalen; scoreMap pas vullen NÁ het zetten van
+    // `vragen` (id → code-join vereist de vragenlijst).
+    const [vragenResp, scoresPagina] = await Promise.all([
       api.checklistvragen.lijst(),
-      _laadScores(),
+      api.checklistscores.lijst({ applicatieId: props.applicatieId, limit: 100 }),
       (async () => {
         if (!opties.value.score.length) opties.value = await api.checklistscores.opties()
       })(),
     ])
     vragen.value = vragenResp
+    _vulScoreMap(scoresPagina.items)
   } catch (e) {
     fout.value = e?.message || 'Laden van de checklist mislukt.'
   } finally {
@@ -175,8 +189,8 @@ async function onScoreChange(code, nieuweScore) {
     } else {
       try {
         const r = await api.checklistscores.maak({
-          applicatie_id: props.applicatieId,
-          vraag_code: code,
+          component_id: props.applicatieId,
+          checklistvraag_id: vraagVan(code)?.id,
           score: nieuweScore,
         })
         _zetScore(code, r)

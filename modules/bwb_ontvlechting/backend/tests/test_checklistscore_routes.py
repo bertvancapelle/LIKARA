@@ -12,15 +12,16 @@ from app.core.config import settings
 TENANT_A = "11111111-1111-1111-1111-111111111111"
 _ID = "22222222-2222-2222-2222-222222222222"
 _APP_ID = "33333333-3333-3333-3333-333333333333"
+_VRAAG_ID = "44444444-4444-4444-4444-444444444444"
 
-_CREATE_BODY = {"applicatie_id": _APP_ID, "vraag_code": "1.1", "score": "nee"}
+_CREATE_BODY = {"component_id": _APP_ID, "checklistvraag_id": _VRAAG_ID, "score": "nee"}
 
 
 def _fake_score():
     return SimpleNamespace(
         id=uuid.UUID(_ID),
-        applicatie_id=uuid.UUID(_APP_ID),
-        vraag_code="1.1",
+        component_id=uuid.UUID(_APP_ID),
+        checklistvraag_id=uuid.UUID(_VRAAG_ID),
         score="nee",
         bevinding=None,
         eigenaar=None,
@@ -120,12 +121,12 @@ def test_geen_sessie_geeft_401(monkeypatch):
     assert resp.status_code == 401
 
 
-def test_onbekende_vraag_code_geeft_404(monkeypatch):
+def test_onbekende_checklistvraag_id_geeft_404(monkeypatch):
     app, svc = _maak_app(monkeypatch, _payload("medewerker"))
     from services.errors import NietGevonden
 
     async def _raise(*a, **k):
-        raise NietGevonden("checklistvraag", "9.9")
+        raise NietGevonden("checklistvraag", str(uuid.uuid4()))
 
     monkeypatch.setattr(svc, "maak_aan", _raise)
     resp = _client(app).post("/api/v1/checklistscores", json=_CREATE_BODY)
@@ -172,20 +173,20 @@ def test_ongeldige_cursor_geeft_400(monkeypatch):
 
 def test_score_verplicht_in_body_geeft_422(monkeypatch):
     app, _ = _maak_app(monkeypatch, _payload("medewerker"))
-    body = {"applicatie_id": _APP_ID, "vraag_code": "1.1"}  # geen score
+    body = {"component_id": _APP_ID, "checklistvraag_id": _VRAAG_ID}  # geen score
     resp = _client(app).post("/api/v1/checklistscores", json=body)
     assert resp.status_code == 422
 
 
-def test_lijst_filter_applicatie_id_doorgegeven(monkeypatch):
+def test_lijst_filter_component_id_doorgegeven(monkeypatch):
     app, svc = _maak_app(monkeypatch, _payload("viewer"))
     ontvangen = {}
 
-    async def _capture(session, tenant_id, *, limit, after, applicatie_id, sort=None, order=None):
-        ontvangen["applicatie_id"] = applicatie_id
+    async def _capture(session, tenant_id, *, limit, after, component_id, sort=None, order=None):
+        ontvangen["component_id"] = component_id
         return ([], None)
 
     monkeypatch.setattr(svc, "lijst", _capture)
-    resp = _client(app).get(f"/api/v1/checklistscores?applicatie_id={_APP_ID}")
+    resp = _client(app).get(f"/api/v1/checklistscores?component_id={_APP_ID}")
     assert resp.status_code == 200
-    assert str(ontvangen["applicatie_id"]) == _APP_ID
+    assert str(ontvangen["component_id"]) == _APP_ID

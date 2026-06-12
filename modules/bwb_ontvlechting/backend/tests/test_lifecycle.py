@@ -159,7 +159,9 @@ def test_start_inventarisatie_herberekent_na_transitie(monkeypatch):
     from models.models import LifecycleStatus
     from services import applicatie_service as svc, lifecycle_service
 
-    app_obj = SimpleNamespace(lifecycle_status=LifecycleStatus.concept)
+    # ADR-022 Fase A: lifecycle_status leeft op het generieke profiel (shared-PK);
+    # start_inventarisatie leest/schrijft via obj.profiel.lifecycle_status.
+    app_obj = SimpleNamespace(profiel=SimpleNamespace(lifecycle_status=LifecycleStatus.concept))
 
     async def _haal(session, tenant_id, app_id):
         return app_obj
@@ -171,7 +173,7 @@ def test_start_inventarisatie_herberekent_na_transitie(monkeypatch):
     async def _herb(session, tenant_id, app_id):
         aangeroepen["yes"] = True
         # Simuleer: vóór de start al alles gescoord, geen open blokkade.
-        app_obj.lifecycle_status = LifecycleStatus.migratieklaar
+        app_obj.profiel.lifecycle_status = LifecycleStatus.migratieklaar
         return LifecycleStatus.migratieklaar
 
     monkeypatch.setattr(lifecycle_service, "herbereken_lifecycle", _herb)
@@ -179,4 +181,4 @@ def test_start_inventarisatie_herberekent_na_transitie(monkeypatch):
     obj = asyncio.run(svc.start_inventarisatie(AsyncMock(), _TID, _APP))
 
     assert aangeroepen.get("yes") is True
-    assert obj.lifecycle_status == LifecycleStatus.migratieklaar
+    assert obj.profiel.lifecycle_status == LifecycleStatus.migratieklaar

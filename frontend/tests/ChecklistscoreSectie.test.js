@@ -1,4 +1,4 @@
-/** Tests — ChecklistscoreSectie (inline scoringslijst, join op vraag_code). */
+/** Tests — ChecklistscoreSectie (inline scoringslijst, join op checklistvraag_id ↔ vraag.id). */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
@@ -38,7 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.checklistvragen.lijst.mockResolvedValue(VRAGEN)
   api.checklistscores.lijst.mockResolvedValue({
-    items: [{ id: 's1', vraag_code: '1.2', score: 'ja' }],
+    items: [{ id: 's1', component_id: APP, checklistvraag_id: 2, score: 'ja' }],
     volgende_cursor: null,
   })
   api.checklistscores.opties.mockResolvedValue({ score: ['ja', 'deels', 'nee', 'nvt'] })
@@ -60,13 +60,13 @@ describe('ChecklistscoreSectie', () => {
     expect(w.find('[data-testid="cs-voortgang"]').text()).toContain('1/2')
   })
 
-  it('maakt een score aan voor een ongescoorde vraag (vraag_code)', async () => {
+  it('maakt een score aan voor een ongescoorde vraag (checklistvraag_id)', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="cs-score-1.1"]').setValue('nee')
     await flushPromises()
     expect(api.checklistscores.maak).toHaveBeenCalledWith({
-      applicatie_id: APP,
-      vraag_code: '1.1',
+      component_id: APP,
+      checklistvraag_id: 1,
       score: 'nee',
     })
     expect(w.emitted('gewijzigd')).toBeTruthy()
@@ -86,8 +86,8 @@ describe('ChecklistscoreSectie', () => {
     api.checklistscores.maak.mockRejectedValueOnce(conflict)
     // na refetch bestaat de score wél
     api.checklistscores.lijst
-      .mockResolvedValueOnce({ items: [{ id: 's1', vraag_code: '1.2', score: 'ja' }], volgende_cursor: null })
-      .mockResolvedValueOnce({ items: [{ id: 's9', vraag_code: '1.1', score: 'nee' }], volgende_cursor: null })
+      .mockResolvedValueOnce({ items: [{ id: 's1', component_id: APP, checklistvraag_id: 2, score: 'ja' }], volgende_cursor: null })
+      .mockResolvedValueOnce({ items: [{ id: 's9', component_id: APP, checklistvraag_id: 1, score: 'nee' }], volgende_cursor: null })
     const w = await mountSectie()
     await w.find('[data-testid="cs-score-1.1"]').setValue('nee')
     await flushPromises()
@@ -150,8 +150,8 @@ describe('ChecklistscoreSectie', () => {
   })
 
   // ── CD029 (ADR-019): gestructureerd antwoordveld per type ──────────────────
-  function _gescoord(code, antwoord_waarde = null) {
-    return { items: [{ id: 's1', vraag_code: code, score: 'ja', antwoord_waarde }], volgende_cursor: null }
+  function _gescoord(vraagId, antwoord_waarde = null) {
+    return { items: [{ id: 's1', component_id: APP, checklistvraag_id: vraagId, score: 'ja', antwoord_waarde }], volgende_cursor: null }
   }
 
   it('kolomkop is "Afgehandeld" i.p.v. "Score"', async () => {
@@ -169,7 +169,7 @@ describe('ChecklistscoreSectie', () => {
         { optie_sleutel: 'on_premise', label: 'On premise', volgorde: 1, actief: true, afgeleid_bron: 'HostingModel' },
       ],
     }])
-    api.checklistscores.lijst.mockResolvedValue(_gescoord('2.1'))
+    api.checklistscores.lijst.mockResolvedValue(_gescoord(1))
     api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'ja', antwoord_waarde: { optie: 'saas' } })
     const w = await mountSectie()
     await w.find('[data-testid="cs-toggle-2.1"]').trigger('click')
@@ -190,7 +190,7 @@ describe('ChecklistscoreSectie', () => {
         { optie_sleutel: 'b', label: 'B', volgorde: 1, actief: true, afgeleid_bron: null },
       ],
     }])
-    api.checklistscores.lijst.mockResolvedValue(_gescoord('4.1'))
+    api.checklistscores.lijst.mockResolvedValue(_gescoord(1))
     api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'ja', antwoord_waarde: { opties: ['a', 'b'] } })
     const w = await mountSectie()
     await w.find('[data-testid="cs-toggle-4.1"]').trigger('click')
@@ -208,7 +208,7 @@ describe('ChecklistscoreSectie', () => {
       id: 1, code: '12.4', categorie_nr: 12, categorie_naam: 'R', vraag: 'Prioriteit', prioriteit: 'hoog',
       antwoordtype: 'getal', opties: [],
     }])
-    api.checklistscores.lijst.mockResolvedValue(_gescoord('12.4'))
+    api.checklistscores.lijst.mockResolvedValue(_gescoord(1))
     api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'ja', antwoord_waarde: { getal: 3 } })
     const w = await mountSectie()
     await w.find('[data-testid="cs-toggle-12.4"]').trigger('click')
@@ -225,7 +225,7 @@ describe('ChecklistscoreSectie', () => {
       antwoordtype: 'enkelvoudige_keuze',
       opties: [{ optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true, afgeleid_bron: 'HostingModel' }],
     }])
-    api.checklistscores.lijst.mockResolvedValue(_gescoord('2.1'))
+    api.checklistscores.lijst.mockResolvedValue(_gescoord(1))
     const w = await mountSectie({ rollen: ['viewer'] })
     await w.find('[data-testid="cs-toggle-2.1"]').trigger('click')
     expect(w.find('[data-testid="cs-antwoord-2.1"]').attributes('disabled')).toBeDefined()

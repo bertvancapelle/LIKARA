@@ -124,7 +124,7 @@ def test_onbekend_sortveld_geeft_valueerror():
 def _rij(naam, eigenaar):
     return SimpleNamespace(
         id=uuid.uuid4(),
-        applicatie_id=uuid.uuid4(),
+        component_id=uuid.uuid4(),
         applicatie_naam=naam,
         vraag_code="A1",
         status="open",
@@ -140,7 +140,7 @@ def test_vorm_en_vervolgcursor():
     sess, items, cursor = _run(rows=rows, limit=25)
     assert len(items) == 25
     assert set(items[0]) == {
-        "id", "applicatie_id", "applicatie_naam", "vraag_code",
+        "id", "component_id", "applicatie_naam", "vraag_code",
         "status", "toelichting", "eigenaar", "opgelost_op", "gewijzigd_op",
     }
     assert cursor is not None  # vervolgcursor want er was meer

@@ -34,7 +34,7 @@ def test_werk_bij_handmatig_opgelost_weigeren_409(monkeypatch):
     from services import blokkade_service as svc, lifecycle_service
     from services.errors import OngeldigeStatusovergang
 
-    blok = SimpleNamespace(status=BlokkadeStatus.open, opgelost_op=None, applicatie_id=_APP)
+    blok = SimpleNamespace(status=BlokkadeStatus.open, opgelost_op=None, component_id=_APP)
     session = AsyncMock()
     session.execute.return_value = _result(blok)
 
@@ -61,7 +61,7 @@ def test_werk_bij_terug_naar_open_leegt_tijd(monkeypatch):
     from services import blokkade_service as svc, lifecycle_service
 
     blok = SimpleNamespace(
-        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", applicatie_id=_APP
+        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", component_id=_APP
     )
     session = AsyncMock()
     session.execute.return_value = _result(blok)
@@ -85,7 +85,7 @@ def test_werk_bij_toelichting_only_behoudt_opgelost_op(monkeypatch):
     from services import blokkade_service as svc, lifecycle_service
 
     blok = SimpleNamespace(
-        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", applicatie_id=_APP
+        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", component_id=_APP
     )
     session = AsyncMock()
     session.execute.return_value = _result(blok)

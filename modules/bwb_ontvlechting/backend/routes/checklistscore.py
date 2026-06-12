@@ -43,7 +43,7 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
 async def lijst_checklistscores(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
-    applicatie_id: uuid.UUID | None = Query(None),
+    component_id: uuid.UUID | None = Query(None),
     sort: ChecklistscoreSorteerveld = Query(ChecklistscoreSorteerveld.created_at),
     order: Sorteerrichting = Query(Sorteerrichting.asc),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.CHECKLISTSCORE, Actie.LEZEN)),
@@ -64,7 +64,7 @@ async def lijst_checklistscores(
             user.tenant_id,
             limit=limit,
             after=after,
-            applicatie_id=applicatie_id,
+            component_id=component_id,
             sort=sort.value,
             order=order.value,
         )

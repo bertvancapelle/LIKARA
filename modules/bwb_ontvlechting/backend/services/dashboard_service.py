@@ -18,6 +18,7 @@ from models.models import (
     Applicatie,
     Blokkade,
     Component,
+    ComponentProfiel,
     LifecycleStatus,
 )
 
@@ -52,11 +53,12 @@ async def haal_dashboard(session: AsyncSession, tenant_id) -> dict:
 
     # 1. Telling per lifecycle-status — geseed op de getoonde statussen.
     telling = {status.value: 0 for status in _GETOONDE_STATUSSEN}
+    # ADR-022 Fase A: lifecycle_status leeft op het profiel (1-op-1 met applicatie).
     rijen = (
         await session.execute(
-            select(Applicatie.lifecycle_status, func.count())
-            .where(Applicatie.tenant_id == tid)
-            .group_by(Applicatie.lifecycle_status)
+            select(ComponentProfiel.lifecycle_status, func.count())
+            .where(ComponentProfiel.tenant_id == tid)
+            .group_by(ComponentProfiel.lifecycle_status)
         )
     ).all()
     for status, aantal in rijen:
@@ -82,10 +84,11 @@ async def haal_dashboard(session: AsyncSession, tenant_id) -> dict:
             select(
                 Applicatie.id,
                 Component.naam,  # naam verhuisde naar de component (ADR-021)
-                Applicatie.lifecycle_status,
+                ComponentProfiel.lifecycle_status,  # lifecycle verhuisde naar het profiel (ADR-022)
                 Applicatie.updated_at,
             )
             .join(Component, Component.id == Applicatie.id)
+            .join(ComponentProfiel, ComponentProfiel.id == Applicatie.id)
             .where(Applicatie.tenant_id == tid)
             .order_by(Applicatie.updated_at.desc(), Applicatie.id.desc())
             .limit(_RECENT_LIMIT)

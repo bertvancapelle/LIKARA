@@ -29,7 +29,7 @@ def _create_data():
 def test_maak_aan_zet_lifecycle_concept():
     # ADR-021: maak_aan creëert component (naam/identiteit) + applicatie-subtype
     # (lifecycle) atomair — shared-PK class-table.
-    from models.models import Applicatie, Component, LifecycleStatus
+    from models.models import Applicatie, Component, ComponentProfiel, LifecycleStatus
     from services import applicatie_service as svc
 
     session = AsyncMock()
@@ -41,10 +41,12 @@ def test_maak_aan_zet_lifecycle_concept():
 
     comp = next(o for o in toegevoegd if isinstance(o, Component))
     sub = next(o for o in toegevoegd if isinstance(o, Applicatie))
+    # ADR-022 Fase A: lifecycle_status leeft op het generieke ComponentProfiel (shared-PK).
+    profiel = next(o for o in toegevoegd if isinstance(o, ComponentProfiel))
     assert comp.naam == "Zaaksysteem"
     assert comp.componenttype == "applicatie"
     assert str(comp.tenant_id) == tid
-    assert sub.lifecycle_status == LifecycleStatus.concept
+    assert profiel.lifecycle_status == LifecycleStatus.concept
     assert str(sub.tenant_id) == tid
     session.flush.assert_awaited_once()  # component-id vóór het subtype
     session.commit.assert_awaited_once()

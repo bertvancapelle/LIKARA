@@ -5,6 +5,8 @@ De opties bevatten ook gedeactiveerde (`actief=false`) entries, zodat de fronten
 een eerder opgeslagen — inmiddels inactieve — optiesleutel nog kan resolven naar
 zijn label; de keuze-control toont alleen `actief`-opties (frontend-gating).
 """
+import uuid
+
 from pydantic import BaseModel, ConfigDict
 
 from models.models import AntwoordType, ChecklistPrioriteit
@@ -28,8 +30,9 @@ class ChecklistVraagRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: int
+    id: uuid.UUID
     code: str
+    componenttype: str
     categorie_nr: int
     categorie_naam: str
     vraag: str

@@ -19,10 +19,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
     ACTIEVE_BLOKKADE_STATUSSEN,
-    Applicatie,
     Blokkade,
     ChecklistVraag,
     Checklistscore,
+    ComponentProfiel,
     LifecycleStatus,
 )
 from services.errors import NietGevonden
@@ -55,26 +55,30 @@ def bepaal_lifecycle(
 
 
 async def herbereken_lifecycle(
-    session: AsyncSession, tenant_id, applicatie_id
+    session: AsyncSession, tenant_id, component_id
 ) -> LifecycleStatus:
     """Herbereken en zet de canonieke `lifecycle_status` (tenant-scoped).
 
-    Leest de actuele tellingen (autoflush zorgt dat een net toegevoegde score/
-    blokkade meetelt), past `bepaal_lifecycle` toe en schrijft het resultaat op
-    het in-sessie geladen Applicatie-object. De aanroepende service commit.
-    Retourneert de (nieuwe) status. Applicatie buiten de tenant ⇒ `NietGevonden`.
+    ADR-022 Fase A: het anker is het generieke `ComponentProfiel`
+    (`component_profiel.id == component.id == applicatie.id`, shared-PK). Leest de
+    actuele tellingen (autoflush zorgt dat een net toegevoegde score/blokkade
+    meetelt), past `bepaal_lifecycle` toe en schrijft het resultaat op het profiel.
+    De aanroepende service commit. Profiel buiten de tenant ⇒ `NietGevonden`.
+
+    De vragenset-telling is in Fase A nog GLOBAAL (alle `ChecklistVraag`) — de
+    per-type scoping volgt in Fase B; alleen het anker verschuift hier.
     """
     tid = _tenant_uuid(tenant_id)
 
-    app_obj = (
+    profiel = (
         await session.execute(
-            select(Applicatie).where(
-                Applicatie.id == applicatie_id, Applicatie.tenant_id == tid
+            select(ComponentProfiel).where(
+                ComponentProfiel.id == component_id, ComponentProfiel.tenant_id == tid
             )
         )
     ).scalar_one_or_none()
-    if app_obj is None:
-        raise NietGevonden("applicatie", applicatie_id)
+    if profiel is None:
+        raise NietGevonden("component_profiel", component_id)
 
     # Actieve vragenset is platform-breed (ChecklistVraag, geen tenant/RLS).
     aantal_vragen = (
@@ -86,7 +90,7 @@ async def herbereken_lifecycle(
             .select_from(Checklistscore)
             .where(
                 Checklistscore.tenant_id == tid,
-                Checklistscore.applicatie_id == applicatie_id,
+                Checklistscore.component_id == component_id,
             )
         )
     ).scalar_one()
@@ -96,15 +100,15 @@ async def herbereken_lifecycle(
             .select_from(Blokkade)
             .where(
                 Blokkade.tenant_id == tid,
-                Blokkade.applicatie_id == applicatie_id,
+                Blokkade.component_id == component_id,
                 Blokkade.status.in_(ACTIEVE_BLOKKADE_STATUSSEN),
             )
         )
     ).scalar_one()
 
     nieuwe = bepaal_lifecycle(
-        app_obj.lifecycle_status, aantal_gescoord, aantal_vragen, aantal_open_blokkades
+        profiel.lifecycle_status, aantal_gescoord, aantal_vragen, aantal_open_blokkades
     )
-    if nieuwe != app_obj.lifecycle_status:
-        app_obj.lifecycle_status = nieuwe
+    if nieuwe != profiel.lifecycle_status:
+        profiel.lifecycle_status = nieuwe
     return nieuwe

@@ -18,7 +18,7 @@ TENANT_A = "11111111-1111-1111-1111-111111111111"
 
 _ITEM = {
     "id": uuid.uuid4(),
-    "applicatie_id": uuid.uuid4(),
+    "component_id": uuid.uuid4(),
     "applicatie_naam": "Zaaksysteem",
     "vraag_code": "A1",
     "status": "open",

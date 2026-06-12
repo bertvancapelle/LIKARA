@@ -82,6 +82,12 @@ DEV_TENANT = "11111111-1111-1111-1111-111111111111"
 # Vaste code-volgorde van de 89 vragen (deterministisch scoren).
 CODES = [v["code"] for v in CHECKLIST_VRAGEN]
 
+# ADR-022 Fase A: checklistscores ankeren op component_id + checklistvraag_id (UUID).
+# Deze maps (code ↔ checklistvraag.id, binnen het applicatie-type) worden in main()
+# eenmalig uit de DB geladen; de seed blijft per `code` redeneren.
+_CODE_TO_ID: dict[str, object] = {}
+_ID_TO_CODE: dict[object, str] = {}
+
 # Neutrale, deterministische defaults voor de NOT NULL-velden die de opdracht
 # niet noemt (aanvulling A §2). Raken geen acceptatiepunt.
 APP_DEFAULTS = {"migratiepad": "onbekend", "complexiteit": "midden", "prioriteit": "midden"}
@@ -291,7 +297,7 @@ async def _seed_applicatie(session, app: dict, bestaande: dict) -> "uuid_like":
         await checklistscore_service.maak_aan(
             session, DEV_TENANT,
             ChecklistscoreCreate(
-                applicatie_id=app_id, vraag_code=CODES[i],
+                component_id=app_id, checklistvraag_id=_CODE_TO_ID[CODES[i]],
                 score=_score_voor(i, app["blokkeer"]),
             ),
         )
@@ -302,8 +308,8 @@ async def _seed_applicatie(session, app: dict, bestaande: dict) -> "uuid_like":
         score_obj = (
             await session.execute(
                 select(Checklistscore).where(
-                    Checklistscore.applicatie_id == app_id,
-                    Checklistscore.vraag_code == code,
+                    Checklistscore.component_id == app_id,
+                    Checklistscore.checklistvraag_id == _CODE_TO_ID[code],
                 )
             )
         ).scalar_one()
@@ -364,7 +370,7 @@ async def _vul_velden(session, score_obj, eigenaar: str, *, met_actie: bool) -> 
     """
     if score_obj.bevinding:  # reeds gevuld (tweede run) → niets doen
         return False
-    code = score_obj.vraag_code
+    code = _ID_TO_CODE[score_obj.checklistvraag_id]
     velden = {
         "bevinding": BEVINDING_PER_CODE.get(
             code, f"De bevinding voor checklistvraag {code} is vastgelegd."
@@ -389,7 +395,7 @@ async def _seed_velden(session, app_nr: int, app_id) -> int:
     eigenaar = ROL_POOL[(app_nr - 1) % len(ROL_POOL)]
     scores = (
         await session.execute(
-            select(Checklistscore).where(Checklistscore.applicatie_id == app_id)
+            select(Checklistscore).where(Checklistscore.component_id == app_id)
         )
     ).scalars().all()
     if not scores:
@@ -398,11 +404,11 @@ async def _seed_velden(session, app_nr: int, app_id) -> int:
     blok_score_ids = {
         sid for (sid,) in (
             await session.execute(
-                select(Blokkade.checklistscore_id).where(Blokkade.applicatie_id == app_id)
+                select(Blokkade.checklistscore_id).where(Blokkade.component_id == app_id)
             )
         ).all()
     }
-    op_code = sorted(scores, key=lambda s: _code_key(s.vraag_code))
+    op_code = sorted(scores, key=lambda s: _code_key(_ID_TO_CODE[s.checklistvraag_id]))
     blok_rijen = [s for s in op_code if s.id in blok_score_ids]
     nonblok_rijen = [s for s in op_code if s.id not in blok_score_ids]
 
@@ -430,14 +436,14 @@ async def _laad_catalogus(session) -> tuple[dict, dict]:
         ).all()
     }
     opties_per_code: dict[str, list[str]] = {}
-    for code, sleutel in (
+    for vraag_id, sleutel in (
         await session.execute(
-            select(ChecklistVraagOptie.vraag_code, ChecklistVraagOptie.optie_sleutel)
+            select(ChecklistVraagOptie.checklistvraag_id, ChecklistVraagOptie.optie_sleutel)
             .where(ChecklistVraagOptie.actief.is_(True))
-            .order_by(ChecklistVraagOptie.vraag_code, ChecklistVraagOptie.volgorde)
+            .order_by(ChecklistVraagOptie.checklistvraag_id, ChecklistVraagOptie.volgorde)
         )
     ).all():
-        opties_per_code.setdefault(code, []).append(sleutel)
+        opties_per_code.setdefault(_ID_TO_CODE[vraag_id], []).append(sleutel)
     return typed, opties_per_code
 
 
@@ -470,16 +476,17 @@ async def _seed_antwoord_waarden(
     """
     scores = (
         await session.execute(
-            select(Checklistscore).where(Checklistscore.applicatie_id == app_id)
+            select(Checklistscore).where(Checklistscore.component_id == app_id)
         )
     ).scalars().all()
 
     gevuld = 0
     for s in scores:
-        if s.vraag_code not in typed or s.antwoord_waarde:
+        code = _ID_TO_CODE[s.checklistvraag_id]
+        if code not in typed or s.antwoord_waarde:
             continue
         waarde = _kies_antwoord(
-            typed[s.vraag_code], s.vraag_code, app_nr, host, opties_per_code.get(s.vraag_code, [])
+            typed[code], code, app_nr, host, opties_per_code.get(code, [])
         )
         if waarde is None:
             continue
@@ -603,6 +610,17 @@ async def _seed_technische_laag(session, app_ids: dict) -> dict:
 async def main() -> None:
     print(f"dev-seed: tenant {DEV_TENANT}")
     async with get_worker_session(DEV_TENANT) as session:
+        # ADR-022 Fase A: laad de code ↔ checklistvraag.id-maps (applicatie-type).
+        for code, vid in (
+            await session.execute(
+                select(ChecklistVraag.code, ChecklistVraag.id).where(
+                    ChecklistVraag.componenttype == "applicatie"
+                )
+            )
+        ).all():
+            _CODE_TO_ID[code] = vid
+            _ID_TO_CODE[vid] = code
+
         # Bestaande applicaties (idempotentie): naam → id binnen de tenant.
         bestaande = {
             r.naam: r.id

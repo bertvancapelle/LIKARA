@@ -66,7 +66,11 @@ def test_shared_pk_subtypegrens():
     # naam verhuisde naar component; het subtype draagt het engine-apparaat.
     assert "naam" not in m.Applicatie.__table__.columns
     assert "naam" in m.Component.__table__.columns
-    for veld in ("lifecycle_status", "migratiepad", "complexiteit", "prioriteit"):
+    # ADR-022 Fase A: lifecycle_status verhuisde naar het generieke ComponentProfiel
+    # (shared-PK); op Applicatie is het nu een read-only proxy-property.
+    assert "lifecycle_status" not in m.Applicatie.__table__.columns
+    assert "lifecycle_status" in m.ComponentProfiel.__table__.columns
+    for veld in ("migratiepad", "complexiteit", "prioriteit"):
         assert veld in m.Applicatie.__table__.columns
 
 

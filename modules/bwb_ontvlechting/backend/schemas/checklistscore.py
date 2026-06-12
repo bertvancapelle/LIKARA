@@ -56,39 +56,28 @@ class ChecklistscoreSorteerveld(str, Enum):
     """Allowlist van sorteerbare lijst-velden (ADR-017 B2, retrofit CD020).
 
     API-only retrofit (zie route-docstring): de frontend-sectie is bewust een
-    vraag-gedreven invulformulier, geen sorteerbare tabel. NOT NULL: `vraag_code`,
-    `created_at`. Nullable (NULLS LAST, ADR-017 B5): `score`, `eigenaar`. De
-    service mapt deze namen 1-op-1 op een kolom; een test borgt de synchroniteit.
+    vraag-gedreven invulformulier, geen sorteerbare tabel. NOT NULL:
+    `checklistvraag_id`, `created_at`. Nullable (NULLS LAST, ADR-017 B5): `score`,
+    `eigenaar`. De service mapt deze namen 1-op-1 op een kolom; een test borgt de
+    synchroniteit.
     """
 
     created_at = "created_at"
-    vraag_code = "vraag_code"
+    checklistvraag_id = "checklistvraag_id"
     score = "score"
     eigenaar = "eigenaar"
-
-
-def _v_vraag_code(v: str) -> str:
-    v = v.strip()
-    if not v or len(v) > 10:
-        raise ValueError("vraag_code is verplicht (max 10 tekens)")
-    return v
 
 
 class ChecklistscoreCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    applicatie_id: uuid.UUID
-    vraag_code: str
+    component_id: uuid.UUID
+    checklistvraag_id: uuid.UUID
     score: ChecklistScore  # verplicht (geen default)
     bevinding: str | None = None
     eigenaar: str | None = None
     actie: str | None = None
     antwoord_waarde: dict | None = None
-
-    @field_validator("vraag_code")
-    @classmethod
-    def _vraag_code(cls, v: str) -> str:
-        return _v_vraag_code(v)
 
     @field_validator("bevinding", "actie")
     @classmethod
@@ -107,7 +96,7 @@ class ChecklistscoreCreate(BaseModel):
 
 
 class ChecklistscoreUpdate(BaseModel):
-    """Partiële update; `applicatie_id`/`vraag_code` immutabel ⇒ niet aanwezig.
+    """Partiële update; `component_id`/`checklistvraag_id` immutabel ⇒ niet aanwezig.
 
     `score` mag worden gewijzigd maar niet op null gezet.
     """
@@ -148,8 +137,8 @@ class ChecklistscoreRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    applicatie_id: uuid.UUID
-    vraag_code: str
+    component_id: uuid.UUID
+    checklistvraag_id: uuid.UUID
     # Kolom is nullable in de DB; defensief getypeerd hoewel Create score afdwingt.
     score: ChecklistScore | None
     bevinding: str | None

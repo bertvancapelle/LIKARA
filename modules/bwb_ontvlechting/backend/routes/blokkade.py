@@ -45,7 +45,7 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
 async def lijst_blokkades(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
-    applicatie_id: uuid.UUID | None = Query(None),
+    component_id: uuid.UUID | None = Query(None),
     status: BlokkadeStatus | None = Query(None),
     sort: BlokkadeLijstSorteerveld = Query(BlokkadeLijstSorteerveld.created_at),
     order: Sorteerrichting = Query(Sorteerrichting.asc),
@@ -62,7 +62,7 @@ async def lijst_blokkades(
             user.tenant_id,
             limit=limit,
             after=after,
-            applicatie_id=applicatie_id,
+            component_id=component_id,
             status=status,
             sort=sort.value,
             order=order.value,

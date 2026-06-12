@@ -55,5 +55,5 @@ def test_read_velden_en_geen_tenant_id():
     from schemas.blokkade import BlokkadeRead
 
     assert "tenant_id" not in BlokkadeRead.model_fields
-    for veld in ("id", "checklistscore_id", "applicatie_id", "status", "opgelost_op"):
+    for veld in ("id", "checklistscore_id", "component_id", "status", "opgelost_op"):
         assert veld in BlokkadeRead.model_fields

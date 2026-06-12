@@ -18,6 +18,7 @@ from models.models import (
     Component,
     Blokkade,
     BlokkadeStatus,
+    ChecklistVraag,
     Checklistscore,
 )
 from schemas.blokkade import BlokkadeUpdate
@@ -44,7 +45,7 @@ _STANDAARD_OVERZICHT_ORDER = "asc"
 # de keyset-tiebreaker blijft `Blokkade.id`. `gewijzigd_op` mapt op `updated_at`.
 _OVERZICHT_KOLOMMEN = {
     "applicatie_naam": Component.naam,
-    "vraag_code": Checklistscore.vraag_code,
+    "vraag_code": ChecklistVraag.code,
     "status": Blokkade.status,
     "toelichting": Blokkade.toelichting,
     "eigenaar": Blokkade.eigenaar,
@@ -106,7 +107,7 @@ async def lijst(
     *,
     limit: int = _STANDAARD_LIMIT,
     after: str | None = None,
-    applicatie_id: uuid.UUID | None = None,
+    component_id: uuid.UUID | None = None,
     status: BlokkadeStatus | None = None,
     sort: str = _STANDAARD_LIJST_SORT,
     order: str = _STANDAARD_LIJST_ORDER,
@@ -128,8 +129,8 @@ async def lijst(
     kolom = _LIJST_KOLOMMEN[sort]
 
     stmt = select(Blokkade).where(Blokkade.tenant_id == tid)
-    if applicatie_id is not None:
-        stmt = stmt.where(Blokkade.applicatie_id == applicatie_id)
+    if component_id is not None:
+        stmt = stmt.where(Blokkade.component_id == component_id)
     if status is not None:
         stmt = stmt.where(Blokkade.status == status)
     if after:
@@ -197,17 +198,19 @@ async def lijst_overzicht(
     stmt = (
         select(
             Blokkade.id.label("id"),
-            Blokkade.applicatie_id.label("applicatie_id"),
+            Blokkade.component_id.label("component_id"),
             Component.naam.label("applicatie_naam"),
-            Checklistscore.vraag_code.label("vraag_code"),
+            ChecklistVraag.code.label("vraag_code"),
             Blokkade.status.label("status"),
             Blokkade.toelichting.label("toelichting"),
             Blokkade.eigenaar.label("eigenaar"),
             Blokkade.opgelost_op.label("opgelost_op"),
             Blokkade.updated_at.label("gewijzigd_op"),
         )
-        .join(Component, Component.id == Blokkade.applicatie_id)
+        # component_id == component.id (shared-PK profiel) → join op de component voor de naam.
+        .join(Component, Component.id == Blokkade.component_id)
         .join(Checklistscore, Checklistscore.id == Blokkade.checklistscore_id)
+        .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
         .where(Blokkade.tenant_id == tid)
     )
     stmt = _pas_statusfilter_toe(stmt, status_filter)
@@ -231,7 +234,7 @@ async def lijst_overzicht(
     items = [
         {
             "id": r.id,
-            "applicatie_id": r.applicatie_id,
+            "component_id": r.component_id,
             "applicatie_naam": r.applicatie_naam,
             "vraag_code": r.vraag_code,
             "status": r.status,
@@ -292,7 +295,7 @@ async def werk_bij(
         obj.opgelost_op = None
 
     await session.flush()
-    await lifecycle_service.herbereken_lifecycle(session, tid, obj.applicatie_id)
+    await lifecycle_service.herbereken_lifecycle(session, tid, obj.component_id)
     await session.commit()
     await session.refresh(obj)
     return obj

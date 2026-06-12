@@ -98,7 +98,7 @@ class BlokkadeRead(BaseModel):
 
     id: uuid.UUID
     checklistscore_id: uuid.UUID
-    applicatie_id: uuid.UUID
+    component_id: uuid.UUID
     status: BlokkadeStatus
     toelichting: str | None
     eigenaar: str | None
@@ -114,12 +114,12 @@ class BlokkadePagina(BaseModel):
 
 class BlokkadeOverzichtItem(BaseModel):
     """Eén blokkade in het tenant-brede overzicht — verrijkt met applicatie-naam
-    (join) en de veroorzakende `vraag_code` (join op Checklistscore)."""
+    (join op component) en de veroorzakende `vraag_code` (join op ChecklistVraag)."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    applicatie_id: uuid.UUID
+    component_id: uuid.UUID
     applicatie_naam: str
     vraag_code: str
     status: BlokkadeStatus

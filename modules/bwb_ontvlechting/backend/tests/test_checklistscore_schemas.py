@@ -7,8 +7,8 @@ from pydantic import ValidationError
 
 def _basis() -> dict:
     return {
-        "applicatie_id": str(uuid.uuid4()),
-        "vraag_code": "1.1",
+        "component_id": str(uuid.uuid4()),
+        "checklistvraag_id": str(uuid.uuid4()),
         "score": "nee",
     }
 
@@ -16,9 +16,10 @@ def _basis() -> dict:
 def test_create_happy_path():
     from schemas.checklistscore import ChecklistscoreCreate
 
-    m = ChecklistscoreCreate(**_basis(), bevinding="ontbreekt")
+    basis = _basis()
+    m = ChecklistscoreCreate(**basis, bevinding="ontbreekt")
     assert m.score.value == "nee"
-    assert m.vraag_code == "1.1"
+    assert str(m.checklistvraag_id) == basis["checklistvraag_id"]
 
 
 def test_create_score_verplicht():
@@ -56,11 +57,11 @@ def test_create_alle_scores():
         assert ChecklistscoreCreate(**d).score == s
 
 
-def test_create_lege_vraag_code():
+def test_create_ongeldige_checklistvraag_id():
     from schemas.checklistscore import ChecklistscoreCreate
 
     d = _basis()
-    d["vraag_code"] = "   "
+    d["checklistvraag_id"] = "   "
     with pytest.raises(ValidationError):
         ChecklistscoreCreate(**d)
 
@@ -72,11 +73,11 @@ def test_create_geen_serverbeheerde_velden():
         assert veld not in ChecklistscoreCreate.model_fields
 
 
-def test_update_geen_applicatie_id_of_vraag_code():
+def test_update_geen_component_id_of_checklistvraag_id():
     from schemas.checklistscore import ChecklistscoreUpdate
 
-    assert "applicatie_id" not in ChecklistscoreUpdate.model_fields
-    assert "vraag_code" not in ChecklistscoreUpdate.model_fields
+    assert "component_id" not in ChecklistscoreUpdate.model_fields
+    assert "checklistvraag_id" not in ChecklistscoreUpdate.model_fields
 
 
 def test_update_score_wijzigen_mag():
@@ -97,7 +98,7 @@ def test_read_geen_tenant_id():
     from schemas.checklistscore import ChecklistscoreRead
 
     assert "tenant_id" not in ChecklistscoreRead.model_fields
-    assert "vraag_code" in ChecklistscoreRead.model_fields
+    assert "checklistvraag_id" in ChecklistscoreRead.model_fields
     assert "antwoord_waarde" in ChecklistscoreRead.model_fields
 
 

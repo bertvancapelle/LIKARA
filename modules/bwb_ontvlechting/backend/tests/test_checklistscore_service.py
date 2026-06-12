@@ -1,6 +1,6 @@
 """Unit-tests — Checklistscore service-laag (ADR-013, Model A).
 
-Focus: ouder-/vraag_code-validatie, uniciteit, de auto-blokkade-invariant
+Focus: ouder-/checklistvraag_id-validatie, uniciteit, de auto-blokkade-invariant
 (`_synchroniseer_blokkade`) en dat een schrijf de lifecycle-herberekening
 aanroept. DB gemockt.
 """
@@ -12,12 +12,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 _APP = uuid.uuid4()
+_VRAAG = uuid.uuid4()
 
 
-def _create(score="nee", vraag="1.1"):
+def _create(score="nee", vraag=_VRAAG):
     from schemas.checklistscore import ChecklistscoreCreate
 
-    return ChecklistscoreCreate(applicatie_id=_APP, vraag_code=vraag, score=score)
+    return ChecklistscoreCreate(component_id=_APP, checklistvraag_id=vraag, score=score)
 
 
 def _result(waarde):
@@ -40,7 +41,7 @@ def test_maak_aan_ouder_ontbreekt(monkeypatch):
         asyncio.run(svc.maak_aan(AsyncMock(), uuid.uuid4(), _create()))
 
 
-def test_maak_aan_onbekende_vraag_code(monkeypatch):
+def test_maak_aan_onbekende_checklistvraag_id(monkeypatch):
     from services import applicatie_service, checklistscore_service as svc
     from services.errors import NietGevonden
 
@@ -49,7 +50,7 @@ def test_maak_aan_onbekende_vraag_code(monkeypatch):
 
     monkeypatch.setattr(applicatie_service, "haal_op", _ok)
     session = AsyncMock()
-    session.execute.side_effect = [_result(None)]  # vraag_code niet gevonden
+    session.execute.side_effect = [_result(None)]  # checklistvraag_id niet gevonden
     with pytest.raises(NietGevonden):
         asyncio.run(svc.maak_aan(session, uuid.uuid4(), _create()))
 
@@ -64,7 +65,7 @@ def test_maak_aan_dubbele_score(monkeypatch):
     monkeypatch.setattr(applicatie_service, "haal_op", _ok)
     session = AsyncMock()
     session.execute.side_effect = [
-        _result("1.1"),          # vraag_code bestaat
+        _result(_VRAAG),         # checklistvraag_id bestaat
         _result(uuid.uuid4()),   # bestaande score gevonden → conflict
     ]
     with pytest.raises(ChecklistscoreConflict):
@@ -88,7 +89,7 @@ def test_maak_aan_roept_herbereken(monkeypatch):
     session = AsyncMock()
     session.add = lambda o: None
     # vraag bestaat, geen dup, geen bestaande blokkade (score nvt → geen blokkade)
-    session.execute.side_effect = [_result("1.1"), _result(None), _result(None)]
+    session.execute.side_effect = [_result(_VRAAG), _result(None), _result(None)]
     asyncio.run(svc.maak_aan(session, uuid.uuid4(), _create(score="nvt")))
     assert aangeroepen.get("yes") is True
 
@@ -100,7 +101,7 @@ def test_aanmaken_score_nee_maakt_blokkade_open():
     from models.models import BlokkadeStatus, ChecklistScore
     from services.checklistscore_service import _synchroniseer_blokkade
 
-    score_obj = SimpleNamespace(id=uuid.uuid4(), applicatie_id=_APP, score=ChecklistScore.nee)
+    score_obj = SimpleNamespace(id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.nee)
     session = AsyncMock()
     session.execute.return_value = _result(None)  # nog geen blokkade
     toegevoegd = []
@@ -117,7 +118,7 @@ def test_transitie_nee_naar_ja_lost_actieve_blokkade_op():
     from services.checklistscore_service import _synchroniseer_blokkade
 
     blok = SimpleNamespace(status=BlokkadeStatus.open, opgelost_op=None)
-    score_obj = SimpleNamespace(id=uuid.uuid4(), applicatie_id=_APP, score=ChecklistScore.ja)
+    score_obj = SimpleNamespace(id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.ja)
     session = AsyncMock()
     session.execute.return_value = _result(blok)
 
@@ -133,7 +134,7 @@ def test_transitie_ja_naar_nee_heropent_opgeloste_blokkade():
     from services.checklistscore_service import _synchroniseer_blokkade
 
     blok = SimpleNamespace(status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01")
-    score_obj = SimpleNamespace(id=uuid.uuid4(), applicatie_id=_APP, score=ChecklistScore.nee)
+    score_obj = SimpleNamespace(id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.nee)
     session = AsyncMock()
     session.execute.return_value = _result(blok)
 
@@ -150,7 +151,7 @@ def test_ongewijzigde_nee_score_laat_opgeloste_blokkade_met_rust():
     from services.checklistscore_service import _synchroniseer_blokkade
 
     blok = SimpleNamespace(status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01")
-    score_obj = SimpleNamespace(id=uuid.uuid4(), applicatie_id=_APP, score=ChecklistScore.nee)
+    score_obj = SimpleNamespace(id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.nee)
     session = AsyncMock()
     session.execute.return_value = _result(blok)
 
@@ -165,7 +166,7 @@ def test_binnen_blokkerend_nee_naar_deels_laat_blokkade_met_rust():
     from services.checklistscore_service import _synchroniseer_blokkade
 
     blok = SimpleNamespace(status=BlokkadeStatus.in_behandeling, opgelost_op=None)
-    score_obj = SimpleNamespace(id=uuid.uuid4(), applicatie_id=_APP, score=ChecklistScore.deels)
+    score_obj = SimpleNamespace(id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.deels)
     session = AsyncMock()
     session.execute.return_value = _result(blok)
 
@@ -200,7 +201,7 @@ def test_werk_bij_zonder_score_raakt_blokkade_en_lifecycle_niet(monkeypatch):
     from services import checklistscore_service as svc, lifecycle_service
 
     score_obj = SimpleNamespace(
-        id=uuid.uuid4(), applicatie_id=_APP, score=ChecklistScore.nee,
+        id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.nee,
         bevinding=None, eigenaar=None, actie=None,
     )
 
@@ -334,7 +335,7 @@ def test_werk_bij_met_antwoord_zonder_score_raakt_engine_niet(monkeypatch):
     from services import checklistscore_service as svc, lifecycle_service
 
     score_obj = SimpleNamespace(
-        id=uuid.uuid4(), applicatie_id=_APP, vraag_code="2.1",
+        id=uuid.uuid4(), component_id=_APP, checklistvraag_id=_VRAAG,
         score=ChecklistScore.ja, antwoord_waarde=None,
     )
 

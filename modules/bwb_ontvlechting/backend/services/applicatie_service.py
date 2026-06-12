@@ -23,6 +23,7 @@ from sqlalchemy.orm import contains_eager
 from models.models import (
     Applicatie,
     Component,
+    ComponentProfiel,
     HostingModel,
     LifecycleStatus,
     Migratiepad,
@@ -55,7 +56,8 @@ _SORTEERBARE_KOLOMMEN = {
     "hostingmodel": Component.hostingmodel,
     "complexiteit": Applicatie.complexiteit,
     "prioriteit": Applicatie.prioriteit,
-    "lifecycle_status": Applicatie.lifecycle_status,
+    # ADR-022 Fase A: lifecycle_status leeft op het generieke profiel (shared-PK).
+    "lifecycle_status": ComponentProfiel.lifecycle_status,
 }
 
 # Parsers die een cursor-waarde (tekst) terug naar het kolomtype brengen voor de
@@ -159,7 +161,8 @@ async def lijst(
     stmt = (
         select(Applicatie)
         .join(Component, Applicatie.id == Component.id)
-        .options(contains_eager(Applicatie.component))
+        .join(ComponentProfiel, Applicatie.id == ComponentProfiel.id)
+        .options(contains_eager(Applicatie.component), contains_eager(Applicatie.profiel))
         .where(Applicatie.tenant_id == tid)
     )
 
@@ -167,7 +170,7 @@ async def lijst(
     # identiek aan CD015. Lege statuslijst = geen filter (toon alles).
     if status:
         stmt = stmt.where(
-            Applicatie.lifecycle_status.in_([LifecycleStatus(s) for s in status])
+            ComponentProfiel.lifecycle_status.in_([LifecycleStatus(s) for s in status])
         )
     if hostingmodel:
         stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
@@ -251,12 +254,16 @@ async def maak_applicatie_subtype(
     obj = Applicatie(
         id=comp.id,
         tenant_id=tid,
-        lifecycle_status=LifecycleStatus.concept,
         migratiepad=migratiepad,
         complexiteit=complexiteit,
         prioriteit=prioriteit,
     )
     session.add(obj)
+    # ADR-022 Fase A: elke applicatie krijgt atomair haar generieke profiel — de
+    # drager van de engine-state (lifecycle_status, start `concept`).
+    session.add(
+        ComponentProfiel(id=comp.id, tenant_id=tid, lifecycle_status=LifecycleStatus.concept)
+    )
     await session.commit()
     await session.refresh(obj)
     return obj
@@ -325,7 +332,9 @@ async def start_inventarisatie(session: AsyncSession, tenant_id, applicatie_id) 
     from services import lifecycle_service
 
     obj = await haal_op(session, tenant_id, applicatie_id)
-    obj.lifecycle_status = volgende_status_na_start(obj.lifecycle_status)
+    # ADR-022 Fase A: lifecycle leeft op het profiel (shared-PK); schrijven gaat
+    # via obj.profiel (de read-only proxy obj.lifecycle_status blijft leesbaar).
+    obj.profiel.lifecycle_status = volgende_status_na_start(obj.profiel.lifecycle_status)
     # Additief: herleid de canonieke status uit de feiten (transitie zelf blijft).
     await lifecycle_service.herbereken_lifecycle(session, tenant_id, applicatie_id)
     await session.commit()

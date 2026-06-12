@@ -322,10 +322,11 @@ def test_lijst_laatste_pagina_zonder_cursor():
 def test_kind_fks_cascaden_op_applicatie():
     """De DB dwingt cascade af; offline verifiëren we het FK-contract (ADR-021).
 
-    Engine-kinderen (datatype/gebruikersgroep/checklistscore/blokkade) FK'en op
-    `applicatie.id` (CASCADE); `koppeling` herankerde naar `component` (CASCADE) en
-    `applicatie.id` is zelf een FK→component (CASCADE). Verwijderen van een applicatie
-    loopt via de component → cascade over alles."""
+    Engine-kinderen (datatype/gebruikersgroep) FK'en op `applicatie.id` (CASCADE);
+    checklistscore/blokkade ankeren ná ADR-022 Fase A op het generieke
+    `component_profiel.id` (CASCADE, shared-PK). `koppeling` herankerde naar
+    `component` (CASCADE) en `applicatie.id` is zelf een FK→component (CASCADE).
+    Verwijderen van een applicatie loopt via de component → cascade over alles."""
     from models.models import (
         Applicatie,
         Blokkade,
@@ -336,12 +337,15 @@ def test_kind_fks_cascaden_op_applicatie():
         Koppeling,
     )
 
+    # ADR-022 Fase A: het engine-anker verschoof van applicatie → component_profiel;
+    # beide tabellen delen de shared-PK met component, dus de cascade blijft sluitend.
     engine_kinderen = [Datatype, Gebruikersgroep, Checklistscore, Blokkade]
+    _ANKER_TABELLEN = {"applicatie", "component_profiel"}
     fks_naar_app = 0
     for model in engine_kinderen:
         for kolom in model.__table__.columns:
             for fk in kolom.foreign_keys:
-                if fk.column.table.name == "applicatie":
+                if fk.column.table.name in _ANKER_TABELLEN:
                     fks_naar_app += 1
                     assert fk.ondelete == "CASCADE", f"{model.__name__}.{kolom.name}"
     assert fks_naar_app >= 4
