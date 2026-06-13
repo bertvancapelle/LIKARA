@@ -17,9 +17,22 @@ from models.models import ChecklistVraag, ChecklistVraagOptie
 
 
 async def lijst_alle(session: AsyncSession) -> list[dict]:
-    """Alle ChecklistVragen (gesorteerd op `code`) + hun opties. Geen tenant-filter."""
+    """De **actieve** tenant-vragenset (scoring-read) + hun opties.
+
+    ADR-022 W1: `checklistvraag` is tenant-scoped (RLS) → auto-tenant-scoping. Alleen
+    `actief=true`-vragen zijn scoorbaar: dit is byte-identiek aan de set die de engine
+    voor `aantal_vragen` telt (`herbereken_lifecycle`), zodat de scoringslijst en de
+    telling nooit divergeren. Een soft-gedeactiveerde vraag valt uit deze lijst; een
+    reeds bestaande score op zo'n vraag blijft als historie in de DB bestaan (W1) maar
+    verschijnt niet meer als scoorbaar item."""
     vragen = list(
-        (await session.execute(select(ChecklistVraag).order_by(ChecklistVraag.code)))
+        (
+            await session.execute(
+                select(ChecklistVraag)
+                .where(ChecklistVraag.actief.is_(True))
+                .order_by(ChecklistVraag.componenttype, ChecklistVraag.code)
+            )
+        )
         .scalars()
         .all()
     )
