@@ -53,25 +53,8 @@ def test_component_sort_allowlist_synchroon():
     assert {e.value for e in ComponentSorteerveld} == set(svc._SORTEERBARE_KOLOMMEN)
 
 
-def test_werk_bij_weigert_subtype_wijziging(monkeypatch):
-    from schemas.component import ComponentUpdate
-    from services import component_service as svc
-    from services.errors import OngeldigeRegistratie
-
-    async def _als(type_, *a, **k):
-        return SimpleNamespace(componenttype=type_)
-
-    # naar applicatie
-    monkeypatch.setattr(svc, "haal_op", lambda *a, **k: _als("database"))
-    with pytest.raises(OngeldigeRegistratie) as ei:
-        asyncio.run(svc.werk_bij(AsyncMock(), _TID, uuid.uuid4(), ComponentUpdate(componenttype="applicatie")))
-    assert ei.value.code == "SUBTYPE_BESCHERMD"
-
-    # van applicatie
-    monkeypatch.setattr(svc, "haal_op", lambda *a, **k: _als("applicatie"))
-    with pytest.raises(OngeldigeRegistratie) as ei2:
-        asyncio.run(svc.werk_bij(AsyncMock(), _TID, uuid.uuid4(), ComponentUpdate(componenttype="database")))
-    assert ei2.value.code == "SUBTYPE_BESCHERMD"
+# De statische SUBTYPE_BESCHERMD-type-guard is vervangen door de toestand-gebaseerde
+# type-lock (ADR-022 Fase C); zie test_typelock_adr022_fasec.py (integratie).
 
 
 def test_structuur_weigert_zelfverwijzing():

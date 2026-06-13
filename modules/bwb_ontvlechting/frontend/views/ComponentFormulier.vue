@@ -25,6 +25,9 @@ const typeOpties = ref([]) // [{ optie_sleutel, label }] — incl. 'applicatie' 
 const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
 const laden = ref(false)
 const bezig = ref(false)
+// ADR-022 Fase C: server-hint — bij een "gevuld" component is het type vergrendeld.
+// De PATCH herevalueert server-side; dit is enkel UI-affordance.
+const typeVergrendeld = ref(false)
 
 const form = reactive({
   naam: '',
@@ -63,6 +66,7 @@ async function init() {
         router.replace({ name: 'applicatie-detail', params: { id: props.id } })
         return
       }
+      typeVergrendeld.value = c.type_wijzigbaar === false
       Object.assign(form, {
         naam: c.naam,
         componenttype: c.componenttype,
@@ -177,11 +181,19 @@ onMounted(init)
           v-model="form.componenttype"
           data-testid="veld-componenttype"
           :aria-invalid="!!fouten.componenttype"
-          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+          :disabled="typeVergrendeld"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-60"
         >
           <option value="" disabled>— maak een keuze —</option>
           <option v-for="o in typeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
         </select>
+        <span
+          v-if="typeVergrendeld"
+          data-testid="type-vergrendeld-hint"
+          class="text-[var(--cd-color-text-muted)] text-[length:var(--cd-text-sm)]"
+        >
+          Type vergrendeld: dit component bevat al gegevens. Verwijder het component om het type te wijzigen.
+        </span>
         <span v-if="fouten.componenttype" role="alert" data-testid="fout-componenttype" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.componenttype }}</span>
       </div>
 

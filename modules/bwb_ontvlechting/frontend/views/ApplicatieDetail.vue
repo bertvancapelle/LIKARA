@@ -47,6 +47,23 @@ const laden = ref(false)
 const fout = ref(null)
 const verwijderDialog = ref(false)
 const bezig = ref(false)
+// ADR-022 Fase C: read-only "wat verdwijnt"-samenvatting (applicatie-id == component-id).
+const verwijderImpact = ref(null)
+
+async function openVerwijderDialog() {
+  verwijderImpact.value = null
+  verwijderDialog.value = true
+  try {
+    verwijderImpact.value = await api.componenten.verwijderImpact(props.id)
+  } catch {
+    verwijderImpact.value = null
+  }
+}
+
+const verwijderHeeftData = computed(() => {
+  const i = verwijderImpact.value
+  return !!i && (i.beantwoorde_scores || i.blokkades || i.datatypes || i.gebruikersgroepen)
+})
 
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
@@ -272,7 +289,7 @@ onMounted(async () => {
             label="Verwijderen"
             severity="danger"
             data-testid="verwijder-knop"
-            @click="verwijderDialog = true"
+            @click="openVerwijderDialog"
           />
         </div>
       </div>
@@ -415,6 +432,15 @@ onMounted(async () => {
         Weet je zeker dat je <strong>{{ applicatie?.naam }}</strong> wilt verwijderen? Dit
         verwijdert ook alle gekoppelde datatypes, gebruikersgroepen, koppelingen,
         checklistscores en blokkades. Dit kan niet ongedaan worden gemaakt.
+      </p>
+      <p
+        v-if="verwijderHeeftData"
+        data-testid="verwijder-samenvatting"
+        class="mb-[var(--cd-space-md)] max-w-prose text-[length:var(--cd-text-sm)] text-[var(--cd-color-danger)]"
+      >
+        Dit verwijdert: {{ verwijderImpact.beantwoorde_scores }} beantwoorde score(s),
+        {{ verwijderImpact.blokkades }} blokkade(s), {{ verwijderImpact.datatypes }} datatype(s) en
+        {{ verwijderImpact.gebruikersgroepen }} gebruikersgroep(en).
       </p>
       <div class="flex justify-end gap-[var(--cd-space-md)]">
         <Button

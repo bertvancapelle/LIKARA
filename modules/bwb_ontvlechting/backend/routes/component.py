@@ -24,6 +24,7 @@ from schemas.component import (
     ComponentSorteerveld,
     ComponentStructuurOverzicht,
     ComponentUpdate,
+    ComponentVerwijderImpact,
 )
 from schemas.component_contract import ContractVoorComponent
 from services import component_contract_service as cc_svc
@@ -100,6 +101,17 @@ async def contracten_van_component(
     session: AsyncSession = Depends(get_tenant_session),
 ):
     return await cc_svc.contracten_van_component(session, user.tenant_id, component_id)
+
+
+@router.get("/{component_id}/verwijder-impact", response_model=ComponentVerwijderImpact)
+async def verwijder_impact(
+    component_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Read-only "wat verdwijnt"-samenvatting (ADR-022 Fase C): tellingen van wat een
+    verwijdering zou wissen. Muteert niets; tenant-scoped; onbekend ⇒ 404."""
+    return await svc.wat_verdwijnt(session, user.tenant_id, component_id)
 
 
 @router.get("/{component_id}/impact", response_model=ComponentImpact)

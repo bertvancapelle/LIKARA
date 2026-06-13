@@ -83,8 +83,21 @@ class ComponentRead(BaseModel):
     leverancier: str | None
     beschrijving: str | None
     heeft_applicatie_subtype: bool
+    # ADR-022 Fase C: capability-hint — het type is vrij wijzigbaar zolang het
+    # component niet "gevuld" is. De UI is hint; de PATCH herevalueert server-side.
+    type_wijzigbaar: bool
     created_at: datetime
     updated_at: datetime
+
+
+class ComponentVerwijderImpact(BaseModel):
+    """ADR-022 Fase C — read-only "wat verdwijnt"-samenvatting bij verwijderen
+    (geen mutatie, geen audit). Applicatie-only tellingen (Beslissing 5b)."""
+
+    beantwoorde_scores: int
+    blokkades: int
+    datatypes: int
+    gebruikersgroepen: int
 
 
 class ComponentLijstItem(BaseModel):

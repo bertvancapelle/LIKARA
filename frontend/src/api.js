@@ -194,6 +194,8 @@ export const api = {
     verwijder: (id) => request(`/componenten/${id}`, { method: 'DELETE' }),
     opties: () => request('/componenten/opties'),
     structuur: (id) => request(`/componenten/${id}/structuur`),
+    // ADR-022 Fase C — read-only "wat verdwijnt"-samenvatting bij verwijderen.
+    verwijderImpact: (id) => request(`/componenten/${id}/verwijder-impact`),
     // 'component → contracten' (vervangt het oude app→contracten-overzicht, CD054).
     contracten: (id) => request(`/componenten/${id}/contracten`),
     // ADR-021 Fase E — read-only impactanalyse (afhankelijke componenten + readiness).

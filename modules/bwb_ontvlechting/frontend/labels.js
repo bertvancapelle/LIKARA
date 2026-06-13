@@ -147,6 +147,9 @@ export const REGISTER_FOUT = {
   // ADR-021 (CD054) — componenten + structuurgraaf.
   GEBRUIK_APPLICATIE_PAD: 'Componenten van het type applicatie beheer je via de applicatie zelf.',
   SUBTYPE_BESCHERMD: 'Dit component is een applicatie-subtype en wordt via de applicatie beheerd.',
+  // ADR-022 Fase C — toestand-gebaseerde type-lock (fallback; de server levert een
+  // bericht met de concrete tellingen).
+  SUBTYPE_HEEFT_DATA: 'Type vergrendeld: dit component bevat al gegevens en kan niet van type wisselen.',
   ZELFVERWIJZING: 'Een component kan geen structuurrelatie met zichzelf hebben.',
   RELATIE_BESTAAT: 'Deze structuurrelatie bestaat al.',
 }

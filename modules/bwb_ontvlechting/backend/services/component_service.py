@@ -8,7 +8,7 @@ componentcatalogus gevalideerd.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -16,11 +16,14 @@ from models.models import (
     Applicatie,
     Blokkade,
     BlokkadeStatus,
+    Checklistscore,
     Component,
     ComponentConfigDimensie,
     ComponentContract,
     ComponentProfiel,
     ComponentStructuur,
+    Datatype,
+    Gebruikersgroep,
     HostingModel,
     Koppeling,
     LifecycleStatus,
@@ -90,6 +93,91 @@ async def _heeft_subtype(session: AsyncSession, tid: uuid.UUID, component_id) ->
     ).scalar_one_or_none() is not None
 
 
+async def _toestand_tellingen(
+    session: AsyncSession, tid: uuid.UUID, component_id, *, lock: bool = False
+) -> dict:
+    """Tel wat een component "gevuld" maakt (ADR-022 Fase C, Beslissing-drempel):
+    beantwoorde scores (`score IS NOT NULL`), blokkades, gekoppelde datatypes/
+    gebruikersgroepen (applicatie-only, Beslissing 5b), plus de profiel-lifecycle.
+    Transactie-lokaal: met `lock=True` wordt het profiel `FOR UPDATE` gelezen zodat
+    de toestand tijdens een type-wissel niet onder ons kan veranderen."""
+    async def _count(stmt) -> int:
+        return (await session.execute(stmt)).scalar_one()
+
+    beantwoorde_scores = await _count(
+        select(func.count()).select_from(Checklistscore).where(
+            Checklistscore.tenant_id == tid,
+            Checklistscore.component_id == component_id,
+            Checklistscore.score.is_not(None),
+        )
+    )
+    blokkades = await _count(
+        select(func.count()).select_from(Blokkade).where(
+            Blokkade.tenant_id == tid, Blokkade.component_id == component_id
+        )
+    )
+    datatypes = await _count(
+        select(func.count()).select_from(Datatype).where(
+            Datatype.tenant_id == tid, Datatype.applicatie_id == component_id
+        )
+    )
+    gebruikersgroepen = await _count(
+        select(func.count()).select_from(Gebruikersgroep).where(
+            Gebruikersgroep.tenant_id == tid, Gebruikersgroep.applicatie_id == component_id
+        )
+    )
+    lc_stmt = select(ComponentProfiel.lifecycle_status).where(
+        ComponentProfiel.tenant_id == tid, ComponentProfiel.id == component_id
+    )
+    if lock:
+        lc_stmt = lc_stmt.with_for_update()
+    lifecycle = (await session.execute(lc_stmt)).scalar_one_or_none()
+    return {
+        "beantwoorde_scores": beantwoorde_scores,
+        "blokkades": blokkades,
+        "datatypes": datatypes,
+        "gebruikersgroepen": gebruikersgroepen,
+        "lifecycle_status": lifecycle,
+        # Bron van waarheid: een component is gevuld (type vergrendeld) als er engine-
+        # data is óf de lifecycle de `concept`-vloer voorbij is.
+        "gevuld": (
+            beantwoorde_scores > 0 or blokkades > 0 or datatypes > 0 or gebruikersgroepen > 0
+            or (lifecycle is not None and lifecycle != LifecycleStatus.concept)
+        ),
+    }
+
+
+def _heeft_data_bericht(t: dict) -> str:
+    """Canoniek SUBTYPE_HEEFT_DATA-bericht dat opsomt wát het type vergrendelt."""
+    delen = []
+    if t["beantwoorde_scores"]:
+        delen.append(f"{t['beantwoorde_scores']} beantwoorde score(s)")
+    if t["blokkades"]:
+        delen.append(f"{t['blokkades']} blokkade(s)")
+    if t["datatypes"]:
+        delen.append(f"{t['datatypes']} datatype(s)")
+    if t["gebruikersgroepen"]:
+        delen.append(f"{t['gebruikersgroepen']} gebruikersgroep(en)")
+    if t["lifecycle_status"] is not None and t["lifecycle_status"] != LifecycleStatus.concept:
+        delen.append("een lifecycle voorbij 'concept'")
+    kern = ", ".join(delen) if delen else "bestaande gegevens"
+    return f"Type vergrendeld: dit component heeft {kern} en kan niet van type wisselen."
+
+
+async def wat_verdwijnt(session: AsyncSession, tenant_id, component_id) -> dict:
+    """Read-only samenvatting van wat een verwijdering zou wissen (geen mutatie,
+    geen audit — ADR-006 volgt). Tenant-scoped; onbekend component ⇒ 404."""
+    tid = _tenant_uuid(tenant_id)
+    await haal_op(session, tenant_id, component_id)  # 404 kruis-tenant (OP-6)
+    t = await _toestand_tellingen(session, tid, component_id)
+    return {
+        "beantwoorde_scores": t["beantwoorde_scores"],
+        "blokkades": t["blokkades"],
+        "datatypes": t["datatypes"],
+        "gebruikersgroepen": t["gebruikersgroepen"],
+    }
+
+
 async def haal_op(session: AsyncSession, tenant_id, component_id) -> Component:
     tid = _tenant_uuid(tenant_id)
     obj = (
@@ -115,6 +203,8 @@ async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
         "leverancier": obj.leverancier,
         "beschrijving": obj.beschrijving,
         "heeft_applicatie_subtype": await _heeft_subtype(session, tid, obj.id),
+        # ADR-022 Fase C: capability-hint voor de UI (de PATCH herevalueert zelf).
+        "type_wijzigbaar": not (await _toestand_tellingen(session, tid, obj.id))["gevuld"],
         "created_at": obj.created_at,
         "updated_at": obj.updated_at,
     }
@@ -250,18 +340,47 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
     return await _lees(session, tid, obj)
 
 
+async def _wissel_type(session: AsyncSession, tid: uuid.UUID, obj: Component, nieuw: str) -> None:
+    """Toestand-gebaseerde type-wissel (ADR-022 Fase C). Backend = bron van waarheid:
+    transactie-lokaal herwaarderen en de invariant afdwingen.
+
+    - Gevuld → `SUBTYPE_HEEFT_DATA` (422), met tellingen in het bericht.
+    - Leeg → schone lei: een leeg profiel + applicatie-subtype (+ lege, niet-beantwoorde
+      score-rijen via CASCADE) worden verwijderd; géén overdracht van oude scores. Is het
+      doeltype checklist-dragend (`applicatie`), dan ontstaat een vers profiel met defaults
+      (lifecycle `concept`, conform de Fase B-vloer). Doeltype kaal ⇒ geen profiel.
+    """
+    await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, nieuw)
+    t = await _toestand_tellingen(session, tid, obj.id, lock=True)
+    if t["gevuld"]:
+        raise OngeldigeRegistratie("SUBTYPE_HEEFT_DATA", _heeft_data_bericht(t))
+
+    # Leeg: ruim een eventueel (leeg) profiel + applicatie-subtype op. Het verwijderen
+    # van het profiel cascadeert eventuele niet-beantwoorde score-rijen/blokkades; het
+    # verwijderen van het subtype cascadeert (afwezige) datatypes/gebruikersgroepen.
+    if await _heeft_subtype(session, tid, obj.id):
+        await session.execute(delete(ComponentProfiel).where(ComponentProfiel.id == obj.id))
+        await session.execute(delete(Applicatie).where(Applicatie.id == obj.id))
+        await session.flush()
+
+    obj.componenttype = nieuw
+
+    if nieuw == _APPLICATIE_TYPE:
+        # Promotie naar het checklist-dragende type: vers subtype + profiel (defaults).
+        session.add(Applicatie(id=obj.id, tenant_id=tid, **_SUBTYPE_DEFAULTS))
+        session.add(
+            ComponentProfiel(id=obj.id, tenant_id=tid, lifecycle_status=LifecycleStatus.concept)
+        )
+        await session.flush()
+
+
 async def werk_bij(session: AsyncSession, tenant_id, component_id, data: ComponentUpdate) -> dict:
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, component_id)
     velden = data.model_dump(exclude_unset=True)
-    if "componenttype" in velden and velden["componenttype"] is not None:
-        nieuw = velden["componenttype"]
-        if _APPLICATIE_TYPE in (nieuw, obj.componenttype):
-            raise OngeldigeRegistratie(
-                "SUBTYPE_BESCHERMD",
-                "Een componenttype kan niet van of naar 'applicatie' worden gewijzigd.",
-            )
-        await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, nieuw)
+    nieuw_type = velden.pop("componenttype", None)
+    if nieuw_type is not None and nieuw_type != obj.componenttype:
+        await _wissel_type(session, tid, obj, nieuw_type)
     for veld, waarde in velden.items():
         if veld == "eigenaar_organisatie" and waarde is None:
             waarde = ""

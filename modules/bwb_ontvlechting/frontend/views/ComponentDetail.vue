@@ -28,6 +28,23 @@ const laden = ref(false)
 const fout = ref(null)
 const verwijderDialog = ref(false)
 const bezig = ref(false)
+// ADR-022 Fase C: read-only "wat verdwijnt"-samenvatting in de bevestiging.
+const verwijderImpact = ref(null)
+
+async function openVerwijderDialog() {
+  verwijderImpact.value = null
+  verwijderDialog.value = true
+  try {
+    verwijderImpact.value = await api.componenten.verwijderImpact(props.id)
+  } catch {
+    verwijderImpact.value = null // samenvatting is optioneel; dialoog blijft bruikbaar
+  }
+}
+
+const verwijderHeeftData = computed(() => {
+  const i = verwijderImpact.value
+  return !!i && (i.beantwoorde_scores || i.blokkades || i.datatypes || i.gebruikersgroepen)
+})
 
 const isSubtype = computed(() => !!component.value?.heeft_applicatie_subtype)
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder') && !isSubtype.value)
@@ -115,7 +132,7 @@ onMounted(laad)
 
       <div class="mt-[var(--cd-space-lg)] flex flex-wrap gap-[var(--cd-space-md)]">
         <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="naarBewerken" />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
+        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="openVerwijderDialog" />
       </div>
 
       <div class="mt-[var(--cd-space-lg)] flex flex-col gap-[var(--cd-space-lg)]">
@@ -129,6 +146,15 @@ onMounted(laad)
       <p class="mb-[var(--cd-space-md)] max-w-prose">
         Weet je zeker dat je <strong>{{ component?.naam }}</strong> wilt verwijderen? Een component
         met nog bestaande relaties (structuur of contracten) kan niet worden verwijderd.
+      </p>
+      <p
+        v-if="verwijderHeeftData"
+        data-testid="verwijder-samenvatting"
+        class="mb-[var(--cd-space-md)] max-w-prose text-[length:var(--cd-text-sm)] text-[var(--cd-color-danger)]"
+      >
+        Dit verwijdert ook: {{ verwijderImpact.beantwoorde_scores }} beantwoorde score(s),
+        {{ verwijderImpact.blokkades }} blokkade(s), {{ verwijderImpact.datatypes }} datatype(s) en
+        {{ verwijderImpact.gebruikersgroepen }} gebruikersgroep(en).
       </p>
       <div class="flex justify-end gap-[var(--cd-space-md)]">
         <Button label="Annuleren" severity="secondary" data-testid="verwijder-annuleer" @click="verwijderDialog = false" />
