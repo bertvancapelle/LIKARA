@@ -85,8 +85,10 @@ def test_seed_idempotent_geeft_vaste_aantallen():
         session.execute.return_value = result
         return session
 
-    eerste = asyncio.run(seed_antwoordconfig(_maak_session()))
+    # ADR-022 W1: seed_antwoordconfig is tenant-scoped — tenant_id is verplicht.
+    tid = uuid.uuid4()
+    eerste = asyncio.run(seed_antwoordconfig(_maak_session(), tid))
     session = _maak_session()
-    tweede = asyncio.run(seed_antwoordconfig(session))
+    tweede = asyncio.run(seed_antwoordconfig(session, tid))
     assert eerste == tweede == (27, 96)
     session.commit.assert_awaited()

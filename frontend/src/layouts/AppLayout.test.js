@@ -27,6 +27,7 @@ function maakRouter() {
           { path: 'contracten', name: 'contract-lijst', component: { template: '<div/>' } },
           { path: 'blokkades', name: 'blokkades', component: { template: '<div/>' } },
           { path: 'koppelingenkaart', name: 'koppelingenkaart', component: { template: '<div/>' } },
+          { path: 'checklistvragen', name: 'checklistvragen', component: { template: '<div/>' } },
         ],
       },
       { path: '/login', name: 'login', component: { template: '<div/>' } },

@@ -119,8 +119,9 @@ def bouw_antwoordconfig() -> tuple[dict[str, AntwoordType], list[dict]]:
     return types, opties
 
 
-async def seed_antwoordconfig(session) -> tuple[int, int]:
-    """Zet antwoordtype per vraag + zaai de optie-catalogus (idempotent).
+async def seed_antwoordconfig(session, tenant_id) -> tuple[int, int]:
+    """Zet antwoordtype per vraag + zaai de optie-catalogus (idempotent) **voor één
+    tenant** (ADR-022 W1: tenant-scoped). Draait onder de `cd_app`-RLS-context.
 
     Geeft (aantal geconfigureerde vragen, aantal optie-rijen) terug — vaste
     waarden, ook bij een tweede (idempotente) run.
@@ -130,25 +131,31 @@ async def seed_antwoordconfig(session) -> tuple[int, int]:
     for code, antwoordtype in types.items():
         await session.execute(
             update(ChecklistVraag)
-            .where(ChecklistVraag.code == code, ChecklistVraag.componenttype == "applicatie")
+            .where(
+                ChecklistVraag.tenant_id == tenant_id,
+                ChecklistVraag.code == code,
+                ChecklistVraag.componenttype == "applicatie",
+            )
             .values(antwoordtype=antwoordtype)
         )
 
     if opties:
-        # ADR-022 Fase A: opties hangen aan de surrogate-PK; resolve code → id
-        # (binnen het applicatie-type) vóór de insert.
+        # ADR-022 W1: opties zijn tenant-scoped; resolve code → id binnen de tenant
+        # (applicatie-type) en zet `tenant_id` op de optie-rijen.
         code_naar_id = {
             code: vid
             for (code, vid) in (
                 await session.execute(
                     select(ChecklistVraag.code, ChecklistVraag.id).where(
-                        ChecklistVraag.componenttype == "applicatie"
+                        ChecklistVraag.tenant_id == tenant_id,
+                        ChecklistVraag.componenttype == "applicatie",
                     )
                 )
             ).all()
         }
         rijen = [
             {
+                "tenant_id": tenant_id,
                 "checklistvraag_id": code_naar_id[o["vraag_code"]],
                 "optie_sleutel": o["optie_sleutel"],
                 "label": o["label"],
@@ -159,7 +166,7 @@ async def seed_antwoordconfig(session) -> tuple[int, int]:
             for o in opties
         ]
         stmt = pg_insert(ChecklistVraagOptie).values(rijen).on_conflict_do_nothing(
-            index_elements=["checklistvraag_id", "optie_sleutel"]
+            index_elements=["tenant_id", "checklistvraag_id", "optie_sleutel"]
         )
         await session.execute(stmt)
 

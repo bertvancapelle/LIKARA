@@ -66,27 +66,25 @@ def test_seed_idempotent_geeft_9():
 
 
 def test_platform_init_zaait_ook_contractconfig(monkeypatch):
-    """Wiring (CD040): naast vragen + antwoordconfig zaait platform_init nu óók de
-    contractconfig-catalogus, op dezelfde platform-sessie en in die volgorde."""
+    """Wiring (CD040 + ADR-022 W1): platform_init zaait op dezelfde platform-sessie
+    de contractconfig-catalogus, gevolgd door de componentconfig-catalogus, in die
+    volgorde. De checklistvragen + antwoordconfig zijn onder W1 tenant-data geworden
+    en lopen niet meer via platform_init; platform_init retourneert nu het
+    componentcatalogus-aantal (9)."""
     import app.platform_init as pi
 
     geroepen: list[str] = []
-
-    async def fake_vragen(session):
-        geroepen.append("vragen")
-        return 89
-
-    async def fake_config(session):
-        geroepen.append("config")
-        return (27, 96)
 
     async def fake_contract(session):
         geroepen.append("contractconfig")
         return 9
 
-    monkeypatch.setattr(pi, "seed_checklist_vragen", fake_vragen)
-    monkeypatch.setattr(pi, "seed_antwoordconfig", fake_config)
+    async def fake_component(session):
+        geroepen.append("componentconfig")
+        return 9
+
     monkeypatch.setattr(pi, "seed_contractconfig", fake_contract)
+    monkeypatch.setattr(pi, "seed_componentconfig", fake_component)
 
     session = AsyncMock()
 
@@ -95,5 +93,5 @@ def test_platform_init_zaait_ook_contractconfig(monkeypatch):
         yield session
 
     aantal = asyncio.run(pi.platform_init(session_factory=fake_session))
-    assert aantal == 89
-    assert geroepen == ["vragen", "config", "contractconfig"]
+    assert aantal == 9
+    assert geroepen == ["contractconfig", "componentconfig"]

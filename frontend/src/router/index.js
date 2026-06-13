@@ -29,7 +29,7 @@ const LeverancierDetail = () => import('@modules/bwb_ontvlechting/frontend/views
 const ContractLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ContractLijst.vue')
 const ContractFormulier = () => import('@modules/bwb_ontvlechting/frontend/views/ContractFormulier.vue')
 const ContractDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ContractDetail.vue')
-// Platform-beheer-view (2E-c), lazy.
+// ADR-022 W1 — tenant-beheer van de checklist-vragenset, lazy.
 const ChecklistConfigBeheer = () => import('../views/ChecklistConfigBeheer.vue')
 // ADR-020 fase E — platform-beheer contractcatalogus, lazy.
 const ContractConfigBeheer = () => import('../views/ContractConfigBeheer.vue')
@@ -101,6 +101,9 @@ const routes = [
         component: ContractFormulier,
         props: true,
       },
+      // ADR-022 W1 — checklist-vragenset is tenant-eigendom: tenant-facing route
+      // (cd_app, tenant-shell), verhuisd uit /beheer.
+      { path: 'checklistvragen', name: 'checklistvragen', component: ChecklistConfigBeheer },
     ],
   },
 
@@ -111,8 +114,9 @@ const routes = [
     component: BeheerLayout,
     meta: { requiresAuth: true, platform: true },
     children: [
-      { path: '', name: 'beheer-home', redirect: { name: 'beheer-checklistconfig' } },
-      { path: 'checklistconfig', name: 'beheer-checklistconfig', component: ChecklistConfigBeheer },
+      // ADR-022 W1: checklistconfig is naar de tenant-shell verhuisd; beheer-home
+      // redirect daarom naar de eerste resterende platform-route (contractconfig).
+      { path: '', name: 'beheer-home', redirect: { name: 'beheer-contractconfig' } },
       { path: 'contractconfig', name: 'beheer-contractconfig', component: ContractConfigBeheer },
       { path: 'componentconfig', name: 'beheer-componentconfig', component: ComponentConfigBeheer },
     ],

@@ -41,11 +41,13 @@ def _payload(tenant_id, rollen):
     return {"sub": "u-1", "tenant_id": tenant_id, "realm_access": {"roles": rollen}}
 
 
-def test_checklistvraag_model_is_niet_tenant_scoped():
-    # Structureel bewijs platform-breed: geen tenant_id-kolom op het model.
+def test_checklistvraag_model_is_tenant_scoped():
+    # ADR-022 W1: ChecklistVraag is tenant-scoped geworden — er is nu WEL een
+    # tenant_id-kolom (TenantMixin) plus de nieuwe `actief`-kolom.
     from models.models import ChecklistVraag
 
-    assert "tenant_id" not in ChecklistVraag.__table__.columns
+    assert "tenant_id" in ChecklistVraag.__table__.columns
+    assert "actief" in ChecklistVraag.__table__.columns
 
 
 def test_service_lijst_alle_zonder_tenantfilter():

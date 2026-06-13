@@ -4,7 +4,8 @@
  *
  * Aparte, lichte shell voor de PLATFORM-sectie (`/beheer/*`), los van de
  * tenant-`AppLayout`. Topbar: app-naam + "Beheer", platform-e-mail, uitloggen.
- * Minimale nav (checklistconfiguratie). Hergebruikt dezelfde auth-store/logout
+ * Nav: contract- en componentcatalogus (ADR-022 W1: checklist-vragenset is naar
+ * de tenant-shell verhuisd). Hergebruikt dezelfde auth-store/logout
  * (httpOnly-cookie, RP-logout). De router-guard borgt dat hier alleen een
  * platform-sessie komt.
  */
@@ -58,13 +59,6 @@ async function uitloggen() {
           >
             Platformbeheer
           </span>
-          <router-link
-            :to="{ name: 'beheer-checklistconfig' }"
-            data-testid="nav-checklistconfig"
-            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
-          >
-            Checklistconfiguratie
-          </router-link>
           <router-link
             :to="{ name: 'beheer-contractconfig' }"
             data-testid="nav-contractconfig"

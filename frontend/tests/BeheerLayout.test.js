@@ -30,7 +30,7 @@ describe('BeheerLayout', () => {
     const { wrapper } = mountLayout()
     expect(wrapper.find('[data-testid="beheer-badge"]').text()).toBe('Beheer')
     expect(wrapper.find('[data-testid="platform-email"]').text()).toBe('beheer@platform.nl')
-    expect(wrapper.find('[data-testid="nav-checklistconfig"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-contractconfig"]').exists()).toBe(true)
   })
 
   it('uitloggen roept auth.logout aan', async () => {

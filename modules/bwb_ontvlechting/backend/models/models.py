@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     String,
     Text,
@@ -377,18 +378,19 @@ class ComponentStructuur(Base, TenantMixin, TimestampMixin):
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
-class ChecklistVraag(Base):
-    """Referentietabel — NIET tenant-scoped, geen RLS. Geseed (89 vragen).
-
-    ADR-022 Fase A: surrogate UUID-PK (`id`), `componenttype`-discriminator
-    (één vraag → precies één componenttype; app-side gevalideerd tegen de
-    componentcatalogus, géén harde FK). `code` is uniek BINNEN een componenttype
-    (`uq_checklistvraag_type_code`), niet meer globaal — kind-FK's verwijzen naar
-    `id` (Knoop 3 Optie B)."""
+class ChecklistVraag(Base, TenantMixin):
+    """ADR-022 Wijziging W1 — **tenant-scoped** vragenset (RLS + FORCE), eigendom van
+    de tenant. Surrogate UUID-PK (`id`), `componenttype`-discriminator (één vraag →
+    één componenttype; app-side gevalideerd tegen de componentcatalogus). Identiteit:
+    `UNIQUE(tenant_id, componenttype, code)`. `actief` (default true): "verwijderen" =
+    soft-deactivatie — een inactieve vraag valt uit de actieve set én uit `aantal_vragen`,
+    bestaande scores blijven historie. `UNIQUE(tenant_id, id)` is het composiet-FK-target
+    voor de kind-FK's (Knoop 1)."""
 
     __tablename__ = "checklistvraag"
     __table_args__ = (
-        UniqueConstraint("componenttype", "code", name="uq_checklistvraag_type_code"),
+        UniqueConstraint("tenant_id", "componenttype", "code", name="uq_checklistvraag_type_code"),
+        UniqueConstraint("tenant_id", "id", name="uq_checklistvraag_tenant_id"),
     )
 
     id: Mapped[uuid.UUID] = _pk()
@@ -405,27 +407,37 @@ class ChecklistVraag(Base):
     antwoordtype: Mapped[AntwoordType] = mapped_column(
         antwoordtype_enum, nullable=False, server_default=text("'geen'")
     )
+    # ADR-022 W1: soft-deactivatie i.p.v. hard-delete.
+    actief: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("true")
+    )
 
 
-class ChecklistVraagOptie(Base):
-    """Optie-catalogus per checklistvraag (ADR-019, Besluit 10) — platform-brede
-    referentiedata, GEEN RLS. Stabiel `optie_sleutel` (nooit hernummeren); bewerken
-    = soft-deactiveren via `actief` (Besluit 9). `afgeleid_bron` markeert een set die
-    uit een model-enum is afgeleid (2.1←HostingModel, 12.1←NiveauEnum) en in de
-    beheerder-UI structureel read-only is (alleen het label is aanpasbaar)."""
+class ChecklistVraagOptie(Base, TenantMixin):
+    """Optie-catalogus per checklistvraag (ADR-019, Besluit 10). ADR-022 W1:
+    **tenant-scoped** (RLS + FORCE). Stabiel `optie_sleutel` (nooit hernummeren);
+    bewerken = soft-deactiveren via `actief` (Besluit 9). `afgeleid_bron` markeert een
+    set die uit een model-enum is afgeleid (2.1←HostingModel, 12.1←NiveauEnum) en in de
+    beheer-UI structureel read-only is (alleen het label is aanpasbaar). De FK naar de
+    vraag is composiet `(tenant_id, checklistvraag_id)` → `checklistvraag(tenant_id, id)`
+    (Knoop 1: schema dwingt tenant-gelijkheid af)."""
 
     __tablename__ = "checklistvraag_optie"
     __table_args__ = (
         UniqueConstraint(
-            "checklistvraag_id", "optie_sleutel", name="uq_checklistvraag_optie"
+            "tenant_id", "checklistvraag_id", "optie_sleutel", name="uq_checklistvraag_optie"
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "checklistvraag_id"],
+            ["checklistvraag.tenant_id", "checklistvraag.id"],
+            name="fk_checklistvraag_optie_vraag",
+            ondelete="CASCADE",
         ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
-    # ADR-022 Fase A: FK naar de surrogate-PK i.p.v. `code` (Knoop 3 Optie B).
-    checklistvraag_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("checklistvraag.id"), nullable=False
-    )
+    # ADR-022 W1: composiet-FK via __table_args__ (geen kolom-FK meer).
+    checklistvraag_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
@@ -442,6 +454,14 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
             "tenant_id", "component_id", "checklistvraag_id",
             name="uq_checklistscore_app_vraag",
         ),
+        # ADR-022 W1: composiet-FK naar de tenant-scoped vraag (schema dwingt
+        # tenant-gelijkheid af). Geen ondelete CASCADE: vragen worden soft-gedeactiveerd
+        # (Besluit 4), scores blijven historie.
+        ForeignKeyConstraint(
+            ["tenant_id", "checklistvraag_id"],
+            ["checklistvraag.tenant_id", "checklistvraag.id"],
+            name="fk_checklistscore_vraag",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
@@ -450,9 +470,8 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
     component_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("component_profiel.id", ondelete="CASCADE"), nullable=False
     )
-    checklistvraag_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("checklistvraag.id"), nullable=False
-    )
+    # ADR-022 W1: composiet-FK via __table_args__ (geen kolom-FK meer).
+    checklistvraag_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     score: Mapped[ChecklistScore | None] = mapped_column(checklist_score_enum, nullable=True)
     bevinding: Mapped[str | None] = mapped_column(Text, nullable=True)
     eigenaar: Mapped[str | None] = mapped_column(String(255), nullable=True)

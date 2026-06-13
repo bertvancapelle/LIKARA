@@ -28,23 +28,23 @@ _MOD_BACKEND = (
 if str(_MOD_BACKEND) not in sys.path:
     sys.path.insert(0, str(_MOD_BACKEND))
 
-from services.seed import seed_checklist_vragen  # noqa: E402
-from services.seed_antwoordconfig import seed_antwoordconfig  # noqa: E402
 from services.seed_componentconfig import seed_componentconfig  # noqa: E402
 from services.seed_contractconfig import seed_contractconfig  # noqa: E402
 
 
 async def platform_init(session_factory=None) -> int:
-    """Zaait platform-brede referentiedata. Geeft het aantal checklistvragen terug.
+    """Zaait **platform-brede** referentiedata. Geeft het aantal componentcatalogus-
+    opties terug.
 
-    Drie stappen op dezelfde platform-sessie: (1) de 89 checklistvragen, (2) de
-    ADR-019-antwoordconfiguratie (antwoordtype + optie-catalogus), (3) de
-    ADR-020-contractconfig-catalogus. Alle idempotent.
-    Gebruikt `get_platform_db_session()` (géén RLS-/tenant-context) — NOOIT
-    `get_session(tenant_id)`. `session_factory` is injecteerbaar voor tests; in
-    productie valt hij terug op de platform-sessie. De `app.core.database`-import
-    is bewust lazy: die module instantieert `Settings()` en is daardoor niet
-    offline (zonder .env) importeerbaar.
+    Twee stappen op dezelfde platform-sessie: (1) de ADR-020-contractconfig-catalogus,
+    (2) de ADR-021/012-componentconfig-catalogus. Beide platform-breed (geen tenant/RLS),
+    idempotent.
+
+    ADR-022 W1: de checklistvragen + antwoordconfiguratie zijn **tenant-data** geworden
+    en worden NIET meer platform-breed gezaaid — ze worden per tenant gekopieerd uit de
+    baseline (`seed_checklist_vragen`/`seed_antwoordconfig`, via onboarding/`dev_seed`).
+    Gebruikt `get_platform_db_session()` (géén RLS-/tenant-context). De
+    `app.core.database`-import is bewust lazy (offline-importeerbaarheid).
     """
     if session_factory is None:
         from app.core.database import get_platform_db_session
@@ -52,16 +52,14 @@ async def platform_init(session_factory=None) -> int:
         session_factory = get_platform_db_session
 
     async with session_factory() as session:
-        aantal_vragen = await seed_checklist_vragen(session)
-        await seed_antwoordconfig(session)
         await seed_contractconfig(session)
-        await seed_componentconfig(session)
-        return aantal_vragen
+        aantal = await seed_componentconfig(session)
+        return aantal
 
 
 def main() -> None:
     aantal = asyncio.run(platform_init())
-    print(f"platform_init: {aantal} checklistvragen geborgd (platform-breed)")
+    print(f"platform_init: {aantal} componentcatalogus-opties geborgd (platform-breed)")
 
 
 if __name__ == "__main__":

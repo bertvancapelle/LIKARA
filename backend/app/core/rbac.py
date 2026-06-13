@@ -79,13 +79,11 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     # ADR-021 — component/structuurrelatie, zelfde inhoud-patroon als Applicatie.
     Entiteit.COMPONENT: dict(_INHOUD),
     Entiteit.COMPONENT_STRUCTUUR: dict(_INHOUD),
-    # Referentietabel — voor iedereen alleen-lezen.
-    Entiteit.CHECKLISTVRAAG: {
-        Rol.VIEWER: _L,
-        Rol.MEDEWERKER: _L,
-        Rol.BEHEERDER: _L,
-        Rol.AUDITOR: _L,
-    },
+    # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer is een tenant-
+    # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). Inhoud-patroon:
+    # Viewer L · Medewerker LAW · Beheerder LAWV · Auditor L. ("Verwijderen" =
+    # soft-deactivatie via WIJZIGEN; geen hard-delete-pad in dit blok.)
+    Entiteit.CHECKLISTVRAAG: dict(_INHOUD),
     # Auditlog — alleen Beheerder en Auditor mogen lezen; niemand muteert hier.
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN,

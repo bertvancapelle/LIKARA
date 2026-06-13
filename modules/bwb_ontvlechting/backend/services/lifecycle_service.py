@@ -92,13 +92,18 @@ async def herbereken_lifecycle(
         raise NietGevonden("component_profiel", component_id)
     profiel, componenttype = rij
 
-    # Per-type vragenset (platform-breed, geen tenant/RLS) — alleen de vragen van
-    # het componenttype van dít component tellen mee (ADR-022 Fase B).
+    # Per-type, tenant-eigen, ACTIEVE vragenset (ADR-022 Fase B + W1): alleen de
+    # actieve vragen van het componenttype van dít component tellen mee. `checklistvraag`
+    # is sinds W1 tenant-scoped (RLS) → de telling auto-scopet op de tenant; `actief`
+    # sluit soft-gedeactiveerde vragen uit `aantal_vragen` (en daarmee uit "gereed").
     aantal_vragen = (
         await session.execute(
             select(func.count())
             .select_from(ChecklistVraag)
-            .where(ChecklistVraag.componenttype == componenttype)
+            .where(
+                ChecklistVraag.componenttype == componenttype,
+                ChecklistVraag.actief.is_(True),
+            )
         )
     ).scalar_one()
     aantal_gescoord = (

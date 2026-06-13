@@ -74,7 +74,8 @@ from services import (  # noqa: E402
     koppeling_service,
     leverancier_service,
 )
-from services.seed import CHECKLIST_VRAGEN  # noqa: E402
+from services.seed import CHECKLIST_VRAGEN, seed_checklist_vragen  # noqa: E402
+from services.seed_antwoordconfig import seed_antwoordconfig  # noqa: E402
 
 # Bestaande dev-tenant (hoofdopdracht §2) — geen nieuwe tenant.
 DEV_TENANT = "11111111-1111-1111-1111-111111111111"
@@ -610,6 +611,12 @@ async def _seed_technische_laag(session, app_ids: dict) -> dict:
 async def main() -> None:
     print(f"dev-seed: tenant {DEV_TENANT}")
     async with get_worker_session(DEV_TENANT) as session:
+        # ADR-022 W1: de vragenset is tenant-eigendom — kopieer de baseline (89 vragen
+        # + antwoordconfig) in de dev-tenant als cd_app onder RLS, vóór applicaties/scores.
+        await seed_checklist_vragen(session, DEV_TENANT)
+        await seed_antwoordconfig(session, DEV_TENANT)
+        print("  + baseline-vragenset (89) + antwoordconfig geseed voor de tenant")
+
         # ADR-022 Fase A: laad de code ↔ checklistvraag.id-maps (applicatie-type).
         for code, vid in (
             await session.execute(

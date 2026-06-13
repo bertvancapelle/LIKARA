@@ -100,17 +100,25 @@ CHECKLIST_VRAGEN = [
 ]
 
 
-async def seed_checklist_vragen(session) -> int:
-    """Voegt de 89 checklist-vragen idempotent toe. Geeft het aantal vragen terug.
+async def seed_checklist_vragen(session, tenant_id) -> int:
+    """Voegt de baseline van 89 checklist-vragen idempotent toe **voor één tenant**.
+    Geeft het aantal vragen terug.
 
-    ADR-022 Fase A: elke vraag krijgt `componenttype='applicatie'`; uniciteit is
-    nu `(componenttype, code)`. De surrogate-PK `id` wordt door de DB gegenereerd."""
+    ADR-022 W1: `checklistvraag` is tenant-scoped — de baseline wordt per tenant
+    gekopieerd (`tenant_id` gezet, uniciteit `(tenant_id, componenttype, code)`).
+    Draait onder de `cd_app`-RLS-context van de tenant (INSERT-`WITH CHECK` eist
+    `tenant_id = app.tenant_id`). De surrogate-PK `id` wordt door de DB gegenereerd."""
     rows = [
-        {**v, "componenttype": "applicatie", "prioriteit": ChecklistPrioriteit(v["prioriteit"])}
+        {
+            **v,
+            "tenant_id": tenant_id,
+            "componenttype": "applicatie",
+            "prioriteit": ChecklistPrioriteit(v["prioriteit"]),
+        }
         for v in CHECKLIST_VRAGEN
     ]
     stmt = pg_insert(ChecklistVraag).values(rows).on_conflict_do_nothing(
-        index_elements=["componenttype", "code"]
+        index_elements=["tenant_id", "componenttype", "code"]
     )
     await session.execute(stmt)
     await session.commit()

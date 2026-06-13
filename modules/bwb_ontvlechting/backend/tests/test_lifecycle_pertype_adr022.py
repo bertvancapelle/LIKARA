@@ -72,9 +72,12 @@ async def _admin_exec(sql: str, params: dict | None = None, *, fetch: bool = Fal
         await eng.dispose()
 
 
+# ADR-022 W1: checklistvraag is tenant-scoped (tenant_id NOT NULL). De fixture-INSERT
+# (als cd_admin) zet expliciet de dev-tenant zodat de RLS-gescopete telling als cd_app
+# binnen die tenant de rij ziet.
 _INSERT_VRAAG = (
-    "INSERT INTO checklistvraag (componenttype, code, categorie_nr, categorie_naam, vraag, prioriteit) "
-    "VALUES ('database', :code, 1, 'Fase B test', 'Fase B test', 'hoog') RETURNING id"
+    "INSERT INTO checklistvraag (tenant_id, componenttype, code, categorie_nr, categorie_naam, vraag, prioriteit) "
+    "VALUES (:tenant_id, 'database', :code, 1, 'Fase B test', 'Fase B test', 'hoog') RETURNING id"
 )
 
 
@@ -89,7 +92,7 @@ def test_pertype_scoping_negeert_ander_type():
     code = f"DB{uuid.uuid4().hex[:6]}"  # <= varchar(10)
 
     async def _flow():
-        await _admin_exec(_INSERT_VRAAG, {"code": code}, fetch=True)
+        await _admin_exec(_INSERT_VRAAG, {"tenant_id": _TID, "code": code}, fetch=True)
         try:
             async def _run(s):
                 r = (await s.execute(text("select id from component where naam='DMS'"))).first()
@@ -117,7 +120,7 @@ def test_type_bewuste_validatie_weigert_andere_type_vraag():
     code = f"DB{uuid.uuid4().hex[:6]}"  # <= varchar(10)
 
     async def _flow():
-        row = await _admin_exec(_INSERT_VRAAG, {"code": code}, fetch=True)
+        row = await _admin_exec(_INSERT_VRAAG, {"tenant_id": _TID, "code": code}, fetch=True)
         vraag_id = row[0]
         try:
             async def _run(s):

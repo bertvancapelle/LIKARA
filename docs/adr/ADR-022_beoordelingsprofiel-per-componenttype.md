@@ -7,7 +7,7 @@ sectie "Wijziging W1" onderaan.
 **Volgorde**: ADR-022 **vóór** ADR-006 — de audit-trail logt het definitieve besturingsmodel;
 eerst het model vaststellen, dan auditen.
 **Voortbouwend op**: ADR-021 (component-herfundering, supertype/subtype shared-PK,
-`SUBTYPE_BESCHERMD`) en Wijziging W1 (CD054b — verenigde Componenten-UI, convergente aanmaak),
+`SUBTYPE_BESCHERMD`) en ADR-021 Wijziging W1 (CD054b — verenigde Componenten-UI, convergente aanmaak),
 ADR-013 (lifecycle-herberekening), ADR-016 (blokkade-reconciliatie), ADR-019 (configureerbare
 antwoordopties), ADR-012-addenda (catalogus-familiepatroon).
 **Vervangt**: ADR-022_VOORBEREIDING.

@@ -1,12 +1,14 @@
 <script setup>
 /**
- * ChecklistConfigBeheer — platform-beheer van de checklist-antwoordconfiguratie
- * (ADR-019 fase 2E-c). Pure schil op de 2D-endpoints (`/platform/checklistconfig`):
- * de server handhaaft álle regels (geldig type, actieve optie, orphan-409,
- * afgeleide sets label-only). De UI biedt alleen affordances + nette foutweergave.
+ * ChecklistConfigBeheer — TENANT-beheer van de checklist-vragenset + antwoord-
+ * configuratie (ADR-022 W1). Schil op de tenant-endpoints (`/checklistconfig`,
+ * cd_app): de server handhaaft álle regels (geldig type, actieve optie, orphan-409,
+ * CHECKLISTVRAAG_BESTAAT-409, afgeleide sets label-only). De UI biedt affordances:
+ * vragen aanmaken/(de)activeren, antwoordtypes + opties beheren, en een
+ * "raakt N componenten"-aankondiging vóór tellende acties.
  *
- * Categorie-filter wordt afgeleid uit de code-prefix (de config-read kent geen
- * categorie_naam; het platform-account mag het tenant-`/checklistvragen` niet).
+ * Vragen worden geadresseerd op hun `id`. Categorie/type komen rechtstreeks uit de
+ * respons (`categorie_nr`/`categorie_naam`/`componenttype`).
  */
 import { computed, reactive, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
@@ -22,26 +24,36 @@ const TYPE_LABEL = {
 
 const toast = useToast()
 const vragen = ref([])
+const componenttypeOpties = ref([]) // [{ optie_sleutel, label }]
 const laden = ref(false)
 const fout = ref(null)
 const actieFout = ref(null)
 const categorieFilter = ref('')
-const nieuweOptie = reactive({}) // code -> { optie_sleutel, label, volgorde }
+const nieuweOptie = reactive({}) // id -> { optie_sleutel, label, volgorde }
 
-function _categorieNr(code) {
-  return Number.parseInt(String(code).split('.')[0], 10)
-}
+// Nieuwe-vraag-formulier (W1).
+const nieuweVraag = reactive({
+  componenttype: '',
+  code: '',
+  vraag: '',
+  categorie_nr: null,
+  categorie_naam: '',
+})
 
 const categorieen = computed(() => {
-  const set = new Set(vragen.value.map((v) => _categorieNr(v.code)))
+  const set = new Set(vragen.value.map((v) => v.categorie_nr))
   return [...set].sort((a, b) => a - b)
 })
 
 const zichtbareVragen = computed(() => {
   if (!categorieFilter.value) return vragen.value
   const nr = Number.parseInt(categorieFilter.value, 10)
-  return vragen.value.filter((v) => _categorieNr(v.code) === nr)
+  return vragen.value.filter((v) => v.categorie_nr === nr)
 })
+
+function typeLabel(sleutel) {
+  return componenttypeOpties.value.find((o) => o.optie_sleutel === sleutel)?.label || sleutel
+}
 
 function isAfgeleideSet(vraag) {
   return (vraag.opties || []).some((o) => o.afgeleid_bron)
@@ -52,7 +64,8 @@ function heeftOpties(vraag) {
 
 function _toonFout(e) {
   let detail
-  if (e?.status === 409 || e?.code === 'CONFIGURATIE_CONFLICT') detail = e?.message || 'Niet toegestaan.'
+  if (e?.status === 409 || e?.code === 'CONFIGURATIE_CONFLICT' || e?.code === 'CHECKLISTVRAAG_BESTAAT')
+    detail = e?.message || 'Niet toegestaan.'
   else if (e?.status === 422)
     detail = Array.isArray(e?.detail) ? e.detail[0]?.msg || 'Ongeldige invoer.' : 'Ongeldige invoer.'
   else if (e?.status === 404) detail = 'Item niet gevonden.'
@@ -62,7 +75,7 @@ function _toonFout(e) {
 }
 
 function _vervangVraag(updated) {
-  const i = vragen.value.findIndex((v) => v.code === updated.code)
+  const i = vragen.value.findIndex((v) => v.id === updated.id)
   if (i >= 0) vragen.value[i] = updated
 }
 function _vervangOptie(vraag, optie) {
@@ -70,11 +83,27 @@ function _vervangOptie(vraag, optie) {
   if (i >= 0) vraag.opties[i] = optie
 }
 
+// "Raakt N componenten"-aankondiging vóór een tellende actie. Faalt de telling,
+// dan blokkeren we de actie niet (best-effort melding).
+async function _bevestigImpact(componenttype, aanhef) {
+  try {
+    const { aantal_componenten } = await api.checklistconfig.impact(componenttype)
+    return window.confirm(`${aanhef}\n\nDit raakt ${aantal_componenten} componenten van type ${typeLabel(componenttype)}.`)
+  } catch {
+    return window.confirm(`${aanhef}\n\nDoorgaan?`)
+  }
+}
+
 async function laad() {
   laden.value = true
   fout.value = null
   try {
-    vragen.value = await api.platformChecklistconfig.lijst()
+    const [lijst, opties] = await Promise.all([
+      api.checklistconfig.lijst(),
+      api.componenten.opties(),
+    ])
+    vragen.value = lijst
+    componenttypeOpties.value = opties?.componenttype || []
   } catch (e) {
     fout.value = e?.message || 'Laden van de configuratie mislukt.'
   } finally {
@@ -82,11 +111,50 @@ async function laad() {
   }
 }
 
+async function maakVraag() {
+  if (!nieuweVraag.componenttype || !nieuweVraag.code || !nieuweVraag.vraag || !nieuweVraag.categorie_naam) return
+  actieFout.value = null
+  const akkoord = await _bevestigImpact(
+    nieuweVraag.componenttype,
+    `Vraag "${nieuweVraag.code}" toevoegen.`,
+  )
+  if (!akkoord) return
+  try {
+    const vraag = await api.checklistconfig.maakVraag({
+      componenttype: nieuweVraag.componenttype,
+      code: nieuweVraag.code,
+      vraag: nieuweVraag.vraag,
+      categorie_nr: Number.parseInt(nieuweVraag.categorie_nr, 10) || 0,
+      categorie_naam: nieuweVraag.categorie_naam,
+    })
+    vragen.value.push(vraag)
+    Object.assign(nieuweVraag, {
+      componenttype: '', code: '', vraag: '', categorie_nr: null, categorie_naam: '',
+    })
+    toast.add({ severity: 'success', summary: 'Toegevoegd', detail: `Vraag ${vraag.code}.`, life: 3000 })
+  } catch (e) {
+    _toonFout(e)
+  }
+}
+
+async function zetActief(vraag) {
+  actieFout.value = null
+  const aanhef = vraag.actief ? `Vraag "${vraag.code}" deactiveren.` : `Vraag "${vraag.code}" activeren.`
+  const akkoord = await _bevestigImpact(vraag.componenttype, aanhef)
+  if (!akkoord) return
+  try {
+    const updated = await api.checklistconfig.zetActief(vraag.id, !vraag.actief)
+    _vervangVraag(updated)
+  } catch (e) {
+    _toonFout(e)
+  }
+}
+
 async function zetType(vraag, nieuwType) {
   if (nieuwType === vraag.antwoordtype) return
   actieFout.value = null
   try {
-    const updated = await api.platformChecklistconfig.zetAntwoordtype(vraag.code, nieuwType)
+    const updated = await api.checklistconfig.zetAntwoordtype(vraag.id, nieuwType)
     _vervangVraag(updated)
   } catch (e) {
     _toonFout(e)
@@ -95,17 +163,17 @@ async function zetType(vraag, nieuwType) {
 }
 
 async function voegToe(vraag) {
-  const buf = nieuweOptie[vraag.code]
+  const buf = nieuweOptie[vraag.id]
   if (!buf?.optie_sleutel || !buf?.label) return
   actieFout.value = null
   try {
-    const optie = await api.platformChecklistconfig.voegOptieToe(vraag.code, {
+    const optie = await api.checklistconfig.voegOptieToe(vraag.id, {
       optie_sleutel: buf.optie_sleutel,
       label: buf.label,
       volgorde: Number.parseInt(buf.volgorde, 10) || 0,
     })
     vraag.opties.push(optie)
-    nieuweOptie[vraag.code] = { optie_sleutel: '', label: '', volgorde: 0 }
+    nieuweOptie[vraag.id] = { optie_sleutel: '', label: '', volgorde: 0 }
   } catch (e) {
     _toonFout(e)
   }
@@ -114,7 +182,7 @@ async function voegToe(vraag) {
 async function bewaarOptie(vraag, optie) {
   actieFout.value = null
   try {
-    const updated = await api.platformChecklistconfig.wijzigOptie(optie.id, {
+    const updated = await api.checklistconfig.wijzigOptie(optie.id, {
       label: optie.label,
       volgorde: Number.parseInt(optie.volgorde, 10) || 0,
     })
@@ -128,16 +196,16 @@ async function bewaarOptie(vraag, optie) {
 async function deactiveer(vraag, optie) {
   actieFout.value = null
   try {
-    const updated = await api.platformChecklistconfig.deactiveerOptie(optie.id)
+    const updated = await api.checklistconfig.deactiveerOptie(optie.id)
     _vervangOptie(vraag, updated)
   } catch (e) {
     _toonFout(e)
   }
 }
 
-function buffer(code) {
-  if (!nieuweOptie[code]) nieuweOptie[code] = { optie_sleutel: '', label: '', volgorde: 0 }
-  return nieuweOptie[code]
+function buffer(id) {
+  if (!nieuweOptie[id]) nieuweOptie[id] = { optie_sleutel: '', label: '', volgorde: 0 }
+  return nieuweOptie[id]
 }
 
 laad()
@@ -146,7 +214,7 @@ laad()
 <template>
   <section aria-labelledby="beheer-titel">
     <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-md)]">
-      <h1 id="beheer-titel" class="text-[length:var(--cd-text-xl)] font-semibold">Checklistconfiguratie</h1>
+      <h1 id="beheer-titel" class="text-[length:var(--cd-text-xl)] font-semibold">Checklistvragen</h1>
       <label class="ml-auto flex items-center gap-[var(--cd-space-sm)] text-[length:var(--cd-text-sm)]">
         Categorie
         <select
@@ -164,16 +232,96 @@ laad()
     <p v-if="actieFout" role="alert" data-testid="cfg-actie-fout" class="text-[var(--cd-color-danger)] mb-[var(--cd-space-sm)]">{{ actieFout }}</p>
     <p v-if="laden" data-testid="cfg-laden" class="text-[var(--cd-color-text-muted)]">Laden…</p>
 
+    <!-- Vraag toevoegen (ADR-022 W1) — tenant-CRUD. Toont 409 CHECKLISTVRAAG_BESTAAT
+         netjes via de actieFout-melding; tellende actie → impact-aankondiging. -->
+    <form
+      data-testid="cfg-nieuwe-vraag"
+      class="card flex flex-wrap items-end gap-[var(--cd-space-sm)] mb-[var(--cd-space-md)]"
+      @submit.prevent="maakVraag"
+    >
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        Type
+        <select
+          v-model="nieuweVraag.componenttype"
+          data-testid="cfg-nieuwe-vraag-type"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+        >
+          <option value="" disabled>— maak een keuze —</option>
+          <option v-for="o in componenttypeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
+        </select>
+      </label>
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        Code
+        <input
+          v-model="nieuweVraag.code"
+          data-testid="cfg-nieuwe-vraag-code"
+          type="text"
+          placeholder="bv. 1.4"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+        />
+      </label>
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)] flex-1 min-w-[12rem]">
+        Vraag
+        <input
+          v-model="nieuweVraag.vraag"
+          data-testid="cfg-nieuwe-vraag-tekst"
+          type="text"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+        />
+      </label>
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        Categorie-nr
+        <input
+          v-model="nieuweVraag.categorie_nr"
+          data-testid="cfg-nieuwe-vraag-catnr"
+          type="number"
+          class="w-24 rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+        />
+      </label>
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        Categorie-naam
+        <input
+          v-model="nieuweVraag.categorie_naam"
+          data-testid="cfg-nieuwe-vraag-catnaam"
+          type="text"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+        />
+      </label>
+      <button
+        type="submit"
+        data-testid="cfg-nieuwe-vraag-knop"
+        class="rounded-[var(--cd-radius-input)] bg-[var(--cd-color-accent)] text-white px-[var(--cd-space-md)] py-[var(--cd-space-xs)]"
+      >
+        Vraag toevoegen
+      </button>
+    </form>
+
     <ul class="flex flex-col gap-[var(--cd-space-md)]">
       <li
         v-for="vraag in zichtbareVragen"
         :key="vraag.code"
         :data-testid="`cfg-vraag-${vraag.code}`"
-        class="card flex flex-col gap-[var(--cd-space-sm)]"
+        :class="['card flex flex-col gap-[var(--cd-space-sm)]', vraag.actief ? '' : 'opacity-60']"
       >
         <div class="flex items-start gap-[var(--cd-space-md)]">
           <span class="font-mono font-semibold">{{ vraag.code }}</span>
+          <span
+            :data-testid="`cfg-vraag-type-${vraag.code}`"
+            class="text-[length:var(--cd-text-xs)] rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-xs)] py-[2px]"
+          >{{ typeLabel(vraag.componenttype) }}</span>
           <span class="flex-1">{{ vraag.vraag }}</span>
+          <span
+            :data-testid="`cfg-vraag-status-${vraag.code}`"
+            :class="['text-[length:var(--cd-text-xs)]', vraag.actief ? 'text-[var(--cd-color-success)]' : 'text-[var(--cd-color-danger)]']"
+          >{{ vraag.actief ? 'actief' : 'gedeactiveerd' }}</span>
+          <button
+            type="button"
+            :data-testid="`cfg-vraag-actief-${vraag.code}`"
+            class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+            @click="zetActief(vraag)"
+          >
+            {{ vraag.actief ? 'Deactiveren' : 'Activeren' }}
+          </button>
           <label class="flex items-center gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
             Antwoordtype
             <select
@@ -266,21 +414,21 @@ laad()
           >
             <input
               :data-testid="`cfg-nieuw-sleutel-${vraag.code}`"
-              v-model="buffer(vraag.code).optie_sleutel"
+              v-model="buffer(vraag.id).optie_sleutel"
               type="text"
               placeholder="sleutel"
               class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
             />
             <input
               :data-testid="`cfg-nieuw-label-${vraag.code}`"
-              v-model="buffer(vraag.code).label"
+              v-model="buffer(vraag.id).label"
               type="text"
               placeholder="label"
               class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
             />
             <input
               :data-testid="`cfg-nieuw-volgorde-${vraag.code}`"
-              v-model="buffer(vraag.code).volgorde"
+              v-model="buffer(vraag.id).volgorde"
               type="number"
               class="w-20 rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
             />

@@ -254,27 +254,36 @@ export const api = {
     lijst: () => request('/checklistvragen'),
   },
 
-  // Platform-beheer van de checklist-antwoordconfiguratie (ADR-019 fase 2D/2E,
-  // platform-sessie). Server handhaaft alle regels (orphan-409, afgeleid, type).
-  platformChecklistconfig: {
-    lijst: () => request('/platform/checklistconfig'),
-    zetAntwoordtype: (code, antwoordtype) =>
-      request(`/platform/checklistconfig/vragen/${encodeURIComponent(code)}`, {
+  // ADR-022 W1 — TENANT-beheer van de checklist-vragenset + antwoordconfiguratie
+  // (cd_app, tenant-shell). Vragen worden geadresseerd op hun `id`. Server
+  // handhaaft alle regels (CHECKLISTVRAAG_BESTAAT-409, orphan-409, afgeleid, type).
+  checklistconfig: {
+    lijst: () => request('/checklistconfig'),
+    impact: (componenttype) =>
+      request(`/checklistconfig/impact?componenttype=${encodeURIComponent(componenttype)}`),
+    maakVraag: (data) =>
+      request('/checklistconfig/vragen', { method: 'POST', body: JSON.stringify(data) }),
+    werkVraagBij: (id, data) =>
+      request(`/checklistconfig/vragen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    zetAntwoordtype: (id, antwoordtype) =>
+      request(`/checklistconfig/vragen/${id}/antwoordtype`, {
         method: 'PATCH',
         body: JSON.stringify({ antwoordtype }),
       }),
-    voegOptieToe: (code, data) =>
-      request(`/platform/checklistconfig/vragen/${encodeURIComponent(code)}/opties`, {
+    zetActief: (id, actief) =>
+      request(`/checklistconfig/vragen/${id}/actief`, {
+        method: 'POST',
+        body: JSON.stringify({ actief }),
+      }),
+    voegOptieToe: (id, data) =>
+      request(`/checklistconfig/vragen/${id}/opties`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     wijzigOptie: (id, data) =>
-      request(`/platform/checklistconfig/opties/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      }),
+      request(`/checklistconfig/opties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     deactiveerOptie: (id) =>
-      request(`/platform/checklistconfig/opties/${id}/deactiveren`, { method: 'POST' }),
+      request(`/checklistconfig/opties/${id}/deactiveren`, { method: 'POST' }),
   },
 
   // ADR-020 Besluit 6/7 — platform-beheer van de contract-classificatie-catalogus

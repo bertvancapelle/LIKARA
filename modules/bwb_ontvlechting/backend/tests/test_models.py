@@ -53,10 +53,13 @@ def test_seed_codes_uniek_en_89():
 
 
 def test_seed_geeft_89_terug():
+    # ADR-022 W1: seed_checklist_vragen is tenant-scoped — tenant_id is verplicht.
+    import uuid
+
     from services.seed import seed_checklist_vragen
 
     session = AsyncMock()
-    aantal = asyncio.run(seed_checklist_vragen(session))
+    aantal = asyncio.run(seed_checklist_vragen(session, uuid.uuid4()))
     assert aantal == 89
     session.execute.assert_awaited_once()
     session.commit.assert_awaited_once()
@@ -64,32 +67,40 @@ def test_seed_geeft_89_terug():
 
 def test_seed_idempotent():
     """Dubbele uitvoering mag geen fout geven (ON CONFLICT DO NOTHING)."""
+    # ADR-022 W1: seed_checklist_vragen is tenant-scoped — tenant_id is verplicht.
+    import uuid
+
     from services.seed import seed_checklist_vragen
 
+    tid = uuid.uuid4()
     session = AsyncMock()
-    eerste = asyncio.run(seed_checklist_vragen(session))
-    tweede = asyncio.run(seed_checklist_vragen(session))
+    eerste = asyncio.run(seed_checklist_vragen(session, tid))
+    tweede = asyncio.run(seed_checklist_vragen(session, tid))
     assert eerste == tweede == 89
 
 
-def test_platform_init_zaait_beide_seeds_via_platform_session(monkeypatch):
-    """platform_init zaait op de geïnjecteerde platform-sessie (géén RLS-/tenant-
-    context) BEIDE referentiesets: de 89 checklistvragen én de ADR-019-
-    antwoordconfiguratie, in die volgorde. Retourneert het vragen-aantal (89)."""
+def test_platform_init_zaait_platform_catalogi_via_platform_session(monkeypatch):
+    """ADR-022 W1: platform_init zaait op de geïnjecteerde platform-sessie (géén
+    RLS-/tenant-context) UITSLUITEND de platform-catalogi — de contractconfig
+    (ADR-020) en de componentconfig (ADR-021/012), in die volgorde. De
+    checklistvragen + antwoordconfiguratie zijn tenant-data geworden en worden
+    NIET meer platform-breed gezaaid. Retourneert het componentcatalogus-aantal (9)."""
     import app.platform_init as pi
 
     volgorde = []
 
-    async def fake_vragen(session):
-        volgorde.append("vragen")
-        return 89
+    async def fake_contract(session):
+        volgorde.append("contractconfig")
+        return 9
 
-    async def fake_config(session):
-        volgorde.append("config")
-        return (27, 96)
+    async def fake_component(session):
+        volgorde.append("componentconfig")
+        return 9
 
-    monkeypatch.setattr(pi, "seed_checklist_vragen", fake_vragen)
-    monkeypatch.setattr(pi, "seed_antwoordconfig", fake_config)
+    monkeypatch.setattr(pi, "seed_contractconfig", fake_contract)
+    monkeypatch.setattr(pi, "seed_componentconfig", fake_component)
+    # checklistvragen mogen NIET via platform_init lopen onder W1.
+    assert not hasattr(pi, "seed_checklist_vragen")
 
     session = AsyncMock()
 
@@ -98,17 +109,18 @@ def test_platform_init_zaait_beide_seeds_via_platform_session(monkeypatch):
         yield session
 
     aantal = asyncio.run(pi.platform_init(session_factory=fake_platform_session))
-    assert aantal == 89
-    assert volgorde == ["vragen", "config"]  # beide gezaaid, vragen eerst
+    assert aantal == 9
+    assert volgorde == ["contractconfig", "componentconfig"]
 
 
-def test_seed_niet_via_tenant_pad():
-    """Regressie tegen terugval naar tenant-seed: de ChecklistVraag-seed loopt
-    uitsluitend via platform-init (`get_platform_db_session`), nooit via een
-    tenant-/RLS-sessie (`get_session`).
+def test_checklistseed_niet_via_platform_init():
+    """ADR-022 W1: de checklist-baseline is tenant-data — `seed_checklist_vragen`
+    wordt per tenant aangeroepen (`seed_checklist_vragen(session, tenant_id)`) en
+    loopt NIET meer via platform_init. Regressie: platform_init refereert geen
+    `seed_checklist_vragen`/`seed_antwoordconfig` meer, alleen de platform-catalogi.
 
-    Via AST geverifieerd op code-referenties — docstrings/comments tellen niet
-    mee, zodat de toelichting `get_session(tenant_id)` in de bron toegestaan is.
+    Via AST geverifieerd op code-referenties — docstrings/comments tellen niet mee,
+    zodat de W1-toelichting in de bron toegestaan is.
     """
     import ast
 
@@ -117,6 +129,8 @@ def test_seed_niet_via_tenant_pad():
     namen = {
         n.id for n in ast.walk(ast.parse(bron)) if isinstance(n, ast.Name)
     }
-    assert "seed_checklist_vragen" in namen
-    assert "get_platform_db_session" in namen
-    assert "get_session" not in namen  # tenant-/RLS-sessie wordt niet gebruikt
+    assert "seed_contractconfig" in namen
+    assert "seed_componentconfig" in namen
+    # tenant-data-seeds lopen niet meer via platform_init
+    assert "seed_checklist_vragen" not in namen
+    assert "seed_antwoordconfig" not in namen

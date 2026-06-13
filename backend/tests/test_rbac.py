@@ -45,7 +45,7 @@ VERWACHT = {
     Entiteit.COMPONENT_CONTRACT: _INHOUD,
     Entiteit.COMPONENT: _INHOUD,            # ADR-021 Fase B (CD052)
     Entiteit.COMPONENT_STRUCTUUR: _INHOUD,  # ADR-021 Fase B (CD052)
-    Entiteit.CHECKLISTVRAAG: {r: _L for r in Rol},
+    Entiteit.CHECKLISTVRAAG: _INHOUD,  # ADR-022 W1: tenant-eigen vragenset (CRUD)
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN, Rol.MEDEWERKER: _GEEN, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,
     },
@@ -87,10 +87,14 @@ def test_kernregels_expliciet():
         assert heeft_permissie(["beheerder"], entiteit, Actie.AANMAKEN)
         for rol in ("viewer", "medewerker", "auditor"):
             assert not heeft_permissie([rol], entiteit, Actie.LEZEN)
-    # ChecklistVraag: iedereen alleen-lezen, niemand muteert
+    # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer volgt het inhoud-
+    # patroon (medewerker mag muteren, viewer/auditor alleen lezen).
     for rol in ("viewer", "medewerker", "beheerder", "auditor"):
         assert heeft_permissie([rol], Entiteit.CHECKLISTVRAAG, Actie.LEZEN)
-        assert not heeft_permissie([rol], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+    assert heeft_permissie(["medewerker"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+    assert heeft_permissie(["beheerder"], Entiteit.CHECKLISTVRAAG, Actie.VERWIJDEREN)
+    assert not heeft_permissie(["viewer"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+    assert not heeft_permissie(["auditor"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
 
 
 def test_fail_secure_geen_of_onbekende_rol():
