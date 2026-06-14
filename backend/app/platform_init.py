@@ -51,10 +51,17 @@ async def platform_init(session_factory=None) -> int:
 
         session_factory = get_platform_db_session
 
-    async with session_factory() as session:
-        await seed_contractconfig(session)
-        aantal = await seed_componentconfig(session)
-        return aantal
+    # ADR-006: vaste systeem-actor voor het platform-audit-spoor van de catalogus-seed.
+    from app.core.tenant_context import reset_audit_context, zet_audit_context
+
+    audit_tokens = zet_audit_context("system:platform_init")
+    try:
+        async with session_factory() as session:
+            await seed_contractconfig(session)
+            aantal = await seed_componentconfig(session)
+            return aantal
+    finally:
+        reset_audit_context(audit_tokens)
 
 
 def main() -> None:

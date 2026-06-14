@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.audit import AuditActie, auditactie_enum
 from app.models.base import Base, TenantMixin, TimestampMixin
 
 
@@ -682,3 +683,34 @@ class ComponentConfigOptie(Base):
     checklist_dragend: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=text("false")
     )
+
+
+# --------------------------------------------------------------------------
+# ADR-006 — audit-trail (append-only wijzigingsspoor)
+#
+# Tenant-scoped logboek (FORCE RLS, hash-keten per tenant). Onwijzigbaar: alleen
+# SELECT/INSERT-grants + een BEFORE UPDATE/DELETE-trigger (migratie 0010). Records
+# worden geschreven door de centrale capture-hook (app.core.audit), nooit via een
+# service — dit model dient de LEES-zijde (ADR-006 Fase E). `entiteit_id` is uuid
+# (alle tenant-entiteiten hebben een UUID-PK); de polymorfe verwijzing heeft géén FK
+# (historie-behoud). De platform-variant `PlatformAuditLog` staat in app/models.
+# --------------------------------------------------------------------------
+
+class AuditLog(Base, TenantMixin):
+    """ADR-006 — tenant-scoped audit-record (RLS + FORCE, append-only)."""
+
+    __tablename__ = "audit_log"
+
+    id: Mapped[uuid.UUID] = _pk()
+    tijdstip: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+    actor_sub: Mapped[str] = mapped_column(Text, nullable=False)
+    actor_email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    entiteit_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entiteit_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    actie: Mapped[AuditActie] = mapped_column(auditactie_enum, nullable=False)
+    wijziging: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    correlatie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    record_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    vorige_hash: Mapped[str | None] = mapped_column(Text, nullable=True)

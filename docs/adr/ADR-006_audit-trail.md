@@ -64,12 +64,22 @@ intact en platform-handelingen botsen niet met FORCE RLS.
 (b) Backstop: een `BEFORE UPDATE OR DELETE`-trigger die `RAISE EXCEPTION` doet, zodat ook
 eigenaar-/migratie-paden geblokkeerd zijn. Append-only is hiermee structureel, niet conventioneel.
 
-### Besluit 6 — Hash-keten per tenant
+### Besluit 6 — Hash-keten per tenant (geserialiseerde append)
 
 Elk record draagt `vorige_hash` + `record_hash` (`record_hash = hash(vorige_hash ‖ alle
-betekenisdragende velden)`). De keten is per tenant (RLS-consistent, geen platform-breed
-serialisatieknelpunt); het `platform_audit_log` heeft zijn eigen keten. Een verificatiefunctie
-detecteert ketenbreuk.
+betekenisdragende velden)`). De keten is per tenant (RLS-consistent); het `platform_audit_log`
+heeft zijn eigen (globale) keten. Een verificatiefunctie verifieert de keten.
+
+**Serialisatie van de append (CD008 v4).** De append-sequentie {lees de ketenstaart (`vorige_hash`)
+→ bereken `record_hash` → insert} wordt **per tenant geserialiseerd** met een transactie-gebonden
+PostgreSQL advisory lock (`pg_advisory_xact_lock`, sleutel afgeleid van `tenant_id`), genomen in het
+audit-append-pad vóór het lezen van de staart. Twee gelijktijdige schrijvers binnen één tenant
+kunnen daardoor **niet** op dezelfde voorganger ankeren: een fork is **structureel onmogelijk**, en
+een ketenbreuk bij verificatie betekent dus altijd manipulatie — nooit gelijktijdigheid. De
+platform-keten gebruikt één vaste globale lock-sleutel. De lock serialiseert uitsluitend de
+audit-append (niet de onderliggende bedrijfstransactie) en valt automatisch vrij bij
+commit/rollback. (Dit vervangt de eerdere "detecteren-i.p.v.-voorkomen / één-schrijver-per-tenant"-
+aanname door structurele preventie.)
 
 ### Besluit 7 — Wijziging = gewijzigde-velden-diff met oude én nieuwe waarde
 
@@ -108,6 +118,13 @@ Tenant-scoped `audit_log` (`platform_audit_log` analoog, zónder `tenant_id` en 
 
 Indexen: `tenant_id`, `correlatie_id`, (`entiteit_type`, `entiteit_id`).
 
+**Verfijning (CD008 v2) — `platform_audit_log.entiteit_id` = `text`** (i.p.v. `uuid`). De
+platform-catalogus (`componentconfig_optie`/`contractconfig_optie`) heeft integer-PK's; een
+polymorfe, **koppelingsloze** tekstkolom draagt zowel UUID's (Tenant) als integer-catalogus-PK's
+als string. Het tenant-`audit_log` houdt `entiteit_id uuid` (alle tenant-entiteiten hebben een
+UUID-PK). De overige kolommen van `platform_audit_log` zijn gelijk aan `audit_log` op `tenant_id`
+na (dat ontbreekt — geen RLS).
+
 ## Gevolgen / invarianten
 
 - Elke compliance-mutatie ⇒ ≥1 auditrecord; één score-write ⇒ 1 driver-record + N afgeleide
@@ -117,6 +134,23 @@ Indexen: `tenant_id`, `correlatie_id`, (`entiteit_type`, `entiteit_id`).
   filterbaar zijn op actor / component / entiteit-type / periode (zodat #14 niets hoeft te
   herbouwen).
 - Nieuwe RBAC-entiteit `AUDITLOG` (alleen lezen, bv. auditor/beheerder).
+
+### Capture-grens (ORM-only)
+
+De capture-hook auditeert uitsluitend mutaties die via de servicelaag/ORM-sessie lopen. Hieruit
+volgen twee expliciet geaccepteerde grenzen:
+
+1. **Servicelaag/ORM-only voor auditeerbare entiteiten.** Compliance-relevante mutaties op
+   auditeerbare entiteiten verlopen altijd via de servicelaag (ORM). Rauwe `text(UPDATE/DELETE)` op
+   auditeerbare entiteiten is in applicatiepaden niet toegestaan, omdat die de capture omzeilt.
+   Uitsluitend seed-/setup-paden (geen gebruikershandeling, bv. catalogus-seed) mogen rauwe SQL
+   gebruiken; die genereren bewust geen auditrecord. Een latere overtreding (rauwe SQL op een
+   auditeerbare tabel in een applicatiepad) is hiermee toetsbaar als afwijking van deze invariant.
+
+2. **Cascade-delete legt alleen het ouder-record vast.** Bij het verwijderen van een ouder legt de
+   audit-trail de ouder-delete vast (met correlatie-id); door de database via `ON DELETE CASCADE`
+   meeverwijderde kinderen krijgen geen individueel auditrecord. De betekenisvolle handeling is de
+   ouder-delete; het impliciet vervallen van afgeleide kinderen is een geaccepteerde grens.
 
 ## Niet in scope
 

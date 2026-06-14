@@ -699,7 +699,8 @@ async def _seed_tweede_type(session) -> dict:
 
 async def main() -> None:
     print(f"dev-seed: tenant {DEV_TENANT}")
-    async with get_worker_session(DEV_TENANT) as session:
+    # ADR-006: vaste systeem-actor voor het audit-spoor van de dev-seed.
+    async with get_worker_session(DEV_TENANT, actor_sub="system:dev_seed") as session:
         # ADR-022 W1: de vragenset is tenant-eigendom — kopieer de baseline (89 vragen
         # + antwoordconfig) in de dev-tenant als cd_app onder RLS, vóór applicaties/scores.
         await seed_checklist_vragen(session, DEV_TENANT)

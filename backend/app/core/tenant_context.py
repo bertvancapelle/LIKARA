@@ -11,10 +11,24 @@ en lekt **niet** naar de volgende pool-checkout. Daarmee is het CD047-mechanisme
 én het cross-tenant-restrisico structureel gesloten (geen rest-context op poolverbindingen).
 """
 import contextvars
+import uuid
 
 # Geen default-waarde "" — afwezigheid = None ⇒ de hook kan fail-fast onderscheiden.
 _tenant_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "cd_tenant_id", default=None
+)
+
+# ADR-006 — actor-identiteit + correlatie-id van de huidige handeling (request/seed/
+# platform). De audit-capture-hook (app.core.audit) leest deze per flush. Afwezig =
+# None ⇒ de hook valt terug op `system:onbekend` resp. een verse correlatie-id.
+_actor_sub: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cd_actor_sub", default=None
+)
+_actor_email: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cd_actor_email", default=None
+)
+_correlatie_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "cd_correlatie_id", default=None
 )
 
 
@@ -30,3 +44,37 @@ def reset_tenant_context(token: contextvars.Token) -> None:
 
 def huidige_tenant_id() -> str | None:
     return _tenant_id.get()
+
+
+def zet_audit_context(
+    actor_sub: str, actor_email: str | None = None, correlatie_id: str | None = None
+) -> list[contextvars.Token]:
+    """Zet de actor + correlatie-id voor de huidige handeling (ADR-006 Besluit 3).
+
+    Eén `correlatie_id` per handeling bindt de driver-mutatie aan haar afgeleide
+    gevolgen (lifecycle/blokkade) — die delen dezelfde context. Ontbreekt er een
+    `correlatie_id`, dan wordt er één gegenereerd. Retourneert tokens voor reset.
+    """
+    if correlatie_id is None:
+        correlatie_id = str(uuid.uuid4())
+    return [
+        _actor_sub.set(actor_sub),
+        _actor_email.set(actor_email),
+        _correlatie_id.set(correlatie_id),
+    ]
+
+
+def reset_audit_context(tokens: list[contextvars.Token]) -> None:
+    # Reset in omgekeerde volgorde (sub, email, correlatie → correlatie, email, sub).
+    _correlatie_id.reset(tokens[2])
+    _actor_email.reset(tokens[1])
+    _actor_sub.reset(tokens[0])
+
+
+def huidige_actor() -> tuple[str | None, str | None]:
+    """(actor_sub, actor_email) van de huidige handeling, of (None, None)."""
+    return _actor_sub.get(), _actor_email.get()
+
+
+def huidige_correlatie_id() -> str | None:
+    return _correlatie_id.get()

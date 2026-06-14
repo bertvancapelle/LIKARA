@@ -1,0 +1,391 @@
+"""ADR-006 — audit-capture end-to-end (live cd_app/cd_platform-DB, skip indien onbereikbaar).
+
+Vereist migratie `0010` (audit_log/platform_audit_log). Valideert wat de offline-grens
+niet dekt: de capture-hook schrijft bij een echte flush, actor/correlatie/hash worden
+gevuld, driver + afgeleide gevolgen delen één correlatie_id, de blokkade-classificatie
+splitst (derive bij score-driver, update bij handmatige wissel), RLS-isolatie +
+append-only (grant/trigger) gelden, en platform-mutaties landen in `platform_audit_log`
+met een string-`entiteit_id`. Eigen engines (echte cd_app/cd_platform-URL), net als de
+CD048-tests — de app-engines draaien in tests op dummy-settings. Append-only: testresidu
+in de audit-tabellen is per ontwerp niet opruimbaar (de inhoud-entiteiten worden wél
+opgeruimd).
+"""
+import asyncio
+import uuid
+from contextlib import asynccontextmanager
+
+import pytest
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from app.core import tenant_context as tc
+from app.core.audit import verifieer_keten
+from app.core.database import _markeer_rls
+
+_CD_APP_URL = "postgresql+asyncpg://cd_app:changeme_dev@localhost:5432/complidata"
+_CD_PLATFORM_URL = "postgresql+asyncpg://cd_platform:changeme_dev@localhost:5432/complidata"
+DEV_TENANT = "11111111-1111-1111-1111-111111111111"
+TENANT_B = "22222222-2222-2222-2222-222222222222"
+
+
+def _audit_log_bestaat() -> bool:
+    async def _check():
+        eng = create_async_engine(_CD_APP_URL)
+        try:
+            async with eng.connect() as c:
+                # to_regclass = catalogus-lookup (geen rij-toegang) → omzeilt FORCE RLS;
+                # een directe SELECT op audit_log zou zonder tenant-context op de
+                # RLS-policy stuklopen en de tests ten onrechte skippen.
+                res = (await c.execute(text("SELECT to_regclass('audit_log')"))).scalar()
+            return res is not None
+        finally:
+            await eng.dispose()
+    try:
+        return asyncio.run(_check())
+    except Exception:
+        return False
+
+
+live = pytest.mark.skipif(
+    not _audit_log_bestaat(),
+    reason="audit_log niet bereikbaar (offline of migratie 0010 niet toegepast)",
+)
+
+
+@asynccontextmanager
+async def _worker(tenant, actor="system:dev_seed"):
+    """Tenant-RLS-sessie op de echte cd_app-DB + tenant/audit-context (zoals
+    get_worker_session, maar op een eigen engine)."""
+    eng = create_async_engine(_CD_APP_URL)
+    smf = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+    t_tok = tc.zet_tenant_context(tenant)
+    a_tok = tc.zet_audit_context(actor)
+    try:
+        async with smf() as s:
+            _markeer_rls(s)
+            try:
+                yield s
+            except Exception:
+                await s.rollback()
+                raise
+    finally:
+        tc.reset_audit_context(a_tok)
+        tc.reset_tenant_context(t_tok)
+        await eng.dispose()
+
+
+@asynccontextmanager
+async def _platform(actor="system:platform_init"):
+    """Platform-sessie (cd_platform, GEEN RLS-marker) + audit-context → de hook
+    routeert naar platform_audit_log."""
+    eng = create_async_engine(_CD_PLATFORM_URL)
+    smf = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+    a_tok = tc.zet_audit_context(actor)
+    try:
+        async with smf() as s:
+            yield s
+    finally:
+        tc.reset_audit_context(a_tok)
+        await eng.dispose()
+
+
+@live
+def test_capture_create_actor_hash_en_correlatie():
+    from models.models import AuditLog, Leverancier
+
+    naam = f"AUDIT-LEV-{uuid.uuid4().hex[:8]}"
+
+    async def _run():
+        async with _worker(DEV_TENANT) as s:
+            corr = tc.huidige_correlatie_id()
+            s.add(Leverancier(tenant_id=uuid.UUID(DEV_TENANT), naam=naam))
+            await s.commit()
+            rows = (await s.execute(
+                select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
+            )).scalars().all()
+            await s.execute(text("DELETE FROM leverancier WHERE naam = :n"), {"n": naam})
+            await s.commit()
+            return rows
+
+    rows = asyncio.run(_run())
+    lev_rows = [r for r in rows if r.entiteit_type == "leverancier"]
+    assert len(lev_rows) == 1
+    r = lev_rows[0]
+    assert r.actie == "create"
+    assert r.actor_sub == "system:dev_seed"
+    assert r.record_hash and len(r.record_hash) == 64
+    assert r.wijziging and r.wijziging["naam"]["nieuw"] == naam
+
+
+@live
+def test_score_write_driver_plus_afgeleide_delen_correlatie():
+    """Besluit 1/3: een blokkerende score-write die de vragenset compleet maakt ⇒ driver
+    (checklistscore=create) + afgeleide gevolgen (blokkade + component_profiel = derive),
+    één gedeeld correlatie_id en dezelfde actor.
+
+    Gebruikt het `applicatieserver`-type (3 tenant-vragen, geseed): ja/ja/nee maakt de set
+    compleet mét één open blokkade ⇒ lifecycle → geblokkeerd, dus de laatste score-write
+    raakt score + blokkade + component_profiel in één transactie."""
+    from models.models import AuditLog, ChecklistVraag
+    from schemas.checklistscore import ChecklistscoreCreate
+    from schemas.component import ComponentCreate
+    from services import checklistscore_service, component_service, lifecycle_service
+
+    naam = f"AUDIT-SRV-{uuid.uuid4().hex[:8]}"
+
+    async def _run():
+        async with _worker(DEV_TENANT) as s:
+            comp = await component_service.maak_aan(
+                s, DEV_TENANT,
+                ComponentCreate(naam=naam, componenttype="applicatieserver",
+                                hostingmodel="on_premise", eigenaar_organisatie="ICT-beheer"),
+            )
+            comp_id = comp["id"]
+            await lifecycle_service.start_beoordeling(s, DEV_TENANT, comp_id)
+            await s.commit()
+            vraag_ids = [
+                r for (r,) in (await s.execute(
+                    select(ChecklistVraag.id)
+                    .where(ChecklistVraag.componenttype == "applicatieserver")
+                    .order_by(ChecklistVraag.code)
+                )).all()
+            ]
+        async with _worker(DEV_TENANT) as s:
+            corr = tc.huidige_correlatie_id()
+            for vid, score in zip(vraag_ids, ("ja", "ja", "nee")):
+                await checklistscore_service.maak_aan(
+                    s, DEV_TENANT,
+                    ChecklistscoreCreate(component_id=comp_id, checklistvraag_id=vid, score=score),
+                )
+            rows = (await s.execute(
+                select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
+                .order_by(AuditLog.tijdstip)
+            )).scalars().all()
+        async with _worker(DEV_TENANT) as s:
+            await s.execute(text("DELETE FROM component WHERE id = :i"), {"i": str(comp_id)})
+            await s.commit()
+        return rows
+
+    rows = asyncio.run(_run())
+    per_type: dict = {}
+    for r in rows:
+        per_type.setdefault(r.entiteit_type, set()).add(r.actie)
+    assert "create" in per_type["checklistscore"]
+    assert per_type["blokkade"] == {"derive"}
+    assert per_type["component_profiel"] == {"derive"}
+    assert len({r.correlatie_id for r in rows}) == 1
+    assert {r.actor_sub for r in rows} == {"system:dev_seed"}
+
+
+@live
+def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
+    """v3-splitsing: een zelfstandige handmatige blokkade-wissel (open→in_behandeling)
+    zónder score-driver in dezelfde transactie ⇒ actie=`update` (geen `derive`)."""
+    from models.models import AuditLog, Blokkade, BlokkadeStatus, ChecklistVraag
+    from schemas.applicatie import ApplicatieCreate
+    from schemas.blokkade import BlokkadeUpdate
+    from schemas.checklistscore import ChecklistscoreCreate
+    from services import applicatie_service, blokkade_service, checklistscore_service
+
+    naam = f"AUDIT-BLK-{uuid.uuid4().hex[:8]}"
+
+    async def _run():
+        async with _worker(DEV_TENANT) as s:
+            app = await applicatie_service.maak_aan(
+                s, DEV_TENANT,
+                ApplicatieCreate(naam=naam, hostingmodel="saas", eigenaar_organisatie="ICT",
+                                 migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
+            )
+            app_id = app.id
+            await applicatie_service.start_inventarisatie(s, DEV_TENANT, app_id)
+            vraag_id = (await s.execute(
+                select(ChecklistVraag.id).where(ChecklistVraag.componenttype == "applicatie").limit(1)
+            )).scalar_one()
+        async with _worker(DEV_TENANT) as s:
+            await checklistscore_service.maak_aan(
+                s, DEV_TENANT,
+                ChecklistscoreCreate(component_id=app_id, checklistvraag_id=vraag_id, score="nee"),
+            )
+            blok_id = (await s.execute(
+                select(Blokkade.id).where(Blokkade.component_id == app_id)
+            )).scalar_one()
+        async with _worker(DEV_TENANT) as s:
+            corr = tc.huidige_correlatie_id()
+            await blokkade_service.werk_bij(
+                s, DEV_TENANT, blok_id, BlokkadeUpdate(status=BlokkadeStatus.in_behandeling)
+            )
+            rows = (await s.execute(
+                select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr),
+                                       AuditLog.entiteit_type == "blokkade")
+            )).scalars().all()
+        async with _worker(DEV_TENANT) as s:
+            await s.execute(text("DELETE FROM component WHERE id = :i"), {"i": str(app_id)})
+            await s.commit()
+        return rows
+
+    rows = asyncio.run(_run())
+    assert len(rows) == 1
+    assert rows[0].actie == "update"  # handmatig, geen derive
+    assert rows[0].wijziging and "status" in rows[0].wijziging
+
+
+@live
+def test_rls_isolatie_auditlog():
+    """Tenant B ziet de audit-rijen van tenant A niet."""
+    from models.models import AuditLog, Leverancier
+
+    naam = f"AUDIT-RLS-{uuid.uuid4().hex[:8]}"
+
+    async def _run():
+        async with _worker(DEV_TENANT) as s:
+            s.add(Leverancier(tenant_id=uuid.UUID(DEV_TENANT), naam=naam))
+            await s.commit()
+        async with _worker(TENANT_B) as s:
+            n_b = (await s.execute(
+                select(AuditLog).where(AuditLog.entiteit_type == "leverancier",
+                                       AuditLog.wijziging["naam"]["nieuw"].astext == naam)
+            )).scalars().all()
+        async with _worker(DEV_TENANT) as s:
+            n_a = (await s.execute(
+                select(AuditLog).where(AuditLog.entiteit_type == "leverancier",
+                                       AuditLog.wijziging["naam"]["nieuw"].astext == naam)
+            )).scalars().all()
+            await s.execute(text("DELETE FROM leverancier WHERE naam = :n"), {"n": naam})
+            await s.commit()
+        return len(n_b), len(n_a)
+
+    n_b, n_a = asyncio.run(_run())
+    assert n_b == 0 and n_a >= 1
+
+
+@live
+def test_append_only_grant_en_trigger_weigeren_mutatie():
+    """cd_app mag audit_log niet UPDATE/DELETE/TRUNCATE (grant) en de trigger blokkeert
+    UPDATE/DELETE bovendien — alle werpen een fout."""
+    async def _probeer(sql):
+        async with _worker(DEV_TENANT) as s:
+            await s.execute(text(sql))
+            await s.commit()
+
+    for sql in ("UPDATE audit_log SET actor_sub = 'x'",
+                "DELETE FROM audit_log",
+                "TRUNCATE audit_log"):
+        with pytest.raises(Exception):
+            asyncio.run(_probeer(sql))
+
+
+@live
+def test_keten_verifieert_over_echte_rijen():
+    """De per-tenant keten (op tijdstip-volgorde) verifieert intact via verifieer_keten."""
+    from models.models import AuditLog
+
+    async def _run():
+        async with _worker(DEV_TENANT) as s:
+            rows = (await s.execute(
+                select(AuditLog).order_by(AuditLog.tijdstip, AuditLog.id)
+            )).scalars().all()
+            return [
+                {
+                    "tijdstip": r.tijdstip, "actor_sub": r.actor_sub,
+                    "actor_email": r.actor_email, "entiteit_type": r.entiteit_type,
+                    "entiteit_id": r.entiteit_id, "actie": r.actie,
+                    "wijziging": r.wijziging, "correlatie_id": r.correlatie_id,
+                    "tenant_id": r.tenant_id, "record_hash": r.record_hash,
+                    "vorige_hash": r.vorige_hash,
+                }
+                for r in rows
+            ]
+
+    records = asyncio.run(_run())
+    if not records:
+        pytest.skip("geen audit-rijen aanwezig")
+    ok, idx = verifieer_keten(records)
+    assert ok is True, f"ketenbreuk bij index {idx}"
+
+
+@live
+def test_gelijktijdige_appends_blijven_lineair_geen_fork():
+    """v4: meerdere gelijktijdige audit-appends binnen één tenant serialiseren via de
+    per-tenant advisory lock tot een LINEAIRE keten — geen twee records ankeren op
+    dezelfde voorganger (geen fork); de keten blijft groen verifiëren."""
+    from models.models import AuditLog, Leverancier
+
+    prefix = f"AUDIT-CONC-{uuid.uuid4().hex[:8]}"
+    K = 5
+
+    async def _een(i):
+        async with _worker(DEV_TENANT) as s:
+            s.add(Leverancier(tenant_id=uuid.UUID(DEV_TENANT), naam=f"{prefix}-{i}"))
+            await s.commit()
+
+    async def _run():
+        await asyncio.gather(*[_een(i) for i in range(K)])
+        async with _worker(DEV_TENANT) as s:
+            batch = (await s.execute(
+                select(AuditLog).where(
+                    AuditLog.entiteit_type == "leverancier",
+                    AuditLog.wijziging["naam"]["nieuw"].astext.like(prefix + "%"),
+                )
+            )).scalars().all()
+            keten = (await s.execute(
+                select(AuditLog).order_by(AuditLog.tijdstip, AuditLog.id)
+            )).scalars().all()
+            await s.execute(
+                text("DELETE FROM leverancier WHERE naam LIKE :p"), {"p": prefix + "%"}
+            )
+            await s.commit()
+            return batch, keten
+
+    batch, keten = asyncio.run(_run())
+    assert len(batch) == K
+    # Geen fork: alle voorganger-verwijzingen zijn uniek (geen twee records op dezelfde
+    # `vorige_hash`).
+    vorige = [r.vorige_hash for r in batch]
+    assert len(set(vorige)) == K, f"fork gedetecteerd: dubbele vorige_hash in {vorige}"
+    # De batch vormt een aaneengesloten lineaire schakel: op één na verwijst elk
+    # batch-record naar het record_hash van een ander batch-record.
+    batch_hashes = {r.record_hash for r in batch}
+    intern_gelinkt = sum(1 for r in batch if r.vorige_hash in batch_hashes)
+    assert intern_gelinkt == K - 1
+    # Volledige tenant-keten blijft intact.
+    records = [
+        {
+            "tijdstip": r.tijdstip, "actor_sub": r.actor_sub, "actor_email": r.actor_email,
+            "entiteit_type": r.entiteit_type, "entiteit_id": r.entiteit_id, "actie": r.actie,
+            "wijziging": r.wijziging, "correlatie_id": r.correlatie_id, "tenant_id": r.tenant_id,
+            "record_hash": r.record_hash, "vorige_hash": r.vorige_hash,
+        }
+        for r in keten
+    ]
+    ok, idx = verifieer_keten(records)
+    assert ok is True, f"ketenbreuk bij index {idx}"
+
+
+@live
+def test_platform_mutatie_naar_platform_audit_log_met_string_id():
+    """Een ORM-mutatie op de platform-catalogus (int-PK) → platform_audit_log met
+    `entiteit_id` als string."""
+    from app.models.platform import PlatformAuditLog
+    from models.models import ComponentConfigOptie
+
+    async def _run():
+        async with _platform("system:platform_init") as s:
+            optie = (await s.execute(select(ComponentConfigOptie).limit(1))).scalar_one()
+            optie_id = optie.id
+            oud_label = optie.label
+            optie.label = oud_label + " (audit-test)"
+            await s.commit()
+            optie.label = oud_label  # terugzetten (tweede audit-rij)
+            await s.commit()
+            rows = (await s.execute(
+                select(PlatformAuditLog).where(
+                    PlatformAuditLog.entiteit_type == "componentconfig_optie",
+                    PlatformAuditLog.entiteit_id == str(optie_id),
+                )
+            )).scalars().all()
+            return rows, optie_id
+
+    rows, optie_id = asyncio.run(_run())
+    assert len(rows) >= 1
+    assert rows[0].entiteit_id == str(optie_id)  # text, niet uuid
+    assert rows[0].actor_sub == "system:platform_init"

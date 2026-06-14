@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.tenant_context import (
     huidige_tenant_id,
+    reset_audit_context,
     reset_tenant_context,
+    zet_audit_context,
     zet_tenant_context,
 )
 
@@ -66,14 +68,16 @@ async def get_session(tenant_id: str):
 
 
 @asynccontextmanager
-async def get_worker_session(tenant_id: uuid.UUID):
+async def get_worker_session(tenant_id: uuid.UUID, actor_sub: str = "system:worker"):
     """AsyncSession met RLS-context voor achtergrond-workers/seed.
 
     Verse sessie per event; de tenant-context staat in de ContextVar en wordt per
     transactie (transactie-lokaal) door de after_begin-hook toegepast — geen lek tussen
-    tenants.
+    tenants. ADR-006: een vaste systeem-actor (`actor_sub`) + correlatie-id voor het
+    audit-spoor van seed-/workermutaties.
     """
     token = zet_tenant_context(tenant_id)
+    audit_tokens = zet_audit_context(actor_sub)
     try:
         async with async_session_factory() as session:
             _markeer_rls(session)
@@ -83,6 +87,7 @@ async def get_worker_session(tenant_id: uuid.UUID):
                 await session.rollback()
                 raise
     finally:
+        reset_audit_context(audit_tokens)
         reset_tenant_context(token)
 
 
@@ -91,3 +96,8 @@ async def get_platform_db_session():
     """AsyncSession zonder RLS-context — alleen voor platform-brede queries."""
     async with async_session_factory() as session:
         yield session
+
+
+# ADR-006: importeren registreert de audit-capture-hook (before_flush/after_flush)
+# op de gedeelde Session — naast de after_begin-tenant-hook hierboven.
+from app.core import audit  # noqa: E402,F401
