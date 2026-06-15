@@ -61,6 +61,31 @@ async def valideer_sleutel(
     )
 
 
+async def archimate_typing(session: AsyncSession) -> dict[str, dict[str, str | None]]:
+    """ADR-023 Fase C — per `componenttype` de ArchiMate-typing (element/laag/aspect)
+    uit de catalogus. ALLE opties (incl. inactieve) zodat historische component-rijen
+    resolvebaar blijven. Read-only projectie (geen schemawijziging); voedt het
+    laag-label + laag-filter van de componentlijst."""
+    rijen = (
+        await session.execute(
+            select(
+                ComponentConfigOptie.optie_sleutel,
+                ComponentConfigOptie.archimate_element,
+                ComponentConfigOptie.laag,
+                ComponentConfigOptie.aspect,
+            ).where(ComponentConfigOptie.dimensie == ComponentConfigDimensie.componenttype)
+        )
+    ).all()
+    return {
+        r.optie_sleutel: {
+            "archimate_element": r.archimate_element,
+            "laag": r.laag,
+            "aspect": r.aspect,
+        }
+        for r in rijen
+    }
+
+
 async def kenmerk_definitie(session: AsyncSession, relatietype: str) -> dict:
     """ADR-023 OK-2 — de kenmerk-property-definities van een ArchiMate-relatietype
     (dim `archimate_relatie`). Onbekend type ⇒ leeg (geen toegestane kenmerken)."""
@@ -92,6 +117,8 @@ async def actieve_opties_per_dimensie(session: AsyncSession) -> dict[str, list[d
                 ComponentConfigOptie.label,
                 ComponentConfigOptie.volgorde,
                 ComponentConfigOptie.checklist_dragend,
+                ComponentConfigOptie.archimate_element,
+                ComponentConfigOptie.laag,
             )
             .where(ComponentConfigOptie.actief.is_(True))
             .order_by(
@@ -105,7 +132,13 @@ async def actieve_opties_per_dimensie(session: AsyncSession) -> dict[str, list[d
     for r in rijen:
         dim = r.dimensie.value if hasattr(r.dimensie, "value") else str(r.dimensie)
         # ADR-022 Fase E: `checklist_dragend` meeleveren (alleen zinvol voor componenttype).
+        # ADR-023 Fase C: ArchiMate-laag/-element meeleveren (read-only typing-projectie; voor
+        # het laag-filter + laag-label in de componentlijst). Null voor andere dimensies.
         uit[dim].append(
-            {"optie_sleutel": r.optie_sleutel, "label": r.label, "checklist_dragend": r.checklist_dragend}
+            {
+                "optie_sleutel": r.optie_sleutel, "label": r.label,
+                "checklist_dragend": r.checklist_dragend,
+                "archimate_element": r.archimate_element, "laag": r.laag,
+            }
         )
     return uit

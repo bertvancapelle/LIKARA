@@ -16,7 +16,15 @@ import { Button, Column, DataTable, Tag } from '@/primevue'
 import { useRoute } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { HOSTINGMODEL, LIFECYCLE, LIFECYCLE_SEVERITY, NIVEAU, label } from '../labels'
+import {
+  ARCHIMATE_ELEMENT,
+  ARCHIMATE_LAAG,
+  HOSTINGMODEL,
+  LIFECYCLE,
+  LIFECYCLE_SEVERITY,
+  NIVEAU,
+  label,
+} from '../labels'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -31,16 +39,26 @@ const eersteGeladen = ref(false)
 // Filters — gespiegeld aan de Applicaties-lijst (CD017), AND-gecombineerd.
 const STATUS_OPTIES = ['concept', 'in_inventarisatie', 'geblokkeerd', 'migratieklaar']
 const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
-const typeOpties = ref([]) // [{ optie_sleutel, label }]
+const typeOpties = ref([]) // [{ optie_sleutel, label, laag, archimate_element }]
 const filterStatus = ref([])
 const filterType = ref('') // '' = alle; kan via ?type= worden voorgezet
+const filterLaag = ref('') // ADR-023 Fase C: '' = alle ArchiMate-lagen
 const filterHosting = ref('')
 const filterEigenaar = ref('')
 const filterZoek = ref('')
+// ArchiMate-laag-filteropties afgeleid uit de catalogus-typing (distinct lagen).
+const laagOpties = computed(() => {
+  const seen = new Map()
+  for (const o of typeOpties.value) {
+    if (o.laag && !seen.has(o.laag)) seen.set(o.laag, label(ARCHIMATE_LAAG, o.laag))
+  }
+  return [...seen.entries()].map(([waarde, tekst]) => ({ waarde, label: tekst }))
+})
 const heeftFilters = computed(
   () =>
     filterStatus.value.length > 0 ||
     !!filterType.value ||
+    !!filterLaag.value ||
     !!filterHosting.value ||
     !!filterEigenaar.value.trim() ||
     !!filterZoek.value.trim(),
@@ -53,6 +71,7 @@ async function laad({ reset = false } = {}) {
     const params = { limit: 25, after: reset ? undefined : cursor.value }
     if (filterStatus.value.length) params.status = filterStatus.value
     if (filterType.value) params.componenttype = filterType.value
+    if (filterLaag.value) params.laag = filterLaag.value
     if (filterHosting.value) params.hostingmodel = filterHosting.value
     if (filterEigenaar.value.trim()) params.eigenaar = filterEigenaar.value.trim()
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
@@ -79,6 +98,7 @@ function herfilterDebounced() {
 function wisFilters() {
   filterStatus.value = []
   filterType.value = ''
+  filterLaag.value = ''
   filterHosting.value = ''
   filterEigenaar.value = ''
   filterZoek.value = ''
@@ -93,6 +113,8 @@ function rijRoute(rij) {
 
 const hosting = (c) => label(HOSTINGMODEL, c)
 const niveau = (c) => (c ? label(NIVEAU, c) : '—')
+const laagLabel = (c) => (c ? label(ARCHIMATE_LAAG, c) : '—')
+const elementLabel = (c) => (c ? label(ARCHIMATE_ELEMENT, c) : '')
 const lifecycleLabel = (c) => label(LIFECYCLE, c)
 const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'
 
@@ -159,6 +181,20 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="o in typeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Laag</span>
+        <select
+          v-model="filterLaag"
+          data-testid="filter-laag"
+          aria-label="Filter op ArchiMate-laag"
+          class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="o in laagOpties" :key="o.waarde" :value="o.waarde">{{ o.label }}</option>
         </select>
       </label>
 
@@ -243,6 +279,17 @@ onMounted(async () => {
       <Column header="Type">
         <template #body="{ data }">
           <Tag :value="data.componenttype_label" :severity="data.heeft_applicatie_subtype ? 'info' : 'secondary'" />
+        </template>
+      </Column>
+      <Column header="Laag">
+        <template #body="{ data }">
+          <span data-testid="rij-laag">{{ laagLabel(data.laag) }}</span>
+          <span
+            v-if="elementLabel(data.archimate_element)"
+            class="block text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]"
+          >
+            {{ elementLabel(data.archimate_element) }}
+          </span>
         </template>
       </Column>
       <Column header="Eigenaar">

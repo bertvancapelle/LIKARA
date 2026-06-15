@@ -55,6 +55,26 @@ export const LIFECYCLE_SEVERITY = {
   migratieklaar: 'success',
 }
 
+// ── ADR-023 ArchiMate-typing (componentcatalogus) ────────────────────────────
+
+// Laag-label voor de componentlijst/-detail (read-only typing uit de catalogus).
+export const ARCHIMATE_LAAG = {
+  business: 'Business',
+  application: 'Applicatie',
+  technology: 'Technologie',
+  implementation_migration: 'Implementatie & migratie',
+}
+
+// Element-label (verfijning binnen de laag). Een onbekende waarde valt via de
+// humanize-fallback netjes terug (geen lege cel).
+export const ARCHIMATE_ELEMENT = {
+  application_component: 'Applicatiecomponent',
+  system_software: 'Systeemsoftware',
+  node: 'Node',
+  data_object: 'Data-object',
+  business_actor: 'Business actor',
+}
+
 // ── Child-entiteiten ─────────────────────────────────────────────────────────
 
 export const DATATYPE_CATEGORIE = {

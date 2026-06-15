@@ -1,4 +1,8 @@
-/** Tests — StructuurSectie (de Opbouw-laag; ADR-021 Fase D, CD054b). */
+/** Tests — StructuurSectie (de Opbouw-laag; ADR-021 Fase D / ADR-023 Fase C).
+ *
+ * Draait-op-relaties worden sinds de ADR-023-cutover via het unified relatiemodel
+ * (`api.relaties`, assignment host→gehoste) gelegd — niet meer via de vervallen
+ * `component-structuren`-CRUD. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -8,8 +12,8 @@ import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
   api: {
-    componenten: { lijst: vi.fn(), structuur: vi.fn(), opties: vi.fn() },
-    componentStructuren: { maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
+    componenten: { lijst: vi.fn(), structuur: vi.fn() },
+    relaties: { maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
   },
 }))
 
@@ -52,13 +56,15 @@ async function kiesZoek(w, prefix, id) {
   await flushPromises()
 }
 
+// ADR-023: de structuurgraaf wordt afgeleid uit assignment-relaties; `structuur_id`
+// is de relatie-id (waarop werkBij/verwijder via `api.relaties` werken).
 const _draaitOp = () => ({
   structuur_id: 's-1',
   component_id: 'db-1',
   naam: 'Oracle FIN-DB',
   componenttype: 'database',
-  relatietype: 'draait_op',
-  relatietype_label: 'Draait op',
+  relatietype: 'assignment',
+  relatietype_label: 'Assignment',
   omschrijving: null,
 })
 const _gebruiktDoor = () => ({
@@ -66,18 +72,14 @@ const _gebruiktDoor = () => ({
   component_id: 'app-9',
   naam: 'Belastingsysteem',
   componenttype: 'applicatie',
-  relatietype: 'draait_op',
-  relatietype_label: 'Draait op',
+  relatietype: 'assignment',
+  relatietype_label: 'Assignment',
   omschrijving: null,
 })
 
 beforeEach(() => {
   vi.clearAllMocks()
   api.componenten.structuur.mockResolvedValue({ draait_op: [], gebruikt_door: [] })
-  api.componenten.opties.mockResolvedValue({
-    componenttype: [],
-    structuurrelatie_type: [{ optie_sleutel: 'draait_op', label: 'Draait op' }],
-  })
   api.componenten.lijst.mockResolvedValue({
     items: [{ id: 'db-1', naam: 'Oracle FIN-DB' }],
     volgende_cursor: null,
@@ -89,7 +91,7 @@ afterEach(() => {
 })
 
 describe('StructuurSectie', () => {
-  it('rendert beide richtingen met labels; subtype-buur linkt naar ApplicatieDetail', async () => {
+  it('rendert beide richtingen; subtype-buur linkt naar ApplicatieDetail, infra naar ComponentDetail', async () => {
     api.componenten.structuur.mockResolvedValueOnce({
       draait_op: [_draaitOp()],
       gebruikt_door: [_gebruiktDoor()],
@@ -98,7 +100,6 @@ describe('StructuurSectie', () => {
 
     const draait = w.find('[data-testid="st-tabel-draait-op"]')
     expect(draait.text()).toContain('Oracle FIN-DB')
-    expect(draait.text()).toContain('Draait op')
 
     const gebruikt = w.find('[data-testid="st-tabel-gebruikt-door"]')
     expect(gebruikt.text()).toContain('Belastingsysteem')
@@ -111,56 +112,52 @@ describe('StructuurSectie', () => {
     expect(dbLink.attributes('href')).toContain('/componenten/db-1')
   })
 
-  it('toevoegen: ZoekSelect-doel + verplicht relatietype → componentStructuren.maak', async () => {
-    api.componentStructuren.maak.mockResolvedValueOnce({})
+  it('toevoegen: ZoekSelect-doel → relaties.maak (assignment, host→gehoste = bron→doel)', async () => {
+    api.relaties.maak.mockResolvedValueOnce({})
     const w = await mountSectie()
 
     await w.find('[data-testid="st-toevoegen"]').trigger('click')
     await flushPromises()
     await kiesZoek(w, 'st-veld-doel', 'db-1')
-    await w.find('[data-testid="st-veld-relatietype"]').setValue('draait_op')
     await w.find('[data-testid="st-form"]').trigger('submit')
     await flushPromises()
 
-    expect(api.componentStructuren.maak).toHaveBeenCalledWith({
-      component_id: COMP,
-      op_component_id: 'db-1',
-      relatietype: 'draait_op',
+    // "Dit component draait op db-1": bron = de gekozen host (db-1), doel = dit component.
+    expect(api.relaties.maak).toHaveBeenCalledWith({
+      bron_id: 'db-1',
+      doel_id: COMP,
+      relatietype: 'assignment',
       omschrijving: null,
     })
   })
 
-  it('toevoegen zonder relatietype valideert client-side (geen API-call)', async () => {
+  it('toevoegen zonder doel valideert client-side (geen API-call)', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="st-toevoegen"]').trigger('click')
     await flushPromises()
-    await kiesZoek(w, 'st-veld-doel', 'db-1')
     await w.find('[data-testid="st-form"]').trigger('submit')
     await flushPromises()
-    expect(api.componentStructuren.maak).not.toHaveBeenCalled()
-    expect(w.find('[data-testid="st-fout-relatietype"]').exists()).toBe(true)
+    expect(api.relaties.maak).not.toHaveBeenCalled()
+    expect(w.find('[data-testid="st-fout-doel"]').exists()).toBe(true)
   })
 
-  it('wijzigen: alleen relatietype/omschrijving → componentStructuren.werkBij', async () => {
+  it('wijzigen: alleen omschrijving → relaties.werkBij (endpoints/relatietype immutabel)', async () => {
     api.componenten.structuur.mockResolvedValueOnce({ draait_op: [_draaitOp()], gebruikt_door: [] })
-    api.componentStructuren.werkBij.mockResolvedValueOnce({})
+    api.relaties.werkBij.mockResolvedValueOnce({})
     const w = await mountSectie()
 
     await w.find('[data-testid="st-bewerk-s-1"]').trigger('click')
     await flushPromises()
-    await w.find('[data-testid="st-veld-relatietype"]').setValue('draait_op')
+    await w.find('[data-testid="st-veld-omschrijving"]').setValue('Gedeelde database')
     await w.find('[data-testid="st-form"]').trigger('submit')
     await flushPromises()
 
-    expect(api.componentStructuren.werkBij).toHaveBeenCalledWith('s-1', {
-      relatietype: 'draait_op',
-      omschrijving: null,
-    })
+    expect(api.relaties.werkBij).toHaveBeenCalledWith('s-1', { omschrijving: 'Gedeelde database' })
   })
 
-  it('ontkoppelen via bevestigingsdialog → componentStructuren.verwijder', async () => {
+  it('ontkoppelen via bevestigingsdialog → relaties.verwijder', async () => {
     api.componenten.structuur.mockResolvedValueOnce({ draait_op: [_draaitOp()], gebruikt_door: [] })
-    api.componentStructuren.verwijder.mockResolvedValueOnce({})
+    api.relaties.verwijder.mockResolvedValueOnce({})
     const w = await mountSectie()
 
     await w.find('[data-testid="st-ontkoppel-s-1"]').trigger('click')
@@ -168,28 +165,26 @@ describe('StructuurSectie', () => {
     await w.find('[data-testid="st-ontkoppel-bevestig"]').trigger('click')
     await flushPromises()
 
-    expect(api.componentStructuren.verwijder).toHaveBeenCalledWith('s-1')
+    expect(api.relaties.verwijder).toHaveBeenCalledWith('s-1')
   })
 
   it.each([
     ['ZELFVERWIJZING', 422],
     ['RELATIE_BESTAAT', 409],
-    ['ONGELDIGE_OPTIE', 422],
   ])('foutpad %s wordt afgevangen (geen sectie-refetch)', async (code, status) => {
-    api.componentStructuren.maak.mockRejectedValueOnce({ status, code, message: 'fout' })
+    api.relaties.maak.mockRejectedValueOnce({ status, code, message: 'fout' })
     const w = await mountSectie()
     const refetchVoor = api.componenten.structuur.mock.calls.length
 
     await w.find('[data-testid="st-toevoegen"]').trigger('click')
     await flushPromises()
     await kiesZoek(w, 'st-veld-doel', 'db-1')
-    await w.find('[data-testid="st-veld-relatietype"]').setValue('draait_op')
     await w.find('[data-testid="st-form"]').trigger('submit')
     await flushPromises()
 
-    expect(api.componentStructuren.maak).toHaveBeenCalled()
-    // Mislukte mutatie → geen herlaad van de sectie (en sowieso nooit een engine-call,
-    // die de sectie niet importeert; de structuur voedt de engine niet, ADR-021).
+    expect(api.relaties.maak).toHaveBeenCalled()
+    // Mislukte mutatie → geen herlaad van de sectie (en nooit een engine-call; de
+    // structuur voedt de engine niet, ADR-021).
     expect(api.componenten.structuur.mock.calls.length).toBe(refetchVoor)
   })
 

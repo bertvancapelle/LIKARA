@@ -1,15 +1,19 @@
 <script setup>
 /**
- * StructuurSectie — de "Opbouw"-laag van één component (ADR-021 Besluit 6).
+ * StructuurSectie — de "Opbouw"-laag van één component (ADR-021 Besluit 6 / ADR-023 Fase C).
  *
- * Beide richtingen uit één endpoint (`api.componenten.structuur(id)`):
- *  - "Draait op": waar dit component op steunt (dit component is `component_id`).
- *  - "Gebruikt door": wie op dit component steunt (dit component is `op_component_id`).
- * Een relatie toevoegen maakt altijd "dit component draait op [doel]" (component_id =
- * dit component). Doel-component via ZoekSelect (CD049) op `api.componenten.lijst`;
- * relatietype uit de actieve `structuurrelatie_type`-catalogus. Subtype-buren (type
- * `applicatie`) navigeren naar ApplicatieDetail, overige naar ComponentDetail.
- * De structuur voedt de engine NIET (ADR-021) → mutaties verversen alleen de sectie.
+ * Beide richtingen uit één lees-endpoint (`api.componenten.structuur(id)`, afgeleide
+ * traversal over het unified relatiemodel):
+ *  - "Draait op": waar dit component op steunt (dit component = de gehoste).
+ *  - "Gebruikt door": wie op dit component steunt (dit component = de host).
+ * Toevoegen legt altijd "dit component draait op [doel]" als **assignment**-relatie
+ * (host→gehoste = bron→doel): bron = het gekozen doel (host), doel = dit component
+ * (gehoste). Geschreven via de bestaande `relatie`-API; relatietype (assignment) en
+ * richting vult de UI in — géén type-/laag-validatie (migratietool, geen EA-systeem;
+ * ADR-023 Fase C). Endpoints/relatietype zijn immutabel → bewerken wijzigt alleen de
+ * omschrijving. Doel-component via ZoekSelect (CD049) op `api.componenten.lijst`.
+ * Subtype-buren (type `applicatie`) navigeren naar ApplicatieDetail, overige naar
+ * ComponentDetail. De structuur voedt de engine NIET → mutaties verversen alleen de sectie.
  */
 import { computed, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/primevue'
@@ -23,20 +27,22 @@ const auth = useAuthStore()
 const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
+// ADR-023 Fase C: het draait-op-relatietype is vast (assignment) — de UI biedt geen keuze.
+const DRAAIT_OP_TYPE = 'assignment'
+
 const draaitOp = ref([])
 const gebruiktDoor = ref([])
 const laden = ref(false)
 const fout = ref(null)
 
 const zoekComponenten = (params) => api.componenten.lijst(params)
-const relatieOpties = ref([]) // [{ optie_sleutel, label }]
 const dialogOpen = ref(false)
 const bewerkenId = ref(null)
 const bezig = ref(false)
 const eersteVeld = ref(null)
 let laatsteTrigger = null
 
-const form = reactive({ op_component_id: '', relatietype: '', omschrijving: '' })
+const form = reactive({ op_component_id: '', omschrijving: '' })
 const fouten = reactive({})
 
 function _toastFout(e) {
@@ -63,15 +69,6 @@ async function laad() {
   }
 }
 
-async function _zorgRelatieOpties() {
-  if (relatieOpties.value.length) return
-  try {
-    relatieOpties.value = (await api.componenten.opties()).structuurrelatie_type || []
-  } catch (e) {
-    _toastFout(e)
-  }
-}
-
 // Buur-navigatie: subtype (type applicatie) → ApplicatieDetail; overige → ComponentDetail.
 function buurRoute(rij) {
   return rij.componenttype === 'applicatie'
@@ -80,25 +77,23 @@ function buurRoute(rij) {
 }
 
 function _reset() {
-  Object.assign(form, { op_component_id: '', relatietype: '', omschrijving: '' })
+  Object.assign(form, { op_component_id: '', omschrijving: '' })
   Object.keys(fouten).forEach((k) => delete fouten[k])
 }
 
-async function openNieuw(e) {
+function openNieuw(e) {
   laatsteTrigger = e?.currentTarget ?? null
   bewerkenId.value = null
-  await _zorgRelatieOpties()
   _reset()
   dialogOpen.value = true
 }
 
-async function openBewerken(e, rij) {
+function openBewerken(e, rij) {
   laatsteTrigger = e?.currentTarget ?? null
   bewerkenId.value = rij.structuur_id
-  await _zorgRelatieOpties()
   Object.keys(fouten).forEach((k) => delete fouten[k])
-  // Het doel-component is immutabel bij bewerken; alleen relatietype/omschrijving wijzigen.
-  Object.assign(form, { op_component_id: rij.component_id, relatietype: rij.relatietype, omschrijving: rij.omschrijving || '' })
+  // Endpoints + relatietype zijn immutabel (ADR-023): alleen de omschrijving is wijzigbaar.
+  Object.assign(form, { op_component_id: rij.component_id, omschrijving: rij.omschrijving || '' })
   dialogOpen.value = true
 }
 
@@ -112,7 +107,6 @@ function onHide() {
 function valideer() {
   Object.keys(fouten).forEach((k) => delete fouten[k])
   if (!bewerkenId.value && !form.op_component_id) fouten.op_component_id = 'Kies een component.'
-  if (!form.relatietype) fouten.relatietype = 'Kies een relatietype.'
   return Object.keys(fouten).length === 0
 }
 
@@ -121,15 +115,17 @@ async function opslaan() {
   bezig.value = true
   try {
     if (bewerkenId.value) {
-      await api.componentStructuren.werkBij(bewerkenId.value, {
-        relatietype: form.relatietype,
+      // Alleen de omschrijving is wijzigbaar (endpoints/relatietype immutabel, ADR-023).
+      await api.relaties.werkBij(bewerkenId.value, {
         omschrijving: form.omschrijving.trim() || null,
       })
     } else {
-      await api.componentStructuren.maak({
-        component_id: props.componentId, // dit component draait op het gekozen doel
-        op_component_id: form.op_component_id,
-        relatietype: form.relatietype,
+      // "Dit component draait op [doel]" → assignment, host→gehoste = bron→doel:
+      // bron = het gekozen doel (host), doel = dit component (gehoste).
+      await api.relaties.maak({
+        bron_id: form.op_component_id,
+        doel_id: props.componentId,
+        relatietype: DRAAIT_OP_TYPE,
         omschrijving: form.omschrijving.trim() || null,
       })
     }
@@ -153,7 +149,7 @@ function vraagVerwijder(e, rij) {
 async function bevestigVerwijder() {
   bezig.value = true
   try {
-    await api.componentStructuren.verwijder(teVerwijderen.value.structuur_id)
+    await api.relaties.verwijder(teVerwijderen.value.structuur_id)
     toast.add({ severity: 'success', summary: 'Ontkoppeld', life: 3000 })
     verwijderOpen.value = false
     await laad()
@@ -174,7 +170,7 @@ laad()
   <section class="card" aria-labelledby="sectie-opbouw">
     <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-sm)]">
       <h2 id="sectie-opbouw" class="text-[length:var(--cd-text-lg)] font-semibold">Opbouw</h2>
-      <Button v-if="mag" label="Relatie toevoegen" size="small" data-testid="st-toevoegen" class="ml-auto" @click="openNieuw" />
+      <Button v-if="mag" label="Draait-op toevoegen" size="small" data-testid="st-toevoegen" class="ml-auto" @click="openNieuw" />
     </div>
 
     <p v-if="fout" role="alert" data-testid="st-fout" class="text-[var(--cd-color-danger)] mb-[var(--cd-space-sm)]">{{ fout }}</p>
@@ -221,7 +217,7 @@ laad()
       <template #empty><span data-testid="st-leeg-gebruikt-door">Geen enkel component draait op dit component.</span></template>
     </DataTable>
 
-    <Dialog v-model:visible="dialogOpen" modal :closable="false" :header="bewerkenId ? 'Relatie bewerken' : 'Relatie toevoegen'" data-testid="st-dialog" @show="focusEerste" @hide="onHide">
+    <Dialog v-model:visible="dialogOpen" modal :closable="false" :header="bewerkenId ? 'Draait-op bewerken' : 'Draait-op toevoegen'" data-testid="st-dialog" @show="focusEerste" @hide="onHide">
       <form class="flex flex-col gap-[var(--cd-space-md)] min-w-[22rem]" data-testid="st-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--cd-space-xs)]">
           <label for="st-doel" class="font-semibold">Draait op (component) *</label>
@@ -236,14 +232,6 @@ laad()
             placeholder="Zoek een component…"
           />
           <span v-if="fouten.op_component_id" role="alert" data-testid="st-fout-doel" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.op_component_id }}</span>
-        </div>
-        <div class="flex flex-col gap-[var(--cd-space-xs)]">
-          <label for="st-relatietype" class="font-semibold">Relatietype *</label>
-          <select id="st-relatietype" v-model="form.relatietype" data-testid="st-veld-relatietype" :aria-invalid="!!fouten.relatietype" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
-            <option value="" disabled>— kies een relatietype —</option>
-            <option v-for="o in relatieOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
-          </select>
-          <span v-if="fouten.relatietype" role="alert" data-testid="st-fout-relatietype" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.relatietype }}</span>
         </div>
         <div class="flex flex-col gap-[var(--cd-space-xs)]">
           <label for="st-omschrijving" class="font-semibold">Omschrijving</label>

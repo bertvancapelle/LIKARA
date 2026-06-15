@@ -48,6 +48,7 @@ async def lijst_componenten(
     sort: ComponentSorteerveld = Query(ComponentSorteerveld.created_at),
     order: Sorteerrichting = Query(Sorteerrichting.asc),
     componenttype: str | None = Query(None, max_length=60),
+    laag: str | None = Query(None, max_length=40),
     status: list[ApplicatieStatusFilter] = Query(default=[]),
     hostingmodel: HostingModel | None = Query(None),
     eigenaar: str | None = Query(None, max_length=120),
@@ -58,7 +59,7 @@ async def lijst_componenten(
     try:
         items, volgende = await svc.lijst(
             session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value,
-            componenttype=componenttype, status=[s.value for s in status] or None,
+            componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
             hostingmodel=hostingmodel.value if hostingmodel else None, eigenaar=eigenaar, zoek=zoek,
         )
     except ValueError:

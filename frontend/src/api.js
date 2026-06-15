@@ -184,9 +184,11 @@ export const api = {
   componenten: {
     // Verenigde lijst (CD054b W1): besturingsfilters status/hostingmodel/eigenaar
     // naast componenttype + zoek. `status` is een array (herhaalde param).
-    lijst: ({ limit, after, sort, order, componenttype, status, hostingmodel, eigenaar, zoek } = {}) =>
+    // ADR-023 Fase C: `laag` (application/technology) filtert op ArchiMate-laag
+    // (read-only catalogus-typing) bovenop het type-filter.
+    lijst: ({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar, zoek } = {}) =>
       request(
-        `/componenten${_query({ limit, after, sort, order, componenttype, status, hostingmodel, eigenaar, zoek })}`,
+        `/componenten${_query({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar, zoek })}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),
@@ -204,11 +206,17 @@ export const api = {
     impact: (id) => request(`/componenten/${id}/impact`),
   },
 
-  componentStructuren: {
-    maak: (data) => request('/component-structuren', { method: 'POST', body: JSON.stringify(data) }),
-    werkBij: (id, data) =>
-      request(`/component-structuren/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    verwijder: (id) => request(`/component-structuren/${id}`, { method: 'DELETE' }),
+  // ADR-023 — unified getypeerd relatiemodel. Vervangt de in de cutover vervallen
+  // `component-structuren`-CRUD: structuurrelaties (assignment = draait-op, host→gehoste)
+  // worden hier gelegd. Endpoints/relatietype zijn immutabel → werkBij wijzigt alleen
+  // `omschrijving`/`kenmerken`.
+  relaties: {
+    lijst: ({ limit, after, bronId, doelId, relatietype } = {}) =>
+      request(`/relaties${_query({ limit, after, bron_id: bronId, doel_id: doelId, relatietype })}`),
+    haal: (id) => request(`/relaties/${id}`),
+    maak: (data) => request('/relaties', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) => request(`/relaties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/relaties/${id}`, { method: 'DELETE' }),
   },
 
   componentContracten: {

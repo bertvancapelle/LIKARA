@@ -198,11 +198,15 @@ async def haal_op(session: AsyncSession, tenant_id, component_id) -> Component:
 
 async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
+    # ADR-023 Fase C: ArchiMate-typing (laag/element) uit de catalogus — read-only projectie.
+    typing = (await catalog.archimate_typing(session)).get(obj.componenttype, {})
     return {
         "id": obj.id,
         "naam": obj.naam,
         "componenttype": obj.componenttype,
         "componenttype_label": catalog.resolveer_een(obj.componenttype, type_labels),
+        "archimate_element": typing.get("archimate_element"),
+        "laag": typing.get("laag"),
         "hostingmodel": obj.hostingmodel,
         "eigenaar_organisatie": obj.eigenaar_organisatie,
         "eigenaar_naam": obj.eigenaar_naam,
@@ -260,7 +264,7 @@ def _sorteer_waarde(comp: Component, app: Applicatie | None, lifecycle, sort: st
 async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
-    status: list[str] | None = None, hostingmodel: str | None = None,
+    laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
     eigenaar: str | None = None, zoek: str | None = None,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
@@ -291,8 +295,15 @@ async def lijst(
         .options(lazyload(Applicatie.profiel))
         .where(Component.tenant_id == tid)
     )
+    # ADR-023 Fase C: ArchiMate-typing voor het laag-filter (read-only) + per-rij projectie.
+    typing = await catalog.archimate_typing(session)
     if componenttype:
         stmt = stmt.where(Component.componenttype == componenttype)
+    if laag:
+        # Resolveer de laag naar de componenttypen die erin vallen (catalogus-typing) en
+        # filter daarop. Geen componenttype in deze laag ⇒ lege set ⇒ geen resultaten.
+        typen_in_laag = [t for t, info in typing.items() if info.get("laag") == laag]
+        stmt = stmt.where(Component.componenttype.in_(typen_in_laag))
     if status:
         stmt = stmt.where(ComponentProfiel.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
     if hostingmodel:
@@ -323,6 +334,8 @@ async def lijst(
         {
             "id": c.id, "naam": c.naam, "componenttype": c.componenttype,
             "componenttype_label": catalog.resolveer_een(c.componenttype, type_labels),
+            "archimate_element": typing.get(c.componenttype, {}).get("archimate_element"),
+            "laag": typing.get(c.componenttype, {}).get("laag"),
             "hostingmodel": c.hostingmodel,
             "heeft_applicatie_subtype": a is not None,
             "eigenaar_organisatie": c.eigenaar_organisatie,

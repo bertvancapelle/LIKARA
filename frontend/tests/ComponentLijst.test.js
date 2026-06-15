@@ -44,6 +44,9 @@ const _comp = (naam, id, { type = 'database', label = 'Database', subtype = fals
   naam,
   componenttype: type,
   componenttype_label: label,
+  // ADR-023 Fase C: ArchiMate-typing-projectie (laag/element) uit de catalogus.
+  archimate_element: subtype ? 'application_component' : 'system_software',
+  laag: subtype ? 'application' : 'technology',
   hostingmodel: 'on_premise',
   heeft_applicatie_subtype: subtype,
   // Besturingsvelden (CD054b W1) — gevuld voor subtypen, null voor kale infra.
@@ -57,8 +60,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.componenten.opties.mockResolvedValue({
     componenttype: [
-      { optie_sleutel: 'database', label: 'Database' },
-      { optie_sleutel: 'applicatie', label: 'Applicatie' },
+      { optie_sleutel: 'database', label: 'Database', laag: 'technology', archimate_element: 'system_software' },
+      { optie_sleutel: 'applicatie', label: 'Applicatie', laag: 'application', archimate_element: 'application_component' },
     ],
     structuurrelatie_type: [],
   })
@@ -107,6 +110,28 @@ describe('ComponentLijst', () => {
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ componenttype: 'database', after: undefined }),
     )
+  })
+
+  it('laag-filter (ADR-023 Fase C) stuurt laag mee en reset de cursor', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    // Het laag-filter wordt uit de catalogus-typing afgeleid (application/technology).
+    await w.find('[data-testid="filter-laag"]').setValue('technology')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ laag: 'technology', after: undefined }),
+    )
+  })
+
+  it('toont per rij een ArchiMate-laag-label', async () => {
+    api.componenten.lijst.mockResolvedValueOnce({
+      items: [_comp('Oracle FIN-DB', 'db-1')],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="rij-laag"]').text()).toBe('Technologie')
+    // Het element-label staat als verfijning onder de laag.
+    expect(w.find('[data-testid="componenten-tabel"]').text()).toContain('Systeemsoftware')
   })
 
   it('zoekfilter (gedebounced) stuurt zoek mee', async () => {

@@ -68,14 +68,17 @@ def test_componentconfig_opties_groepering():
     session = AsyncMock()
     res = MagicMock()
     res.all.return_value = [
-        SimpleNamespace(dimensie=D.componenttype, optie_sleutel="database", label="Database", volgorde=1, checklist_dragend=False),
-        SimpleNamespace(dimensie=D.structuurrelatie_type, optie_sleutel="draait_op", label="Draait op", volgorde=0, checklist_dragend=False),
+        SimpleNamespace(dimensie=D.componenttype, optie_sleutel="database", label="Database", volgorde=1, checklist_dragend=False, archimate_element="system_software", laag="technology"),
+        SimpleNamespace(dimensie=D.structuurrelatie_type, optie_sleutel="draait_op", label="Draait op", volgorde=0, checklist_dragend=False, archimate_element=None, laag=None),
     ]
     session.execute.return_value = res
     out = asyncio.run(catalog.actieve_opties_per_dimensie(session))
     assert set(out) == {d.value for d in D}
-    # ADR-022 Fase E: opties dragen nu `checklist_dragend` mee.
-    assert out["componenttype"][0] == {"optie_sleutel": "database", "label": "Database", "checklist_dragend": False}
+    # ADR-022 Fase E: opties dragen `checklist_dragend` mee; ADR-023 Fase C: laag/element.
+    assert out["componenttype"][0] == {
+        "optie_sleutel": "database", "label": "Database", "checklist_dragend": False,
+        "archimate_element": "system_software", "laag": "technology",
+    }
     assert out["structuurrelatie_type"][0]["label"] == "Draait op"
 
 
@@ -191,6 +194,27 @@ def test_lijst_levert_besturingsvelden_en_statusfilter():
     # profiel ⇒ lifecycle), niet langer uitsluitend applicatie-subtypen. Invariant: alle
     # gefilterde rijen hebben een lifecycle_status (kale infra zonder profiel valt eruit).
     assert gefilterd and all(i["lifecycle_status"] is not None for i in gefilterd)
+
+
+@integratie
+def test_lijst_laag_filter_en_projectie():
+    # ADR-023 Fase C: het laag-filter (read-only catalogus-typing) levert alleen de
+    # technologielaag-componenten; elke rij draagt de laag/element-projectie.
+    from services import component_service as svc
+
+    async def _flow(s):
+        tech, _ = await svc.lijst(s, _TID, limit=200, laag="technology")
+        alle, _ = await svc.lijst(s, _TID, limit=200)
+        return tech, {i["naam"]: i for i in alle}
+
+    tech, per_naam = asyncio.run(_sessie_run(_flow))
+    namen = {i["naam"] for i in tech}
+    assert "Oracle FIN-DB" in namen            # database = technologielaag
+    assert "Belastingsysteem" not in namen     # applicatie = applicatielaag (uitgefilterd)
+    assert tech and all(i["laag"] == "technology" for i in tech)
+    # Projectie aanwezig in de ongefilterde lijst (beide lagen).
+    assert per_naam["Belastingsysteem"]["laag"] == "application"
+    assert per_naam["Oracle FIN-DB"]["archimate_element"] == "system_software"
 
 
 @integratie

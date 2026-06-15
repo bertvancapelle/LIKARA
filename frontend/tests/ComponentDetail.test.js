@@ -16,7 +16,7 @@ vi.mock('@/api', () => ({
       verwijder: vi.fn(),
       startBeoordeling: vi.fn(),
     },
-    componentStructuren: { maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
+    relaties: { maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
     componentContracten: { maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
     contractconfig: { opties: vi.fn() },
     contracten: { lijst: vi.fn() },

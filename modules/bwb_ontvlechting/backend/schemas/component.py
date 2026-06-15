@@ -83,6 +83,10 @@ class ComponentRead(BaseModel):
     leverancier: str | None
     beschrijving: str | None
     heeft_applicatie_subtype: bool
+    # ADR-023 Fase C: ArchiMate-typing uit de catalogus (read-only projectie) — laag-label
+    # op het detail; null als het type geen mapping draagt.
+    archimate_element: str | None = None
+    laag: str | None = None
     # ADR-022 Fase E: of dit componenttype checklist-dragend is (UI toont dan de checklist).
     checklist_dragend: bool
     # ADR-022 Fase E: lifecycle uit het generieke profiel (null als geen profiel) —
@@ -112,6 +116,10 @@ class ComponentLijstItem(BaseModel):
     componenttype_label: str
     hostingmodel: HostingModel
     heeft_applicatie_subtype: bool
+    # ADR-023 Fase C: ArchiMate-typing uit de catalogus (read-only projectie) — laag-/
+    # element-label + laag-filter in de lijst; null als het type geen mapping draagt.
+    archimate_element: str | None = None
+    laag: str | None = None
     # Besturingsvelden uit het subtype (CD054b W1) — null voor niet-applicatie-typen.
     eigenaar_organisatie: str | None = None
     complexiteit: NiveauEnum | None = None
@@ -130,6 +138,10 @@ class ComponentKeuze(BaseModel):
     # ADR-022 Fase E: per componenttype of het checklist-dragend is (krijgt profiel +
     # checklist). Voor andere dimensies (structuurrelatie_type) altijd false.
     checklist_dragend: bool = False
+    # ADR-023 Fase C: ArchiMate-typing per componenttype (read-only) — voedt het
+    # laag-filter van de componentlijst. Null voor andere dimensies.
+    archimate_element: str | None = None
+    laag: str | None = None
 
 
 class ComponentOpties(BaseModel):
