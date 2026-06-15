@@ -8,7 +8,7 @@ componentcatalogus gevalideerd.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -19,17 +19,21 @@ from models.models import (
     Checklistscore,
     Component,
     ComponentConfigDimensie,
-    ComponentContract,
     ComponentProfiel,
-    ComponentStructuur,
     Datatype,
+    Element,
+    ElementType,
     Gebruikersgroep,
     HostingModel,
-    Koppeling,
     LifecycleStatus,
     Migratiepad,
     NiveauEnum,
+    Relatie,
 )
+
+# ADR-023 — structurele relaties leven nu in `Relatie`: `assignment` (draait_op,
+# oriëntatie host→gehoste = bron→doel) en `aggregation` (maakt_deel_uit_van, deel→geheel).
+_STRUCTUUR_TYPES = ("assignment", "aggregation")
 from schemas.component import ComponentCreate, ComponentUpdate
 from services import componentconfig_catalog as catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
@@ -116,14 +120,16 @@ async def _toestand_tellingen(
             Blokkade.tenant_id == tid, Blokkade.component_id == component_id
         )
     )
+    # ADR-023 slice 4: datatype/gebruikersgroep hangen nu via access/serving-relaties aan
+    # de applicatie (bron = dit component) i.p.v. een applicatie_id-kolom.
     datatypes = await _count(
-        select(func.count()).select_from(Datatype).where(
-            Datatype.tenant_id == tid, Datatype.applicatie_id == component_id
+        select(func.count()).select_from(Relatie).where(
+            Relatie.tenant_id == tid, Relatie.bron_id == component_id, Relatie.relatietype == "access"
         )
     )
     gebruikersgroepen = await _count(
-        select(func.count()).select_from(Gebruikersgroep).where(
-            Gebruikersgroep.tenant_id == tid, Gebruikersgroep.applicatie_id == component_id
+        select(func.count()).select_from(Relatie).where(
+            Relatie.tenant_id == tid, Relatie.bron_id == component_id, Relatie.relatietype == "serving"
         )
     )
     lc_stmt = select(ComponentProfiel.lifecycle_status).where(
@@ -353,8 +359,12 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
         )
         return await _lees(session, tid, obj.component)
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
+    # ADR-023: element-identiteit eerst (shared-PK), daarna de component met dezelfde id.
+    elem = Element(tenant_id=tid, element_type=ElementType.component)
+    session.add(elem)
+    await session.flush()
     obj = Component(
-        tenant_id=tid, naam=data.naam, componenttype=data.componenttype,
+        id=elem.id, tenant_id=tid, naam=data.naam, componenttype=data.componenttype,
         hostingmodel=data.hostingmodel,
         eigenaar_organisatie=data.eigenaar_organisatie or "",
         eigenaar_naam=data.eigenaar_naam, leverancier=data.leverancier,
@@ -435,44 +445,19 @@ async def verwijder(session: AsyncSession, tenant_id, component_id) -> None:
     await haal_op(session, tenant_id, component_id)
 
     if await _heeft_subtype(session, tid, component_id):
-        # Convergent (CD054b W1): een subtype verwijdert via het applicatie-delete-pad —
-        # eigen contracten/draait_op-structuur + engine-kinderen cascaden (bestaand gedrag).
-        # Alleen de RESTRICT-relatie blokkeert: iets anders draait OP deze applicatie
-        # (op_component_id) → 409 IN_GEBRUIK, vóór de DB-RESTRICT.
-        onderlegger = select(ComponentStructuur.id).where(
-            ComponentStructuur.tenant_id == tid, ComponentStructuur.op_component_id == component_id
-        )
-        if (await session.execute(onderlegger.limit(1))).scalar_one_or_none() is not None:
-            raise RegistratieConflict(
-                "IN_GEBRUIK", "Andere componenten draaien op deze applicatie; verwijderen niet toegestaan."
-            )
+        # Convergent (CD054b W1): een subtype verwijdert via het applicatie-delete-pad.
+        # ADR-023 B-mig-2 slice 2 (Besluit 13): structurele relaties (assignment/aggregation)
+        # blokkeren een delete NIET meer — ze cascaden via het element. Geen onderlegger-check.
         from services import applicatie_service
 
         await applicatie_service.verwijder(session, tenant_id, component_id)
         return
 
-    # Kaal component: relaties beschermen (409 IN_GEBRUIK) — koppelingen, structuurrelaties
-    # (beide richtingen), contract-koppelingen — vóór de DB CASCADE/RESTRICT.
-    checks = [
-        select(Koppeling.id).where(
-            Koppeling.tenant_id == tid,
-            or_(Koppeling.bron_applicatie_id == component_id, Koppeling.doel_applicatie_id == component_id),
-        ),
-        select(ComponentStructuur.id).where(
-            ComponentStructuur.tenant_id == tid,
-            or_(ComponentStructuur.component_id == component_id, ComponentStructuur.op_component_id == component_id),
-        ),
-        select(ComponentContract.id).where(
-            ComponentContract.tenant_id == tid, ComponentContract.component_id == component_id
-        ),
-    ]
-    for stmt in checks:
-        if (await session.execute(stmt.limit(1))).scalar_one_or_none() is not None:
-            raise RegistratieConflict(
-                "IN_GEBRUIK", "Dit component heeft nog relaties en kan niet worden verwijderd."
-            )
-    obj = await haal_op(session, tenant_id, component_id)
-    await session.delete(obj)
+    # Kaal component: ADR-023 (Besluit 13) — álle relaties (flow/assignment/aggregation/
+    # association) cascaden via het element en blokkeren een delete niet meer.
+    # ADR-023: verwijder via het element-supertype (cascade element → component → kinderen);
+    # de losse component-rij zou een wees-element achterlaten.
+    await session.execute(delete(Element).where(Element.tenant_id == tid, Element.id == component_id))
     await session.commit()
 
 
@@ -482,30 +467,46 @@ async def opties(session: AsyncSession) -> dict:
 
 
 async def structuur_overzicht(session: AsyncSession, tenant_id, component_id) -> dict:
-    """Beide richtingen van de structuurgraaf rond één component (ADR-021 Besluit 6)."""
+    """Beide richtingen van de structuurgraaf rond één component (ADR-023 op `Relatie`).
+
+    `draait_op` = uitgaand (self is afhankelijk: assignment doel=self / aggregation bron=self);
+    `gebruikt_door` = inkomend (self is host/geheel: assignment bron=self / aggregation
+    doel=self). De API-vorm blijft gelijk (`structuur_id` = nu de relatie-id)."""
     tid = _tenant_uuid(tenant_id)
     await haal_op(session, tenant_id, component_id)
-    rel_labels = await catalog.labels(session, ComponentConfigDimensie.structuurrelatie_type)
+    rel_labels = await catalog.labels(session, ComponentConfigDimensie.archimate_relatie)
 
-    async def _kant(eigen_fk, buur_fk) -> list[dict]:
+    async def _kant(uitgaand: bool) -> list[dict]:
+        if uitgaand:
+            buur = case((Relatie.relatietype == "assignment", Relatie.bron_id), else_=Relatie.doel_id)
+            cond = or_(
+                and_(Relatie.relatietype == "assignment", Relatie.doel_id == component_id),
+                and_(Relatie.relatietype == "aggregation", Relatie.bron_id == component_id),
+            )
+        else:
+            buur = case((Relatie.relatietype == "assignment", Relatie.doel_id), else_=Relatie.bron_id)
+            cond = or_(
+                and_(Relatie.relatietype == "assignment", Relatie.bron_id == component_id),
+                and_(Relatie.relatietype == "aggregation", Relatie.doel_id == component_id),
+            )
         rijen = (
             await session.execute(
                 select(
-                    ComponentStructuur.id.label("structuur_id"),
-                    buur_fk.label("buur_id"),
+                    Relatie.id.label("relatie_id"),
+                    buur.label("buur_id"),
                     Component.naam.label("naam"),
                     Component.componenttype.label("componenttype"),
-                    ComponentStructuur.relatietype.label("relatietype"),
-                    ComponentStructuur.omschrijving.label("omschrijving"),
+                    Relatie.relatietype.label("relatietype"),
+                    Relatie.omschrijving.label("omschrijving"),
                 )
-                .join(Component, Component.id == buur_fk)
-                .where(ComponentStructuur.tenant_id == tid, eigen_fk == component_id)
-                .order_by(Component.naam, ComponentStructuur.id)
+                .join(Component, Component.id == buur)
+                .where(Relatie.tenant_id == tid, Relatie.relatietype.in_(_STRUCTUUR_TYPES), cond)
+                .order_by(Component.naam, Relatie.id)
             )
         ).all()
         return [
             {
-                "structuur_id": r.structuur_id, "component_id": r.buur_id, "naam": r.naam,
+                "structuur_id": r.relatie_id, "component_id": r.buur_id, "naam": r.naam,
                 "componenttype": r.componenttype, "relatietype": r.relatietype,
                 "relatietype_label": catalog.resolveer_een(r.relatietype, rel_labels),
                 "omschrijving": r.omschrijving,
@@ -514,8 +515,8 @@ async def structuur_overzicht(session: AsyncSession, tenant_id, component_id) ->
         ]
 
     return {
-        "draait_op": await _kant(ComponentStructuur.component_id, ComponentStructuur.op_component_id),
-        "gebruikt_door": await _kant(ComponentStructuur.op_component_id, ComponentStructuur.component_id),
+        "draait_op": await _kant(uitgaand=True),
+        "gebruikt_door": await _kant(uitgaand=False),
     }
 
 
@@ -534,7 +535,7 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
     tid = _tenant_uuid(tenant_id)
     bron = await haal_op(session, tenant_id, component_id)  # 404 kruis-tenant (OP-6)
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
-    rel_labels = await catalog.labels(session, ComponentConfigDimensie.structuurrelatie_type)
+    rel_labels = await catalog.labels(session, ComponentConfigDimensie.archimate_relatie)
 
     geraakt: dict = {}
     visited = {component_id}  # incl. de bron → cyclus-veilig + nooit dubbel
@@ -544,21 +545,33 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
     while frontier:
         niveau += 1
         ouder = {n: (pad, eerste) for (n, pad, eerste) in frontier}
+        # ADR-023: volg de structurele afhankelijkheid type-bewust. `assignment`
+        # (host→gehoste): wie hangt aan een host = doel waar bron in de frontier zit.
+        # `aggregation` (deel→geheel): de delen van een geheel = bron waar doel in de
+        # frontier zit. `dep` = de afhankelijke (volgende laag); `via` = de
+        # frontier-knoop (de ouder in het pad).
+        _dep = case((Relatie.relatietype == "assignment", Relatie.doel_id), else_=Relatie.bron_id)
+        _via = case((Relatie.relatietype == "assignment", Relatie.bron_id), else_=Relatie.doel_id)
         rijen = (
             await session.execute(
                 select(
-                    ComponentStructuur.component_id.label("dep_id"),
-                    ComponentStructuur.op_component_id.label("op_id"),
-                    ComponentStructuur.relatietype.label("relatietype"),
+                    _dep.label("dep_id"),
+                    _via.label("op_id"),
+                    Relatie.relatietype.label("relatietype"),
                     Component.naam.label("naam"),
                     Component.componenttype.label("componenttype"),
                 )
-                .join(Component, Component.id == ComponentStructuur.component_id)
+                .join(Component, Component.id == _dep)
                 .where(
-                    ComponentStructuur.tenant_id == tid,
-                    ComponentStructuur.op_component_id.in_(list(ouder.keys())),
+                    Relatie.tenant_id == tid,
+                    or_(
+                        and_(Relatie.relatietype == "assignment",
+                             Relatie.bron_id.in_(list(ouder.keys()))),
+                        and_(Relatie.relatietype == "aggregation",
+                             Relatie.doel_id.in_(list(ouder.keys()))),
+                    ),
                 )
-                .order_by(Component.naam, ComponentStructuur.id)
+                .order_by(Component.naam, Relatie.id)
             )
         ).all()
         volgende = []

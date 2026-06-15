@@ -45,6 +45,7 @@ VERWACHT = {
     Entiteit.COMPONENT_CONTRACT: _INHOUD,
     Entiteit.COMPONENT: _INHOUD,            # ADR-021 Fase B (CD052)
     Entiteit.COMPONENT_STRUCTUUR: _INHOUD,  # ADR-021 Fase B (CD052)
+    Entiteit.RELATIE: _INHOUD,              # ADR-023 — unified relatiemodel
     Entiteit.CHECKLISTVRAAG: _INHOUD,  # ADR-022 W1: tenant-eigen vragenset (CRUD)
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN, Rol.MEDEWERKER: _GEEN, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,

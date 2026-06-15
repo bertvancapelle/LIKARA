@@ -71,7 +71,8 @@ def test_contract_applicaties_bevat_lifecycle(monkeypatch):
 
     row = SimpleNamespace(
         koppeling_id=uuid4(), applicatie_id=uuid4(), applicatie_naam="App",
-        lifecycle_status=LifecycleStatus.geblokkeerd, relatie_rol="valt_onder",
+        lifecycle_status=LifecycleStatus.geblokkeerd,
+        kenmerken={"relatie_rol": "valt_onder"},  # ADR-023: rol als relatie-kenmerk
     )
     session = AsyncMock()
     session.execute.return_value = _all([row])
@@ -105,7 +106,7 @@ def test_component_contracten_bevat_datums(monkeypatch):
         koppeling_id=uuid4(), contract_id=uuid4(), contractnaam="C",
         contracttype=ContractType.los_contract, leverancier_id=uuid4(),
         leverancier_naam="Lev", begindatum=date(2026, 1, 1), einddatum=None,
-        relatie_rol="valt_onder",
+        kenmerken={"relatie_rol": "valt_onder"},  # ADR-023: rol als relatie-kenmerk
     )
     session = AsyncMock()
     session.execute.return_value = _all([row])

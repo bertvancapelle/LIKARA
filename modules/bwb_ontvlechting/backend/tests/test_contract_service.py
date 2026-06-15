@@ -234,5 +234,6 @@ def test_maak_aan_roept_validaties_en_commit(monkeypatch):
     assert res["ok"] is True
     assert sporen.count("lev") == 1 and sporen.count("cons") == 1
     assert ("zet", "dekking") in sporen and ("zet", "kostenmodel") in sporen
-    session.flush.assert_awaited_once()
+    # ADR-023 B-mig-1: element-identiteit eerst (flush voor elem.id), dan contract (flush voor obj.id).
+    assert session.flush.await_count == 2
     session.commit.assert_awaited_once()

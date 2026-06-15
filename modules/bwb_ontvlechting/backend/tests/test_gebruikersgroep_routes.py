@@ -49,6 +49,7 @@ def _maak_app(monkeypatch, payload):
 
     monkeypatch.setattr(svc, "lijst", _ok_lijst)
     monkeypatch.setattr(svc, "haal_op", _ok_obj)
+    monkeypatch.setattr(svc, "lees_detail", _ok_obj)  # ADR-023: GET /{id} → lees_detail
     monkeypatch.setattr(svc, "maak_aan", _ok_obj)
     monkeypatch.setattr(svc, "werk_bij", _ok_obj)
     monkeypatch.setattr(svc, "verwijder", _ok_none)
@@ -118,7 +119,7 @@ def test_kruis_tenant_id_geeft_404(monkeypatch):
     async def _raise(*a, **k):
         raise NietGevonden("gebruikersgroep", _ID)
 
-    monkeypatch.setattr(svc, "haal_op", _raise)
+    monkeypatch.setattr(svc, "lees_detail", _raise)  # ADR-023: GET /{id} → lees_detail
     resp = _client(app).get(f"/api/v1/gebruikersgroepen/{_ID}")
     assert resp.status_code == 404
     assert resp.json()["fout"]["code"] == "NIET_GEVONDEN"

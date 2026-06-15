@@ -57,16 +57,8 @@ def test_component_sort_allowlist_synchroon():
 # type-lock (ADR-022 Fase C); zie test_typelock_adr022_fasec.py (integratie).
 
 
-def test_structuur_weigert_zelfverwijzing():
-    from schemas.component_structuur import ComponentStructuurCreate
-    from services import component_structuur_service as svc
-    from services.errors import OngeldigeRegistratie
-
-    cid = uuid.uuid4()
-    with pytest.raises(OngeldigeRegistratie) as ei:
-        asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentStructuurCreate(
-            component_id=cid, op_component_id=cid, relatietype="draait_op")))
-    assert ei.value.code == "ZELFVERWIJZING"
+# ADR-023: de zelfstandige component_structuur-CRUD is vervangen door het relatiemodel;
+# `bron≠doel` (ZELFVERWIJZING) wordt nu door `relatie_service` afgedwongen (zie test_relatie_bcore).
 
 
 def test_componentconfig_opties_groepering():
@@ -150,11 +142,10 @@ def test_component_crud_roundtrip():
 
 
 def test_subtype_component_delete_convergeert(monkeypatch):
-    # CD054b W1: delete van een subtype via het component-pad delegeert naar het
-    # applicatie-delete-pad; alleen een onderlegger-relatie (iets draait OP deze
-    # applicatie, op_component_id) blokkeert met 409 IN_GEBRUIK.
+    # ADR-023 (Besluit 13): structurele relaties (assignment/aggregation) blokkeren een
+    # delete NIET meer — ze cascaden via het element. Een subtype-delete delegeert daarom
+    # altijd naar het applicatie-delete-pad (geen onderlegger-409 meer).
     from services import applicatie_service, component_service as svc
-    from services.errors import RegistratieConflict
 
     cid = uuid.uuid4()
 
@@ -167,27 +158,13 @@ def test_subtype_component_delete_convergeert(monkeypatch):
     monkeypatch.setattr(svc, "haal_op", _haal)
     monkeypatch.setattr(svc, "_heeft_subtype", _subtype)
 
-    # geval 1: onderlegger aanwezig → IN_GEBRUIK
-    sess1 = AsyncMock()
-    row = MagicMock()
-    row.scalar_one_or_none.return_value = uuid.uuid4()
-    sess1.execute.return_value = row
-    with pytest.raises(RegistratieConflict) as ei:
-        asyncio.run(svc.verwijder(sess1, _TID, cid))
-    assert ei.value.code == "IN_GEBRUIK"
-
-    # geval 2: geen onderlegger → delegeert naar applicatie_service.verwijder
     gedelegeerd = {}
 
     async def _verwijder(session, tenant_id, aid):
         gedelegeerd["id"] = aid
 
     monkeypatch.setattr(applicatie_service, "verwijder", _verwijder)
-    sess2 = AsyncMock()
-    leeg = MagicMock()
-    leeg.scalar_one_or_none.return_value = None
-    sess2.execute.return_value = leeg
-    asyncio.run(svc.verwijder(sess2, _TID, cid))
+    asyncio.run(svc.verwijder(AsyncMock(), _TID, cid))
     assert gedelegeerd["id"] == cid
 
 

@@ -81,7 +81,8 @@ class DatatypeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    applicatie_id: uuid.UUID
+    # ADR-023: afgeleid uit de access-relatie; None = wees (applicatie verwijderd, Besluit 13).
+    applicatie_id: uuid.UUID | None
     categorie: DatatypeCategorie
     omschrijving: str | None
     omvang_indicatie: str | None

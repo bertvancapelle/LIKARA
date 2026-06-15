@@ -18,7 +18,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR | Titel | Status |
 |---|---|---|
 | ADR-001 | Platform-architectuur en module-structuur | Aanvaard |
-| ADR-006 | Audit-trail: append-only wijzigingsspoor, app-niveau capture, per-tenant hash-keten | Aanvaard (besluit), implementatie openstaand |
+| ADR-006 | Audit-trail: append-only wijzigingsspoor, app-niveau capture, per-tenant hash-keten | Aanvaard, geïmplementeerd (Fase A–E) |
 | ADR-009 | BWB-ontvlechtingsmodule — scope en datamodel | Aanvaard |
 | ADR-011 | Deploy- en migratiestrategie: aparte init-container | Aanvaard |
 | ADR-012 | Tweelaags rollenmodel: platform- en tenant-rollen met strikte scheiding | Aanvaard |
@@ -35,6 +35,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-021 | Component-herfundering: supertype Component, subtype Applicatie, landschapsgraaf | Aanvaard |
 | ADR-012 Addendum C | `PlatformEntiteit.COMPONENTCONFIG` | Aanvaard |
 | ADR-022 | Beoordelingsprofiel / checklist per componenttype (incl. Wijziging W1 — tenant-eigendom vragenset) | Aanvaard (besluit), implementatie openstaand |
+| ADR-023 | ArchiMate-uitlijning: element-identiteit, getypeerd relatiemodel, migratielaag | Aanvaard (besluit), implementatie in deze opdracht |
 
 ADR-002 t/m ADR-005, ADR-007, ADR-008 en ADR-010 zijn gereserveerd (zie `CLAUDE.md` →
 ADR-referentie) en worden geschreven wanneer de betreffende beslissing speelt.

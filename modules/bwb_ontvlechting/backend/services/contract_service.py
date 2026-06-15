@@ -21,15 +21,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
     Component,
-    ComponentContract,
     ComponentProfiel,
     Contract,
     ContractConfigDimensie,
     ContractDekking,
     ContractKostenmodel,
     ContractType,
+    Element,
+    ElementType,
     Leverancier,
+    Relatie,
 )
+
+_ASSOCIATION = "association"
 from schemas.contract import ContractCreate, ContractUpdate
 from services import contractconfig_catalog as catalog
 from services import leverancier_service
@@ -104,10 +108,15 @@ async def _heeft_deelcontracten(session: AsyncSession, tid: uuid.UUID, contract_
 
 
 async def _heeft_koppelingen(session: AsyncSession, tid: uuid.UUID, contract_id) -> bool:
+    # ADR-023: component↔contract is nu een association-relatie (doel=contract). Een contract
+    # met component-associaties verdwijnt niet stil (I4 behouden; analoog aan de leverancier-RESTRICT).
     bestaat = (
         await session.execute(
-            select(ComponentContract.id)
-            .where(ComponentContract.tenant_id == tid, ComponentContract.contract_id == contract_id)
+            select(Relatie.id)
+            .where(
+                Relatie.tenant_id == tid, Relatie.doel_id == contract_id,
+                Relatie.relatietype == _ASSOCIATION,
+            )
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -319,7 +328,11 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ContractCreate) -> di
     await catalog.valideer_sleutels(session, ContractConfigDimensie.kostenmodel, data.kostenmodel)
 
     velden = data.model_dump(exclude={"dekking", "kostenmodel"})
-    obj = Contract(tenant_id=tid, **velden)
+    # ADR-023 B-mig-1: contract is een element-subtype (shared-PK, business-laag).
+    elem = Element(tenant_id=tid, element_type=ElementType.contract)
+    session.add(elem)
+    await session.flush()
+    obj = Contract(id=elem.id, tenant_id=tid, **velden)
     session.add(obj)
     await session.flush()  # obj.id
     await _zet_tags(session, tid, obj.id, "dekking", data.dekking)
@@ -458,17 +471,20 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
     rijen = (
         await session.execute(
             select(
-                ComponentContract.id.label("koppeling_id"),
-                ComponentContract.component_id.label("applicatie_id"),  # shared-PK
+                Relatie.id.label("koppeling_id"),
+                Relatie.bron_id.label("applicatie_id"),  # bron = component (shared-PK)
                 Component.naam.label("applicatie_naam"),
                 # ADR-022 Fase A: lifecycle leeft op het generieke profiel (shared-PK).
                 ComponentProfiel.lifecycle_status.label("lifecycle_status"),
-                ComponentContract.relatie_rol.label("relatie_rol"),
+                Relatie.kenmerken.label("kenmerken"),
             )
-            .join(Component, Component.id == ComponentContract.component_id)
-            .join(ComponentProfiel, ComponentProfiel.id == ComponentContract.component_id)
-            .where(ComponentContract.tenant_id == tid, ComponentContract.contract_id == contract_id)
-            .order_by(Component.naam, ComponentContract.id)
+            .join(Component, Component.id == Relatie.bron_id)
+            .join(ComponentProfiel, ComponentProfiel.id == Relatie.bron_id)
+            .where(
+                Relatie.tenant_id == tid, Relatie.doel_id == contract_id,
+                Relatie.relatietype == _ASSOCIATION,
+            )
+            .order_by(Component.naam, Relatie.id)
         )
     ).all()
     return [
@@ -477,8 +493,8 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
             "applicatie_id": r.applicatie_id,
             "applicatie_naam": r.applicatie_naam,
             "lifecycle_status": r.lifecycle_status,
-            "relatie_rol": r.relatie_rol,
-            "relatie_rol_label": catalog.resolveer_een(r.relatie_rol, rol_labels),
+            "relatie_rol": (r.kenmerken or {}).get("relatie_rol"),
+            "relatie_rol_label": catalog.resolveer_een((r.kenmerken or {}).get("relatie_rol"), rol_labels),
         }
         for r in rijen
     ]

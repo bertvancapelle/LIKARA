@@ -18,7 +18,6 @@ from services import (
     checklistscore_service,
     datatype_service,
     gebruikersgroep_service,
-    koppeling_service,
 )
 from services.pagination import encode_sort_cursor_nullable
 
@@ -54,7 +53,6 @@ def _enum(module, naam):
     return getattr(importlib.import_module(f"schemas.{naam}"), {
         "datatype": "DatatypeSorteerveld",
         "gebruikersgroep": "GebruikersgroepSorteerveld",
-        "koppeling": "KoppelingSorteerveld",
         "checklistscore": "ChecklistscoreSorteerveld",
         "blokkade": "BlokkadeLijstSorteerveld",
     }[naam])
@@ -67,8 +65,6 @@ _CONFIG = [
      "datatype.created_at", "omschrijving", "datatype.omschrijving"),
     (gebruikersgroep_service, "gebruikersgroep", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "gebruikersgroep.created_at", "afdeling", "gebruikersgroep.afdeling"),
-    (koppeling_service, "koppeling", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
-     "koppeling.created_at", "tegenpartij_naam", "component.naam"),
     (checklistscore_service, "checklistscore", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "checklistscore.created_at", "score", "checklistscore.score"),
     (blokkade_service, "blokkade", "_LIJST_KOLOMMEN", "_LIJST_PARSERS",

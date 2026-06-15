@@ -48,7 +48,12 @@ def test_maak_aan_zet_lifecycle_concept():
     assert str(comp.tenant_id) == tid
     assert profiel.lifecycle_status == LifecycleStatus.concept
     assert str(sub.tenant_id) == tid
-    session.flush.assert_awaited_once()  # component-id vóór het subtype
+    # ADR-023: element-identiteit eerst (element-pk + subtype-grens) → component is een
+    # subtype van `element` (shared-PK). Twee flushes: elem.id, daarna comp.id.
+    from models.models import Element
+
+    assert any(isinstance(o, Element) for o in toegevoegd)
+    assert session.flush.await_count == 2
     session.commit.assert_awaited_once()
     session.refresh.assert_awaited_once()
 

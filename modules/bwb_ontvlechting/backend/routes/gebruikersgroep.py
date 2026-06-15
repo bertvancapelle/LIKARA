@@ -68,7 +68,7 @@ async def haal_gebruikersgroep(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSGROEP, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    return await svc.haal_op(session, user.tenant_id, gebruikersgroep_id)
+    return await svc.lees_detail(session, user.tenant_id, gebruikersgroep_id)
 
 
 @router.post("", response_model=GebruikersgroepRead, status_code=201)

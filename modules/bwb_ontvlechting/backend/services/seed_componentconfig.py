@@ -1,53 +1,87 @@
-"""Seed — default componentcatalogus (ADR-021 Besluit 8, ADR-012 Addendum C).
+"""Seed — default componentcatalogus (ADR-021 Besluit 8, ADR-012 Addendum C; ADR-023).
 
-Platform-brede referentiedata (één tabel `componentconfig_optie`, twee dimensies:
-`componenttype` + `structuurrelatie_type`). Idempotent via
+Platform-brede referentiedata (één tabel `componentconfig_optie`, drie dimensies:
+`componenttype` + `structuurrelatie_type` + `archimate_relatie`). Idempotent via
 `ON CONFLICT (dimensie, optie_sleutel) DO NOTHING`. Draait UITSLUITEND via
-`platform_init` (init-container, cd_admin). `componenttype.applicatie` is een
-systeem-sleutel (Fase C borgt de service-bescherming); hier alleen seeden.
+`platform_init` (init-container). `componenttype.applicatie` is een systeem-sleutel.
+
+ADR-023: elk `componenttype` draagt zijn ArchiMate-mapping (`archimate_element`/`laag`/
+`aspect`, OK-1/3); de dimensie `archimate_relatie` bevat de gecureerde acht relatietypes
+met per-type kenmerk-definities (`kenmerk_definitie`, OK-2). Migratie `0011` zaait dit op
+bestaande DB's; deze seed dekt fresh deploys (byte-gelijk).
 """
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from models.models import ComponentConfigDimensie, ComponentConfigOptie
 
-_COMPONENTTYPE: list[tuple[str, str]] = [
-    ("applicatie", "Applicatie"),
-    ("database", "Database"),
-    ("applicatieserver", "Applicatieserver"),
-    ("client_software", "Client-software"),
-    ("saas_dienst", "SaaS-dienst"),
-    ("middleware", "Middleware"),
-    ("fileshare", "Fileshare"),
+# (sleutel, label, archimate_element, laag, aspect)
+_COMPONENTTYPE: list[tuple[str, str, str, str, str]] = [
+    ("applicatie", "Applicatie", "application_component", "application", "active"),
+    ("database", "Database", "system_software", "technology", "active"),
+    ("applicatieserver", "Applicatieserver", "node", "technology", "active"),
+    ("client_software", "Client-software", "system_software", "technology", "active"),
+    ("saas_dienst", "SaaS-dienst", "application_component", "application", "active"),
+    ("middleware", "Middleware", "system_software", "technology", "active"),
+    ("fileshare", "Fileshare", "node", "technology", "active"),
 ]
 _STRUCTUURRELATIE: list[tuple[str, str]] = [
     ("draait_op", "Draait op"),
     ("maakt_deel_uit_van", "Maakt deel uit van"),
 ]
-
-_CATALOGUS: list[tuple[ComponentConfigDimensie, list[tuple[str, str]]]] = [
-    (ComponentConfigDimensie.componenttype, _COMPONENTTYPE),
-    (ComponentConfigDimensie.structuurrelatie_type, _STRUCTUURRELATIE),
+# (sleutel, label, kenmerk_definitie) — de gecureerde acht ArchiMate-relatietypes (OK-1/2).
+_ARCHIMATE_RELATIE: list[tuple[str, str, dict]] = [
+    ("composition", "Composition", {}),
+    ("aggregation", "Aggregation", {}),
+    ("serving", "Serving", {}),
+    ("assignment", "Assignment", {}),
+    ("flow", "Flow", {
+        "protocol": {"type": "enum", "enum": "koppelprotocol"},
+        "impact_bij_verbreking": {"type": "enum", "enum": "impact_verbreking"},
+        # OK-2-verfijning (v3): richting als kenmerk (eenrichting/tweerichting), geen duplicatie.
+        "richting": {"type": "enum", "enum": "koppelrichting"},
+    }),
+    ("realization", "Realization", {}),
+    ("association", "Association", {
+        "relatie_rol": {"type": "catalogus", "dimensie": "relatie_rol"},
+    }),
+    ("access", "Access", {}),
 ]
 
 
 def bouw_componentconfig() -> list[dict]:
-    """Puur (DB-vrij): geordende lijst optie-rijen. Deterministisch."""
+    """Puur (DB-vrij): geordende lijst optie-rijen (alle drie de dimensies)."""
+    # Uniforme sleutelset per rij — een multi-row `pg_insert` eist dat elke rij dezelfde
+    # kolommen levert (anders kan SQLAlchemy de default voor ontbrekende kolommen niet
+    # renderen). Waarden byte-identiek: `archimate_*` = None waar niet van toepassing,
+    # `kenmerk_definitie` = {} waar niet van toepassing (was server-default '{}').
     rijen: list[dict] = []
-    for dimensie, paren in _CATALOGUS:
-        for volgorde, (sleutel, label) in enumerate(paren):
-            rijen.append({
-                "dimensie": dimensie,
-                "optie_sleutel": sleutel,
-                "label": label,
-                "volgorde": volgorde,
-                "actief": True,
-            })
+    for volgorde, (sleutel, label, elem, laag, aspect) in enumerate(_COMPONENTTYPE):
+        rijen.append({
+            "dimensie": ComponentConfigDimensie.componenttype,
+            "optie_sleutel": sleutel, "label": label, "volgorde": volgorde, "actief": True,
+            "archimate_element": elem, "laag": laag, "aspect": aspect,
+            "kenmerk_definitie": {},
+        })
+    for volgorde, (sleutel, label) in enumerate(_STRUCTUURRELATIE):
+        rijen.append({
+            "dimensie": ComponentConfigDimensie.structuurrelatie_type,
+            "optie_sleutel": sleutel, "label": label, "volgorde": volgorde, "actief": True,
+            "archimate_element": None, "laag": None, "aspect": None,
+            "kenmerk_definitie": {},
+        })
+    for volgorde, (sleutel, label, kenmerken) in enumerate(_ARCHIMATE_RELATIE):
+        rijen.append({
+            "dimensie": ComponentConfigDimensie.archimate_relatie,
+            "optie_sleutel": sleutel, "label": label, "volgorde": volgorde, "actief": True,
+            "archimate_element": None, "laag": None, "aspect": None,
+            "kenmerk_definitie": kenmerken,
+        })
     return rijen
 
 
 async def seed_componentconfig(session) -> int:
-    """Zaai de default-componentcatalogus (idempotent). Geeft het aantal optie-rijen
-    terug (vast 9: 7 componenttypen + 2 structuurrelatie-typen)."""
+    """Zaai de default-componentcatalogus (idempotent). Geeft het aantal optie-rijen terug
+    (vast 17: 7 componenttypen + 2 structuurrelaties + 8 ArchiMate-relatietypes)."""
     rijen = bouw_componentconfig()
     stmt = pg_insert(ComponentConfigOptie).values(rijen).on_conflict_do_nothing(
         index_elements=["dimensie", "optie_sleutel"]

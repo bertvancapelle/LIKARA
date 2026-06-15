@@ -35,6 +35,8 @@ class Entiteit(str, Enum):
     COMPONENT = "component"
     COMPONENT_STRUCTUUR = "component_structuur"
     CHECKLISTVRAAG = "checklistvraag"
+    # ADR-023 — unified getypeerd relatiemodel.
+    RELATIE = "relatie"
     AUDITLOG = "auditlog"
     GEBRUIKERSBEHEER = "gebruikersbeheer"
     TENANT_INSTELLINGEN = "tenant_instellingen"
@@ -79,6 +81,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     # ADR-021 — component/structuurrelatie, zelfde inhoud-patroon als Applicatie.
     Entiteit.COMPONENT: dict(_INHOUD),
     Entiteit.COMPONENT_STRUCTUUR: dict(_INHOUD),
+    # ADR-023 — relatiemodel: zelfde inhoud-patroon (Viewer L · Medewerker LAW ·
+    # Beheerder LAWV · Auditor L).
+    Entiteit.RELATIE: dict(_INHOUD),
     # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer is een tenant-
     # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). Inhoud-patroon:
     # Viewer L · Medewerker LAW · Beheerder LAWV · Auditor L. ("Verwijderen" =

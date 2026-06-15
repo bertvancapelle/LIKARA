@@ -52,10 +52,10 @@ auditactie_enum = sa.Enum(AuditActie, name="auditactie_enum")
 # platform_audit_log. De audit-tabellen zelf staan hier NIET in (worden via core-INSERT
 # geschreven, nooit via ORM-flush) → ze auditeren zichzelf niet.
 AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
-    "component", "applicatie", "component_profiel", "datatype", "gebruikersgroep",
-    "koppeling", "component_structuur", "component_contract", "checklistscore",
-    "blokkade", "checklistvraag", "checklistvraag_optie", "leverancier", "contract",
-    "contract_dekking", "contract_kostenmodel",
+    "element", "component", "applicatie", "component_profiel", "datatype",
+    "gebruikersgroep", "relatie", "checklistscore", "blokkade", "checklistvraag",
+    "checklistvraag_optie", "leverancier", "contract", "contract_dekking",
+    "contract_kostenmodel",
 })
 AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "tenant", "componentconfig_optie", "contractconfig_optie",

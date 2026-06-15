@@ -16,7 +16,7 @@ zodra Checklistscore-/Blokkade-CRUD bestaat.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager
 
@@ -24,6 +24,8 @@ from models.models import (
     Applicatie,
     Component,
     ComponentProfiel,
+    Element,
+    ElementType,
     HostingModel,
     LifecycleStatus,
     Migratiepad,
@@ -232,7 +234,13 @@ async def maak_applicatie_subtype(
     (`ApplicatieCreate`, alle velden verplicht) én de convergente aanmaak via het
     component-pad (`componenttype='applicatie'`, met defaults). Start altijd in
     lifecycle `concept`. De aanroeper heeft de waarden al gevalideerd/gedefault."""
+    # ADR-023 Besluit 1: de component is een subtype van `element` (shared-PK). Eerst de
+    # element-identiteit, daarna de component met dezelfde id.
+    elem = Element(tenant_id=tid, element_type=ElementType.component)
+    session.add(elem)
+    await session.flush()  # elem.id beschikbaar
     comp = Component(
+        id=elem.id,
         tenant_id=tid,
         naam=naam,
         componenttype="applicatie",
@@ -308,7 +316,13 @@ async def verwijder(session: AsyncSession, tenant_id, applicatie_id) -> None:
     (datatype, gebruikersgroep, koppeling, checklistscore, blokkade) — alles onder
     dezelfde tenant-scope (RLS)."""
     obj = await haal_op(session, tenant_id, applicatie_id)
-    await session.delete(obj.component)
+    # ADR-023: het element is de supertype-eigenaar van de delete-cascade
+    # (element → component → subtype/engine-kinderen). Het element verwijderen ruimt
+    # alles op; de component-rij alleen zou een wees-element achterlaten.
+    tid = _tenant_uuid(tenant_id)
+    await session.execute(
+        delete(Element).where(Element.tenant_id == tid, Element.id == obj.id)
+    )
     await session.commit()
 
 

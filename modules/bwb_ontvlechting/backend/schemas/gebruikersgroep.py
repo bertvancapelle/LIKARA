@@ -81,7 +81,8 @@ class GebruikersgroepRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    applicatie_id: uuid.UUID
+    # ADR-023: afgeleid uit de serving-relatie; None = wees (Besluit 13).
+    applicatie_id: uuid.UUID | None
     organisatie: str
     afdeling: str | None
     aantal_gebruikers: int | None

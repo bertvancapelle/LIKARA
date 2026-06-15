@@ -36,15 +36,8 @@ def test_datatype_enum_opties():
     assert "combinatie" in enum_opties()["categorie"]  # code = 6 waarden
 
 
-def test_koppeling_enum_opties():
-    from models.models import ImpactVerbreking, Koppelprotocol, Koppelrichting
-    from services.koppeling_service import enum_opties
-
-    o = enum_opties()
-    assert o["richting"] == [e.value for e in Koppelrichting]
-    assert o["protocol"] == [e.value for e in Koppelprotocol]
-    assert o["impact_bij_verbreking"] == [e.value for e in ImpactVerbreking]
-    assert "bron_applicatie_id" not in o and "doel_applicatie_id" not in o
+# ADR-023: het koppeling-opties-endpoint is vervallen (koppeling → flow-relatie); de
+# flow-kenmerken (protocol/richting/impact) komen uit de archimate_relatie-catalogus.
 
 
 # ── Routes: auth-gate + route-volgorde ──────────────────────────────────────
@@ -59,16 +52,6 @@ def test_datatype_opties_route_viewer_ok(monkeypatch):
     assert set(resp.json().keys()) == {"categorie"}
 
 
-def test_koppeling_opties_route_viewer_ok(monkeypatch):
-    from routes.koppeling import router
-
-    client = TestClient(_maak_app(monkeypatch, router, _payload("viewer")))
-    client.cookies.set(settings.cookie_name, "dummy")
-    resp = client.get("/api/v1/koppelingen/opties")
-    assert resp.status_code == 200, resp.text
-    assert set(resp.json().keys()) == {"richting", "protocol", "impact_bij_verbreking"}
-
-
 def test_opties_vereist_auth(monkeypatch):
     from routes.datatype import router
 
@@ -78,8 +61,8 @@ def test_opties_vereist_auth(monkeypatch):
 
 def test_opties_pad_niet_als_uuid_geparsed(monkeypatch):
     # Route-volgorde: 'opties' raakt niet de /{id}-route (zou 422 geven).
-    from routes.koppeling import router
+    from routes.datatype import router
 
     client = TestClient(_maak_app(monkeypatch, router, _payload("beheerder")))
     client.cookies.set(settings.cookie_name, "dummy")
-    assert client.get("/api/v1/koppelingen/opties").status_code == 200
+    assert client.get("/api/v1/datatypes/opties").status_code == 200

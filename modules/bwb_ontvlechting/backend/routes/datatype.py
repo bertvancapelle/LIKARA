@@ -81,7 +81,7 @@ async def haal_datatype(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.DATATYPE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    return await svc.haal_op(session, user.tenant_id, datatype_id)
+    return await svc.lees_detail(session, user.tenant_id, datatype_id)
 
 
 @router.post("", response_model=DatatypeRead, status_code=201)

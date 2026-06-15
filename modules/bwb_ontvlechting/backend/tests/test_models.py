@@ -9,7 +9,8 @@ def test_modellen_importeerbaar():
     from models import models as m
 
     for naam in [
-        "Applicatie", "Datatype", "Gebruikersgroep", "Koppeling",
+        # ADR-023: Koppeling vervangen door het `Relatie`-model (flow).
+        "Applicatie", "Datatype", "Gebruikersgroep", "Element", "Relatie",
         "ChecklistVraag", "ChecklistVraagOptie", "Checklistscore", "Blokkade",
     ]:
         assert hasattr(m, naam), f"ontbrekend model: {naam}"

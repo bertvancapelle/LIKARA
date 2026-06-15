@@ -34,6 +34,8 @@ def test_maak_aan_ouder_ontbreekt_geeft_nietgevonden(monkeypatch):
 
 
 def test_maak_aan_ouder_bestaat(monkeypatch):
+    # ADR-023 slice 4: element + gebruikersgroep + serving-relatie (applicatie → groep).
+    from models.models import Element, Relatie
     from services import applicatie_service, gebruikersgroep_service as svc
 
     async def _ok(*a, **k):
@@ -41,16 +43,19 @@ def test_maak_aan_ouder_bestaat(monkeypatch):
 
     monkeypatch.setattr(applicatie_service, "haal_op", _ok)
     session = AsyncMock()
-    vastgelegd = {}
-    session.add = lambda obj: vastgelegd.setdefault("obj", obj)
+    toegevoegd = []
+    session.add = lambda obj: toegevoegd.append(obj)
 
     app_id = uuid.uuid4()
     tid = "11111111-1111-1111-1111-111111111111"
-    obj = asyncio.run(svc.maak_aan(session, tid, _create_data(app_id)))
+    out = asyncio.run(svc.maak_aan(session, tid, _create_data(app_id)))
 
-    assert str(obj.applicatie_id) == str(app_id)
-    assert obj.organisatie == "Gemeente Veldendam"
-    assert obj.aantal_gebruikers == 5
+    assert str(out["applicatie_id"]) == str(app_id)
+    assert out["organisatie"] == "Gemeente Veldendam"
+    assert out["aantal_gebruikers"] == 5
+    assert any(isinstance(o, Element) for o in toegevoegd)
+    rel = next(o for o in toegevoegd if isinstance(o, Relatie))
+    assert rel.relatietype == "serving" and str(rel.bron_id) == str(app_id)
     session.commit.assert_awaited_once()
 
 

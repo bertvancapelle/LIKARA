@@ -51,19 +51,19 @@ from models.models import (  # noqa: E402
     ChecklistVraagOptie,
     Checklistscore,
     Component,
-    ComponentContract,
-    ComponentStructuur,
     Contract,
+    Element,
+    ElementType,
     HostingModel,
-    Koppeling,
     Leverancier,
+    Relatie,
 )
 from schemas.applicatie import ApplicatieCreate  # noqa: E402
 from schemas.component_contract import ComponentContractCreate  # noqa: E402
 from schemas.blokkade import BlokkadeUpdate  # noqa: E402
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate  # noqa: E402
 from schemas.contract import ContractCreate  # noqa: E402
-from schemas.koppeling import KoppelingCreate  # noqa: E402
+from schemas.relatie import RelatieCreate  # noqa: E402
 from schemas.leverancier import LeverancierCreate  # noqa: E402
 from services import (  # noqa: E402
     component_contract_service,
@@ -71,8 +71,8 @@ from services import (  # noqa: E402
     blokkade_service,
     checklistscore_service,
     contract_service,
-    koppeling_service,
     leverancier_service,
+    relatie_service,
 )
 from services.seed import CHECKLIST_VRAGEN, seed_checklist_vragen  # noqa: E402
 from services.seed_antwoordconfig import seed_antwoordconfig  # noqa: E402
@@ -337,25 +337,29 @@ async def _seed_applicatie(session, app: dict, bestaande: dict) -> "uuid_like":
 
 
 async def _seed_koppelingen(session, app_ids: dict) -> None:
-    """Maak de 10 koppelingen. Idempotent op (bron, doel)."""
+    """Maak de 10 koppelingen als **flow-relaties** (ADR-023 cutover). Idempotent op (bron, doel)."""
     bestaande = {
-        (r.bron_applicatie_id, r.doel_applicatie_id)
-        for r in (await session.execute(select(Koppeling))).scalars().all()
+        (r.bron_id, r.doel_id)
+        for r in (
+            await session.execute(select(Relatie).where(Relatie.relatietype == "flow"))
+        ).scalars().all()
     }
     for bron_idx, doel_idx, omschrijving, protocol in KOPPELINGEN:
         bron_id = app_ids[bron_idx]
         doel_id = app_ids[doel_idx]
         if (bron_id, doel_id) in bestaande:
-            print(f"  = koppeling {bron_idx}→{doel_idx}: bestaat al — overgeslagen")
+            print(f"  = flow {bron_idx}→{doel_idx}: bestaat al — overgeslagen")
             continue
-        await koppeling_service.maak_aan(
+        await relatie_service.maak_aan(
             session, DEV_TENANT,
-            KoppelingCreate(
-                bron_applicatie_id=bron_id, doel_applicatie_id=doel_id,
-                protocol=protocol, omschrijving=omschrijving, **KOP_DEFAULTS,
+            RelatieCreate(
+                bron_id=bron_id, doel_id=doel_id, relatietype="flow",
+                kenmerken={"protocol": protocol, "richting": KOP_DEFAULTS["richting"],
+                           "impact_bij_verbreking": KOP_DEFAULTS["impact_bij_verbreking"]},
+                omschrijving=omschrijving,
             ),
         )
-        print(f"  + koppeling {bron_idx}→{doel_idx}: {omschrijving}")
+        print(f"  + flow {bron_idx}→{doel_idx}: {omschrijving}")
 
 
 def _code_key(code: str):
@@ -546,8 +550,10 @@ async def _seed_aanvulling_d(session, app_ids: dict) -> dict:
 
     # --- Koppelingen (idempotent op (applicatie_id, contract_id)) ---
     bestaande_kop = {
-        (r.component_id, r.contract_id)  # shared-PK: component_id == applicatie_id
-        for r in (await session.execute(select(ComponentContract))).scalars().all()
+        (r.bron_id, r.doel_id)  # ADR-023: component↔contract = association-relatie
+        for r in (
+            await session.execute(select(Relatie).where(Relatie.relatietype == "association"))
+        ).scalars().all()
     }
     for app_idx, contractnaam, rol in KOPPELINGEN_D:
         app_id = app_ids[app_idx]
@@ -577,8 +583,12 @@ async def _seed_technische_laag(session, app_ids: dict) -> dict:
     async def _ensure(naam, type_, host, org):
         if naam in comps:
             return comps[naam]
-        c = Component(tenant_id=tid, naam=naam, componenttype=type_, hostingmodel=host,
-                      eigenaar_organisatie=org)
+        # ADR-023: element-identiteit eerst (shared-PK), daarna de component.
+        elem = Element(tenant_id=tid, element_type=ElementType.component)
+        session.add(elem)
+        await session.flush()
+        c = Component(id=elem.id, tenant_id=tid, naam=naam, componenttype=type_,
+                      hostingmodel=host, eigenaar_organisatie=org)
         session.add(c)
         await session.flush()
         comps[naam] = c.id
@@ -588,23 +598,26 @@ async def _seed_technische_laag(session, app_ids: dict) -> dict:
     db_id = await _ensure("Oracle FIN-DB", "database", HostingModel.on_premise, "Financiën")
     fs_id = await _ensure("Geo-fileshare", "fileshare", HostingModel.on_premise, "Ruimte")
 
+    # ADR-023: draait_op → assignment-relatie, oriëntatie host→gehoste (bron=host/op, doel=gehoste/comp).
     bestaand = {
-        (r.component_id, r.op_component_id, r.relatietype)
-        for r in (await session.execute(select(ComponentStructuur))).scalars().all()
+        (r.bron_id, r.doel_id)
+        for r in (
+            await session.execute(select(Relatie).where(Relatie.relatietype == "assignment"))
+        ).scalars().all()
     }
     relaties = [
-        (app_ids[6], db_id, "draait_op"),   # Belastingsysteem → Oracle FIN-DB (gedeeld)
-        (app_ids[7], db_id, "draait_op"),   # Financieel → Oracle FIN-DB (gedeeld)
-        (app_ids[9], fs_id, "draait_op"),   # GIS-viewer → Geo-fileshare
+        (db_id, app_ids[6]),   # Oracle FIN-DB → Belastingsysteem (draait op, gedeeld)
+        (db_id, app_ids[7]),   # Oracle FIN-DB → Financieel
+        (fs_id, app_ids[9]),   # Geo-fileshare → GIS-viewer
     ]
-    for comp_id, op_id, rel in relaties:
-        if (comp_id, op_id, rel) in bestaand:
+    for host_id, gehoste_id in relaties:
+        if (host_id, gehoste_id) in bestaand:
             continue
-        session.add(ComponentStructuur(
-            tenant_id=tid, component_id=comp_id, op_component_id=op_id, relatietype=rel
-        ))
-        print(f"  + structuur: {rel} op {op_id}")
-    await session.commit()
+        await relatie_service.maak_aan(
+            session, DEV_TENANT,
+            RelatieCreate(bron_id=host_id, doel_id=gehoste_id, relatietype="assignment"),
+        )
+        print(f"  + assignment: {host_id} → {gehoste_id}")
     return {"componenten_extra": 2, "structuurrelaties": len(relaties)}
 
 

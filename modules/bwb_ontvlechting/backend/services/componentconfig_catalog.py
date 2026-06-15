@@ -61,6 +61,19 @@ async def valideer_sleutel(
     )
 
 
+async def kenmerk_definitie(session: AsyncSession, relatietype: str) -> dict:
+    """ADR-023 OK-2 — de kenmerk-property-definities van een ArchiMate-relatietype
+    (dim `archimate_relatie`). Onbekend type ⇒ leeg (geen toegestane kenmerken)."""
+    return (
+        await session.execute(
+            select(ComponentConfigOptie.kenmerk_definitie).where(
+                ComponentConfigOptie.dimensie == ComponentConfigDimensie.archimate_relatie,
+                ComponentConfigOptie.optie_sleutel == relatietype,
+            )
+        )
+    ).scalar_one_or_none() or {}
+
+
 def resolveer_een(sleutel: str, label_map: dict[str, tuple[str, bool]]) -> str:
     """Resolveer één sleutel naar zijn label (fallback: de sleutel zelf)."""
     return label_map.get(sleutel, (sleutel, False))[0]

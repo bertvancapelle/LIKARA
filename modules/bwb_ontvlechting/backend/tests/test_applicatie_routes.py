@@ -332,14 +332,12 @@ def test_kind_fks_cascaden_op_applicatie():
         Blokkade,
         Checklistscore,
         Component,  # noqa: F401
-        Datatype,
-        Gebruikersgroep,
-        Koppeling,
     )
 
-    # ADR-022 Fase A: het engine-anker verschoof van applicatie → component_profiel;
-    # beide tabellen delen de shared-PK met component, dus de cascade blijft sluitend.
-    engine_kinderen = [Datatype, Gebruikersgroep, Checklistscore, Blokkade]
+    # ADR-022 Fase A: het engine-anker is het generieke component_profiel (shared-PK).
+    # ADR-023 slice 4 (Besluit 13): datatype/gebruikersgroep zijn GEEN engine-kind meer —
+    # ze hangen via access/serving-relaties aan de applicatie en blijven bij delete bestaan.
+    engine_kinderen = [Checklistscore, Blokkade]
     _ANKER_TABELLEN = {"applicatie", "component_profiel"}
     fks_naar_app = 0
     for model in engine_kinderen:
@@ -348,16 +346,10 @@ def test_kind_fks_cascaden_op_applicatie():
                 if fk.column.table.name in _ANKER_TABELLEN:
                     fks_naar_app += 1
                     assert fk.ondelete == "CASCADE", f"{model.__name__}.{kolom.name}"
-    assert fks_naar_app >= 4
+    assert fks_naar_app >= 2
 
-    kop_fks_component = 0
-    for kolom in Koppeling.__table__.columns:
-        for fk in kolom.foreign_keys:
-            if fk.column.table.name == "component":
-                kop_fks_component += 1
-                assert fk.ondelete == "CASCADE", f"koppeling.{kolom.name}"
-    assert kop_fks_component == 2
-
+    # ADR-023: Koppeling vervangen door flow-relaties (Relatie) — endpoints cascaden via
+    # de element-supertype-FK (composiet (tenant_id, bron/doel_id) → element).
     app_id_fk = next(iter(Applicatie.__table__.c.id.foreign_keys))
     assert app_id_fk.column.table.name == "component"
     assert app_id_fk.ondelete == "CASCADE"

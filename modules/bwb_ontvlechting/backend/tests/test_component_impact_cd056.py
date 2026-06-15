@@ -98,11 +98,13 @@ def test_impact_directe_afhankelijkheid_seed():
 
 @integratie
 def test_impact_transitief_en_cyclus_termineren():
+    # ADR-023: "X draait op Y" = assignment host→gehoste (bron=Y, doel=X). De impact-
+    # uitkomst is identiek aan het oude model (assignment-flip = dezelfde afhankelijkheid).
     from sqlalchemy import text
     from schemas.component import ComponentCreate
-    from schemas.component_structuur import ComponentStructuurCreate
+    from schemas.relatie import RelatieCreate
     from services import component_service as svc
-    from services import component_structuur_service as struct_svc
+    from services import relatie_service
 
     sfx = uuid.uuid4().hex[:8]
 
@@ -112,10 +114,11 @@ def test_impact_transitief_en_cyclus_termineren():
         c = await svc.maak_aan(s, _TID, ComponentCreate(naam=f"CD056-C-{sfx}", componenttype="database"))
         ids = [a["id"], b["id"], c["id"]]
         try:
-            # A draait_op B, B draait_op A (cyclus), C draait_op A.
-            await struct_svc.maak_aan(s, _TID, ComponentStructuurCreate(component_id=a["id"], op_component_id=b["id"], relatietype="draait_op"))
-            await struct_svc.maak_aan(s, _TID, ComponentStructuurCreate(component_id=b["id"], op_component_id=a["id"], relatietype="draait_op"))
-            await struct_svc.maak_aan(s, _TID, ComponentStructuurCreate(component_id=c["id"], op_component_id=a["id"], relatietype="draait_op"))
+            # A draait op B → assignment(B→A); B draait op A → assignment(A→B) (cyclus);
+            # C draait op A → assignment(A→C).
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=b["id"], doel_id=a["id"], relatietype="assignment"))
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=a["id"], doel_id=b["id"], relatietype="assignment"))
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=a["id"], doel_id=c["id"], relatietype="assignment"))
 
             # impact(B): A direct (niveau 1), C transitief via A (niveau 2). Termineert
             # ondanks de A↔B-cyclus (B is de bron en wordt nooit opnieuw bezocht).
@@ -134,11 +137,8 @@ def test_impact_transitief_en_cyclus_termineren():
             assert leeg["geraakt"] == []
             assert leeg["samenvatting"]["aantal_geraakt"] == 0
         finally:
-            # Opruimen: eerst de structuurrelaties, dan de componenten (anders IN_GEBRUIK).
-            await s.execute(text(
-                "delete from component_structuur where component_id = any(:ids) or op_component_id = any(:ids)"
-            ), {"ids": ids})
-            await s.execute(text("delete from component where id = any(:ids)"), {"ids": ids})
+            # Opruimen: het element verwijderen cascadeert de relaties (Besluit 13).
+            await s.execute(text("delete from element where id = any(:ids)"), {"ids": ids})
             await s.commit()
 
     asyncio.run(_sessie_run(_flow))

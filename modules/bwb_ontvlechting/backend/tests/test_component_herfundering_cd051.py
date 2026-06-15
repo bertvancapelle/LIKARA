@@ -12,21 +12,27 @@ from sqlalchemy import CheckConstraint, UniqueConstraint
 def test_nieuwe_modellen_importeerbaar_en_oud_vervangen():
     from models import models as m
 
-    for naam in ["Component", "ComponentStructuur", "ComponentContract", "ComponentConfigOptie"]:
+    # ADR-023: ComponentStructuur + ComponentContract vervangen door getypeerde relaties (Relatie).
+    for naam in ["Component", "Element", "Relatie", "ComponentConfigOptie"]:
         assert hasattr(m, naam), f"ontbrekend model: {naam}"
-    assert not hasattr(m, "ApplicatieContract")  # vervangen door ComponentContract
+    assert not hasattr(m, "ApplicatieContract")
+    assert not hasattr(m, "ComponentStructuur")   # → assignment/aggregation-relatie
+    assert not hasattr(m, "ComponentContract")    # → association-relatie
 
 
 def test_componentconfig_dimensie_enum():
     from models import models as m
 
-    assert [e.value for e in m.ComponentConfigDimensie] == ["componenttype", "structuurrelatie_type"]
+    # ADR-023: derde dimensie `archimate_relatie` (gecureerde acht relatietypes).
+    assert [e.value for e in m.ComponentConfigDimensie] == [
+        "componenttype", "structuurrelatie_type", "archimate_relatie"
+    ]
 
 
 def test_tenant_tabellen_hebben_tenant_id_catalogus_niet():
     from models import models as m
 
-    for model in (m.Component, m.ComponentStructuur, m.ComponentContract):
+    for model in (m.Component, m.Relatie):
         assert "tenant_id" in model.__table__.columns, model.__name__
     assert "tenant_id" not in m.ComponentConfigOptie.__table__.columns
     assert m.ComponentConfigOptie.__table__.c.id.type.python_type is int
@@ -35,8 +41,9 @@ def test_tenant_tabellen_hebben_tenant_id_catalogus_niet():
 def test_check_en_unieke_constraints():
     from models import models as m
 
-    checks = {c.name for c in m.ComponentStructuur.__table__.constraints if isinstance(c, CheckConstraint)}
-    assert "ck_component_structuur_self" in checks
+    # ADR-023: de bron≠doel-CHECK + UNIQUE leven nu op `Relatie` (ex-ComponentStructuur).
+    checks = {c.name for c in m.Relatie.__table__.constraints if isinstance(c, CheckConstraint)}
+    assert "ck_relatie_bron_ne_doel" in checks
 
     def uniques(model) -> dict[str, tuple]:
         return {
@@ -45,12 +52,10 @@ def test_check_en_unieke_constraints():
             if isinstance(c, UniqueConstraint)
         }
 
-    assert uniques(m.ComponentStructuur)["uq_component_structuur"] == (
-        "tenant_id", "component_id", "op_component_id", "relatietype"
+    assert uniques(m.Relatie)["uq_relatie"] == (
+        "tenant_id", "bron_id", "doel_id", "relatietype"
     )
-    assert uniques(m.ComponentContract)["uq_component_contract"] == (
-        "tenant_id", "component_id", "contract_id"
-    )
+    # ADR-023: ComponentContract → association-relatie (UNIQUE op `Relatie`).
     assert uniques(m.ComponentConfigOptie)["uq_componentconfig_optie"] == (
         "dimensie", "optie_sleutel"
     )
@@ -74,23 +79,35 @@ def test_shared_pk_subtypegrens():
         assert veld in m.Applicatie.__table__.columns
 
 
-def test_structuur_fk_ondelete():
+def test_relatie_endpoint_fk_ondelete():
     from models import models as m
 
-    od = {fk.parent.name: (fk.ondelete or "").upper() for fk in m.ComponentStructuur.__table__.foreign_keys}
-    assert od["component_id"] == "CASCADE"       # afhankelijke verdwijnt mee
-    assert od["op_component_id"] == "RESTRICT"   # onderlegger met afhankelijkheden beschermd
+    # ADR-023: relatie-endpoints zijn composiet-FK's (tenant+id) → element, CASCADE
+    # (Besluit 12/13: een element verwijderen ruimt zijn relaties op).
+    od = {fk.parent.name: (fk.ondelete or "").upper() for fk in m.Relatie.__table__.foreign_keys}
+    assert od["bron_id"] == "CASCADE"
+    assert od["doel_id"] == "CASCADE"
 
 
-def test_seed_componentconfig_9_opties():
+def test_seed_componentconfig_17_opties():
     from services.seed_componentconfig import bouw_componentconfig
 
     rijen = bouw_componentconfig()
-    assert len(rijen) == 9
+    # ADR-023: 7 componenttypen + 2 structuurrelaties + 8 ArchiMate-relatietypes.
+    assert len(rijen) == 17
     typen = [r["optie_sleutel"] for r in rijen if r["dimensie"].value == "componenttype"]
     assert len(typen) == 7 and "applicatie" in typen  # systeem-sleutel aanwezig
     rels = {r["optie_sleutel"] for r in rijen if r["dimensie"].value == "structuurrelatie_type"}
     assert rels == {"draait_op", "maakt_deel_uit_van"}
+    archi = {r["optie_sleutel"] for r in rijen if r["dimensie"].value == "archimate_relatie"}
+    assert archi == {
+        "composition", "aggregation", "serving", "assignment", "flow", "realization",
+        "association", "access",
+    }
+    # OK-1/3: elk componenttype draagt zijn ArchiMate-mapping.
+    for r in rijen:
+        if r["dimensie"].value == "componenttype":
+            assert r["archimate_element"] and r["laag"] and r["aspect"]
 
 
 def test_migratie_0006_bron():

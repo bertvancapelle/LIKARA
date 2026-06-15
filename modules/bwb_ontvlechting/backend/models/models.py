@@ -150,10 +150,26 @@ class ContractConfigDimensie(str, Enum):
 
 class ComponentConfigDimensie(str, Enum):
     """ADR-021 / ADR-012 Addendum C — discriminator van de platform-brede
-    componentcatalogus `componentconfig_optie` (één tabel, twee dimensies)."""
+    componentcatalogus `componentconfig_optie`. ADR-023: derde dimensie
+    `archimate_relatie` (de gecureerde acht relatietypes)."""
 
     componenttype = "componenttype"
     structuurrelatie_type = "structuurrelatie_type"
+    archimate_relatie = "archimate_relatie"
+
+
+class ElementType(str, Enum):
+    """ADR-023 Besluit 2 — discriminator van de element-supertabel (één
+    identiteitsruimte). Subtypes dragen hun type-eigen velden in een eigen tabel."""
+
+    component = "component"
+    datatype = "datatype"
+    gebruikersgroep = "gebruikersgroep"
+    contract = "contract"
+    plateau = "plateau"
+    gap = "gap"
+    work_package = "work_package"
+    deliverable = "deliverable"
 
 
 # Gedeelde sa.Enum-typeobjecten (één type per naam; migratie beheert de DDL).
@@ -177,6 +193,7 @@ contractconfig_dimensie_enum = sa.Enum(
 componentconfig_dimensie_enum = sa.Enum(
     ComponentConfigDimensie, name="componentconfig_dimensie_enum"
 )
+element_type_enum = sa.Enum(ElementType, name="element_type_enum")
 
 
 def _pk() -> Mapped[uuid.UUID]:
@@ -189,14 +206,69 @@ def _pk() -> Mapped[uuid.UUID]:
 # Modellen
 # --------------------------------------------------------------------------
 
+class Element(Base, TenantMixin, TimestampMixin):
+    """ADR-023 Besluit 1/2/12 — element-supertype: één identiteitsruimte (ArchiMate-
+    leidraad), tenant-scoped (FORCE RLS). `UNIQUE(tenant_id, id)` is het composiet-FK-
+    target voor relatie-endpoints én subtype-tabellen (cross-tenant structureel
+    uitgesloten). Subtypes (component, datatype, gebruikersgroep, contract, plateau, gap,
+    work_package, deliverable) delen de PK via `(tenant_id, id)`-FK."""
+
+    __tablename__ = "element"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_element_tenant_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    element_type: Mapped[ElementType] = mapped_column(element_type_enum, nullable=False)
+
+
+class Relatie(Base, TenantMixin, TimestampMixin):
+    """ADR-023 Besluit 1/6/12 — één getypeerd relatiemodel (gecureerde ArchiMate-subset).
+
+    Gericht (`bron_id` → `doel_id`); endpoints zijn echte composiet-FK's
+    `(tenant_id, bron_id|doel_id)` → `element` (cross-tenant structureel uitgesloten,
+    geen polymorfie). `relatietype` uit de catalogus (dim `archimate_relatie`);
+    `kenmerken` (jsonb) per relatietype gevalideerd tegen de catalogus-property-definities
+    (OK-2 — richting is GEEN kenmerk). `CHECK bron≠doel`; `UNIQUE(tenant, bron, doel, type)`.
+    Tenant-scoped (FORCE RLS)."""
+
+    __tablename__ = "relatie"
+    __table_args__ = (
+        CheckConstraint("bron_id <> doel_id", name="ck_relatie_bron_ne_doel"),
+        UniqueConstraint("tenant_id", "bron_id", "doel_id", "relatietype", name="uq_relatie"),
+        ForeignKeyConstraint(
+            ["tenant_id", "bron_id"], ["element.tenant_id", "element.id"],
+            name="fk_relatie_bron_element", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "doel_id"], ["element.tenant_id", "element.id"],
+            name="fk_relatie_doel_element", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    bron_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    doel_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    relatietype: Mapped[str] = mapped_column(String(40), nullable=False)
+    kenmerken: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class Component(Base, TenantMixin, TimestampMixin):
-    """ADR-021 — supertype/knooppunt van de landschapsgraaf (tenant-scoped, RLS).
+    """ADR-021 — knooppunt van de landschapsgraaf. ADR-023: subtype van `element`
+    (shared-PK via composiet-FK `(tenant_id, id)` → `element`; cross-tenant uitgesloten).
 
     Draagt de technische identiteit (naam, type, hosting, eigenaarschap, leverancier).
     `componenttype` is een tekst-sleutel uit de componentcatalogus (dimensie
     `componenttype`); `applicatie` is een systeem-sleutel met een subtype-rij."""
 
     __tablename__ = "component"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_component_element", ondelete="CASCADE",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _pk()
     naam: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -298,85 +370,51 @@ class ComponentProfiel(Base, TenantMixin, TimestampMixin):
 
 
 class Datatype(Base, TenantMixin, TimestampMixin):
-    __tablename__ = "datatype"
+    """ADR-023 B-mig-1: subtype van `element` (shared-PK, ArchiMate data object)."""
 
-    id: Mapped[uuid.UUID] = _pk()
-    applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+    __tablename__ = "datatype"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_datatype_element", ondelete="CASCADE",
+        ),
     )
+
+    # ADR-023 B-mig-2 slice 4: de band met de applicatie is een `access`-relatie geworden
+    # (geen `applicatie_id`-kolom meer; Besluit 13 — wezen blijven bestaan).
+    id: Mapped[uuid.UUID] = _pk()
     categorie: Mapped[DatatypeCategorie] = mapped_column(datatype_categorie_enum, nullable=False)
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
     omvang_indicatie: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
-    __tablename__ = "gebruikersgroep"
+    """ADR-023 B-mig-1: subtype van `element` (shared-PK, ArchiMate business actor/role)."""
 
-    id: Mapped[uuid.UUID] = _pk()
-    applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("applicatie.id", ondelete="CASCADE"), nullable=False
+    __tablename__ = "gebruikersgroep"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_gebruikersgroep_element", ondelete="CASCADE",
+        ),
     )
+
+    # ADR-023 B-mig-2 slice 4: de band met de applicatie is een `serving`-relatie geworden.
+    id: Mapped[uuid.UUID] = _pk()
     # Configureerbaar per tenant — geen hardcoded enum
     organisatie: Mapped[str] = mapped_column(String(120), nullable=False)
     afdeling: Mapped[str | None] = mapped_column(String(255), nullable=True)
     aantal_gebruikers: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
-class Koppeling(Base, TenantMixin, TimestampMixin):
-    __tablename__ = "koppeling"
-    __table_args__ = (
-        CheckConstraint(
-            "bron_applicatie_id <> doel_applicatie_id",
-            name="ck_koppeling_bron_ne_doel",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = _pk()
-    # ADR-021 Besluit 5: bron/doel zijn nu component-FK's (velden ongewijzigd; de FK
-    # herankert van applicatie → component). Met de shared-PK (CD051 Optie 2) blijven
-    # de bestaande waarden geldig: een applicatie-id ís het component-id.
-    bron_applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
-    )
-    doel_applicatie_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
-    )
-    richting: Mapped[Koppelrichting] = mapped_column(koppelrichting_enum, nullable=False)
-    protocol: Mapped[Koppelprotocol] = mapped_column(koppelprotocol_enum, nullable=False)
-    impact_bij_verbreking: Mapped[ImpactVerbreking] = mapped_column(
-        impact_verbreking_enum, nullable=False
-    )
-    omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+# ADR-023 B-mig-2 slice 1: het `Koppeling`-model is vervangen door `flow`-relaties in het
+# unified relatiemodel (`Relatie`). De enums Koppelrichting/Koppelprotocol/ImpactVerbreking
+# blijven — ze typeren nu de flow-kenmerken (richting/protocol/impact_bij_verbreking).
 
 
-class ComponentStructuur(Base, TenantMixin, TimestampMixin):
-    """ADR-021 Besluit 6 — opbouw/afhankelijkheid (tenant-scoped, RLS).
-
-    `component_id` (de afhankelijke) draait op / maakt deel uit van `op_component_id`.
-    `relatietype` is een tekst-sleutel uit de catalogus (dimensie `structuurrelatie_type`).
-    Self-FK RESTRICT op `op_component_id` (een onderlegger met afhankelijkheden
-    verdwijnt niet stil). B3: cyclusbewaking beperkt tot de self-ref-CHECK."""
-
-    __tablename__ = "component_structuur"
-    __table_args__ = (
-        CheckConstraint(
-            "component_id <> op_component_id", name="ck_component_structuur_self"
-        ),
-        UniqueConstraint(
-            "tenant_id", "component_id", "op_component_id", "relatietype",
-            name="uq_component_structuur",
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = _pk()
-    component_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
-    )
-    op_component_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("component.id", ondelete="RESTRICT"), nullable=False
-    )
-    relatietype: Mapped[str] = mapped_column(String(60), nullable=False)
-    omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+# ADR-023 B-mig-2 slice 2: `ComponentStructuur` is vervangen door `assignment`/`aggregation`-
+# relaties in het unified relatiemodel (`Relatie`). De catalogus-dimensie `structuurrelatie_type`
+# blijft historisch staan (labels resolvebaar); nieuwe structuurrelaties zijn ArchiMate-relaties.
 
 
 class ChecklistVraag(Base, TenantMixin):
@@ -550,6 +588,11 @@ class Contract(Base, TenantMixin, TimestampMixin):
             "OR (contracttype <> 'deelcontract' AND mantelcontract_id IS NULL)",
             name="ck_contract_mantel_consistentie",
         ),
+        # ADR-023 B-mig-1: contract is een element-subtype (shared-PK, business-laag).
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_contract_element", ondelete="CASCADE",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
@@ -607,28 +650,8 @@ class ContractKostenmodel(Base, TenantMixin, TimestampMixin):
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
 
 
-class ComponentContract(Base, TenantMixin, TimestampMixin):
-    """ADR-021 Besluit 7 — koppeling component ↔ contract met precies één `relatie_rol`
-    (dimensie `relatie_rol`, app-side gevalideerd). Vervangt `applicatie_contract`:
-    élk component kan contracten dragen. Hoogstens één keer hetzelfde contract per
-    component (UNIQUE). Met de shared-PK is `component_id` voor een applicatie
-    identiek aan zijn applicatie-id — de bestaande API blijft applicatie_id spreken."""
-
-    __tablename__ = "component_contract"
-    __table_args__ = (
-        UniqueConstraint(
-            "tenant_id", "component_id", "contract_id", name="uq_component_contract"
-        ),
-    )
-
-    id: Mapped[uuid.UUID] = _pk()
-    component_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("component.id", ondelete="CASCADE"), nullable=False
-    )
-    contract_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("contract.id", ondelete="CASCADE"), nullable=False
-    )
-    relatie_rol: Mapped[str] = mapped_column(String(60), nullable=False)
+# ADR-023 B-mig-2 slice 3: `ComponentContract` is vervangen door `association`-relaties
+# (bron=component, doel=contract, `relatie_rol` als kenmerk) in het unified relatiemodel.
 
 
 class ContractConfigOptie(Base):
@@ -676,6 +699,15 @@ class ComponentConfigOptie(Base):
     volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     actief: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=text("true")
+    )
+    # ADR-023 — ArchiMate-mapping (dim `componenttype`: Besluit 4/OK-1/3) resp.
+    # kenmerk-definities per relatietype (dim `archimate_relatie`: OK-2). Nullable: niet
+    # elke dimensie gebruikt alle velden (dim `structuurrelatie_type` blijft historisch).
+    archimate_element: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    laag: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    aspect: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    kenmerk_definitie: Mapped[dict] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     # ADR-022 Fase E (Besluit 1): markeert een `componenttype` als checklist-dragend
     # (krijgt een component_profiel + engine). Enige bron; alléén relevant voor
