@@ -55,6 +55,7 @@ from routes.datatype import router as datatype_router  # noqa: E402
 from routes.gebruikersgroep import router as gebruikersgroep_router  # noqa: E402
 from routes.leverancier import router as leverancier_router  # noqa: E402
 from routes.relatie import router as relatie_router  # noqa: E402
+from routes.plateau import router as plateau_router  # noqa: E402
 from services.errors import (  # noqa: E402
     ChecklistscoreConflict,
     ConfiguratieConflict,
@@ -132,6 +133,7 @@ app.include_router(checklistscore_router, prefix="/api/v1")
 app.include_router(blokkade_router, prefix="/api/v1")
 app.include_router(auditlog_router, prefix="/api/v1")
 app.include_router(relatie_router, prefix="/api/v1")
+app.include_router(plateau_router, prefix="/api/v1")
 app.include_router(checklistvraag_router, prefix="/api/v1")
 app.include_router(checklistconfig_router, prefix="/api/v1")
 app.include_router(contractconfig_router, prefix="/api/v1")

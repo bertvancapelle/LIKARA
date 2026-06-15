@@ -31,7 +31,17 @@ _STRUCTUURRELATIE: list[tuple[str, str]] = [
 # (sleutel, label, kenmerk_definitie) — de gecureerde acht ArchiMate-relatietypes (OK-1/2).
 _ARCHIMATE_RELATIE: list[tuple[str, str, dict]] = [
     ("composition", "Composition", {}),
-    ("aggregation", "Aggregation", {}),
+    # ADR-023 Fase E: aggregation draagt de plateau-lidmaatschap-kenmerken. `dispositie` wordt
+    # gevalideerd tegen de algemene relatie-kenmerk-vocabulaire-catalogus (NIET ContractConfig);
+    # de contractuele bevestiging is `registratie` (vrije registratie, door het systeem niet
+    # gevalideerd/vergeleken; de facade vult wie/wanneer server-side).
+    ("aggregation", "Aggregation", {
+        "dispositie": {"type": "catalogus", "catalogus": "relatiekenmerk", "dimensie": "dispositie"},
+        "contractueel_bevestigd": {"type": "registratie"},
+        "bevestigd_aantal_gebruikers": {"type": "registratie"},
+        "bevestigd_door": {"type": "registratie"},
+        "bevestigd_op": {"type": "registratie"},
+    }),
     ("serving", "Serving", {}),
     ("assignment", "Assignment", {}),
     ("flow", "Flow", {

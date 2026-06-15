@@ -29,18 +29,22 @@ ELEMENT_ARCHIMATE_TYPING: dict[ElementType, dict[str, str]] = {
     ElementType.datatype: {"archimate_element": "data_object", "laag": "application", "aspect": "passive"},
     # Gebruikersgroep: business-laag, actieve structuur (ArchiMate Business Role/Actor).
     ElementType.gebruikersgroep: {"archimate_element": "business_role", "laag": "business", "aspect": "active"},
+    # ── ADR-023 Fase E (E0) — migratielaag (Implementation & Migration) ────────────
+    # `laag = implementation_migration` is vast (OK-3). Plateau/gap/deliverable zijn
+    # (passieve) structuur; Work Package is in ArchiMate een GEDRAGSelement → aspect
+    # `behavior`. GEMARKEERDE AFWIJKING: OK-3 stelde dat `behavior` "nu leeg" is; deze
+    # slice doorbreekt dat bewust, conform de ArchiMate-standaard (Work Package = gedrag).
+    ElementType.plateau: {"archimate_element": "plateau", "laag": "implementation_migration", "aspect": "passive"},
+    ElementType.gap: {"archimate_element": "gap", "laag": "implementation_migration", "aspect": "passive"},
+    ElementType.work_package: {"archimate_element": "work_package", "laag": "implementation_migration", "aspect": "behavior"},
+    ElementType.deliverable: {"archimate_element": "deliverable", "laag": "implementation_migration", "aspect": "passive"},
 }
 
 # Element-typen die de `ElementType`-enum al kent maar die in het huidige model nog GEEN
-# subtype-tabel hebben (ADR-023 migratielaag). Bewust geparkeerd: Fase E vult de vaste
-# typing in (verplaatst het type uit deze set naar ELEMENT_ARCHIMATE_TYPING). De
-# dekkingstest dwingt af dat een nieuw, niet-geclassificeerd type hier niet stil doorheen valt.
-ELEMENT_TYPEN_NOG_NIET_GEREALISEERD: frozenset[ElementType] = frozenset({
-    ElementType.plateau,
-    ElementType.gap,
-    ElementType.work_package,
-    ElementType.deliverable,
-})
+# subtype-tabel hebben (ADR-023 migratielaag). Sinds Fase E (E0) zijn de migratie-typen
+# getypeerd; de set is daarmee leeg. Een nieuw, nog-niet-gerealiseerd element-type wordt
+# hier geparkeerd zodat de dekkingstest het niet stil doorheen laat vallen.
+ELEMENT_TYPEN_NOG_NIET_GEREALISEERD: frozenset[ElementType] = frozenset()
 
 # `component` krijgt zijn ArchiMate-typing PER componenttype uit de catalogus
 # (`componentconfig_optie`, dim `componenttype`) — geborgd door

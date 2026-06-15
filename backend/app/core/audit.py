@@ -56,9 +56,14 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "gebruikersgroep", "relatie", "checklistscore", "blokkade", "checklistvraag",
     "checklistvraag_optie", "leverancier", "contract", "contract_dekking",
     "contract_kostenmodel",
+    # ADR-023 Fase E — migratielaag. Het plateau-lidmaatschap loopt via `relatie`
+    # (aggregation) → al gedekt door het bestaande relatie-spoor.
+    "plateau",
 })
 AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "tenant", "componentconfig_optie", "contractconfig_optie",
+    # ADR-023 Fase E — relatie-kenmerk-vocabulaire-catalogus (platform-breed beheer).
+    "relatiekenmerk_optie",
 })
 
 # Altijd systeem-afgeleid (Besluit 1): lifecycle leeft alleen als afgeleide → `derive`.

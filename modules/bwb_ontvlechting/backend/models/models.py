@@ -148,6 +148,16 @@ class ContractConfigDimensie(str, Enum):
     relatie_rol = "relatie_rol"
 
 
+class RelatieKenmerkDimensie(str, Enum):
+    """ADR-023 Fase E — discriminator van de platform-brede **relatie-kenmerk-vocabulaire**-
+    catalogus `relatiekenmerk_optie`. Hier horen de beheerbare waardenlijsten van
+    relatie-kenmerken thuis — losgekoppeld van de contract-configuratie (`ContractConfig`).
+    Nu: `dispositie` (van een plateau-lidmaatschap); toekomstige relatie-kenmerken
+    (gap/work_package/deliverable) landen hier eveneens."""
+
+    dispositie = "dispositie"
+
+
 class ComponentConfigDimensie(str, Enum):
     """ADR-021 / ADR-012 Addendum C — discriminator van de platform-brede
     componentcatalogus `componentconfig_optie`. ADR-023: derde dimensie
@@ -189,6 +199,9 @@ antwoordtype_enum = sa.Enum(AntwoordType, name="antwoordtype_enum")
 contracttype_enum = sa.Enum(ContractType, name="contracttype_enum")
 contractconfig_dimensie_enum = sa.Enum(
     ContractConfigDimensie, name="contractconfig_dimensie_enum"
+)
+relatiekenmerk_dimensie_enum = sa.Enum(
+    RelatieKenmerkDimensie, name="relatiekenmerk_dimensie_enum"
 )
 componentconfig_dimensie_enum = sa.Enum(
     ComponentConfigDimensie, name="componentconfig_dimensie_enum"
@@ -405,6 +418,29 @@ class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
     organisatie: Mapped[str] = mapped_column(String(120), nullable=False)
     afdeling: Mapped[str | None] = mapped_column(String(255), nullable=True)
     aantal_gebruikers: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class Plateau(Base, TenantMixin, TimestampMixin):
+    """ADR-023 Fase E (Besluit 2/11) — migratielaag-element: een momentopname van het
+    landschap (bv. "Huidig"/"Doel"). Element-subtype (shared-PK via composiet-FK
+    `(tenant_id, id)` → `element`, FORCE RLS via de migratie; cross-tenant uitgesloten).
+
+    Type-eigen velden: `naam` (het element-supertype draagt geen naam, Besluit 9) +
+    `toelichting`. Lidmaatschap loopt via het unified relatiemodel als `aggregation`-relatie
+    (bron=plateau/geheel, doel=lid/deel) met de dispositie + contractuele bevestiging als
+    kenmerken — géén aparte membership-tabel (Besluit 1/8)."""
+
+    __tablename__ = "plateau"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_plateau_element", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    naam: Mapped[str] = mapped_column(String(255), nullable=False)
+    toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 # ADR-023 B-mig-2 slice 1: het `Koppeling`-model is vervangen door `flow`-relaties in het
@@ -669,6 +705,32 @@ class ContractConfigOptie(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     dimensie: Mapped[ContractConfigDimensie] = mapped_column(
         contractconfig_dimensie_enum, nullable=False
+    )
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("true")
+    )
+
+
+class RelatieKenmerkOptie(Base):
+    """ADR-023 Fase E — platform-brede **relatie-kenmerk-vocabulaire**-catalogus (GEEN RLS,
+    GEEN tenant_id), één tabel met `dimensie`-discriminator. Zelfde vorm/grants/soft-
+    deactivate-semantiek als `contractconfig_optie`/`componentconfig_optie`, maar
+    semantisch losgekoppeld van de contract-configuratie: hier horen de waardenlijsten van
+    relatie-kenmerken thuis (nu `dispositie` van het plateau-lidmaatschap; later die van de
+    gap/work_package/deliverable-relaties). Gevalideerd als kenmerk op de relatie via
+    `{"type":"catalogus","catalogus":"relatiekenmerk","dimensie":…}`."""
+
+    __tablename__ = "relatiekenmerk_optie"
+    __table_args__ = (
+        UniqueConstraint("dimensie", "optie_sleutel", name="uq_relatiekenmerk_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dimensie: Mapped[RelatieKenmerkDimensie] = mapped_column(
+        relatiekenmerk_dimensie_enum, nullable=False
     )
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)

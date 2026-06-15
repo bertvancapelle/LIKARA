@@ -22,10 +22,12 @@ from models.models import (
     Koppelrichting,
     Koppelprotocol,
     Relatie,
+    RelatieKenmerkDimensie,
 )
 from schemas.relatie import RelatieCreate, RelatieUpdate
 from services import componentconfig_catalog as catalog
 from services import contractconfig_catalog as contract_catalog
+from services import relatiekenmerk_catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 from services.pagination import (
     decode_sort_cursor,
@@ -79,12 +81,26 @@ async def _valideer_kenmerken(session: AsyncSession, relatietype: str, kenmerken
                     "ONGELDIG_KENMERK", f"Ongeldige waarde voor kenmerk '{sleutel}'."
                 )
         elif spec.get("type") == "catalogus":
-            dim = ContractConfigDimensie(spec["dimensie"])
-            if waarde not in await contract_catalog.actieve_sleutels(session, dim):
+            # Routeer naar de juiste vocabulaire-catalogus: `contractconfig` (default,
+            # bv. relatie_rol) of `relatiekenmerk` (de algemene relatie-kenmerk-catalogus,
+            # bv. dispositie). Losgekoppeld zodat migratie-kenmerken niet onder de
+            # contract-configuratie vallen.
+            if spec.get("catalogus") == "relatiekenmerk":
+                geldig = await relatiekenmerk_catalog.actieve_sleutels(
+                    session, RelatieKenmerkDimensie(spec["dimensie"])
+                )
+            else:
+                geldig = await contract_catalog.actieve_sleutels(
+                    session, ContractConfigDimensie(spec["dimensie"])
+                )
+            if waarde not in geldig:
                 raise OngeldigeRegistratie(
                     "ONGELDIG_KENMERK",
                     f"Onbekende of inactieve catalogus-waarde voor kenmerk '{sleutel}'.",
                 )
+        elif spec.get("type") == "registratie":
+            # Vrije registratiegegevens (geen vocabulaire-validatie) — bewust geaccepteerd.
+            continue
 
 
 async def haal_op(session: AsyncSession, tenant_id, relatie_id) -> Relatie:

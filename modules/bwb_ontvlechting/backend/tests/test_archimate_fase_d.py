@@ -49,8 +49,9 @@ def test_vaste_typing_is_volledig_en_binnen_toegestane_waarden():
 
 
 def test_realiseerbare_element_typen_concreet():
-    """De vandaag-gerealiseerde element-typen (eigen subtype-tabel) dragen de in de
-    model-docstrings vastgelegde typing (contract/datatype/gebruikersgroep)."""
+    """De gerealiseerde element-typen dragen de vastgelegde typing — de business-/
+    applicatie-elementen (contract/datatype/gebruikersgroep) én sinds Fase E (E0) de
+    migratie-elementen (plateau/gap/work_package/deliverable, implementation_migration)."""
     from models.models import ElementType
     from services.archimate_typing import typing_voor
 
@@ -61,14 +62,22 @@ def test_realiseerbare_element_typen_concreet():
     assert typing_voor(ElementType.datatype)["laag"] == "application"
     assert typing_voor(ElementType.gebruikersgroep)["laag"] == "business"
     assert typing_voor(ElementType.gebruikersgroep)["aspect"] == "active"
+    # ADR-023 Fase E (E0): migratielaag.
+    for et in (ElementType.plateau, ElementType.gap, ElementType.work_package, ElementType.deliverable):
+        assert typing_voor(et)["laag"] == "implementation_migration"
+    # Work Package = gedragselement (bewuste afwijking op OK-3 "behavior leeg").
+    assert typing_voor(ElementType.work_package)["aspect"] == "behavior"
+    assert typing_voor(ElementType.plateau)["aspect"] == "passive"
 
 
 def test_niet_vast_getypeerde_typen_geven_none():
-    """`component` (typing via componenttype-catalogus) en de nog-niet-gerealiseerde
-    migratie-elementen leveren géén vaste typing (None) — bewust, geen gat."""
+    """Alleen `component` levert géén vaste typing (typing via componenttype-catalogus).
+    Sinds Fase E (E0) zijn de migratie-elementen wél getypeerd; de geparkeerde set is leeg."""
     from models.models import ElementType
-    from services.archimate_typing import typing_voor
+    from services.archimate_typing import (
+        ELEMENT_TYPEN_NOG_NIET_GEREALISEERD,
+        typing_voor,
+    )
 
     assert typing_voor(ElementType.component) is None
-    for et in (ElementType.plateau, ElementType.gap, ElementType.work_package, ElementType.deliverable):
-        assert typing_voor(et) is None
+    assert ELEMENT_TYPEN_NOG_NIET_GEREALISEERD == frozenset()

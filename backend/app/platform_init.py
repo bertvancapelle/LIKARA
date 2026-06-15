@@ -30,15 +30,16 @@ if str(_MOD_BACKEND) not in sys.path:
 
 from services.seed_componentconfig import seed_componentconfig  # noqa: E402
 from services.seed_contractconfig import seed_contractconfig  # noqa: E402
+from services.seed_relatiekenmerk import seed_relatiekenmerk  # noqa: E402
 
 
 async def platform_init(session_factory=None) -> int:
     """Zaait **platform-brede** referentiedata. Geeft het aantal componentcatalogus-
     opties terug.
 
-    Twee stappen op dezelfde platform-sessie: (1) de ADR-020-contractconfig-catalogus,
-    (2) de ADR-021/012-componentconfig-catalogus. Beide platform-breed (geen tenant/RLS),
-    idempotent.
+    Drie stappen op dezelfde platform-sessie: (1) de ADR-020-contractconfig-catalogus,
+    (2) de ADR-023-relatiekenmerk-catalogus (o.a. dispositie), (3) de ADR-021/012-
+    componentconfig-catalogus. Alle platform-breed (geen tenant/RLS), idempotent.
 
     ADR-022 W1: de checklistvragen + antwoordconfiguratie zijn **tenant-data** geworden
     en worden NIET meer platform-breed gezaaid — ze worden per tenant gekopieerd uit de
@@ -58,6 +59,7 @@ async def platform_init(session_factory=None) -> int:
     try:
         async with session_factory() as session:
             await seed_contractconfig(session)
+            await seed_relatiekenmerk(session)
             aantal = await seed_componentconfig(session)
             return aantal
     finally:
