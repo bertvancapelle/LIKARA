@@ -51,8 +51,10 @@ _ARCHIMATE_RELATIE: list[tuple[str, str, dict]] = [
         "richting": {"type": "enum", "enum": "koppelrichting"},
     }),
     ("realization", "Realization", {}),
+    # ADR-023 — `relatie_rol` is een relatie-kenmerk → gevalideerd tegen de algemene
+    # relatie-kenmerk-catalogus (consistentie-opruim), niet langer ContractConfig.
     ("association", "Association", {
-        "relatie_rol": {"type": "catalogus", "dimensie": "relatie_rol"},
+        "relatie_rol": {"type": "catalogus", "catalogus": "relatiekenmerk", "dimensie": "relatie_rol"},
     }),
     ("access", "Access", {}),
 ]

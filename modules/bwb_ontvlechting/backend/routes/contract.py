@@ -27,6 +27,7 @@ from schemas.contract import (
 )
 from services import contract_service as svc
 from services import contractconfig_catalog as catalog
+from services import relatiekenmerk_catalog
 from services.pagination import Sorteerrichting
 
 router = APIRouter(prefix="/contracten", tags=["bwb:contract"])
@@ -71,9 +72,14 @@ async def catalogus_opties(
     _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.CONTRACT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Tenant-leeszijde van de classificatie-catalogus: actieve dekking-/kostenmodel-/
-    relatie_rol-opties (CD043 §0). Statisch subpad vóór `/{contract_id}`."""
-    return await catalog.actieve_opties_per_dimensie(session)
+    """Tenant-leeszijde voor de contractformulieren: actieve dekking-/kostenmodel-opties
+    (uit ContractConfig) + relatie_rol-opties (uit de relatie-kenmerk-catalogus, na de
+    consistentie-opruim). Respons-vorm ongewijzigd ({dekking, kostenmodel, relatie_rol});
+    alleen de bron van de relatie_rol-lijst is verschoven. Statisch subpad vóór `/{contract_id}`."""
+    opties = await catalog.actieve_opties_per_dimensie(session)
+    relatiekenmerken = await relatiekenmerk_catalog.actieve_opties_per_dimensie(session)
+    opties["relatie_rol"] = relatiekenmerken.get("relatie_rol", [])
+    return opties
 
 
 @router.get("/{contract_id}", response_model=ContractRead)

@@ -26,16 +26,11 @@ _KOSTENMODEL: list[tuple[str, str]] = [
     ("volume", "Volumemodel"),
     ("per_inwoner", "Per inwoner (gemeente)"),
 ]
-_RELATIE_ROL: list[tuple[str, str]] = [
-    ("valt_onder", "Valt onder / aanschaf"),
-    ("onderhoud", "Onderhoud"),
-    ("hosting", "Hosting"),
-]
-
+# `relatie_rol` is met de consistentie-opruim verhuisd naar de relatie-kenmerk-catalogus
+# (seed_relatiekenmerk) — het is een relatie-kenmerk, geen contract-configuratie.
 _CATALOGUS: list[tuple[ContractConfigDimensie, list[tuple[str, str]]]] = [
     (ContractConfigDimensie.dekking, _DEKKING),
     (ContractConfigDimensie.kostenmodel, _KOSTENMODEL),
-    (ContractConfigDimensie.relatie_rol, _RELATIE_ROL),
 ]
 
 
@@ -56,7 +51,7 @@ def bouw_contractconfig() -> list[dict]:
 
 async def seed_contractconfig(session) -> int:
     """Zaai de default-catalogus (idempotent). Geeft het aantal optie-rijen terug
-    (vast 9, ook bij een tweede idempotente run)."""
+    (vast 6 = 3 dekking + 3 kostenmodel, ook bij een tweede idempotente run)."""
     rijen = bouw_contractconfig()
     stmt = pg_insert(ContractConfigOptie).values(rijen).on_conflict_do_nothing(
         index_elements=["dimensie", "optie_sleutel"]

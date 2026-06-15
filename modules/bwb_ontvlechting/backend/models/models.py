@@ -140,22 +140,24 @@ class ContractType(str, Enum):
 
 
 class ContractConfigDimensie(str, Enum):
-    """ADR-020 — discriminator van de platform-brede classificatie-catalogus
-    `contractconfig_optie` (één tabel, drie dimensies)."""
+    """ADR-020 — discriminator van de platform-brede contract-configuratie-catalogus
+    `contractconfig_optie`. Uitsluitend contract-eigen classificaties: `dekking` +
+    `kostenmodel`. (`relatie_rol` is met de consistentie-opruim verhuisd naar de
+    relatie-kenmerk-catalogus — het is een relatie-kenmerk, geen contract-configuratie.)"""
 
     dekking = "dekking"
     kostenmodel = "kostenmodel"
-    relatie_rol = "relatie_rol"
 
 
 class RelatieKenmerkDimensie(str, Enum):
     """ADR-023 Fase E — discriminator van de platform-brede **relatie-kenmerk-vocabulaire**-
     catalogus `relatiekenmerk_optie`. Hier horen de beheerbare waardenlijsten van
-    relatie-kenmerken thuis — losgekoppeld van de contract-configuratie (`ContractConfig`).
-    Nu: `dispositie` (van een plateau-lidmaatschap); toekomstige relatie-kenmerken
-    (gap/work_package/deliverable) landen hier eveneens."""
+    relatie-kenmerken thuis — losgekoppeld van de contract-configuratie (`ContractConfig`):
+    `dispositie` (plateau-lidmaatschap) en `relatie_rol` (rol van een contract in zijn
+    association met een component). Toekomstige relatie-kenmerken landen hier eveneens."""
 
     dispositie = "dispositie"
+    relatie_rol = "relatie_rol"
 
 
 class ComponentConfigDimensie(str, Enum):

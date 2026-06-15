@@ -12,10 +12,10 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Contract, ContractConfigDimensie, Leverancier, Relatie
+from models.models import Contract, Leverancier, Relatie, RelatieKenmerkDimensie
 from schemas.component_contract import ComponentContractCreate, ComponentContractUpdate
 from services import component_service, contract_service
-from services import contractconfig_catalog as catalog
+from services import relatiekenmerk_catalog as catalog
 from services.errors import NietGevonden, RegistratieConflict
 
 _ENTITEIT = "component_contract"
@@ -42,7 +42,7 @@ async def haal_op(session: AsyncSession, tenant_id, koppeling_id) -> Relatie:
 
 
 async def _lees(session: AsyncSession, obj: Relatie) -> dict:
-    rol_labels = await catalog.labels(session, ContractConfigDimensie.relatie_rol)
+    rol_labels = await catalog.labels(session, RelatieKenmerkDimensie.relatie_rol)
     rol = (obj.kenmerken or {}).get("relatie_rol")
     return {
         "id": obj.id,
@@ -59,7 +59,7 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentContractCrea
     tid = _tenant_uuid(tenant_id)
     await component_service.haal_op(session, tenant_id, data.component_id)  # élk type, 404 buiten tenant
     await contract_service.haal_op(session, tenant_id, data.contract_id)
-    await catalog.valideer_sleutels(session, ContractConfigDimensie.relatie_rol, [data.relatie_rol])
+    await catalog.valideer_sleutels(session, RelatieKenmerkDimensie.relatie_rol, [data.relatie_rol])
 
     bestaat = (
         await session.execute(
@@ -88,7 +88,7 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentContractCrea
 
 async def werk_bij(session: AsyncSession, tenant_id, koppeling_id, data: ComponentContractUpdate) -> dict:
     obj = await haal_op(session, tenant_id, koppeling_id)
-    await catalog.valideer_sleutels(session, ContractConfigDimensie.relatie_rol, [data.relatie_rol])
+    await catalog.valideer_sleutels(session, RelatieKenmerkDimensie.relatie_rol, [data.relatie_rol])
     obj.kenmerken = {**(obj.kenmerken or {}), "relatie_rol": data.relatie_rol}
     await session.commit()
     await session.refresh(obj)
@@ -106,7 +106,7 @@ async def contracten_van_component(session: AsyncSession, tenant_id, component_i
     association-relaties. Component onbekend ⇒ 404."""
     tid = _tenant_uuid(tenant_id)
     await component_service.haal_op(session, tenant_id, component_id)
-    rol_labels = await catalog.labels(session, ContractConfigDimensie.relatie_rol)
+    rol_labels = await catalog.labels(session, RelatieKenmerkDimensie.relatie_rol)
     rijen = (
         await session.execute(
             select(

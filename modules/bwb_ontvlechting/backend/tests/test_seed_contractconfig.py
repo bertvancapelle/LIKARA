@@ -8,12 +8,14 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
 
 
-def test_bouw_9_opties_drie_dimensies():
+def test_bouw_6_opties_twee_dimensies():
+    # ADR-023 consistentie-opruim: relatie_rol verhuisd → ContractConfig draagt nog
+    # uitsluitend dekking + kostenmodel (elk 3) = 6.
     from models.models import ContractConfigDimensie
     from services.seed_contractconfig import bouw_contractconfig
 
     rijen = bouw_contractconfig()
-    assert len(rijen) == 9
+    assert len(rijen) == 6
 
     per_dim: dict = {}
     for r in rijen:
@@ -41,7 +43,6 @@ def test_default_sleutels_per_dimensie():
 
     assert sleutels(D.dekking) == ["licentie_aanschaf", "onderhoud_support", "hosting"]
     assert sleutels(D.kostenmodel) == ["saas_pxq", "volume", "per_inwoner"]
-    assert sleutels(D.relatie_rol) == ["valt_onder", "onderhoud", "hosting"]
 
 
 def test_alle_actief_en_oplopende_volgorde():
@@ -55,13 +56,13 @@ def test_alle_actief_en_oplopende_volgorde():
         assert volg == [0, 1, 2]
 
 
-def test_seed_idempotent_geeft_9():
+def test_seed_idempotent_geeft_6():
     from services.seed_contractconfig import seed_contractconfig
 
     session = AsyncMock()
     eerste = asyncio.run(seed_contractconfig(session))
     tweede = asyncio.run(seed_contractconfig(session))
-    assert eerste == tweede == 9
+    assert eerste == tweede == 6
     session.commit.assert_awaited()
 
 

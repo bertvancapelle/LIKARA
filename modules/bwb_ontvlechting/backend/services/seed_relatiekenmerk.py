@@ -18,9 +18,17 @@ _DISPOSITIE: list[tuple[str, str]] = [
     ("vervangen", "Vervangen"),
     ("uitfaseren", "Uitfaseren"),
 ]
+# `relatie_rol` — de rol van een contract in zijn association met een component. Met de
+# consistentie-opruim verhuisd vanuit ContractConfig (zelfde waarden/labels/betekenis).
+_RELATIE_ROL: list[tuple[str, str]] = [
+    ("valt_onder", "Valt onder / aanschaf"),
+    ("onderhoud", "Onderhoud"),
+    ("hosting", "Hosting"),
+]
 
 _CATALOGUS: list[tuple[RelatieKenmerkDimensie, list[tuple[str, str]]]] = [
     (RelatieKenmerkDimensie.dispositie, _DISPOSITIE),
+    (RelatieKenmerkDimensie.relatie_rol, _RELATIE_ROL),
 ]
 
 
@@ -41,7 +49,7 @@ def bouw_relatiekenmerk() -> list[dict]:
 
 async def seed_relatiekenmerk(session) -> int:
     """Zaai de default-catalogus (idempotent). Geeft het aantal optie-rijen terug
-    (vast 4 = de dispositie-waarden, ook bij een tweede idempotente run)."""
+    (vast 7 = 4 dispositie + 3 relatie_rol, ook bij een tweede idempotente run)."""
     rijen = bouw_relatiekenmerk()
     stmt = pg_insert(RelatieKenmerkOptie).values(rijen).on_conflict_do_nothing(
         index_elements=["dimensie", "optie_sleutel"]

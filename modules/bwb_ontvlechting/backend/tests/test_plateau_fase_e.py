@@ -63,12 +63,20 @@ def test_dispositie_in_relatiekenmerk_catalogus_niet_in_contractconfig():
     from services.seed_contractconfig import bouw_contractconfig
     from services.seed_relatiekenmerk import bouw_relatiekenmerk
 
-    # In de relatie-kenmerk-catalogus.
-    disp = [r["optie_sleutel"] for r in bouw_relatiekenmerk()]
+    from models.models import RelatieKenmerkDimensie
+
+    rk = bouw_relatiekenmerk()
+    # In de relatie-kenmerk-catalogus: dispositie én (sinds de consistentie-opruim) relatie_rol.
+    disp = [r["optie_sleutel"] for r in rk if r["dimensie"] == RelatieKenmerkDimensie.dispositie]
+    rol = [r["optie_sleutel"] for r in rk if r["dimensie"] == RelatieKenmerkDimensie.relatie_rol]
     assert disp == ["behouden", "migreren", "vervangen", "uitfaseren"]
-    # NIET in de contractconfig (en die dimensie bestaat daar niet meer).
-    assert "dispositie" not in {d.value for d in ContractConfigDimensie}
-    assert all("dispositie" not in str(r["dimensie"]) for r in bouw_contractconfig())
+    assert rol == ["valt_onder", "onderhoud", "hosting"]
+    # NIET (meer) in de contractconfig — die draagt uitsluitend dekking + kostenmodel.
+    assert {d.value for d in ContractConfigDimensie} == {"dekking", "kostenmodel"}
+    assert all(
+        str(r["dimensie"]).split(".")[-1] in {"dekking", "kostenmodel"}
+        for r in bouw_contractconfig()
+    )
 
 
 def test_aggregation_dispositie_verwijst_naar_relatiekenmerk_catalogus():

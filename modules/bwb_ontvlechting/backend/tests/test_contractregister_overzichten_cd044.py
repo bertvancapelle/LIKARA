@@ -58,7 +58,8 @@ def test_deelcontractitem_heeft_dekking_maar_contractlijstitem_niet():
 def test_contract_applicaties_bevat_lifecycle(monkeypatch):
     from models.models import LifecycleStatus
     from services import contract_service as svc
-    from services import contractconfig_catalog as catalog
+    # ADR-023 opruim: relatie_rol-labels komen nu uit de relatie-kenmerk-catalogus.
+    from services import relatiekenmerk_catalog as catalog
 
     async def _haal(s, t, c):
         return MagicMock()
@@ -91,7 +92,8 @@ def test_component_contracten_bevat_datums(monkeypatch):
     from models.models import ContractType
     from services import component_contract_service as svc
     from services import component_service
-    from services import contractconfig_catalog as catalog
+    # ADR-023 opruim: relatie_rol-labels komen nu uit de relatie-kenmerk-catalogus.
+    from services import relatiekenmerk_catalog as catalog
 
     async def _ok(*a, **k):
         return MagicMock()

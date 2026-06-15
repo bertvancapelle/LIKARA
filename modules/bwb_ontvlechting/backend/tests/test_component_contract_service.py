@@ -23,7 +23,7 @@ def _create(rol="valt_onder"):
 def test_maak_aan_dubbele_koppeling_geeft_conflict(monkeypatch):
     from services import component_contract_service as svc
     from services import component_service, contract_service
-    from services import contractconfig_catalog as catalog
+    from services import relatiekenmerk_catalog as catalog
     from services.errors import RegistratieConflict
 
     async def _ok(*a, **k):
@@ -50,7 +50,7 @@ def test_maak_aan_dubbele_koppeling_geeft_conflict(monkeypatch):
 def test_maak_aan_ongeldige_rol_geeft_422(monkeypatch):
     from services import component_contract_service as svc
     from services import component_service, contract_service
-    from services import contractconfig_catalog as catalog
+    from services import relatiekenmerk_catalog as catalog
     from services.errors import OngeldigeRegistratie
 
     async def _ok(*a, **k):

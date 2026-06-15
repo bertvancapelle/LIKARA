@@ -13,11 +13,12 @@ import { api } from '@/api'
 import { useAuthStore } from '@/store/auth'
 import ContractConfigBeheer from '@/views/ContractConfigBeheer.vue'
 
+// ADR-023 opruim: relatie_rol is verhuisd naar de relatie-kenmerk-catalogus → ContractConfig
+// beheert nog uitsluitend dekking + kostenmodel.
 const _opties = () => [
   { id: 1, dimensie: 'dekking', optie_sleutel: 'hosting', label: 'Hosting', volgorde: 0, actief: true },
   { id: 2, dimensie: 'dekking', optie_sleutel: 'oud_model', label: 'Oud model', volgorde: 1, actief: false },
   { id: 3, dimensie: 'kostenmodel', optie_sleutel: 'volume', label: 'Volume', volgorde: 0, actief: true },
-  { id: 4, dimensie: 'relatie_rol', optie_sleutel: 'valt_onder', label: 'Valt onder', volgorde: 0, actief: true },
 ]
 
 async function mountBeheer({ rollen = ['platformbeheerder'] } = {}) {
@@ -40,11 +41,11 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('ContractConfigBeheer — render', () => {
-  it('toont de drie dimensies met opties; gedeactiveerde rij onderscheiden', async () => {
+  it('toont de twee dimensies met opties; gedeactiveerde rij onderscheiden', async () => {
     const w = await mountBeheer()
     expect(w.find('[data-testid="cat-sectie-dekking"]').exists()).toBe(true)
     expect(w.find('[data-testid="cat-sectie-kostenmodel"]').exists()).toBe(true)
-    expect(w.find('[data-testid="cat-sectie-relatie_rol"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cat-sectie-relatie_rol"]').exists()).toBe(false)
     expect(w.text()).toContain('Hosting')
     expect(w.text()).toContain('Volume')
     const inactief = w.find('[data-testid="cat-rij-2"]')

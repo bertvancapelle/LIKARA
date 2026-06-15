@@ -31,12 +31,14 @@ from models.models import (
     ElementType,
     Leverancier,
     Relatie,
+    RelatieKenmerkDimensie,
 )
 
 _ASSOCIATION = "association"
 from schemas.contract import ContractCreate, ContractUpdate
 from services import contractconfig_catalog as catalog
 from services import leverancier_service
+from services import relatiekenmerk_catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -467,7 +469,8 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
     """De aan dit contract gekoppelde applicaties (met rol). Contract onbekend ⇒ 404."""
     tid = _tenant_uuid(tenant_id)
     await haal_op(session, tenant_id, contract_id)
-    rol_labels = await catalog.labels(session, ContractConfigDimensie.relatie_rol)
+    # ADR-023 consistentie-opruim: relatie_rol-labels uit de relatie-kenmerk-catalogus.
+    rol_labels = await relatiekenmerk_catalog.labels(session, RelatieKenmerkDimensie.relatie_rol)
     rijen = (
         await session.execute(
             select(

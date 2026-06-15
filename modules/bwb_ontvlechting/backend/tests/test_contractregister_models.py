@@ -27,9 +27,9 @@ def test_nieuwe_enum_waarden():
     assert [e.value for e in m.ContractType] == [
         "mantelcontract", "deelcontract", "los_contract"
     ]
-    assert [e.value for e in m.ContractConfigDimensie] == [
-        "dekking", "kostenmodel", "relatie_rol"
-    ]
+    # ADR-023 consistentie-opruim: relatie_rol verhuisd naar de relatie-kenmerk-catalogus.
+    assert [e.value for e in m.ContractConfigDimensie] == ["dekking", "kostenmodel"]
+    assert [e.value for e in m.RelatieKenmerkDimensie] == ["dispositie", "relatie_rol"]
 
 
 def test_tenant_tabellen_hebben_tenant_id():

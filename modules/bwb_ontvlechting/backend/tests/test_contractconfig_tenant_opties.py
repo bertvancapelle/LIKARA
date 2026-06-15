@@ -27,10 +27,10 @@ def test_actieve_opties_groepeert_per_dimensie_en_behoudt_volgorde():
     session.execute.return_value = res
 
     out = asyncio.run(catalog.actieve_opties_per_dimensie(session))
-    assert set(out) == {d.value for d in D}  # alle dimensies aanwezig
+    # ADR-023 opruim: ContractConfig draagt nog uitsluitend dekking + kostenmodel.
+    assert set(out) == {d.value for d in D}  # {dekking, kostenmodel}
     assert [o["optie_sleutel"] for o in out["dekking"]] == ["licentie_aanschaf", "hosting"]
     assert out["kostenmodel"][0]["label"] == "Volumemodel"
-    assert out["relatie_rol"] == []  # lege dimensie blijft een (lege) lijst
 
 
 def test_query_filtert_actief_en_sorteert_op_volgorde():
@@ -56,6 +56,7 @@ def _app(monkeypatch, payload):
     from app.middleware.tenant import get_tenant_session
     from routes.contract import router
     from services import contractconfig_catalog as catalog
+    from services import relatiekenmerk_catalog
 
     monkeypatch.setattr(auth_mod, "decode_token", lambda token: payload)
     app = FastAPI()
@@ -70,9 +71,14 @@ def _app(monkeypatch, payload):
     app.dependency_overrides[get_tenant_session] = _sess
 
     async def _opt(*_a, **_k):
-        return {"dekking": [], "kostenmodel": [], "relatie_rol": []}
+        return {"dekking": [], "kostenmodel": []}
+
+    async def _relkenmerk_opt(*_a, **_k):
+        # ADR-023 opruim: de endpoint componeert relatie_rol uit de relatie-kenmerk-catalogus.
+        return {"dispositie": [], "relatie_rol": []}
 
     monkeypatch.setattr(catalog, "actieve_opties_per_dimensie", _opt)
+    monkeypatch.setattr(relatiekenmerk_catalog, "actieve_opties_per_dimensie", _relkenmerk_opt)
     return app
 
 

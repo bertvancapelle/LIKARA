@@ -16,10 +16,11 @@ import { useToast } from 'primevue/usetoast'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 
+// ADR-023 consistentie-opruim: `relatie_rol` is verhuisd naar de relatie-kenmerk-catalogus
+// (het is een relatie-kenmerk, geen contract-configuratie) → niet meer hier beheerd.
 const DIMENSIES = [
   { key: 'dekking', label: 'Dekking' },
   { key: 'kostenmodel', label: 'Kostenmodel' },
-  { key: 'relatie_rol', label: 'Relatie-rol' },
 ]
 const SLEUTEL_PATROON = /^[a-z][a-z0-9_]*$/
 
