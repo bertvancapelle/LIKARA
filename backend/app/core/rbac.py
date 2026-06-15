@@ -37,9 +37,10 @@ class Entiteit(str, Enum):
     CHECKLISTVRAAG = "checklistvraag"
     # ADR-023 — unified getypeerd relatiemodel.
     RELATIE = "relatie"
-    # ADR-023 Fase E — migratielaag (plateau, work_package; gap/deliverable volgen).
+    # ADR-023 Fase E — migratielaag (plateau, work_package, deliverable; gap volgt).
     PLATEAU = "plateau"
     WORK_PACKAGE = "work_package"
+    DELIVERABLE = "deliverable"
     AUDITLOG = "auditlog"
     GEBRUIKERSBEHEER = "gebruikersbeheer"
     TENANT_INSTELLINGEN = "tenant_instellingen"
@@ -87,9 +88,10 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     # ADR-023 — relatiemodel: zelfde inhoud-patroon (Viewer L · Medewerker LAW ·
     # Beheerder LAWV · Auditor L).
     Entiteit.RELATIE: dict(_INHOUD),
-    # ADR-023 Fase E — migratielaag: plateau + work_package, zelfde inhoud-patroon.
+    # ADR-023 Fase E — migratielaag: plateau + work_package + deliverable, zelfde patroon.
     Entiteit.PLATEAU: dict(_INHOUD),
     Entiteit.WORK_PACKAGE: dict(_INHOUD),
+    Entiteit.DELIVERABLE: dict(_INHOUD),
     # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer is een tenant-
     # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). Inhoud-patroon:
     # Viewer L · Medewerker LAW · Beheerder LAWV · Auditor L. ("Verwijderen" =

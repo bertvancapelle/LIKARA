@@ -445,6 +445,31 @@ class Plateau(Base, TenantMixin, TimestampMixin):
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class Deliverable(Base, TenantMixin, TimestampMixin):
+    """ADR-023 Fase E (E3, Besluit 2/11) — migratielaag-element: een concreet resultaat dat
+    door een werkpakket wordt opgeleverd en dat een plateau mee helpt realiseren. Element-
+    subtype (shared-PK via composiet-FK `(tenant_id, id)` → `element`, FORCE RLS via de
+    migratie; cross-tenant uitgesloten).
+
+    Type-eigen velden: `naam` (verplicht) + `toelichting`. De realisatieketen
+    (work_package → deliverable → plateau) loopt via het unified relatiemodel met het
+    bestaande relatietype **`realization`** (bron = realiseerder → doel = gerealiseerde) —
+    géén FK-kolommen, géén nieuw relatietype. Koppelingen zijn expliciet en optioneel
+    (Besluit 8): een deliverable mag bestaan zonder werkpakket en/of zonder plateau."""
+
+    __tablename__ = "deliverable"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_deliverable_element", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    naam: Mapped[str] = mapped_column(String(255), nullable=False)
+    toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class WorkPackage(Base, TenantMixin, TimestampMixin):
     """ADR-023 Fase E (E2, Besluit 2/11) — migratielaag-element: een eenheid van
     migratiewerk, hiërarchisch opdeelbaar in subpakketten. Element-subtype (shared-PK via

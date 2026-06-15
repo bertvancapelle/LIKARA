@@ -58,7 +58,7 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "contract_kostenmodel",
     # ADR-023 Fase E — migratielaag. Het plateau-lidmaatschap loopt via `relatie`
     # (aggregation) → al gedekt door het bestaande relatie-spoor.
-    "plateau", "work_package",
+    "plateau", "work_package", "deliverable",
 })
 AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "tenant", "componentconfig_optie", "contractconfig_optie",
