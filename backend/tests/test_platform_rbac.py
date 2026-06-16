@@ -33,6 +33,8 @@ VERWACHT = {
     PlatformEntiteit.CONTRACTCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
     # ADR-012 Addendum C: componentconfig — zelfde verdeling (geen V).
     PlatformEntiteit.COMPONENTCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
+    # ADR-023 Fase F / F-4: relatiekenmerkconfig — zelfde verdeling (geen V).
+    PlatformEntiteit.RELATIEKENMERKCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
 }
 
 

@@ -340,4 +340,13 @@ export const api = {
     werkBij: (id, data) =>
       request(`/platform/componentconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
+
+  // ADR-023 Fase F / F-4 — platform-beheer van de relatie-kenmerk-catalogus.
+  // GÉÉN verwijder (geen DELETE-endpoint; soft-deactivate via werkBij `actief`).
+  platformRelatiekenmerkconfig: {
+    lijst: ({ dimensie } = {}) => request(`/platform/relatiekenmerkconfig${_query({ dimensie })}`),
+    maak: (data) => request('/platform/relatiekenmerkconfig', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) =>
+      request(`/platform/relatiekenmerkconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
 }

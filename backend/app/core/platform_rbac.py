@@ -28,6 +28,8 @@ class PlatformEntiteit(str, Enum):
     CONTRACTCONFIG = "contractconfig"
     # ADR-012 Addendum C / ADR-021: beheer van de componentcatalogus.
     COMPONENTCONFIG = "componentconfig"
+    # ADR-023 Fase F / F-4: beheer van de relatie-kenmerk-catalogus (dispositie/relatie_rol).
+    RELATIEKENMERKCONFIG = "relatiekenmerkconfig"
 
 
 KNOWN_PLATFORM_ROLES: frozenset[str] = frozenset(r.value for r in PlatformRol)
@@ -65,6 +67,11 @@ PLATFORM_PERMISSIES: dict[PlatformEntiteit, dict[PlatformRol, frozenset[Actie]]]
     },
     # Addendum C: componentcatalogus — beheerder LAW (geen V), operator L.
     PlatformEntiteit.COMPONENTCONFIG: {
+        PlatformRol.PLATFORMBEHEERDER: _LAW,
+        PlatformRol.PLATFORMOPERATOR: _L,
+    },
+    # F-4: relatie-kenmerk-catalogus — beheerder LAW (geen V), operator L (soft-deactivate, geen hard delete).
+    PlatformEntiteit.RELATIEKENMERKCONFIG: {
         PlatformRol.PLATFORMBEHEERDER: _LAW,
         PlatformRol.PLATFORMOPERATOR: _L,
     },

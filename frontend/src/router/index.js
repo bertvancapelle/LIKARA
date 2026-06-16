@@ -35,6 +35,8 @@ const ChecklistConfigBeheer = () => import('../views/ChecklistConfigBeheer.vue')
 const ContractConfigBeheer = () => import('../views/ContractConfigBeheer.vue')
 // ADR-021 fase C — platform-beheer componentcatalogus, lazy.
 const ComponentConfigBeheer = () => import('../views/ComponentConfigBeheer.vue')
+// ADR-023 Fase F / F-4 — platform-beheer relatie-kenmerk-catalogus, lazy.
+const RelatieKenmerkConfigBeheer = () => import('../views/RelatieKenmerkConfigBeheer.vue')
 // ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only), lazy.
 const PlateauLijstView = () => import('../views/migratie/PlateauLijstView.vue')
 const PlateauDetailView = () => import('../views/migratie/PlateauDetailView.vue')
@@ -142,6 +144,7 @@ const routes = [
       { path: '', name: 'beheer-home', redirect: { name: 'beheer-contractconfig' } },
       { path: 'contractconfig', name: 'beheer-contractconfig', component: ContractConfigBeheer },
       { path: 'componentconfig', name: 'beheer-componentconfig', component: ComponentConfigBeheer },
+      { path: 'relatiekenmerkconfig', name: 'beheer-relatiekenmerkconfig', component: RelatieKenmerkConfigBeheer },
     ],
   },
 
