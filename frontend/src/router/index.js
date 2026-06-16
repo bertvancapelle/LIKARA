@@ -13,6 +13,8 @@ import BeheerLayout from '../layouts/BeheerLayout.vue'
 const DashboardView = () => import('../views/DashboardView.vue')
 const BlokkadeOverzichtView = () => import('../views/BlokkadeOverzichtView.vue')
 const KoppelingenkaartView = () => import('../views/KoppelingenkaartView.vue')
+// ADR-023 Fase F / F-2 — cross-element laagprojectie, lazy.
+const ArchitectuurView = () => import('../views/ArchitectuurView.vue')
 const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
 const ApplicatieFormulier = () =>
   import('@modules/bwb_ontvlechting/frontend/views/ApplicatieFormulier.vue')
@@ -72,6 +74,8 @@ const routes = [
       { path: '', name: 'dashboard', component: DashboardView },
       { path: 'blokkades', name: 'blokkades', component: BlokkadeOverzichtView },
       { path: 'koppelingenkaart', name: 'koppelingenkaart', component: KoppelingenkaartView },
+      // ADR-023 Fase F / F-2 — cross-element laagprojectie (read-only); élke tenant-rol leest.
+      { path: 'architectuur', name: 'architectuur', component: ArchitectuurView, meta: { roles: MIGRATIE_ROLLEN } },
       // ADR-021 W1 (CD054b): de Applicaties-lijst is opgegaan in de verenigde
       // Componenten-lijst. `/applicaties` redirect (naam behouden zodat bestaande
       // navigaties/bookmarks niet breken) naar Componenten met typefilter=applicatie.

@@ -56,6 +56,7 @@ from routes.datatype import router as datatype_router  # noqa: E402
 from routes.gebruikersgroep import router as gebruikersgroep_router  # noqa: E402
 from routes.leverancier import router as leverancier_router  # noqa: E402
 from routes.relatie import router as relatie_router  # noqa: E402
+from routes.architectuur import router as architectuur_router  # noqa: E402
 from routes.plateau import router as plateau_router  # noqa: E402
 from routes.work_package import router as work_package_router  # noqa: E402
 from routes.deliverable import router as deliverable_router  # noqa: E402
@@ -137,6 +138,7 @@ app.include_router(checklistscore_router, prefix="/api/v1")
 app.include_router(blokkade_router, prefix="/api/v1")
 app.include_router(auditlog_router, prefix="/api/v1")
 app.include_router(relatie_router, prefix="/api/v1")
+app.include_router(architectuur_router, prefix="/api/v1")
 app.include_router(plateau_router, prefix="/api/v1")
 app.include_router(work_package_router, prefix="/api/v1")
 app.include_router(deliverable_router, prefix="/api/v1")

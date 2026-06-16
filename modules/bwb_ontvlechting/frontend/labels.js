@@ -65,6 +65,13 @@ export const ARCHIMATE_LAAG = {
   implementation_migration: 'Implementatie & migratie',
 }
 
+// ArchiMate-aspect (structuur/gedrag). F-2: cross-element laagprojectie.
+export const ARCHIMATE_ASPECT = {
+  active: 'Actieve structuur',
+  passive: 'Passieve structuur',
+  behavior: 'Gedrag',
+}
+
 // Element-label (verfijning binnen de laag). Een onbekende waarde valt via de
 // humanize-fallback netjes terug (geen lege cel).
 export const ARCHIMATE_ELEMENT = {

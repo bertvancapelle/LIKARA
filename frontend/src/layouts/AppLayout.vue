@@ -20,6 +20,10 @@ const ingeklapt = ref(_laadVoorkeur())
 const magMigratieZien = computed(() =>
   auth.hasRole('viewer', 'medewerker', 'beheerder', 'auditor'),
 )
+// F-2: het architectuuroverzicht (ARCHITECTUUR.LEZEN) — élke tenant-rol leest.
+const magArchitectuurZien = computed(() =>
+  auth.hasRole('viewer', 'medewerker', 'beheerder', 'auditor'),
+)
 
 function _laadVoorkeur() {
   try {
@@ -138,6 +142,14 @@ async function uitloggen() {
             class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
           >
             Koppelingenkaart
+          </router-link>
+          <router-link
+            v-if="magArchitectuurZien"
+            :to="{ name: 'architectuur' }"
+            data-testid="nav-architectuur"
+            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Architectuur
           </router-link>
           <router-link
             :to="{ name: 'checklistvragen' }"

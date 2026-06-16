@@ -219,6 +219,12 @@ export const api = {
     verwijder: (id) => request(`/relaties/${id}`, { method: 'DELETE' }),
   },
 
+  // ADR-023 Fase F (F-2) — cross-element laagprojectie (read-only architectuuroverzicht).
+  architectuur: {
+    elementen: ({ limit, after, laag, aspect, type } = {}) =>
+      request(`/architectuur/elementen${_query({ limit, after, laag, aspect, type })}`),
+  },
+
   // ADR-023 Fase E/F (F-1) — migratielaag (read-only overzicht). Leunt volledig op de
   // bestaande lees-endpoints; geen nieuwe backend-semantiek.
   plateaus: {

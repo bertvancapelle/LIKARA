@@ -42,6 +42,8 @@ class Entiteit(str, Enum):
     WORK_PACKAGE = "work_package"
     DELIVERABLE = "deliverable"
     GAP = "gap"
+    # ADR-023 Fase F / F-2 — read-only cross-element laagprojectie (architectuuroverzicht).
+    ARCHITECTUUR = "architectuur"
     AUDITLOG = "auditlog"
     GEBRUIKERSBEHEER = "gebruikersbeheer"
     TENANT_INSTELLINGEN = "tenant_instellingen"
@@ -72,6 +74,15 @@ _INHOUD = {
     Rol.AUDITOR: _L,
 }
 
+# Read-only entiteit: élke tenant-rol mag uitsluitend LEZEN (geen A/W/V). Voor
+# afgeleide leesvlakken zonder mutatie (bv. de cross-element laagprojectie, F-2).
+_ALLEEN_LEZEN = {
+    Rol.VIEWER: _L,
+    Rol.MEDEWERKER: _L,
+    Rol.BEHEERDER: _L,
+    Rol.AUDITOR: _L,
+}
+
 PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.APPLICATIE: dict(_INHOUD),
     Entiteit.DATATYPE: dict(_INHOUD),
@@ -94,6 +105,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.WORK_PACKAGE: dict(_INHOUD),
     Entiteit.DELIVERABLE: dict(_INHOUD),
     Entiteit.GAP: dict(_INHOUD),
+    # ADR-023 Fase F / F-2: cross-element laagprojectie — read-only overzicht; élke
+    # tenant-rol mag lezen (consistent met het feit dat alle rollen al elk element-type lezen).
+    Entiteit.ARCHITECTUUR: dict(_ALLEEN_LEZEN),
     # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer is een tenant-
     # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). Inhoud-patroon:
     # Viewer L · Medewerker LAW · Beheerder LAWV · Auditor L. ("Verwijderen" =
