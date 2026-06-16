@@ -22,7 +22,7 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { SCORE, label } from '../labels'
+import { SCORE, label, scoreKleur } from '../labels'
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
@@ -59,14 +59,48 @@ const veldFout = reactive({}) // vraag_code -> melding
 const aantalVragen = computed(() => vragen.value.length)
 const aantalGescoord = computed(() => Object.keys(scoreMap).length)
 
-// CD022: alleen de vragen van de actieve categorie tonen (null = alle), oplopend
-// op code. De voortgang-tellers blijven bewust GLOBAAL (alle 89 vragen).
+// Client-side kolomsortering (geen API-wijziging): klik op een kolomkop togglet
+// asc/desc. Default = code oplopend (= het pre-sorteer-gedrag). De markeer/scroll-
+// naar-vraag blijft werken want die target de rij-id, niet de positie.
+const sortKolom = ref('code') // 'code' | 'vraag' | 'score'
+const sortRichting = ref('asc') // 'asc' | 'desc'
+
+function sorteerOp(kolom) {
+  if (sortKolom.value === kolom) {
+    sortRichting.value = sortRichting.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKolom.value = kolom
+    sortRichting.value = 'asc'
+  }
+}
+
+function ariaSort(kolom) {
+  if (sortKolom.value !== kolom) return 'none'
+  return sortRichting.value === 'asc' ? 'ascending' : 'descending'
+}
+
+function _sortWaarde(v, kolom) {
+  if (kolom === 'vraag') return v.vraag || ''
+  if (kolom === 'score') return huidigeScore(v.code) || '' // ongescoord = '' (asc vooraan)
+  return v.code
+}
+
+// CD022: alleen de vragen van de actieve categorie tonen (null = alle). De voortgang-
+// tellers blijven bewust GLOBAAL (alle 89 vragen). Sortering client-side; stabiele
+// tiebreak op code zodat gelijke waarden deterministisch blijven.
 const zichtbareVragen = computed(() => {
   const lijst =
     props.categorieNr == null
       ? vragen.value
       : vragen.value.filter((v) => v.categorie_nr === props.categorieNr)
-  return [...lijst].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+  const richting = sortRichting.value === 'asc' ? 1 : -1
+  return [...lijst].sort((a, b) => {
+    const wa = String(_sortWaarde(a, sortKolom.value))
+    const wb = String(_sortWaarde(b, sortKolom.value))
+    const cmp = wa.localeCompare(wb, undefined, { numeric: true })
+    if (cmp !== 0) return cmp * richting
+    return a.code.localeCompare(b.code, undefined, { numeric: true }) * richting
+  })
 })
 
 // Afgeleide categorie-lijst (nr + naam, oplopend) voor de tab-labels in de ouder —
@@ -308,7 +342,25 @@ laad()
 
     <table>
       <thead>
-        <tr><th>Code</th><th>Vraag</th><th>Afgehandeld</th><th></th><th><span class="sr-only">Details</span></th></tr>
+        <tr>
+          <th :aria-sort="ariaSort('code')">
+            <button type="button" data-testid="cs-sort-code" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('code')">
+              Code <span aria-hidden="true">{{ sortKolom === 'code' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
+            </button>
+          </th>
+          <th :aria-sort="ariaSort('vraag')">
+            <button type="button" data-testid="cs-sort-vraag" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('vraag')">
+              Vraag <span aria-hidden="true">{{ sortKolom === 'vraag' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
+            </button>
+          </th>
+          <th :aria-sort="ariaSort('score')">
+            <button type="button" data-testid="cs-sort-score" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('score')">
+              Afgehandeld <span aria-hidden="true">{{ sortKolom === 'score' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
+            </button>
+          </th>
+          <th></th>
+          <th><span class="sr-only">Details</span></th>
+        </tr>
       </thead>
       <tbody>
         <template v-for="v in zichtbareVragen" :key="v.code">
@@ -327,7 +379,7 @@ laad()
                 :aria-label="`Afgehandeld voor vraag ${v.code}`"
                 :aria-invalid="!!rijFout[v.code]"
                 :data-testid="`cs-score-${v.code}`"
-                class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-60"
+                :class="['rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-60 font-semibold', scoreKleur(huidigeScore(v.code))]"
                 @change="onScoreChange(v.code, $event.target.value)"
               >
                 <option value="" disabled>— niet gescoord —</option>

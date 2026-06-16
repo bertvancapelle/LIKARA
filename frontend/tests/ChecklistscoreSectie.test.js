@@ -73,6 +73,33 @@ describe('ChecklistscoreSectie', () => {
     expect(w.find('[data-testid="cs-rij-1.2"]').classes()).not.toContain('bg-[var(--cd-color-accent)]')
   })
 
+  // ── Onderdeel 2: client-side kolomsortering ────────────────────────────────
+  const _codes = (w) => w.findAll('[data-testid^="cs-rij-"]').map((r) => r.attributes('data-testid'))
+
+  it('sorteert client-side op kolomklik (code asc → desc togglet de volgorde)', async () => {
+    const w = await mountSectie()
+    expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2']) // default = code oplopend
+    await w.find('[data-testid="cs-sort-code"]').trigger('click') // → aflopend
+    expect(_codes(w)).toEqual(['cs-rij-1.2', 'cs-rij-1.1'])
+    await w.find('[data-testid="cs-sort-code"]').trigger('click') // → weer oplopend
+    expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2'])
+  })
+
+  it('markeer-naar-vraag vindt de juiste rij ook ná sortering (id-based, niet positie)', async () => {
+    const w = await mountSectie({ markeerCode: '1.1' })
+    await flushPromises()
+    await w.find('[data-testid="cs-sort-code"]').trigger('click') // volgorde omkeren
+    await flushPromises()
+    expect(w.find('[data-testid="cs-rij-1.1"]').classes()).toContain('bg-[var(--cd-color-accent)]')
+  })
+
+  // ── Onderdeel 3: gedeelde score-kleur op het keuzeveld ─────────────────────
+  it('kleurt het score-keuzeveld volgens de gedeelde score-kleur (ja = groen)', async () => {
+    const w = await mountSectie() // 1.2 is gescoord 'ja', 1.1 ongescoord
+    expect(w.find('[data-testid="cs-score-1.2"]').classes()).toContain('text-[var(--cd-color-success)]')
+    expect(w.find('[data-testid="cs-score-1.1"]').classes()).not.toContain('text-[var(--cd-color-success)]')
+  })
+
   // ── ADR-022 Fase E: componenttype-scoping van de vragenset ─────────────────
   it('zonder componenttype: haalt de vragen ongescoped op', async () => {
     await mountSectie()

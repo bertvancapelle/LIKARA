@@ -129,6 +129,22 @@ export const SCORE_SEVERITY = {
   nvt: 'info',
 }
 
+// Score → kleur (ÉÉN gedeelde bron, overal consistent): Ja groen · Deels oranje ·
+// Nee rood · N.v.t. neutraal/grijs. Tailwind tekstkleur-classes op de --cd-tokens.
+// Kleur is nooit de enige drager — de scoretekst (Ja/Deels/Nee) blijft zichtbaar
+// (zie ScoreBadge / het checklist-keuzeveld). Onbekend/leeg ⇒ geen kleur.
+export const SCORE_KLEUR = {
+  ja: 'text-[var(--cd-color-success)]',
+  deels: 'text-[var(--cd-color-warning)]',
+  nee: 'text-[var(--cd-color-danger)]',
+  nvt: 'text-[var(--cd-color-text-muted)]',
+}
+
+// Helper: de kleur-class voor een score (leeg/onbekend ⇒ ''). Single source = SCORE_KLEUR.
+export function scoreKleur(code) {
+  return SCORE_KLEUR[code] ?? ''
+}
+
 export const BLOKKADE_STATUS = {
   open: 'Open',
   in_behandeling: 'In behandeling',

@@ -19,6 +19,8 @@ import ContractSectie from './ContractSectie.vue'
 import ImpactSectie from './ImpactSectie.vue'
 // ADR-022 Fase E — checklist (scoring) voor checklist-dragende NIET-applicatie-typen.
 import ChecklistscoreSectie from './ChecklistscoreSectie.vue'
+// F-1-vervolg — blokkades + herkomst-doorklik, ook voor checklist-dragende niet-applicaties.
+import BlokkadeSectie from './BlokkadeSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -95,6 +97,20 @@ async function startBeoordeling() {
   } finally {
     bezig.value = false
   }
+}
+
+// Herkomst-doorklik: BlokkadeSectie → checklist. ComponentDetail is tabloos en toont
+// de volledige checklist (alle categorieën) inline; de doorklik markeert dus alleen de
+// vraag-rij (scroll/highlight) — zelfde event+prop-mechanisme als ApplicatieDetail,
+// zonder tab/categorie-switch.
+const blokkadeSectie = ref(null)
+const markeerVraagCode = ref(null)
+function onNaarVraag({ code }) {
+  markeerVraagCode.value = code
+}
+async function onScoreGewijzigd() {
+  await laad() // lifecycle kan schuiven
+  blokkadeSectie.value?.herlaad() // een score kan een blokkade laten ontstaan/oplossen
 }
 
 async function bevestigVerwijderen() {
@@ -179,7 +195,17 @@ onMounted(laad)
           v-if="component.checklist_dragend === true"
           :applicatie-id="component.id"
           :componenttype="component.componenttype"
+          :markeer-code="markeerVraagCode"
+          @gewijzigd="onScoreGewijzigd"
+        />
+        <!-- F-1-vervolg — blokkades met herkomst-kolom + doorklik, alleen voor
+             checklist-dragende typen (alleen die kunnen blokkades hebben). -->
+        <BlokkadeSectie
+          v-if="component.checklist_dragend === true"
+          ref="blokkadeSectie"
+          :applicatie-id="component.id"
           @gewijzigd="laad"
+          @naar-vraag="onNaarVraag"
         />
       </div>
     </template>

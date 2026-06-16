@@ -12,6 +12,7 @@ import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast }
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, SCORE, label } from '../labels'
+import ScoreBadge from './ScoreBadge.vue'
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
 const emit = defineEmits(['gewijzigd', 'naar-vraag'])
@@ -203,8 +204,9 @@ laad({ reset: true })
             class="text-[var(--cd-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
             @click="naarVraag(data)"
           >
-            Vraag {{ data.vraag_code }}<span v-if="data.score"> ({{ label(SCORE, data.score) }})</span>
+            Vraag {{ data.vraag_code }}
           </button>
+          <span v-if="data.vraag_code && data.score"> (<ScoreBadge :score="data.score" />)</span>
           <span v-else class="text-[var(--cd-color-text-muted)]">—</span>
         </template>
       </Column>

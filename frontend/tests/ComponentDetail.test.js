@@ -24,6 +24,8 @@ vi.mock('@/api', () => ({
     // de meegerenderde sectie de overige asserts niet laat klappen.
     checklistvragen: { lijst: vi.fn() },
     checklistscores: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), opties: vi.fn() },
+    // F-1-vervolg — BlokkadeSectie (met herkomst-kolom) komt mee bij checklist_dragend.
+    blokkades: { lijst: vi.fn(), opties: vi.fn(), werkBij: vi.fn() },
   },
 }))
 
@@ -114,6 +116,9 @@ beforeEach(() => {
   api.checklistvragen.lijst.mockResolvedValue([])
   api.checklistscores.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
   api.checklistscores.opties.mockResolvedValue({ score: [] })
+  // BlokkadeSectie mount-calls (alleen relevant bij checklist_dragend).
+  api.blokkades.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+  api.blokkades.opties.mockResolvedValue({ status: ['open', 'in_behandeling', 'opgelost'] })
 })
 
 afterEach(() => {
@@ -169,6 +174,35 @@ describe('ComponentDetail', () => {
     const { w } = await mountDetail() // default checklist_dragend: false
     expect(w.find('[data-testid="cs-voortgang"]').exists()).toBe(false)
     expect(api.checklistvragen.lijst).not.toHaveBeenCalled()
+  })
+
+  // ── F-1-vervolg: blokkades + herkomst-doorklik op ComponentDetail ──────────
+  it('toont de blokkade-sectie alleen bij checklist_dragend === true', async () => {
+    const { w: zonder } = await mountDetail() // checklist_dragend: false
+    expect(zonder.find('[data-testid="bk-tabel"]').exists()).toBe(false)
+
+    api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: true }))
+    const { w: met } = await mountDetail()
+    expect(met.find('[data-testid="bk-tabel"]').exists()).toBe(true)
+  })
+
+  it('herkomst-doorklik markeert de checklist-vraag-rij op hetzelfde component', async () => {
+    api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: true }))
+    api.checklistvragen.lijst.mockResolvedValue([
+      { id: 1, code: '2.7', categorie_nr: 2, categorie_naam: 'Techniek', vraag: 'Gedeelde infra?', prioriteit: 'hoog' },
+    ])
+    api.blokkades.lijst.mockResolvedValue({
+      items: [{
+        id: 'b1', status: 'in_behandeling', toelichting: null, eigenaar: null,
+        checklistvraag_id: 1, vraag_code: '2.7', vraag: 'Gedeelde infra?', score: 'deels',
+      }],
+      volgende_cursor: null,
+    })
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="bk-herkomst-b1"]').exists()).toBe(true)
+    await w.find('[data-testid="bk-herkomst-b1"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="cs-rij-2.7"]').classes()).toContain('bg-[var(--cd-color-accent)]')
   })
 
   // ── ADR-022 Fase E: "Start beoordeling" (concept → in_inventarisatie) ──────

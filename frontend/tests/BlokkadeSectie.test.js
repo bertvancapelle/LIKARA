@@ -51,11 +51,15 @@ describe('BlokkadeSectie', () => {
     expect(w.find('[data-testid="bk-open-teller"]').text()).toContain('1 open')
   })
 
-  it('toont de herkomst-kolom met de veroorzakende vraag-code + score', async () => {
+  it('toont de herkomst-kolom met de veroorzakende vraag-code + gekleurde score', async () => {
     const w = await mountSectie()
     const knop = w.find('[data-testid="bk-herkomst-b1"]')
     expect(knop.exists()).toBe(true)
     expect(knop.text()).toContain('2.7')
+    // Onderdeel 3: de score via de gedeelde ScoreBadge (deels = oranje), tekst zichtbaar.
+    const badge = w.find('[data-testid="score-badge-deels"]')
+    expect(badge.exists()).toBe(true)
+    expect(badge.classes()).toContain('text-[var(--cd-color-warning)]')
   })
 
   it('emit naar-vraag met code + afgeleide categorie bij klik op de herkomst', async () => {
