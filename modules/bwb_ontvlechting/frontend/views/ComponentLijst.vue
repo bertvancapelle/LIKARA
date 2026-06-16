@@ -121,6 +121,13 @@ const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'
 onMounted(async () => {
   const q = String(route.query.type ?? '')
   if (q) filterType.value = q
+  // Statusfilter via de URL voorzetten (dashboard-doorklik), zelfde patroon als ?type=.
+  // Accepteert één of meerdere `status`-params; alleen geldige lifecycle-statussen.
+  const statusQ = route.query.status
+  const statussen = (Array.isArray(statusQ) ? statusQ : statusQ != null ? [statusQ] : [])
+    .map(String)
+    .filter((s) => STATUS_OPTIES.includes(s))
+  if (statussen.length) filterStatus.value = statussen
   try {
     typeOpties.value = (await api.componenten.opties()).componenttype || []
   } catch {

@@ -50,6 +50,7 @@ function maakRouter() {
       { path: '/', name: 'dashboard', component: DashboardView },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
       { path: '/blokkades', name: 'blokkades', component: { template: '<div/>' } },
+      { path: '/componenten', name: 'component-lijst', component: { template: '<div/>' } },
     ],
   })
 }
@@ -108,6 +109,18 @@ describe('DashboardView — data', () => {
     const rollup = w.find('[data-testid="readiness-rollup-applicatie"]')
     expect(rollup.exists()).toBe(true)
     expect(rollup.text()).toContain('4 van 10 migratieklaar')
+  })
+
+  it('statustegel is een doorklik-link naar de componentenlijst met status + type', async () => {
+    const w = await mountDashboard()
+    const tegel = w.find('[data-testid="telling-applicatie-geblokkeerd"]')
+    expect(tegel.exists()).toBe(true)
+    // Klikbare tegel = een <a> met de juiste query (exacte tegel-match: status + type).
+    expect(tegel.element.tagName).toBe('A')
+    const href = tegel.attributes('href')
+    expect(href).toContain('/componenten')
+    expect(href).toContain('status=geblokkeerd')
+    expect(href).toContain('type=applicatie')
   })
 
   it('rendert twee verschillende typen als twee gescheiden blokken (geen vermenging)', async () => {

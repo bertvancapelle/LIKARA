@@ -112,17 +112,22 @@ onMounted(laad)
               {{ t.componenttype_label }}
             </h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-[var(--cd-space-md)]">
-              <div
+              <!-- Klikbare statustegel → componentenlijst, voorgefilterd op exact deze
+                   status én dit componenttype (de lijst reproduceert de telling). Zelfde
+                   klikbare-tegel-patroon als de open-blokkades-tegel. -->
+              <router-link
                 v-for="status in STATUS_VOLGORDE"
                 :key="status"
+                :to="{ name: 'component-lijst', query: { status, type: t.componenttype } }"
                 :data-testid="`telling-${t.componenttype}-${status}`"
-                class="card flex flex-col gap-[var(--cd-space-xs)] bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)] p-[var(--cd-space-md)]"
+                :aria-label="`${t.telling[status] ?? 0} ${lifecycleLabel(status)} — ${t.componenttype_label}, bekijk de componenten`"
+                class="card flex flex-col gap-[var(--cd-space-xs)] bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)] p-[var(--cd-space-md)] hover:shadow-[var(--cd-shadow-md)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
               >
                 <span class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
                   {{ t.telling[status] ?? 0 }}
                 </span>
                 <Tag :value="lifecycleLabel(status)" :severity="lifecycleSeverity(status)" />
-              </div>
+              </router-link>
             </div>
             <p
               :data-testid="`readiness-rollup-${t.componenttype}`"

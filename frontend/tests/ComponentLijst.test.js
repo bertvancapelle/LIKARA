@@ -215,4 +215,29 @@ describe('ComponentLijst', () => {
       expect.objectContaining({ componenttype: 'applicatie' }),
     )
   })
+
+  it('een ?status=geblokkeerd-query preselecteert het statusfilter (dashboard-doorklik)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst({ pad: '/componenten?status=geblokkeerd' })
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: ['geblokkeerd'] }),
+    )
+    // De checkbox staat ook visueel voorgevinkt.
+    expect(w.find('[data-testid="filter-status-geblokkeerd"]').element.checked).toBe(true)
+  })
+
+  it('?status= + ?type= samen zetten beide filters voor (exacte dashboard-tegel-match)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst({ pad: '/componenten?status=migratieklaar&type=applicatie' })
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: ['migratieklaar'], componenttype: 'applicatie' }),
+    )
+  })
+
+  it('een ongeldige ?status=-waarde wordt genegeerd (default-gedrag)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst({ pad: '/componenten?status=onzin' })
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.status).toBeUndefined()
+  })
 })
