@@ -18,10 +18,10 @@ from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
 from models.models import BlokkadeStatus
 from schemas.blokkade import (
+    BlokkadeLijstPagina,
     BlokkadeLijstSorteerveld,
     BlokkadeOpties,
     BlokkadeOverzichtPagina,
-    BlokkadePagina,
     BlokkadeRead,
     BlokkadeSorteerveld,
     BlokkadeStatusFilter,
@@ -41,7 +41,7 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
     )
 
 
-@router.get("", response_model=BlokkadePagina)
+@router.get("", response_model=BlokkadeLijstPagina)
 async def lijst_blokkades(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),

@@ -16,7 +16,11 @@ import BlokkadeSectie from '@modules/bwb_ontvlechting/frontend/views/BlokkadeSec
 const APP = 'app-1'
 
 function _blok(id, status = 'open') {
-  return { id, status, toelichting: 'iets', eigenaar: 'Team' }
+  return {
+    id, status, toelichting: 'iets', eigenaar: 'Team',
+    // Herkomst-verrijking (per-component lijst → BlokkadeLijstItem).
+    checklistvraag_id: `v-${id}`, vraag_code: '2.7', vraag: 'Gedeelde infra?', score: 'deels',
+  }
 }
 
 async function mountSectie({ rollen = ['beheerder'], items = [_blok('b1')] } = {}) {
@@ -45,6 +49,21 @@ describe('BlokkadeSectie', () => {
     const w = await mountSectie({ items: [_blok('b1', 'open'), _blok('b2', 'opgelost')] })
     expect(api.blokkades.lijst).toHaveBeenCalledWith({ applicatieId: APP, limit: 25, after: undefined })
     expect(w.find('[data-testid="bk-open-teller"]').text()).toContain('1 open')
+  })
+
+  it('toont de herkomst-kolom met de veroorzakende vraag-code + score', async () => {
+    const w = await mountSectie()
+    const knop = w.find('[data-testid="bk-herkomst-b1"]')
+    expect(knop.exists()).toBe(true)
+    expect(knop.text()).toContain('2.7')
+  })
+
+  it('emit naar-vraag met code + afgeleide categorie bij klik op de herkomst', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="bk-herkomst-b1"]').trigger('click')
+    const ev = w.emitted('naar-vraag')
+    expect(ev).toBeTruthy()
+    expect(ev[0][0]).toMatchObject({ code: '2.7', categorieNr: 2 })
   })
 
   it('biedt GEEN toevoegen/verwijderen-affordance', async () => {

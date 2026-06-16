@@ -22,12 +22,16 @@ const VRAGEN = [
   { id: 2, code: '1.2', categorie_nr: 1, categorie_naam: 'C', vraag: 'Vraag twee', prioriteit: 'hoog' },
 ]
 
-async function mountSectie({ rollen = ['medewerker'], categorieNr = null, componenttype } = {}) {
+async function mountSectie({ rollen = ['medewerker'], categorieNr = null, componenttype, markeerCode } = {}) {
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: rollen }
   const wrapper = mount(ChecklistscoreSectie, {
-    props: { applicatieId: APP, categorieNr, ...(componenttype !== undefined ? { componenttype } : {}) },
+    props: {
+      applicatieId: APP, categorieNr,
+      ...(componenttype !== undefined ? { componenttype } : {}),
+      ...(markeerCode !== undefined ? { markeerCode } : {}),
+    },
     global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService] },
   })
   await flushPromises()
@@ -58,6 +62,15 @@ describe('ChecklistscoreSectie', () => {
   it('toont de voortgang X/N', async () => {
     const w = await mountSectie()
     expect(w.find('[data-testid="cs-voortgang"]').text()).toContain('1/2')
+  })
+
+  it('markeert de aangewezen vraag-rij bij een herkomst-doorklik (markeerCode)', async () => {
+    const w = await mountSectie({ markeerCode: '1.1' })
+    await flushPromises()
+    const rij = w.find('[data-testid="cs-rij-1.1"]')
+    expect(rij.classes()).toContain('bg-[var(--cd-color-accent)]')
+    // Niet-aangewezen rij krijgt de markering niet.
+    expect(w.find('[data-testid="cs-rij-1.2"]').classes()).not.toContain('bg-[var(--cd-color-accent)]')
   })
 
   // ── ADR-022 Fase E: componenttype-scoping van de vragenset ─────────────────

@@ -111,7 +111,7 @@ async def lijst(
     status: BlokkadeStatus | None = None,
     sort: str = _STANDAARD_LIJST_SORT,
     order: str = _STANDAARD_LIJST_ORDER,
-) -> tuple[list[Blokkade], str | None]:
+) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare per-applicatie blokkade-lijst (ADR-017 + CD020).
 
     Additief bovenop het CD016-bevroren contract: `sort`/`order` weglaten = exact
@@ -128,7 +128,32 @@ async def lijst(
         raise ValueError(f"onbekende sorteerrichting: {order}")
     kolom = _LIJST_KOLOMMEN[sort]
 
-    stmt = select(Blokkade).where(Blokkade.tenant_id == tid)
+    # Herkomst-verrijking (DOORLOOP): join op de bestaande verplichte FK-keten
+    # Blokkade.checklistscore_id → Checklistscore → ChecklistVraag, zodat de
+    # per-component lijst de veroorzakende vraag (code + tekst) + de blokkerende score
+    # meelevert (zelfde patroon als `lijst_overzicht`). Read-only — geen engine-raakvlak.
+    # De sortable kolommen zijn gelabeld op hun `kolom.key`, zodat de keyset-cursor
+    # `getattr(row, kolom.key)` blijft werken (ongewijzigd sorteergedrag/allowlist).
+    stmt = (
+        select(
+            Blokkade.id.label("id"),
+            Blokkade.checklistscore_id.label("checklistscore_id"),
+            Blokkade.component_id.label("component_id"),
+            Blokkade.status.label("status"),
+            Blokkade.toelichting.label("toelichting"),
+            Blokkade.eigenaar.label("eigenaar"),
+            Blokkade.opgelost_op.label("opgelost_op"),
+            Blokkade.created_at.label("created_at"),
+            Blokkade.updated_at.label("updated_at"),
+            Checklistscore.checklistvraag_id.label("checklistvraag_id"),
+            Checklistscore.score.label("score"),
+            ChecklistVraag.code.label("vraag_code"),
+            ChecklistVraag.vraag.label("vraag"),
+        )
+        .join(Checklistscore, Checklistscore.id == Blokkade.checklistscore_id)
+        .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
+        .where(Blokkade.tenant_id == tid)
+    )
     if component_id is not None:
         stmt = stmt.where(Blokkade.component_id == component_id)
     if status is not None:
@@ -146,12 +171,30 @@ async def lijst(
         )
     stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Blokkade.id, order)).limit(limit + 1)
 
-    rijen = list((await session.execute(stmt)).scalars().all())
+    rijen = (await session.execute(stmt)).all()
     heeft_meer = len(rijen) > limit
-    items = rijen[:limit]
+    zichtbaar = rijen[:limit]
+    items = [
+        {
+            "id": r.id,
+            "checklistscore_id": r.checklistscore_id,
+            "component_id": r.component_id,
+            "status": r.status,
+            "toelichting": r.toelichting,
+            "eigenaar": r.eigenaar,
+            "opgelost_op": r.opgelost_op,
+            "created_at": r.created_at,
+            "updated_at": r.updated_at,
+            "checklistvraag_id": r.checklistvraag_id,
+            "vraag_code": r.vraag_code,
+            "vraag": r.vraag,
+            "score": r.score,
+        }
+        for r in zichtbaar
+    ]
     volgende = (
         encode_sort_cursor_nullable(
-            sort=sort, order=order, waarde=getattr(items[-1], kolom.key), id=items[-1].id
+            sort=sort, order=order, waarde=getattr(zichtbaar[-1], kolom.key), id=zichtbaar[-1].id
         )
         if heeft_meer
         else None

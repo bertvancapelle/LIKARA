@@ -207,6 +207,16 @@ async function onBlokkadeGewijzigd() {
   await herlaadApplicatie()
 }
 
+// Herkomst-doorklik vanuit BlokkadeSectie: schakel naar het Checklist-tabblad +
+// de categorie van de veroorzakende vraag, en markeer die vraag (scroll/highlight
+// in ChecklistscoreSectie). Read-only navigatie.
+const markeerVraagCode = ref(null)
+function onNaarVraag({ code, categorieNr }) {
+  activeTop.value = 'checklist'
+  if (categorieNr != null) activeCat.value = String(categorieNr)
+  markeerVraagCode.value = code
+}
+
 onMounted(async () => {
   await laad()
   _initVanafQuery()
@@ -359,6 +369,7 @@ onMounted(async () => {
             :applicatie-id="props.id"
             :componenttype="'applicatie'"
             :categorie-nr="actieveCategorieNr"
+            :markeer-code="markeerVraagCode"
             @gewijzigd="onScoreGewijzigd"
           />
         </div>
@@ -419,7 +430,12 @@ onMounted(async () => {
         role="tabpanel"
         aria-labelledby="detailtabs-tab-blokkades"
       >
-        <BlokkadeSectie ref="blokkadeSectie" :applicatie-id="props.id" @gewijzigd="onBlokkadeGewijzigd" />
+        <BlokkadeSectie
+          ref="blokkadeSectie"
+          :applicatie-id="props.id"
+          @gewijzigd="onBlokkadeGewijzigd"
+          @naar-vraag="onNaarVraag"
+        />
       </div>
     </template>
 

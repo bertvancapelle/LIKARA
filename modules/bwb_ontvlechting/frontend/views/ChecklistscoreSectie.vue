@@ -18,7 +18,7 @@
  * velden zijn pas bewerkbaar zodra de vraag gescoord is (er moet een
  * Checklistscore-rij zijn om op te PATCHen).
  */
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
@@ -32,6 +32,9 @@ const props = defineProps({
   // ADR-022 Fase E: scoping van de vragenset op componenttype (symmetrisch met de
   // engine). null = alle actieve vragen.
   componenttype: { type: String, default: null },
+  // F-1-vervolg (blokkade-herkomst): wordt een vraag-code gezet, dan scrollt + markeert
+  // de sectie die rij (read-only navigatie vanuit BlokkadeSectie). null = niets markeren.
+  markeerCode: { type: String, default: null },
 })
 const emit = defineEmits(['gewijzigd'])
 const auth = useAuthStore()
@@ -267,6 +270,26 @@ async function opslaanVelden(code) {
   }
 }
 
+// Herkomst-markering (blokkade-doorklik): scroll naar + highlight de aangewezen rij.
+// `scrollIntoView` defensief (niet alle test-DOM's implementeren het).
+const gemarkeerd = ref(null)
+let _markeerTimer = null
+watch(
+  () => props.markeerCode,
+  async (code) => {
+    if (!code) return
+    await nextTick()
+    const el = document.getElementById(`cs-rij-${code}`)
+    el?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    gemarkeerd.value = code
+    if (_markeerTimer) clearTimeout(_markeerTimer)
+    _markeerTimer = setTimeout(() => {
+      if (gemarkeerd.value === code) gemarkeerd.value = null
+    }, 2500)
+  },
+  { immediate: true },
+)
+
 defineExpose({ aantalVragen, aantalGescoord, categorieen, herlaad: () => laad() })
 
 laad()
@@ -289,7 +312,11 @@ laad()
       </thead>
       <tbody>
         <template v-for="v in zichtbareVragen" :key="v.code">
-          <tr :data-testid="`cs-rij-${v.code}`">
+          <tr
+            :id="`cs-rij-${v.code}`"
+            :data-testid="`cs-rij-${v.code}`"
+            :class="gemarkeerd === v.code ? 'bg-[var(--cd-color-accent)]' : ''"
+          >
             <td>{{ v.code }}</td>
             <td>{{ v.vraag }}</td>
             <td>

@@ -11,10 +11,26 @@ import { computed, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, label } from '../labels'
+import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, SCORE, label } from '../labels'
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
-const emit = defineEmits(['gewijzigd'])
+const emit = defineEmits(['gewijzigd', 'naar-vraag'])
+
+// Herkomst-doorklik: een vraag-code als "2.7" → checklist-categorie 2. De ouder
+// (ApplicatieDetail) schakelt naar het Checklist-tabblad + die categorie en
+// markeert de vraag. Read-only navigatie; geen schrijf-affordance.
+function categorieVan(code) {
+  const nr = Number.parseInt(String(code ?? '').split('.')[0], 10)
+  return Number.isInteger(nr) ? nr : null
+}
+function naarVraag(rij) {
+  if (!rij?.vraag_code) return
+  emit('naar-vraag', {
+    code: rij.vraag_code,
+    categorieNr: categorieVan(rij.vraag_code),
+    checklistvraagId: rij.checklistvraag_id,
+  })
+}
 const auth = useAuthStore()
 const toast = useToast()
 
@@ -177,6 +193,21 @@ laad({ reset: true })
       @sort="onSort"
     >
       <Column header="Status" sort-field="status" sortable><template #body="{ data }"><Tag :value="label(BLOKKADE_STATUS, data.status)" :severity="BLOKKADE_STATUS_SEVERITY[data.status] || 'info'" /></template></Column>
+      <Column header="Veroorzaakt door">
+        <template #body="{ data }">
+          <button
+            v-if="data.vraag_code"
+            type="button"
+            :data-testid="`bk-herkomst-${data.id}`"
+            :title="`${data.vraag || ''}${data.score ? ` — antwoord: ${label(SCORE, data.score)}` : ''}`"
+            class="text-[var(--cd-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+            @click="naarVraag(data)"
+          >
+            Vraag {{ data.vraag_code }}<span v-if="data.score"> ({{ label(SCORE, data.score) }})</span>
+          </button>
+          <span v-else class="text-[var(--cd-color-text-muted)]">—</span>
+        </template>
+      </Column>
       <Column field="toelichting" header="Toelichting" sortable />
       <Column field="eigenaar" header="Eigenaar" sortable />
       <Column header="">

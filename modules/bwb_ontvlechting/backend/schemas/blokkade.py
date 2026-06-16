@@ -11,7 +11,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from models.models import BlokkadeStatus
+from models.models import BlokkadeStatus, ChecklistScore
 from schemas.applicatie import _optionele_tekst
 
 _VERPLICHTE_VELDEN = frozenset({"status"})
@@ -109,6 +109,25 @@ class BlokkadeRead(BaseModel):
 
 class BlokkadePagina(BaseModel):
     items: list[BlokkadeRead]
+    volgende_cursor: str | None = None
+
+
+class BlokkadeLijstItem(BlokkadeRead):
+    """Per-component blokkade verrijkt met de **bron-vraag** (herkomst-traceerbaarheid).
+
+    Superset van `BlokkadeRead`: dezelfde velden + de veroorzakende vraag (`vraag_code`
+    + `vraag`-tekst) en de blokkerende `score` (nee/deels), herleid via de bestaande
+    verplichte FK-keten `Blokkade.checklistscore_id → Checklistscore → ChecklistVraag`.
+    Read-only; geen schema-/engine-wijziging."""
+
+    checklistvraag_id: uuid.UUID
+    vraag_code: str
+    vraag: str
+    score: ChecklistScore | None
+
+
+class BlokkadeLijstPagina(BaseModel):
+    items: list[BlokkadeLijstItem]
     volgende_cursor: str | None = None
 
 

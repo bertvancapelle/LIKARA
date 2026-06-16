@@ -16,6 +16,7 @@ TENANT_A = "11111111-1111-1111-1111-111111111111"
 _ID = "22222222-2222-2222-2222-222222222222"
 _APP_ID = "33333333-3333-3333-3333-333333333333"
 _SCORE_ID = "44444444-4444-4444-4444-444444444444"
+_VRAAG_ID = "55555555-5555-5555-5555-555555555555"
 
 
 def _fake_blokkade():
@@ -29,6 +30,11 @@ def _fake_blokkade():
         opgelost_op=None,
         created_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
         updated_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
+        # Herkomst-verrijking (per-component lijst → BlokkadeLijstItem).
+        checklistvraag_id=uuid.UUID(_VRAAG_ID),
+        vraag_code="1.1",
+        vraag="Wat is de naam van de applicatie?",
+        score="nee",
     )
 
 
