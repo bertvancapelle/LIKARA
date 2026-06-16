@@ -16,6 +16,7 @@ import { Button, Column, DataTable, Tag } from '@/primevue'
 import { useRoute } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
 import {
   ARCHIMATE_ELEMENT,
   ARCHIMATE_LAAG,
@@ -161,21 +162,20 @@ onMounted(async () => {
       data-testid="filterbalk"
       class="mb-[var(--cd-space-md)] flex flex-wrap items-end gap-[var(--cd-space-md)] rounded-[var(--cd-radius-card)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]"
     >
-      <fieldset class="flex flex-col gap-[var(--cd-space-xs)]">
-        <legend class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">
-          Status
-        </legend>
-        <div class="flex flex-wrap gap-[var(--cd-space-md)]">
-          <label
-            v-for="s in STATUS_OPTIES"
-            :key="s"
-            class="flex items-center gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]"
-          >
-            <input v-model="filterStatus" type="checkbox" :value="s" :data-testid="`filter-status-${s}`" @change="herfilter" />
-            {{ lifecycleLabel(s) }}
-          </label>
-        </div>
-      </fieldset>
+      <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+        <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Status</span>
+        <!-- Multi-select dropdown (zelfde stijl als Type/Laag/Hosting); meervoudige
+             selectie behouden (filterStatus blijft een array → server-side IN). -->
+        <MultiSelectDropdown
+          v-model="filterStatus"
+          :opties="STATUS_OPTIES"
+          :weergave="lifecycleLabel"
+          placeholder="Alle"
+          aria-label="Filter op status"
+          testid="filter-status"
+          @change="herfilter"
+        />
+      </label>
 
       <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
         <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Type</span>

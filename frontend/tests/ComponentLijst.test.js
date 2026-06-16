@@ -184,10 +184,12 @@ describe('ComponentLijst', () => {
     expect(w.findAll('[data-testid="status-leeg"]').length).toBeGreaterThan(0)
   })
 
-  it('status-filter stuurt de status-array mee en reset de cursor', async () => {
+  it('status-filter (multi-select dropdown) stuurt de status-array mee en reset de cursor', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-status-geblokkeerd"]').setValue(true)
+    // Multi-select dropdown: open de trigger, vink een status aan.
+    await w.find('[data-testid="filter-status-trigger"]').trigger('click')
+    await w.find('[data-testid="filter-status-checkbox-geblokkeerd"]').trigger('change')
     await flushPromises()
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: ['geblokkeerd'], after: undefined }),
@@ -222,8 +224,8 @@ describe('ComponentLijst', () => {
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: ['geblokkeerd'] }),
     )
-    // De checkbox staat ook visueel voorgevinkt.
-    expect(w.find('[data-testid="filter-status-geblokkeerd"]').element.checked).toBe(true)
+    // De dropdown-trigger toont de voorgezette selectie (1 gekozen → het statuslabel).
+    expect(w.find('[data-testid="filter-status-trigger"]').text()).toContain('Geblokkeerd')
   })
 
   it('?status= + ?type= samen zetten beide filters voor (exacte dashboard-tegel-match)', async () => {
