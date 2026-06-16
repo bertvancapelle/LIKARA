@@ -35,6 +35,19 @@ const ChecklistConfigBeheer = () => import('../views/ChecklistConfigBeheer.vue')
 const ContractConfigBeheer = () => import('../views/ContractConfigBeheer.vue')
 // ADR-021 fase C — platform-beheer componentcatalogus, lazy.
 const ComponentConfigBeheer = () => import('../views/ComponentConfigBeheer.vue')
+// ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only), lazy.
+const PlateauLijstView = () => import('../views/migratie/PlateauLijstView.vue')
+const PlateauDetailView = () => import('../views/migratie/PlateauDetailView.vue')
+const GapLijstView = () => import('../views/migratie/GapLijstView.vue')
+const GapDetailView = () => import('../views/migratie/GapDetailView.vue')
+const WorkPackageLijstView = () => import('../views/migratie/WorkPackageLijstView.vue')
+const WorkPackageDetailView = () => import('../views/migratie/WorkPackageDetailView.vue')
+const DeliverableLijstView = () => import('../views/migratie/DeliverableLijstView.vue')
+const DeliverableDetailView = () => import('../views/migratie/DeliverableDetailView.vue')
+
+// Migratielaag-reads zijn voor elke tenant-rol leesbaar (RBAC `_INHOUD`); de guard
+// gate't de routes op die rolset (platform-sessies worden al eerder weggeleid).
+const MIGRATIE_ROLLEN = ['viewer', 'medewerker', 'beheerder', 'auditor']
 
 // Publieke routes staan standalone (geen app-shell). Geauthenticeerde routes
 // hangen als children onder AppLayout: door de meta-merge erven zij
@@ -104,6 +117,16 @@ const routes = [
       // ADR-022 W1 — checklist-vragenset is tenant-eigendom: tenant-facing route
       // (cd_app, tenant-shell), verhuisd uit /beheer.
       { path: 'checklistvragen', name: 'checklistvragen', component: ChecklistConfigBeheer },
+      // ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only). Statische subpaden
+      // vóór de dynamische /:id; gegate op de tenant-rolset via meta.roles.
+      { path: 'migratie/plateaus', name: 'plateau-lijst', component: PlateauLijstView, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/plateaus/:id', name: 'plateau-detail', component: PlateauDetailView, props: true, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/gaps', name: 'gap-lijst', component: GapLijstView, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/gaps/:id', name: 'gap-detail', component: GapDetailView, props: true, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/werkpakketten', name: 'work-package-lijst', component: WorkPackageLijstView, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/werkpakketten/:id', name: 'work-package-detail', component: WorkPackageDetailView, props: true, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/deliverables', name: 'deliverable-lijst', component: DeliverableLijstView, meta: { roles: MIGRATIE_ROLLEN } },
+      { path: 'migratie/deliverables/:id', name: 'deliverable-detail', component: DeliverableDetailView, props: true, meta: { roles: MIGRATIE_ROLLEN } },
     ],
   },
 

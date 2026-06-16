@@ -6,13 +6,20 @@
  * Sidebar: sectie-navigatie (Dashboard nu; module-secties later).
  * Midden: <router-view> voor de geauthenticeerde child-routes.
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useAuthStore } from '../store/auth'
 import Button from 'primevue/button'
 import Toast from 'primevue/toast'
 
 const auth = useAuthStore()
 const ingeklapt = ref(_laadVoorkeur())
+
+// F-1/F-5: de migratielaag-views zijn voor elke tenant-rol leesbaar (RBAC `_INHOUD`).
+// De nav-groep is de affordance; de backend handhaaft (vereist_permissie). Geen rol ⇒
+// niet zichtbaar.
+const magMigratieZien = computed(() =>
+  auth.hasRole('viewer', 'medewerker', 'beheerder', 'auditor'),
+)
 
 function _laadVoorkeur() {
   try {
@@ -139,6 +146,45 @@ async function uitloggen() {
           >
             Checklistvragen
           </router-link>
+
+          <!-- ADR-023 Fase F (F-1): migratielaag-overzicht, één "Migratie"-groep met vier
+               sub-items. Gegate op leesrecht (elke tenant-rol heeft dat). -->
+          <template v-if="magMigratieZien">
+            <span
+              data-testid="nav-migratie-groep"
+              class="mt-[var(--cd-space-md)] px-[var(--cd-space-md)] text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]"
+            >
+              Migratie
+            </span>
+            <router-link
+              :to="{ name: 'plateau-lijst' }"
+              data-testid="nav-plateaus"
+              class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+            >
+              Plateaus
+            </router-link>
+            <router-link
+              :to="{ name: 'gap-lijst' }"
+              data-testid="nav-gaps"
+              class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+            >
+              Gaps
+            </router-link>
+            <router-link
+              :to="{ name: 'work-package-lijst' }"
+              data-testid="nav-werkpakketten"
+              class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+            >
+              Werkpakketten
+            </router-link>
+            <router-link
+              :to="{ name: 'deliverable-lijst' }"
+              data-testid="nav-deliverables"
+              class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+            >
+              Deliverables
+            </router-link>
+          </template>
         </nav>
       </aside>
 

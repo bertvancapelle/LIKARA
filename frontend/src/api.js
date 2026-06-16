@@ -219,6 +219,29 @@ export const api = {
     verwijder: (id) => request(`/relaties/${id}`, { method: 'DELETE' }),
   },
 
+  // ADR-023 Fase E/F (F-1) — migratielaag (read-only overzicht). Leunt volledig op de
+  // bestaande lees-endpoints; geen nieuwe backend-semantiek.
+  plateaus: {
+    lijst: ({ limit, after } = {}) => request(`/plateaus${_query({ limit, after })}`),
+    haal: (id) => request(`/plateaus/${id}`),
+    leden: (id) => request(`/plateaus/${id}/leden`),
+  },
+  gaps: {
+    lijst: ({ limit, after } = {}) => request(`/gaps${_query({ limit, after })}`),
+    haal: (id) => request(`/gaps/${id}`), // GapDetail incl. de twee readiness-cijfers
+    leden: (id) => request(`/gaps/${id}/leden`),
+  },
+  workPackages: {
+    lijst: ({ limit, after } = {}) => request(`/work-packages${_query({ limit, after })}`),
+    haal: (id) => request(`/work-packages/${id}`),
+    subboom: (id) => request(`/work-packages/${id}/subboom`),
+  },
+  deliverables: {
+    lijst: ({ limit, after } = {}) => request(`/deliverables${_query({ limit, after })}`),
+    haal: (id) => request(`/deliverables/${id}`),
+    keten: (id) => request(`/deliverables/${id}/keten`),
+  },
+
   componentContracten: {
     maak: (data) => request('/component-contracten', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>

@@ -28,6 +28,11 @@ function maakRouter() {
           { path: 'blokkades', name: 'blokkades', component: { template: '<div/>' } },
           { path: 'koppelingenkaart', name: 'koppelingenkaart', component: { template: '<div/>' } },
           { path: 'checklistvragen', name: 'checklistvragen', component: { template: '<div/>' } },
+          // ADR-023 Fase F (F-1) — migratielaag-nav (gegate op tenant-rol).
+          { path: 'migratie/plateaus', name: 'plateau-lijst', component: { template: '<div/>' } },
+          { path: 'migratie/gaps', name: 'gap-lijst', component: { template: '<div/>' } },
+          { path: 'migratie/werkpakketten', name: 'work-package-lijst', component: { template: '<div/>' } },
+          { path: 'migratie/deliverables', name: 'deliverable-lijst', component: { template: '<div/>' } },
         ],
       },
       { path: '/login', name: 'login', component: { template: '<div/>' } },
