@@ -123,9 +123,10 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
     (checklistscore=create) + afgeleide gevolgen (blokkade + component_profiel = derive),
     één gedeeld correlatie_id en dezelfde actor.
 
-    Gebruikt het `applicatieserver`-type (3 tenant-vragen, geseed): ja/ja/nee maakt de set
+    Gebruikt het `client_software`-type (3 tenant-vragen, geseed): ja/ja/nee maakt de set
     compleet mét één open blokkade ⇒ lifecycle → geblokkeerd, dus de laatste score-write
-    raakt score + blokkade + component_profiel in één transactie."""
+    raakt score + blokkade + component_profiel in één transactie.
+    (ADR-023 Fase F/F-6: demo-type verhuisd van `applicatieserver` naar `client_software`.)"""
     from models.models import AuditLog, ChecklistVraag
     from schemas.checklistscore import ChecklistscoreCreate
     from schemas.component import ComponentCreate
@@ -137,7 +138,7 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
         async with _worker(DEV_TENANT) as s:
             comp = await component_service.maak_aan(
                 s, DEV_TENANT,
-                ComponentCreate(naam=naam, componenttype="applicatieserver",
+                ComponentCreate(naam=naam, componenttype="client_software",
                                 hostingmodel="on_premise", eigenaar_organisatie="ICT-beheer"),
             )
             comp_id = comp["id"]
@@ -146,7 +147,7 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
             vraag_ids = [
                 r for (r,) in (await s.execute(
                     select(ChecklistVraag.id)
-                    .where(ChecklistVraag.componenttype == "applicatieserver")
+                    .where(ChecklistVraag.componenttype == "client_software")
                     .order_by(ChecklistVraag.code)
                 )).all()
             ]

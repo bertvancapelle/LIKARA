@@ -622,7 +622,12 @@ async def _seed_technische_laag(session, app_ids: dict) -> dict:
 
 
 async def _seed_tweede_type(session) -> dict:
-    """ADR-022 Fase E — een TWEEDE checklist-dragend type (`applicatieserver`) end-to-end.
+    """ADR-022 Fase E — een TWEEDE checklist-dragend type (`client_software`) end-to-end.
+
+    NB (ADR-023 Fase F / F-6): bewust `client_software` als demo-type — het enige niet-
+    applicatie-type dat de live-gedragstests niet als profielloze infra vastpinnen. De
+    dev-seed markeert het zélf checklist-dragend (duurzaam na reseed); `applicatieserver`
+    en `database` blijven `false` (de structurele eindstand).
 
     1. markeer het type platform-breed checklist-dragend (catalogus, als cd_platform);
     2. enkele tenant-eigen vragen voor dat type;
@@ -640,7 +645,7 @@ async def _seed_tweede_type(session) -> dict:
     from services import component_service as comp
     from services import lifecycle_service
 
-    TYPE = "applicatieserver"
+    TYPE = "client_software"
     # 1. Catalogus-vlag (platform; cd_platform mag componentconfig_optie UPDATEn).
     async with platform_session_factory() as ps:
         await ps.execute(
@@ -660,17 +665,17 @@ async def _seed_tweede_type(session) -> dict:
             )
         ).all()
     }
-    AS_VRAGEN = [
-        ("AS.1", "Is het besturingssysteem-patchniveau actueel?"),
-        ("AS.2", "Is er een back-up- en herstelprocedure vastgelegd?"),
-        ("AS.3", "Zijn de beheeraccounts persoonsgebonden (geen gedeeld)?"),
+    CS_VRAGEN = [
+        ("CS.1", "Is de client-software-versie nog ondersteund (geen end-of-life)?"),
+        ("CS.2", "Wordt de client-software centraal uitgerold en gepatcht?"),
+        ("CS.3", "Zijn er licentie-afspraken vastgelegd voor de client-software?"),
     ]
-    for code, vraag in AS_VRAGEN:
+    for code, vraag in CS_VRAGEN:
         if code in bestaande_codes:
             continue
         await cc.maak_vraag(
             session, DEV_TENANT,
-            VraagCreate(componenttype=TYPE, code=code, vraag=vraag, categorie_nr=1, categorie_naam="Applicatieserver"),
+            VraagCreate(componenttype=TYPE, code=code, vraag=vraag, categorie_nr=1, categorie_naam="Client-software"),
         )
     code_to_id = {
         c: i for (c, i) in (
@@ -687,7 +692,7 @@ async def _seed_tweede_type(session) -> dict:
         ).scalars().all()
     }
     srv_gestart = None
-    for naam, start in (("Applicatieserver PRD-01", True), ("Applicatieserver ACC-02", False)):
+    for naam, start in (("Client-software PRD-01", True), ("Client-software ACC-02", False)):
         if naam in bestaande_namen:
             continue
         c = await comp.maak_aan(
@@ -699,7 +704,7 @@ async def _seed_tweede_type(session) -> dict:
             # 4. Start beoordeling (concept → in_inventarisatie) + volledig scoren → migratieklaar.
             await lifecycle_service.start_beoordeling(session, DEV_TENANT, c["id"])
             await session.commit()
-            for code in ("AS.1", "AS.2", "AS.3"):
+            for code in ("CS.1", "CS.2", "CS.3"):
                 await checklistscore_service.maak_aan(
                     session, DEV_TENANT,
                     ChecklistscoreCreate(component_id=c["id"], checklistvraag_id=code_to_id[code], score="ja"),
@@ -768,7 +773,7 @@ async def main() -> None:
         tl = await _seed_technische_laag(session, app_ids)
         print(f"  extra componenten={tl['componenten_extra']} structuurrelaties={tl['structuurrelaties']}")
 
-        print("ADR-022 Fase E — tweede checklist-dragend type (applicatieserver):")
+        print("ADR-022 Fase E — tweede checklist-dragend type (client_software):")
         e = await _seed_tweede_type(session)
         print(f"  type={e['type']} vragen={e['vragen']}")
     print("dev-seed: klaar")

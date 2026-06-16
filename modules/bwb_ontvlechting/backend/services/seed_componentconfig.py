@@ -14,15 +14,19 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from models.models import ComponentConfigDimensie, ComponentConfigOptie
 
-# (sleutel, label, archimate_element, laag, aspect)
-_COMPONENTTYPE: list[tuple[str, str, str, str, str]] = [
-    ("applicatie", "Applicatie", "application_component", "application", "active"),
-    ("database", "Database", "system_software", "technology", "active"),
-    ("applicatieserver", "Applicatieserver", "node", "technology", "active"),
-    ("client_software", "Client-software", "system_software", "technology", "active"),
-    ("saas_dienst", "SaaS-dienst", "application_component", "application", "active"),
-    ("middleware", "Middleware", "system_software", "technology", "active"),
-    ("fileshare", "Fileshare", "node", "technology", "active"),
+# (sleutel, label, archimate_element, laag, aspect, checklist_dragend)
+# ADR-022 Fase E / ADR-023 Fase F (F-6): `checklist_dragend` wordt hier EXPLICIET gezet
+# (single source = de seed), niet langer de kolom-default laten winnen. Alleen het
+# systeemtype `applicatie` is checklist-dragend; alle overige typen niet. De seed
+# (expand) en de reconcile-migratie 0023 (contract) zetten dezelfde stand → geen drift.
+_COMPONENTTYPE: list[tuple[str, str, str, str, str, bool]] = [
+    ("applicatie", "Applicatie", "application_component", "application", "active", True),
+    ("database", "Database", "system_software", "technology", "active", False),
+    ("applicatieserver", "Applicatieserver", "node", "technology", "active", False),
+    ("client_software", "Client-software", "system_software", "technology", "active", False),
+    ("saas_dienst", "SaaS-dienst", "application_component", "application", "active", False),
+    ("middleware", "Middleware", "system_software", "technology", "active", False),
+    ("fileshare", "Fileshare", "node", "technology", "active", False),
 ]
 _STRUCTUURRELATIE: list[tuple[str, str]] = [
     ("draait_op", "Draait op"),
@@ -67,26 +71,26 @@ def bouw_componentconfig() -> list[dict]:
     # renderen). Waarden byte-identiek: `archimate_*` = None waar niet van toepassing,
     # `kenmerk_definitie` = {} waar niet van toepassing (was server-default '{}').
     rijen: list[dict] = []
-    for volgorde, (sleutel, label, elem, laag, aspect) in enumerate(_COMPONENTTYPE):
+    for volgorde, (sleutel, label, elem, laag, aspect, dragend) in enumerate(_COMPONENTTYPE):
         rijen.append({
             "dimensie": ComponentConfigDimensie.componenttype,
             "optie_sleutel": sleutel, "label": label, "volgorde": volgorde, "actief": True,
             "archimate_element": elem, "laag": laag, "aspect": aspect,
-            "kenmerk_definitie": {},
+            "kenmerk_definitie": {}, "checklist_dragend": dragend,
         })
     for volgorde, (sleutel, label) in enumerate(_STRUCTUURRELATIE):
         rijen.append({
             "dimensie": ComponentConfigDimensie.structuurrelatie_type,
             "optie_sleutel": sleutel, "label": label, "volgorde": volgorde, "actief": True,
             "archimate_element": None, "laag": None, "aspect": None,
-            "kenmerk_definitie": {},
+            "kenmerk_definitie": {}, "checklist_dragend": False,
         })
     for volgorde, (sleutel, label, kenmerken) in enumerate(_ARCHIMATE_RELATIE):
         rijen.append({
             "dimensie": ComponentConfigDimensie.archimate_relatie,
             "optie_sleutel": sleutel, "label": label, "volgorde": volgorde, "actief": True,
             "archimate_element": None, "laag": None, "aspect": None,
-            "kenmerk_definitie": kenmerken,
+            "kenmerk_definitie": kenmerken, "checklist_dragend": False,
         })
     return rijen
 
