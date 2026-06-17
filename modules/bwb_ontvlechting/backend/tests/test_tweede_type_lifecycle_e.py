@@ -145,7 +145,9 @@ def test_tweede_type_lifecycle_end_to_end():
             await s.rollback()
         finally:
             for cid in comp_ids:
-                await s.execute(text("delete from component where id = :i"), {"i": cid})
+                # Via het element-supertype (cascade omlaag); component-delete zou het
+                # element als wees achterlaten.
+                await s.execute(text("delete from element where id = :i"), {"i": cid})
             await s.commit()
 
     async def _run():

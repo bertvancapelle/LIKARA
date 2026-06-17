@@ -135,9 +135,10 @@ def test_scoringlijst_volgt_actieve_set():
             ).scalar_one()
             assert cnt == 1
         finally:
-            # Opruimen: verse applicatie (cascade wist haar score) eerst, dan de vraag.
+            # Opruimen: verse applicatie via het element-supertype (cascade wist subtype +
+            # score; component-delete zou het element als wees achterlaten), dan de vraag.
             if app_id is not None:
-                await s.execute(text("delete from component where id = :i"), {"i": app_id})
+                await s.execute(text("delete from element where id = :i"), {"i": app_id})
                 await s.commit()
             if vraag_id is not None:
                 await _admin_exec("DELETE FROM checklistvraag WHERE id = :i", {"i": vraag_id})

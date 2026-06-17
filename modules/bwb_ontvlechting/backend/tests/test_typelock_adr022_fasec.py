@@ -65,8 +65,10 @@ async def _maak(s, naam, type_):
 
 
 async def _opruimen(s, ids):
-    # Raw cascade-delete (FK ON DELETE CASCADE wist subtype/profiel/scores/blokkades).
-    await s.execute(text("delete from component where id = any(:ids)"), {"ids": ids})
+    # Verwijder via het ELEMENT-supertype: FK ON DELETE CASCADE wist het hele subtype-pad
+    # (element → component → subtype/profiel/scores/blokkades). Component-delete zou het
+    # element als wees achterlaten (zichtbaar als "component <id8>" in de architectuur-view).
+    await s.execute(text("delete from element where id = any(:ids)"), {"ids": ids})
     await s.commit()
 
 

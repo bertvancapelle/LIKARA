@@ -163,7 +163,7 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
                 .order_by(AuditLog.tijdstip)
             )).scalars().all()
         async with _worker(DEV_TENANT) as s:
-            await s.execute(text("DELETE FROM component WHERE id = :i"), {"i": str(comp_id)})
+            await s.execute(text("DELETE FROM element WHERE id = :i"), {"i": str(comp_id)})
             await s.commit()
         return rows
 
@@ -220,7 +220,7 @@ def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
                                        AuditLog.entiteit_type == "blokkade")
             )).scalars().all()
         async with _worker(DEV_TENANT) as s:
-            await s.execute(text("DELETE FROM component WHERE id = :i"), {"i": str(app_id)})
+            await s.execute(text("DELETE FROM element WHERE id = :i"), {"i": str(app_id)})
             await s.commit()
         return rows
 

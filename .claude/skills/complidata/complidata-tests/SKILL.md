@@ -224,3 +224,15 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 - **Dev-ergonomie**: `psql` staat **niet** op de host → `docker exec cd-postgres psql -U cd_admin -d
   complidata -At -F'|' -c "…"` voor read-only metingen als cd_admin (ziet álle tenants). `rm` is in de
   sandbox geweigerd → ruim een per ongeluk aangemaakt stray-bestand op met `find <pad> -type f -delete`.
+- **Teardown MOET via het element-supertype (les uit V011 — wees-elementen).** Een live-test-teardown
+  ruimt een element-subtype (component/contract/…) **uitsluitend** op met `DELETE FROM element WHERE id=…`
+  (cascade omlaag: element → subtype → profiel/scores/blokkades + relatie-endpoints). `DELETE FROM
+  component` (of een ander subtype) verwijdert **alleen de subtype-rij** en laat de `element`-ouder als
+  **wees** achter — onzichtbaar in de meeste tests, maar zichtbaar in de architectuur-view als
+  "component <id8>" (de `_naam`-fallback in `architectuur_service`). Symptoom: élke run laat N wezen
+  achter (telt op over dagen). **Borging is niet sluitend zonder meting**: tel ná een volledige suite-run
+  de wees-elementen — `SELECT count(*) FROM element e WHERE NOT EXISTS (SELECT 1 FROM <subtype> WHERE
+  id=e.id)` per subtype — en eis **0**. Het productie-delete-pad (`*_service.verwijder`) verwijdert al
+  correct via `element`; dit was puur een test-teardown-fout (4 bestanden, V011). **Grep
+  case-insensitive** (`grep -niE "delete[[:space:]]+from[[:space:]]+component"`) — lowercase SQL in
+  tests wordt anders gemist.
