@@ -18,12 +18,28 @@ from schemas.componentconfig import (
     ComponentConfigOptieUpdate,
 )
 from services import componentconfig_service as svc
+from services.archimate_typing import (
+    TOEGESTANE_ASPECTEN,
+    TOEGESTANE_ELEMENTEN,
+    TOEGESTANE_LAGEN,
+)
 
 router = APIRouter(prefix="/platform/componentconfig", tags=["platform:componentconfig"])
 
 _LEZEN = vereist_platform_permissie(PlatformEntiteit.COMPONENTCONFIG, Actie.LEZEN)
 _AANMAKEN = vereist_platform_permissie(PlatformEntiteit.COMPONENTCONFIG, Actie.AANMAKEN)
 _WIJZIGEN = vereist_platform_permissie(PlatformEntiteit.COMPONENTCONFIG, Actie.WIJZIGEN)
+
+
+@router.get("/typering-opties")
+async def typering_opties(_user=Depends(_LEZEN)):
+    """ADR-026 — de gesloten keuzelijsten voor de ArchiMate-typering van een componenttype.
+    Enige bron = `services/archimate_typing` (de frontend hardcodeert de lijsten niet)."""
+    return {
+        "elementen": sorted(TOEGESTANE_ELEMENTEN),
+        "lagen": sorted(TOEGESTANE_LAGEN),
+        "aspecten": sorted(TOEGESTANE_ASPECTEN),
+    }
 
 
 @router.get("", response_model=list[ComponentConfigOptieRead])

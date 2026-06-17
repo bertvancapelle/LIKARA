@@ -6,7 +6,11 @@ import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
-  api: { platformComponentconfig: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn() } },
+  api: {
+    platformComponentconfig: {
+      lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), typeringOpties: vi.fn(),
+    },
+  },
 }))
 
 import { api } from '@/api'
@@ -14,11 +18,17 @@ import { useAuthStore } from '@/store/auth'
 import ComponentConfigBeheer from '@/views/ComponentConfigBeheer.vue'
 
 const _opties = () => [
-  { id: 1, dimensie: 'componenttype', optie_sleutel: 'applicatie', label: 'Applicatie', volgorde: 0, actief: true },
-  { id: 2, dimensie: 'componenttype', optie_sleutel: 'database', label: 'Database', volgorde: 1, actief: true },
-  { id: 3, dimensie: 'componenttype', optie_sleutel: 'oud', label: 'Oud', volgorde: 2, actief: false },
+  { id: 1, dimensie: 'componenttype', optie_sleutel: 'applicatie', label: 'Applicatie', volgorde: 0, actief: true, archimate_element: 'application_component', archimate_laag: 'application', archimate_aspect: 'active' },
+  { id: 2, dimensie: 'componenttype', optie_sleutel: 'database', label: 'Database', volgorde: 1, actief: true, archimate_element: 'system_software', archimate_laag: 'technology', archimate_aspect: 'active' },
+  { id: 3, dimensie: 'componenttype', optie_sleutel: 'oud', label: 'Oud', volgorde: 2, actief: false, archimate_element: 'node', archimate_laag: 'technology', archimate_aspect: 'active' },
   { id: 4, dimensie: 'structuurrelatie_type', optie_sleutel: 'draait_op', label: 'Draait op', volgorde: 0, actief: true },
 ]
+
+const _typering = () => ({
+  elementen: ['application_component', 'system_software', 'node'],
+  lagen: ['application', 'technology', 'business'],
+  aspecten: ['active', 'passive', 'behavior'],
+})
 
 async function mountBeheer({ rollen = ['platformbeheerder'] } = {}) {
   const pinia = createPinia()
@@ -36,6 +46,7 @@ async function mountBeheer({ rollen = ['platformbeheerder'] } = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   api.platformComponentconfig.lijst.mockResolvedValue(_opties())
+  api.platformComponentconfig.typeringOpties.mockResolvedValue(_typering())
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -80,9 +91,19 @@ describe('ComponentConfigBeheer — flows', () => {
 
     api.platformComponentconfig.maak.mockRejectedValueOnce({ status: 409, code: 'CONFIGURATIE_CONFLICT', message: 'bestaat al' })
     await w.find('[data-testid="cat-add-sleutel"]').setValue('etl_tool')
+    // ADR-026: componenttype vereist een volledige typering vóór submit.
+    await w.find('[data-testid="cat-add-element"]').setValue('system_software')
+    await w.find('[data-testid="cat-add-laag"]').setValue('technology')
+    await w.find('[data-testid="cat-add-aspect"]').setValue('active')
     await w.find('[data-testid="cat-add-form"]').trigger('submit')
     await flushPromises()
     expect(w.find('[data-testid="cat-add-formfout"]').exists()).toBe(true)
+    expect(api.platformComponentconfig.maak).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dimensie: 'componenttype', optie_sleutel: 'etl_tool',
+        archimate_element: 'system_software', archimate_laag: 'technology', archimate_aspect: 'active',
+      }),
+    )
   })
 
   it('bewerken: dimensie en sleutel read-only', async () => {
@@ -103,6 +124,53 @@ describe('ComponentConfigBeheer — flows', () => {
     await w.find('[data-testid="cat-deact-bevestig"]').trigger('click')
     await flushPromises()
     expect(api.platformComponentconfig.werkBij).toHaveBeenCalledWith(2, { actief: false })
+  })
+})
+
+describe('ComponentConfigBeheer — ADR-026 typering', () => {
+  it('toont element/laag/aspect-kolommen voor componenttype, niet voor structuurrelatie', async () => {
+    const w = await mountBeheer()
+    // componenttype-rij draagt de typering-cellen
+    expect(w.find('[data-testid="cat-element-2"]').text()).toContain('system_software')
+    expect(w.find('[data-testid="cat-laag-2"]').text()).toContain('technology')
+    expect(w.find('[data-testid="cat-aspect-2"]').text()).toContain('active')
+    // structuurrelatie-rij heeft géén typering-cellen
+    expect(w.find('[data-testid="cat-element-4"]').exists()).toBe(false)
+  })
+
+  it('toevoegen componenttype: typering-dropdowns verplicht', async () => {
+    const w = await mountBeheer()
+    await w.find('[data-testid="cat-toevoegen-componenttype"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="cat-add-element"]').exists()).toBe(true)
+    await w.find('[data-testid="cat-add-sleutel"]').setValue('etl_tool')
+    await w.find('[data-testid="cat-add-label"]').setValue('ETL')
+    await w.find('[data-testid="cat-add-form"]').trigger('submit')
+    await flushPromises()
+    // zonder typering ⇒ validatiefout, geen call
+    expect(w.find('[data-testid="cat-add-fout-archimate_element"]').exists()).toBe(true)
+    expect(api.platformComponentconfig.maak).not.toHaveBeenCalled()
+  })
+
+  it('toevoegen structuurrelatie: géén typering-dropdowns', async () => {
+    const w = await mountBeheer()
+    await w.find('[data-testid="cat-toevoegen-structuurrelatie_type"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="cat-add-element"]').exists()).toBe(false)
+  })
+
+  it('bewerken componenttype: typering vooringevuld + meegestuurd', async () => {
+    api.platformComponentconfig.werkBij.mockResolvedValueOnce({ ..._opties()[1], archimate_element: 'node' })
+    const w = await mountBeheer()
+    await w.find('[data-testid="cat-bewerk-2"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="cat-edit-element"]').element.value).toBe('system_software')
+    await w.find('[data-testid="cat-edit-element"]').setValue('node')
+    await w.find('[data-testid="cat-edit-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.platformComponentconfig.werkBij).toHaveBeenCalledWith(2, expect.objectContaining({
+      archimate_element: 'node', archimate_laag: 'technology', archimate_aspect: 'active',
+    }))
   })
 })
 

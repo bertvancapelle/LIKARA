@@ -17,6 +17,14 @@ from services.errors import ConfiguratieConflict, NietGevonden, OngeldigeRegistr
 _SYSTEEM_DIMENSIE = ComponentConfigDimensie.componenttype
 _SYSTEEM_SLEUTEL = "applicatie"
 
+# ADR-026 — de API-velden dragen het `archimate_`-voorvoegsel; de model-kolommen heten
+# `archimate_element`/`laag`/`aspect`. Eén mapping voor create én update.
+_TYPERING_MAP = {
+    "archimate_element": "archimate_element",
+    "archimate_laag": "laag",
+    "archimate_aspect": "aspect",
+}
+
 
 async def lijst(session: AsyncSession, dimensie: str | None = None) -> list[ComponentConfigOptie]:
     stmt = select(ComponentConfigOptie)
@@ -71,6 +79,12 @@ async def voeg_toe(session: AsyncSession, data: ComponentConfigOptieCreate) -> C
         label=data.label,
         volgorde=volgorde,
         actief=True,
+        # ADR-026 — typering meezetten (dicht het lek: voorheen bleven deze NULL). Voor
+        # dimensie componenttype is volledigheid al door het schema afgedwongen; andere
+        # dimensies leveren None.
+        archimate_element=data.archimate_element,
+        laag=data.archimate_laag,
+        aspect=data.archimate_aspect,
     )
     session.add(obj)
     await session.commit()
@@ -95,6 +109,19 @@ async def wijzig(
             "SYSTEEM_SLEUTEL_BESCHERMD",
             "Het componenttype 'applicatie' is een systeem-sleutel en kan niet worden gedeactiveerd.",
         )
+    # ADR-026 Besluit 5 — typering corrigeren mag; LEEGMAKEN van een componenttype-typering
+    # (expliciet None/'' meesturen) wordt geweigerd. Mappt de `archimate_`-API-velden op de
+    # model-kolommen. De DB-CHECK (0025) is de backstop.
+    for api_veld, model_veld in _TYPERING_MAP.items():
+        if api_veld in velden:
+            waarde = velden.pop(api_veld)
+            if obj.dimensie == _SYSTEEM_DIMENSIE and not waarde:
+                raise OngeldigeRegistratie(
+                    "TYPERING_VERPLICHT",
+                    "Een componenttype moet een volledige ArchiMate-typering houden; "
+                    "de typering kan niet worden leeggemaakt.",
+                )
+            setattr(obj, model_veld, waarde)
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     await session.commit()

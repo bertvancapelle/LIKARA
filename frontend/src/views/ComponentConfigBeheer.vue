@@ -29,6 +29,11 @@ const laden = ref(false)
 const fout = ref(null)
 const bezig = ref(false)
 
+// ADR-026 — gesloten keuzelijsten (element/laag/aspect) uit de backend-bron; nooit hier hardcoden.
+const typeringOpties = reactive({ elementen: [], lagen: [], aspecten: [] })
+// De typering is alléén van toepassing op de dimensie componenttype.
+const isComponenttype = (key) => key === 'componenttype'
+
 // Systeem-sleutel (Addendum C Besluit 5): componenttype.applicatie — niet deactiveerbaar.
 const isSysteem = (o) => o.dimensie === 'componenttype' && o.optie_sleutel === 'applicatie'
 
@@ -71,16 +76,33 @@ async function laad() {
   }
 }
 
+async function laadTyperingOpties() {
+  try {
+    const t = await api.platformComponentconfig.typeringOpties()
+    typeringOpties.elementen = t?.elementen ?? []
+    typeringOpties.lagen = t?.lagen ?? []
+    typeringOpties.aspecten = t?.aspecten ?? []
+  } catch {
+    // Keuzelijsten niet kritisch voor het tonen van de catalogus; dialogen tonen lege selects.
+  }
+}
+
 // ── Toevoegen ────────────────────────────────────────────────────────────────
 const addOpen = ref(false)
 const addDim = ref(null)
-const addForm = reactive({ optie_sleutel: '', label: '', volgorde: '' })
+const addForm = reactive({
+  optie_sleutel: '', label: '', volgorde: '',
+  archimate_element: '', archimate_laag: '', archimate_aspect: '',
+})
 const addFouten = reactive({})
 const addFormFout = ref(null)
 
 function openToevoegen(dim) {
   addDim.value = dim
-  Object.assign(addForm, { optie_sleutel: '', label: '', volgorde: '' })
+  Object.assign(addForm, {
+    optie_sleutel: '', label: '', volgorde: '',
+    archimate_element: '', archimate_laag: '', archimate_aspect: '',
+  })
   Object.keys(addFouten).forEach((k) => delete addFouten[k])
   addFormFout.value = null
   addOpen.value = true
@@ -92,6 +114,12 @@ function _valideerAdd() {
   else if (!SLEUTEL_PATROON.test(sl))
     addFouten.optie_sleutel = 'Lowercase snake_case (a-z, 0-9, _), begin met een letter.'
   if (!addForm.label.trim()) addFouten.label = 'Label is verplicht.'
+  // ADR-026 Besluit 4: typering verplicht bij aanmaken van een componenttype.
+  if (isComponenttype(addDim.value)) {
+    if (!addForm.archimate_element) addFouten.archimate_element = 'Element is verplicht.'
+    if (!addForm.archimate_laag) addFouten.archimate_laag = 'Laag is verplicht.'
+    if (!addForm.archimate_aspect) addFouten.archimate_aspect = 'Aspect is verplicht.'
+  }
   return Object.keys(addFouten).length === 0
 }
 async function bevestigToevoegen() {
@@ -102,6 +130,11 @@ async function bevestigToevoegen() {
     const data = { dimensie: addDim.value, optie_sleutel: addForm.optie_sleutel.trim(), label: addForm.label.trim() }
     const v = addForm.volgorde !== '' ? Number.parseInt(addForm.volgorde, 10) : null
     if (v !== null && !Number.isNaN(v)) data.volgorde = v
+    if (isComponenttype(addDim.value)) {
+      data.archimate_element = addForm.archimate_element
+      data.archimate_laag = addForm.archimate_laag
+      data.archimate_aspect = addForm.archimate_aspect
+    }
     const optie = await api.platformComponentconfig.maak(data)
     opties.value.push(optie)
     toast.add({ severity: 'success', summary: 'Toegevoegd', detail: optie.optie_sleutel, life: 3000 })
@@ -122,12 +155,18 @@ async function bevestigToevoegen() {
 // ── Bewerken (label + volgorde; sleutel/dimensie immutabel — ook voor systeem) ─
 const editOpen = ref(false)
 const editOptie = ref(null)
-const editForm = reactive({ label: '', volgorde: '' })
+const editForm = reactive({ label: '', volgorde: '', archimate_element: '', archimate_laag: '', archimate_aspect: '' })
 const editFouten = reactive({})
+const editIsComponenttype = computed(() => isComponenttype(editOptie.value?.dimensie))
 
 function openBewerken(optie) {
   editOptie.value = optie
-  Object.assign(editForm, { label: optie.label, volgorde: String(optie.volgorde) })
+  Object.assign(editForm, {
+    label: optie.label, volgorde: String(optie.volgorde),
+    archimate_element: optie.archimate_element ?? '',
+    archimate_laag: optie.archimate_laag ?? '',
+    archimate_aspect: optie.archimate_aspect ?? '',
+  })
   Object.keys(editFouten).forEach((k) => delete editFouten[k])
   editOpen.value = true
 }
@@ -137,11 +176,23 @@ async function bevestigBewerken() {
     editFouten.label = 'Label is verplicht.'
     return
   }
+  // ADR-026 Besluit 5: een componenttype-typering mag niet leeggemaakt worden.
+  if (editIsComponenttype.value) {
+    if (!editForm.archimate_element) editFouten.archimate_element = 'Element is verplicht.'
+    if (!editForm.archimate_laag) editFouten.archimate_laag = 'Laag is verplicht.'
+    if (!editForm.archimate_aspect) editFouten.archimate_aspect = 'Aspect is verplicht.'
+    if (Object.keys(editFouten).length) return
+  }
   bezig.value = true
   try {
     const data = { label: editForm.label.trim() }
     const v = Number.parseInt(editForm.volgorde, 10)
     if (!Number.isNaN(v)) data.volgorde = v
+    if (editIsComponenttype.value) {
+      data.archimate_element = editForm.archimate_element
+      data.archimate_laag = editForm.archimate_laag
+      data.archimate_aspect = editForm.archimate_aspect
+    }
     const updated = await api.platformComponentconfig.werkBij(editOptie.value.id, data)
     _vervang(updated)
     toast.add({ severity: 'success', summary: 'Opgeslagen', detail: updated.optie_sleutel, life: 3000 })
@@ -184,6 +235,7 @@ async function reactiveer(optie) {
 }
 
 laad()
+laadTyperingOpties()
 </script>
 
 <template>
@@ -221,6 +273,11 @@ laad()
               <th class="py-[var(--cd-space-xs)]">Label</th>
               <th>Sleutel</th>
               <th>Volgorde</th>
+              <template v-if="isComponenttype(dim.key)">
+                <th>Element</th>
+                <th>Laag</th>
+                <th>Aspect</th>
+              </template>
               <th>Status</th>
               <th></th>
             </tr>
@@ -236,6 +293,11 @@ laad()
               <td class="py-[var(--cd-space-xs)]">{{ optie.label }}</td>
               <td class="font-mono">{{ optie.optie_sleutel }}</td>
               <td>{{ optie.volgorde }}</td>
+              <template v-if="isComponenttype(dim.key)">
+                <td class="font-mono" :data-testid="`cat-element-${optie.id}`">{{ optie.archimate_element || '—' }}</td>
+                <td class="font-mono" :data-testid="`cat-laag-${optie.id}`">{{ optie.archimate_laag || '—' }}</td>
+                <td class="font-mono" :data-testid="`cat-aspect-${optie.id}`">{{ optie.archimate_aspect || '—' }}</td>
+              </template>
               <td>
                 <Tag
                   :data-testid="`cat-status-${optie.id}`"
@@ -274,7 +336,7 @@ laad()
               </td>
             </tr>
             <tr v-if="!perDimensie(dim.key).length">
-              <td colspan="5" :data-testid="`cat-leeg-${dim.key}`" class="py-[var(--cd-space-sm)] text-[var(--cd-color-text-muted)]">
+              <td :colspan="isComponenttype(dim.key) ? 8 : 5" :data-testid="`cat-leeg-${dim.key}`" class="py-[var(--cd-space-sm)] text-[var(--cd-color-text-muted)]">
                 Nog geen opties in deze dimensie.
               </td>
             </tr>
@@ -301,6 +363,33 @@ laad()
           <label for="cat-add-volgorde" class="font-semibold">Volgorde</label>
           <input id="cat-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="cat-add-volgorde" placeholder="leeg = achteraan" class="w-32 rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white" />
         </div>
+        <!-- ADR-026: ArchiMate-typering — alleen voor dimensie componenttype, verplicht. -->
+        <template v-if="isComponenttype(addDim)">
+          <div class="flex flex-col gap-[var(--cd-space-xs)]">
+            <label for="cat-add-element" class="font-semibold">ArchiMate-element *</label>
+            <select id="cat-add-element" v-model="addForm.archimate_element" data-testid="cat-add-element" :aria-invalid="!!addFouten.archimate_element" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+              <option value="">— kies —</option>
+              <option v-for="el in typeringOpties.elementen" :key="el" :value="el">{{ el }}</option>
+            </select>
+            <span v-if="addFouten.archimate_element" role="alert" data-testid="cat-add-fout-archimate_element" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ addFouten.archimate_element }}</span>
+          </div>
+          <div class="flex flex-col gap-[var(--cd-space-xs)]">
+            <label for="cat-add-laag" class="font-semibold">Laag *</label>
+            <select id="cat-add-laag" v-model="addForm.archimate_laag" data-testid="cat-add-laag" :aria-invalid="!!addFouten.archimate_laag" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+              <option value="">— kies —</option>
+              <option v-for="l in typeringOpties.lagen" :key="l" :value="l">{{ l }}</option>
+            </select>
+            <span v-if="addFouten.archimate_laag" role="alert" data-testid="cat-add-fout-archimate_laag" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ addFouten.archimate_laag }}</span>
+          </div>
+          <div class="flex flex-col gap-[var(--cd-space-xs)]">
+            <label for="cat-add-aspect" class="font-semibold">Aspect *</label>
+            <select id="cat-add-aspect" v-model="addForm.archimate_aspect" data-testid="cat-add-aspect" :aria-invalid="!!addFouten.archimate_aspect" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+              <option value="">— kies —</option>
+              <option v-for="a in typeringOpties.aspecten" :key="a" :value="a">{{ a }}</option>
+            </select>
+            <span v-if="addFouten.archimate_aspect" role="alert" data-testid="cat-add-fout-archimate_aspect" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ addFouten.archimate_aspect }}</span>
+          </div>
+        </template>
         <div class="flex gap-[var(--cd-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="cat-add-opslaan" :disabled="bezig" />
           <Button type="button" label="Annuleren" severity="secondary" @click="addOpen = false" />
@@ -327,6 +416,33 @@ laad()
           <label for="cat-edit-volgorde" class="font-semibold">Volgorde</label>
           <input id="cat-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="cat-edit-volgorde" class="w-32 rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white" />
         </div>
+        <!-- ADR-026: typering bewerkbaar voor componenttype; leegmaken niet toegestaan. -->
+        <template v-if="editIsComponenttype">
+          <div class="flex flex-col gap-[var(--cd-space-xs)]">
+            <label for="cat-edit-element" class="font-semibold">ArchiMate-element *</label>
+            <select id="cat-edit-element" v-model="editForm.archimate_element" data-testid="cat-edit-element" :aria-invalid="!!editFouten.archimate_element" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+              <option value="">— kies —</option>
+              <option v-for="el in typeringOpties.elementen" :key="el" :value="el">{{ el }}</option>
+            </select>
+            <span v-if="editFouten.archimate_element" role="alert" data-testid="cat-edit-fout-archimate_element" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ editFouten.archimate_element }}</span>
+          </div>
+          <div class="flex flex-col gap-[var(--cd-space-xs)]">
+            <label for="cat-edit-laag" class="font-semibold">Laag *</label>
+            <select id="cat-edit-laag" v-model="editForm.archimate_laag" data-testid="cat-edit-laag" :aria-invalid="!!editFouten.archimate_laag" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+              <option value="">— kies —</option>
+              <option v-for="l in typeringOpties.lagen" :key="l" :value="l">{{ l }}</option>
+            </select>
+            <span v-if="editFouten.archimate_laag" role="alert" data-testid="cat-edit-fout-archimate_laag" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ editFouten.archimate_laag }}</span>
+          </div>
+          <div class="flex flex-col gap-[var(--cd-space-xs)]">
+            <label for="cat-edit-aspect" class="font-semibold">Aspect *</label>
+            <select id="cat-edit-aspect" v-model="editForm.archimate_aspect" data-testid="cat-edit-aspect" :aria-invalid="!!editFouten.archimate_aspect" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white">
+              <option value="">— kies —</option>
+              <option v-for="a in typeringOpties.aspecten" :key="a" :value="a">{{ a }}</option>
+            </select>
+            <span v-if="editFouten.archimate_aspect" role="alert" data-testid="cat-edit-fout-archimate_aspect" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ editFouten.archimate_aspect }}</span>
+          </div>
+        </template>
         <div class="flex gap-[var(--cd-space-md)]">
           <Button type="submit" label="Opslaan" data-testid="cat-edit-opslaan" :disabled="bezig" />
           <Button type="button" label="Annuleren" severity="secondary" @click="editOpen = false" />

@@ -47,14 +47,18 @@ def _optie(id=1, dimensie=None, optie_sleutel="database", label="Database", volg
 
 # ── Schemas ─────────────────────────────────────────────────────────────────────
 
+# ADR-026 — geldige componenttype-typering voor de tests.
+_TYP = {"archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active"}
+
+
 def test_create_patroon_en_immutability():
     from schemas.componentconfig import ComponentConfigOptieCreate, ComponentConfigOptieUpdate
 
-    ok = ComponentConfigOptieCreate(dimensie="componenttype", optie_sleutel="etl_tool", label="ETL-tool")
+    ok = ComponentConfigOptieCreate(dimensie="componenttype", optie_sleutel="etl_tool", label="ETL-tool", **_TYP)
     assert ok.optie_sleutel == "etl_tool" and ok.volgorde is None
     for slecht in ("Hoofdletter", "met spatie", "1leading"):
         with pytest.raises(ValidationError):
-            ComponentConfigOptieCreate(dimensie="componenttype", optie_sleutel=slecht, label="X")
+            ComponentConfigOptieCreate(dimensie="componenttype", optie_sleutel=slecht, label="X", **_TYP)
     with pytest.raises(ValidationError):
         ComponentConfigOptieCreate(dimensie="onzin", optie_sleutel="x", label="X")
     # dimensie/optie_sleutel immutable in Update
@@ -77,14 +81,17 @@ def test_voeg_toe_default_volgorde_en_duplicaat():
     toegevoegd = []
     session.add = lambda o: toegevoegd.append(o)
     asyncio.run(svc.voeg_toe(session, ComponentConfigOptieCreate(
-        dimensie="componenttype", optie_sleutel="etl_tool", label="ETL-tool")))
+        dimensie="componenttype", optie_sleutel="etl_tool", label="ETL-tool", **_TYP)))
     assert toegevoegd[0].volgorde == 5 and toegevoegd[0].actief is True
+    # ADR-026 — voeg_toe zet de typering mee (lek dicht).
+    assert toegevoegd[0].archimate_element == "system_software"
+    assert toegevoegd[0].laag == "technology" and toegevoegd[0].aspect == "active"
 
     session2 = AsyncMock()
     session2.execute.return_value = _result(99)  # bestaat al
     with pytest.raises(ConfiguratieConflict):
         asyncio.run(svc.voeg_toe(session2, ComponentConfigOptieCreate(
-            dimensie="componenttype", optie_sleutel="database", label="Database")))
+            dimensie="componenttype", optie_sleutel="database", label="Database", **_TYP)))
     session2.commit.assert_not_awaited()
 
 
@@ -199,7 +206,8 @@ def test_beheerder_mag_toevoegen(monkeypatch):
     monkeypatch.setattr(svc, "voeg_toe", lambda *_a, **_k: _async(_optie(optie_sleutel="etl_tool", label="ETL-tool")))
     r = _client(monkeypatch, _PB).post(
         "/api/v1/platform/componentconfig",
-        json={"dimensie": "componenttype", "optie_sleutel": "etl_tool", "label": "ETL-tool"},
+        json={"dimensie": "componenttype", "optie_sleutel": "etl_tool", "label": "ETL-tool",
+              "archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active"},
     )
     assert r.status_code == 201, r.text
     assert r.json()["optie_sleutel"] == "etl_tool"

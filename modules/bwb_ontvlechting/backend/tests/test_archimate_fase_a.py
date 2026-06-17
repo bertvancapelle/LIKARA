@@ -71,16 +71,22 @@ def test_archimate_relatie_dimensie_acht_typen_met_kenmerken():
 
 
 def test_dekkingstest_elk_componenttype_heeft_mapping():
-    """Besluit 4: elk actief componenttype draagt een volledige ArchiMate-mapping."""
+    """Besluit 4: elk actief componenttype draagt een volledige ArchiMate-mapping.
+
+    ADR-026 Besluit 2: de toegestane sets komen uit de gedeelde bron (`archimate_typing`),
+    niet uit een inline kopie."""
+    from services.archimate_typing import (
+        TOEGESTANE_ASPECTEN,
+        TOEGESTANE_ELEMENTEN,
+        TOEGESTANE_LAGEN,
+    )
     from services.seed_componentconfig import bouw_componentconfig
 
-    toegestane_laag = {"business", "application", "technology", "implementation_migration"}
-    toegestaan_aspect = {"active", "passive", "behavior"}
     for r in bouw_componentconfig():
         if r["dimensie"].value == "componenttype" and r["actief"]:
-            assert r["archimate_element"], r["optie_sleutel"]
-            assert r["laag"] in toegestane_laag, r["optie_sleutel"]
-            assert r["aspect"] in toegestaan_aspect, r["optie_sleutel"]
+            assert r["archimate_element"] in TOEGESTANE_ELEMENTEN, r["optie_sleutel"]
+            assert r["laag"] in TOEGESTANE_LAGEN, r["optie_sleutel"]
+            assert r["aspect"] in TOEGESTANE_ASPECTEN, r["optie_sleutel"]
 
 
 def test_ok3_resterende_type_mappings():

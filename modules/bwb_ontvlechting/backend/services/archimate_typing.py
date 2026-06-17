@@ -20,6 +20,23 @@ from models.models import ElementType
 TOEGESTANE_LAGEN = frozenset({"business", "application", "technology", "implementation_migration"})
 TOEGESTANE_ASPECTEN = frozenset({"active", "passive", "behavior"})
 
+# ADR-026 Besluit 1 — gesloten, gedeelde, platform-brede whitelist van geldige
+# `archimate_element`-namen (snake_case). Ruim opgezet zodat de platformbeheerder per
+# componenttype kan typeren zonder code-wijziging; de fysieke wereld (facility/equipment/
+# material) is bewust NIET opgenomen. Enige bron; de Pydantic field-validators en de
+# dekkingstest leunen hierop. Een element buiten deze set ⇒ 422.
+TOEGESTANE_ELEMENTEN = frozenset({
+    # Application layer
+    "application_component", "application_service", "data_object",
+    # Technology layer
+    "node", "device", "system_software", "technology_service", "artifact",
+    "communication_network",
+    # Business layer
+    "business_actor", "business_role", "business_service", "contract", "business_object",
+    # Implementation & Migration layer
+    "plateau", "gap", "work_package", "deliverable",
+})
+
 # Vaste typing per element-type: {archimate_element, laag, aspect}.
 # `component` ontbreekt hier bewust — zie ELEMENT_TYPEN_VIA_COMPONENTTYPE.
 ELEMENT_ARCHIMATE_TYPING: dict[ElementType, dict[str, str]] = {
