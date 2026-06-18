@@ -1,6 +1,6 @@
-# SESSIESTART — CompliData V011
+# SESSIESTART — CompliData V012
 
-**Datum**: 2026-06-17
+**Datum**: 2026-06-18
 **Platform**: CompliData — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle complidata-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — CompliData V011 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — CompliData V012 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — CompliData V011
+# SESSIE_BRIEFING.md — CompliData V012
 
-**Gegenereerd**: 2026-06-17
+**Gegenereerd**: 2026-06-18
 
 ---
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V011 |
+| Build | V012 |
 | Datum | June 2026 |
-| Commit | f5bc0ed |
-| Tests | 746 backend + 311 frontend groen (1 pre-existing env-test) |
-| TST-rapport | TST-V011-Validatierapport.md |
+| Commit | 0a11038 |
+| Tests | 769 backend + 330 frontend groen (1 pre-existing env-test) |
+| TST-rapport | TST-V012-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,11 +64,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
-f5bc0ed feat(signalen): ADR-023 Fase F (F-3 stap 2) — consistentie-signalering technische plaatsing
-69ae820 feat(checklist): ADR-023 Fase F (F-3 stap 1) — betekenis-markering checklistvraag
-77b643b feat(architectuur): ADR-023 Fase F (F-2) — cross-element laagprojectie (read-only)
-4a1ae36 feat(platform): ADR-023 Fase F (F-4) — relatie-kenmerk-catalogus-beheer
-b81d8e8 feat(component): componententabel server-side sorteerbaar (7 kolommen)
+0a11038 fix(partij): leden-overzicht filtert op organisatie + server-side sorteerbaar (Naam/Aard) en gepagineerd
+b2b1216 feat(partij): ADR-024 slice 2a-bis — partij-lidmaatschap (persoon/afdeling → organisatie)
+0e02e2d feat(partij): ADR-024 slice 2a — Partijen-beheer (persoon + afdeling), aard-filter, PARTIJ-recht
+8923114 fix(dashboard): label "Open blokkades" → "Actieve blokkades" (terminologie)
+988e337 feat(blokkades): component-kolom + type met doorklik naar juiste detailscherm (checklistvraag gemarkeerd)
 ```
 
 ---
@@ -130,6 +130,6 @@ Elke opdracht-`.md` begint op **regel 1** met `START: [taaknaam]`. **`AKKOORD: c
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — CompliData V011"
+3. Bevestig: "Sessie-briefing geladen — CompliData V012"
 4. Wacht op START: [naam] van Bert
 

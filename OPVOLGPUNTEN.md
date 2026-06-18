@@ -1,72 +1,107 @@
 # OPVOLGPUNTEN — CompliData
 
-Geparkeerde punten en volgende prioriteiten. Bijgewerkt bij sessie-afsluiting.
-**Stand**: build **V010** (sessie DC009), migratie head **`0021`**, commit-basis `2dc38aa`
-(ADR-023 Fase E E3 — Deliverable).
+Geparkeerde punten en volgende prioriteiten. Canoniek bijgewerkt bij sessie-afsluiting.
+OPVOLGPUNTEN.md is een **normaal tracked projectbestand** (besluit DC011).
+**Stand**: build **V012**, migratie head **`0028`** (`0028_adr024_partij_lidmaatschap`),
+commit-basis `0a11038` (leden-overzicht filter-fix + server-side sortering).
 
 ---
 
-## Volgende prioriteiten
+## Geland deze sessie (V012)
 
-1. **ADR-023 Fase E — E4 (Gap + readiness-rollup).** De afsluitende Fase-E-slice. Gap = geregistreerd
-   object met **vaste 2-ariteit** baseline- + doel-plateau (FK-kolommen op het gap-subtype, géén
-   relatie — uitzondering op de facade-over-Relatie-conventie). **Readiness = ROLLUP** puur read-only
-   afgeleid uit de bestaande lifecycle van de gap-componenten (geen opgeslagen tweede bron): alleen
-   checklist-dragende leden hebben een lifecycle; niet-dragende leden vallen buiten de noemer.
-   Schema-rakend → **gate** vóór commit.
-2. **ADR-023 Fase F.** Gelaagde ArchiMate-lees-API + gap/plateau-/migratie-views (frontend) +
-   **E-8 checklist-consistentiecheck** (technische plaatsing: antwoord-ja ↔ bestaan draait_op-relatie —
-   read-only **signalering**, geen engine-poort) + RBAC/audit-afronding. Open Exchange-export blijft
-   buiten scope.
+ADR-024 partij-fundament + diverse fixes:
+
+- `04ed4a4` — ADR-026 componenttype-typering beheerbaar.
+- `fd4c299` — ADR-024 slice 1: externe partij (leverancier-promotie naar element-subtype `partij`).
+- `988e337` — blokkadelijst: component-kolom + type-onafhankelijke doorklik.
+- `8923114` — dashboard-label blokkades corrigeren.
+- `0e02e2d` — ADR-024 slice 2a: Partijen-beheer (alle aarden) + aard-filter + `PARTIJ`-recht.
+- `b2b1216` — ADR-024 slice 2a-bis: partij-lidmaatschap (persoon/afdeling → organisatie; migratie 0028).
+- `0a11038` — leden-overzicht filtert op organisatie + server-side sorteerbaar (Naam/Aard) + gepagineerd.
 
 ---
 
-## ADR-023 Fase F — F-3 stap 2 afgerond; latere toevoegingen op de signalering
+## Volgende prioriteiten — ADR-024 vervolgslices
 
-De plaatsingssignalering (`GET /signalen/plaatsing` + signalenlijst-view) is read-only en
-generiek over componenttypen. Latere, bewust niet in deze slice meegenomen toevoegingen:
+1. **2b — Rollen-catalogus.** Nieuwe relatiekenmerk-dimensie `beheerrol` (enum-migratie + seed). Rollen
+   **platform-breed** (zoals de overige catalogi). Startset van **7 BEHEERBARE** rollen: Functioneel
+   beheer · Technisch beheer · Applicatiebeheer · Contractbeheer · Product owner · Eigenaar ·
+   Proceseigenaar. **Gate** (schema/enum-migratie). Open knopen B-i (relatietype) / B-ii/iii (rollen-
+   inhoud) eerst beslissen.
+2. **2c — Rol-toewijzing.** Via een `assignment`-relatie: **betrokkene → rol → component ÉN contract**.
+   Frontend rol-sectie op **component-detail én contract-detail**.
+3. **2d — Twee overzichten.** Object → betrokkenen + rol; partij → objecten + rol (van twee kanten).
+4. **2e — Gaten-signaal (geparkeerd).** "Object zonder toegewezen rol." Sluit aan op de signalering-
+   discipline (niet generaliseren vóór n=3); bouwen als concreet geval.
 
-1. **Badge op het component-detail** — toon het plaatsingssignaal (indien aanwezig) ook op
-   het detailscherm van het betreffende component.
-2. **Dashboard-telling-doorklik** — een teller "componenten met plaatsingssignaal" op het
-   dashboard, doorklikkend naar de signalenlijst (analoog aan de bestaande statustegels).
+### ADR-024 scope-besluiten (referentie voor de slices)
+
+- Eén **"Partijen"-scherm** met aard-filter — **geland**.
+- Persoon/afdeling **verplicht** aan een organisatie; persoon **optioneel** aan een afdeling — **geland**
+  (2a-bis).
+- Organisatiestructuur **dieper** dan dit (sub-afdelingen, hiërarchie >2 lagen) — **GEPARKEERD**.
+- **Rol leeft in de toewijzing**, niet als eigenschap op de persoon (geen functie-veld op de partij).
+- **Leverancier = ROL/tegenpartij ≠ aard** (een leverancier hoeft niet `externe_partij` te zijn).
 
 ---
 
 ## Geparkeerde follow-ups (bewust uitgesteld)
 
-1. **Platform-beheerscherm voor de relatie-kenmerk-catalogus ontbreekt.** `dispositie` + `relatie_rol`
-   zijn geseed en werken in de gebruiker-dropdown (`/contracten/opties` componeert relatie_rol uit de
-   nieuwe catalogus), maar er is nog géén platform-beheer-UI/endpoint voor `relatiekenmerk_optie` —
-   `relatie_rol` is daardoor tijdelijk niet via een beheerscherm bewerkbaar. → **Fase F**.
-2. **Latente inconsistentie `applicatie.checklist_dragend`-vlag.** De catalogus heeft `applicatie=false`
-   terwijl migratie `0009` hem op `true` zet; de **seed zet de vlag niet** → na een DB-reset wint
-   `seed=false`. Breekt nu niets (het applicatie-pad is **hardgecodeerd** en negeert de vlag — subtype +
-   profiel onvoorwaardelijk), maar **de vlag liegt**. Op te lossen drift — bewust inplannen vóór code de
-   vlag voor `applicatie` gaat vertrouwen (aannemelijk in Fase E/F). (`applicatieserver=true` in dev is
-   een **dev-seed-demo-artefact**, geen platform-default; de platform-seed zet géén enkel type dragend.)
-3. **"checklist-dragend maken" als echte beheerder-functie = productkeuze (geen bug).** Vandaag alleen
-   via code/migratie/SQL instelbaar (`ComponentConfigOptieUpdate` kent de vlag niet). Een type dragend
-   maken vereist ook **type-specifieke checklistvragen** (per componenttype, ADR-022 W1); zonder vragen
-   blijft de lifecycle structureel op `in_inventarisatie`. → **Fase F / onboarding**.
+1. **Contract-leverancier verruimen.** De slice-1-koppeling borgt nu `aard = externe_partij`; een
+   leverancier (tegenpartij) hoeft niet extern te zijn — ook **interne organisaties/afdelingen** moeten
+   als tegenpartij kunnen dienen. Apart contract-spoor (raakt `_valideer_externe_partij` + de picker-
+   filter `aard=externe_partij`).
+
+2. **Bredere sorteer-sweep** (uit het diagnoserapport — elke rij-tabel per kolom sorteerbaar; regel:
+   gepagineerd/groeibaar ⇒ **server-side**):
+   - *(a) lichte client-side sweep* (vaste, korte tabellen): PartijLijst (Aard/Contactpersoon),
+     config-beheer-tabellen (Checklist/Component/Contract/RelatieKenmerk), detail-sub-tabellen
+     (ContractSectie, contract-detail gekoppelde applicaties, StructuurSectie, PlaatsingSignalenView).
+   - *(b) zwaardere server-side lijstview-slice*: de vier **migratie-lijstviews** (Plateau/Gap/
+     WorkPackage/Deliverable) — vergt een sorteer-allowlist **per endpoint**.
+   - *(geland)*: Component/Blokkade/Contract/Partij-lijst + leden-overzicht op partij-detail.
+
+3. **ADR-027 — Categorie-klaar-verklaring + voortgangsrapportage.** Volledig voorstel in `docs/adr`
+   (`ADR-027_Categorie_klaarverklaring_voorstel.md` canoniek landen indien nog niet). Te plannen **ná
+   ADR-024**. Niet-scorend, **gescheiden van de score-engine**; per categorie **human sign-off** met
+   verplicht oordeel; heropenen met reden; tenant-brede voortgang per categorie; werkverdeling-inzicht
+   (leunt op ADR-024).
+
+4. **Dashboard punt 2 (optioneel).** "X actieve blokkades op N componenten" — vergt een **distinct-count**
+   van componenten-met-actieve-blokkade in `dashboard_service`, apart van de lifecycle-"geblokkeerd"-
+   telling (die divergeert zodra een component met blokkade nog niet volledig gescoord is).
+
+5. **Blokkade-doorklik type-doel (latente beperking).** Zowel de Component-kolom als de Vraag-link op de
+   tenant-brede blokkadelijst routeren niet-applicatie-componenten correct naar component-detail
+   (geland); let op dat **toekomstige** doelen consistent op componenttype blijven routeren.
+
+6. **Tenant-eigen catalogi (geparkeerd).** Tenant-eigen **partijsoort** én tenant-eigen **rollen** (beide
+   nu platform-breed); plus per-tenant zichtbaarheid/cosmetisch verbergen van ongebruikte catalogus-
+   opties.
 
 ---
 
 ## Lopende conventies (blijvend van kracht)
 
+- **Elke rij-tabel per kolom sorteerbaar**; gepagineerd/groeibaar ⇒ server-side (ADR-017 keyset), korte
+  vaste tabellen mogen client-side, niet-tabellen (graaf/projectie/boom) vallen erbuiten. Vastgelegd in
+  de complidata-frontend-skill (V012).
+- **Invariant → schema (NOT NULL/CHECK/FK), beleid → code (Pydantic/422)**; conditionele CHECK voor
+  "X verplicht bij aard Y", service cross-row voor "Y moet bij Z horen" (complidata-db, V012).
+- **Live-DB-dekkingstest naast de seed-test**; een service-/SQL-meting bewijst het scherm-gedrag niet —
+  toets end-to-end via de api-client (complidata-tests, V012).
 - **Migratie-ID ≤32 tekens** (`alembic_version` = `varchar(32)`) — harde conventie.
-- **Live-test-teardown ruimt element-residu structureel op** (V009-follow-up a) — toegepast in alle
-  E-slices (plateau/work_package/deliverable): residu-check ná de run = 0.
-- **Gate-per-schema-slice** (nieuwe tabel/RLS/migratie/RBAC/audit) → bouwen + testen + gate-rapport,
-  pas commit ná `AKKOORD: commit`. Doorloop-met-commit alléén voor licht/additief (read-side/frontend/
-  docs). Vastgelegd in de complidata-skills (db/backend/tests, bijgewerkt V010).
+- **Live-test-teardown ruimt element-residu structureel op**: residu-check ná de run = 0 per subtype.
+- **Gate-per-schema-slice** (nieuwe tabel/RLS/migratie/RBAC/audit) → bouwen + testen + gate-rapport, pas
+  commit ná `AKKOORD: commit`. Doorloop-met-commit alléén voor licht/additief (read-side/frontend/docs).
+- **Signalering/registratiegat niet generaliseren vóór n=3** (complidata-frontend, V012).
 
 ---
 
-## Eerder geparkeerd (achtergrond, nog open)
+## Pre-existing (geen bug)
 
-- **(d) Pre-existing env-test** `test_auth_pkce.py::test_callback_succes_zet_cd_session_cookie` — faalt
-  omgevingsgebonden (Secure-cookievlag in test/dev), DB-onafhankelijk; in de huidige omgeving groen. Te
-  onderzoeken: de Secure-cookie-assertie omgevings-onafhankelijk maken.
-- Achtergrond-uitstelpunten (OP-3 refresh-token-realm-hardening/OP-14 secrets, VPS-deploy OP-28 e.a.):
-  zie de changelog-historie; niet sessie-kritiek.
+- `test_auth_pkce.py::test_callback_succes_zet_cd_session_cookie` — faalt **omgevingsgebonden**
+  (Secure-cookievlag in test/dev), DB-onafhankelijk. Te onderzoeken: de Secure-cookie-assertie
+  omgevings-onafhankelijk maken.
+- Achtergrond-uitstelpunten (refresh-token-realm-hardening, secrets, VPS-deploy e.a.): zie de
+  changelog-historie; niet sessie-kritiek.

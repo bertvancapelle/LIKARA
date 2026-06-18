@@ -217,10 +217,12 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 - **Read-only meting in het gate-rapport (borging)**: bij een afgeleide read-API meet je de **feitelijke
   dev-stand** (welke componenten welk signaal, met waarom) via een klein script onder `_run_rls`, en zet
   je die in het gate-rapport zodat Bert de regel op echte data toetst (F-3: 8× `beoordeeld_niet_vastgelegd`).
-- **OPVOLGPUNTEN.md is TRACKED** (niet untracked, anders dan bouwopdrachten vaak aannemen — geverifieerd
-  `git ls-files`, niet in `.gitignore`). Houd een wijziging eraan **buiten** een feature-commit via
-  **gerichte staging**: `git add <expliciete F-x-paden>` + `git diff --cached --stat` als bewijs dat
-  OPVOLGPUNTEN.md niet meelift. De tracked/untracked-discrepantie zelf oplossen bij sessie-afsluiting.
+- **OPVOLGPUNTEN.md is een NORMAAL TRACKED projectbestand** (besluit DC011 — geverifieerd `git ls-files`,
+  niet in `.gitignore`). Behandel het als elk ander tracked bestand. De achterhaalde aanname
+  "OPVOLGPUNTEN is untracked tijdens de sessie en landt pas bij close" geldt **niet** meer — niet
+  herintroduceren. Bij een feature-commit hoort een OPVOLGPUNTEN-wijziging er niet stil in mee te liften:
+  gebruik **gerichte staging** (`git add <expliciete feature-paden>` + `git diff --cached --stat` als
+  bewijs); de afsluit-/parkeer-updates van OPVOLGPUNTEN landen in de **sessie-afsluit-commit**.
 - **Dev-ergonomie**: `psql` staat **niet** op de host → `docker exec cd-postgres psql -U cd_admin -d
   complidata -At -F'|' -c "…"` voor read-only metingen als cd_admin (ziet álle tenants). `rm` is in de
   sandbox geweigerd → ruim een per ongeluk aangemaakt stray-bestand op met `find <pad> -type f -delete`.
@@ -236,3 +238,19 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   correct via `element`; dit was puur een test-teardown-fout (4 bestanden, V011). **Grep
   case-insensitive** (`grep -niE "delete[[:space:]]+from[[:space:]]+component"`) — lowercase SQL in
   tests wordt anders gemist.
+
+## V012-patronen (dekking: live-DB + end-to-end, geverifieerd)
+
+- **Live-DB-dekkingstest NAAST de seed-test.** Borg een invariant niet alleen tegen de seed-functie
+  maar óók tegen de **draaiende database** (een `@live`/`skipif`-test die de live DB controleert), zodat
+  wat via het **beheer** ontstaat ook gedekt is. Voorbeelden (V012, partij-lidmaatschap): live
+  CHECK-backstop (een directe insert van persoon/afdeling zónder organisatie ⇒ DB weigert met de
+  benoemde constraint), wees-element-telling = 0 per subtype, geen trigger op `partij`.
+- **Een service-/SQL-meting bewijst het SCHERM-gedrag NIET — verifieer end-to-end.** De Fase-2-"leden-
+  filter"-meting was een directe SQL-query en bleef daardoor blind voor de **api-client** die de filter
+  stil dropte (V012-bug). Toets een filter/sortering die het scherm aanstuurt **via de keten** (api-
+  client → endpoint), niet alleen op service-niveau. In de frontend-test: assert dat
+  `api.<resource>.lijst` mét de filter/sort wordt aangeroepen **én** dat de client die in de query zet.
+- **Sorteer-allowlist-synchroon-test breidt mee uit**: voeg je een sorteerveld toe (bv. `aard`), borg
+  dan in één test `set(_SORTEERBARE_KOLOMMEN) == {e.value for e in *Sorteerveld} == set(_WAARDE_PARSERS)`
+  (enum ⟺ kolommen ⟺ parsers), zodat een half toegevoegde kolom faalt.

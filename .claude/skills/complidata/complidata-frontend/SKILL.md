@@ -264,3 +264,31 @@ Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
   toont de door de backend geleverde `reden`; de sleutel zelf is **niet** zichtbaar (test asserteert dat).
   Lege staat expliciet ("geen signalen") + foutregel met `role="alert"`. Eenvoudige `<table>` volstaat
   voor een begrensd afgeleid overzicht (geen DataTable/paginering nodig).
+
+## V012-patronen (ADR-024 slice 2a/2a-bis + sorteer-eis, geverifieerd)
+
+- **VASTE UI-EIS — elke rij-tabel is per kolom sorteerbaar.** Iedere lijst-/rij-tabelweergave krijgt
+  per kolom sortering. Mechanisme volgt de groei van de dataset:
+  - **Lijst kan groeien / is gepagineerd ⇒ SERVER-SIDE sortering** over de **volledige** dataset:
+    het ADR-017-keyset-patroon (`lazy` DataTable + `:sort-field`/`:sort-order` + `@sort="onSort"` →
+    `sort`/`order` + cursor-reset + refetch), met een sorteer-allowlist op het endpoint. Zo doen
+    `ComponentLijst`/`BlokkadeOverzichtView`/`ContractLijst`/`PartijLijst` het, en sinds V012 ook het
+    **leden-overzicht op partij-detail** (kolommen Naam/Aard `sortable`, filter + sort/order/after in
+    elke fetch). **NOOIT** client-side sorteren op alléén de zichtbare pagina — dat sorteert een
+    deelverzameling en is misleidend.
+  - **Alleen écht vaste, korte tabellen** (een handvol rijen, groeit niet) mogen client-side: PrimeVue
+    `sortable` op een **niet-lazy** DataTable (sorteert in-memory). **Bij twijfel: server-side.**
+  - **Niet-tabellen** (grafen/projecties/bomen: `KoppelingenkaartView`, `ArchitectuurView`,
+    `ImpactSectie`) vallen buiten de eis.
+  - **Openstaande sorteer-sweep** (zie `OPVOLGPUNTEN.md`): PartijLijst Aard/Contactpersoon,
+    config-beheer-tabellen, detail-sub-tabellen (client-side) + de vier migratie-lijstviews
+    (server-side, allowlist per endpoint) — nog niet sorteerbaar; geen tabel vergeten.
+- **api-client geeft élke filter door**: een nieuwe lijst-filter (bv. `organisatie_id`/`afdeling_id`)
+  moet in `api.<resource>.lijst` **zowel** in de destructuring **als** in `_query({…})` staan — anders
+  dropt de client de filter stil en haalt het scherm ongefilterd álles op (V012-bug: leden-blok toonde
+  het hele register). Borg dit end-to-end (een service-/SQL-test bewijst het scherm-gedrag niet — zie de
+  tests-skill).
+- **Signalering/registratiegat — niet generaliseren vóór n=3**: het patroon "registratiegat zichtbaar
+  maken" (status-indicator + filter + dashboard-telling met doorklik) niet abstraheren tot er ≥3
+  concrete instanties zijn. Bouw concrete gevallen apart langs bestaande patronen; abstraheer pas bij
+  bewezen herhaling.

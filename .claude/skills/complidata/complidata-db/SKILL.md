@@ -326,3 +326,23 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
   fresh deploy = gemigreerde stand; alle pg_insert-rijen dezelfde sleutels, `v.get("betekenis")`); de
   **migratie** is de contract (eenmalige cross-tenant backfill). Catalogus zelf wordt door de migratie
   **én** door `platform_init`/`seed_*` idempotent geseed.
+
+## V012-patronen (ADR-024 slice 2a-bis lidmaatschap, geverifieerd)
+
+- **Harde invariant → SCHEMA; validiteit/beleid → CODE (ADR-026-lijn).** Een harde
+  volledigheids-/verplichtingseis hoort in het schema (`NOT NULL` / `CHECK` / `FK`), zodat geen enkel
+  pad (ook directe SQL/beheer) hem kan omzeilen — desnoods als **conditionele CHECK**. Wélke waarden
+  geldig zijn en **cross-row consistentie** horen in code/service-validatie (Pydantic + 422). Vuistregel:
+  "X verplicht **bij** aard Y" → CHECK-backstop; "Y moet **bij** Z horen" → service cross-row.
+  - **Voorbeeld (partij-lidmaatschap, migratie 0028)**: `(aard IN ('persoon','organisatie_eenheid')) =
+    (organisatie_id IS NOT NULL)` (organisatie verplicht voor persoon/afdeling, verboden voor de top) +
+    `afdeling_id IS NULL OR aard = 'persoon'`. De fijnere regels (organisatie_id is organisatie-achtig;
+    afdeling_id is een `organisatie_eenheid` **binnen** die organisatie) staan in
+    `partij_service._valideer_lidmaatschap` (422 `ORGANISATIE_VERPLICHT`/`ONGELDIGE_ORGANISATIE`/
+    `ONGELDIGE_AFDELING`), want ze vergen een cross-row lookup.
+  - **Conditionele CHECK + bestaande rijen**: een CHECK die bestaande (seed-)rijen schendt landt niet op
+    een draaiende DB → **fresh-reset-pad** (Fase 1 offline bouwen → `down -v && up -d` → Fase 2 live),
+    en de dev-seed maakt de rijen ná de reset conform (organisatie → afdeling → persoon).
+  - **Composiet-FK naar het element-supertype** voor een "hoort bij"-verband:
+    `(tenant_id, <kol>) → element(tenant_id, id)` ON DELETE **RESTRICT** (tenant-consistent; een ouder
+    met leden verdwijnt niet stil) + reverse-lookup-index `(tenant_id, <kol>)`.
