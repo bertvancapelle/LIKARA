@@ -49,6 +49,8 @@ async def lijst_soorten(
 @router.get("", response_model=PartijPagina)
 async def lijst_partijen(
     aard: PartijAard | None = Query(None),
+    organisatie_id: uuid.UUID | None = Query(None),
+    afdeling_id: uuid.UUID | None = Query(None),
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
     sort: PartijSorteerveld = Query(PartijSorteerveld.created_at),
@@ -60,7 +62,8 @@ async def lijst_partijen(
     try:
         items, volgende = await svc.lijst(
             session, user.tenant_id,
-            aard=aard, limit=limit, after=after, sort=sort.value, order=order.value, zoek=zoek,
+            aard=aard, organisatie_id=organisatie_id, afdeling_id=afdeling_id,
+            limit=limit, after=after, sort=sort.value, order=order.value, zoek=zoek,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")

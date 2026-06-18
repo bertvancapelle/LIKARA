@@ -17,7 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import Contract, Element, ElementType, Partij, PartijAard
 from schemas.partij import PartijCreate, PartijUpdate
 from services import partijsoort_catalog
-from services.errors import NietGevonden, RegistratieConflict
+from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
+
+# ADR-024 slice 2a-bis — organisatie-achtige aarden waar een persoon/afdeling onder kan hangen.
+_ORGANISATIE_ACHTIG = (PartijAard.organisatie, PartijAard.externe_partij)
+_HEEFT_ORG_OUDER = (PartijAard.persoon, PartijAard.organisatie_eenheid)
 from services.pagination import (
     decode_sort_cursor_nullable,
     encode_sort_cursor_nullable,
@@ -53,11 +57,55 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
+async def _valideer_lidmaatschap(session, tid, aard, organisatie_id, afdeling_id) -> None:
+    """ADR-024 slice 2a-bis — borgt het "hoort bij"-verband (aard-bewust; tevens het update-pad
+    waar het schema de aard niet kent). Structuur (verplicht/verboden per aard) + cross-row
+    laag-consistentie (organisatie-achtig; afdeling = organisatie_eenheid binnen die organisatie)."""
+    heeft_org_ouder = aard in _HEEFT_ORG_OUDER
+    if heeft_org_ouder and organisatie_id is None:
+        raise OngeldigeRegistratie(
+            "ORGANISATIE_VERPLICHT", "Een persoon of afdeling hoort verplicht bij een organisatie."
+        )
+    if not heeft_org_ouder and organisatie_id is not None:
+        raise OngeldigeRegistratie(
+            "ONGELDIG_LIDMAATSCHAP", "Een organisatie/externe partij hoort niet onder een andere partij."
+        )
+    if afdeling_id is not None and aard != PartijAard.persoon:
+        raise OngeldigeRegistratie(
+            "ONGELDIG_LIDMAATSCHAP", "Alleen een persoon kan bij een afdeling horen."
+        )
+    if organisatie_id is not None:
+        org = (
+            await session.execute(
+                select(Partij).where(Partij.id == organisatie_id, Partij.tenant_id == tid)
+            )
+        ).scalar_one_or_none()
+        if org is None or org.aard not in _ORGANISATIE_ACHTIG:
+            raise OngeldigeRegistratie(
+                "ONGELDIGE_ORGANISATIE",
+                "De organisatie moet een bestaande organisatie of externe partij zijn.",
+            )
+    if afdeling_id is not None:
+        afd = (
+            await session.execute(
+                select(Partij).where(Partij.id == afdeling_id, Partij.tenant_id == tid)
+            )
+        ).scalar_one_or_none()
+        if afd is None or afd.aard != PartijAard.organisatie_eenheid:
+            raise OngeldigeRegistratie("ONGELDIGE_AFDELING", "De afdeling moet een bestaande afdeling zijn.")
+        if afd.organisatie_id != organisatie_id:
+            raise OngeldigeRegistratie(
+                "ONGELDIGE_AFDELING", "De afdeling hoort niet bij de gekozen organisatie."
+            )
+
+
 async def lijst(
     session: AsyncSession,
     tenant_id,
     *,
     aard: PartijAard | None = None,
+    organisatie_id=None,
+    afdeling_id=None,
     limit: int = _STANDAARD_LIMIT,
     after: str | None = None,
     sort: str = _STANDAARD_SORT,
@@ -65,7 +113,8 @@ async def lijst(
     zoek: str | None = None,
 ) -> tuple[list[Partij], str | None]:
     """v2n-keyset-lijst binnen de tenant. `aard=None` ⇒ alle aarden; anders gefilterd.
-    `zoek` = ge-escapete ILIKE op `naam`."""
+    `organisatie_id`/`afdeling_id` filteren op het "hoort bij"-verband (leden van een
+    organisatie/afdeling). `zoek` = ge-escapete ILIKE op `naam`."""
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
 
@@ -78,6 +127,10 @@ async def lijst(
     stmt = select(Partij).where(Partij.tenant_id == tid)
     if aard is not None:
         stmt = stmt.where(Partij.aard == aard)
+    if organisatie_id is not None:
+        stmt = stmt.where(Partij.organisatie_id == organisatie_id)
+    if afdeling_id is not None:
+        stmt = stmt.where(Partij.afdeling_id == afdeling_id)
     if zoek:
         stmt = stmt.where(Partij.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
     if after:
@@ -116,6 +169,7 @@ async def haal_op(session: AsyncSession, tenant_id, partij_id) -> Partij:
 async def maak_aan(session: AsyncSession, tenant_id, data: PartijCreate) -> Partij:
     tid = _tenant_uuid(tenant_id)
     await partijsoort_catalog.valideer_soort(session, data.soort)
+    await _valideer_lidmaatschap(session, tid, data.aard, data.organisatie_id, data.afdeling_id)
     # Element-identiteit eerst (shared-PK), dan de partij-subtype-rij. `aard` uit de invoer.
     elem = Element(tenant_id=tid, element_type=ElementType.partij)
     session.add(elem)
@@ -130,9 +184,15 @@ async def maak_aan(session: AsyncSession, tenant_id, data: PartijCreate) -> Part
 async def werk_bij(session: AsyncSession, tenant_id, partij_id, data: PartijUpdate) -> Partij:
     """Wijzig contactvelden/soort. `aard` is niet wijzigbaar (ontbreekt in PartijUpdate)."""
     obj = await haal_op(session, tenant_id, partij_id)
+    tid = _tenant_uuid(tenant_id)
     velden = data.model_dump(exclude_unset=True)
     if "soort" in velden:
         await partijsoort_catalog.valideer_soort(session, velden["soort"])
+    # Lidmaatschap aard-bewust valideren (de aard zelf ligt vast); effectieve waarden ná de update.
+    if "organisatie_id" in velden or "afdeling_id" in velden:
+        nieuw_org = velden.get("organisatie_id", obj.organisatie_id)
+        nieuw_afd = velden.get("afdeling_id", obj.afdeling_id)
+        await _valideer_lidmaatschap(session, tid, obj.aard, nieuw_org, nieuw_afd)
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     await session.commit()

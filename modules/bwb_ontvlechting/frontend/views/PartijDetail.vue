@@ -51,6 +51,34 @@ async function laadContracten({ reset = false } = {}) {
   }
 }
 
+// ADR-024 slice 2a-bis — "hoort bij", van twee kanten. Organisatie(-achtig) → onderdelen
+// (afdelingen + personen); afdeling → personen + de organisatie; persoon → org (+ afdeling).
+const isOrganisatieAchtig = computed(() => ['organisatie', 'externe_partij'].includes(partij.value?.aard))
+const isAfdeling = computed(() => partij.value?.aard === 'organisatie_eenheid')
+const isPersoon = computed(() => partij.value?.aard === 'persoon')
+const leden = ref([])
+const ouderOrgNaam = ref(null)
+const ouderAfdelingNaam = ref(null)
+
+async function _naam(id) {
+  if (!id) return null
+  try { return (await api.partijen.haal(id)).naam } catch { return null }
+}
+
+async function laadSamenhang() {
+  const p = partij.value
+  if (!p) return
+  if (isOrganisatieAchtig.value) {
+    try { leden.value = (await api.partijen.lijst({ organisatie_id: p.id, limit: 100 })).items } catch { leden.value = [] }
+  } else if (isAfdeling.value) {
+    try { leden.value = (await api.partijen.lijst({ afdeling_id: p.id, limit: 100 })).items } catch { leden.value = [] }
+    ouderOrgNaam.value = await _naam(p.organisatie_id)
+  } else if (isPersoon.value) {
+    ouderOrgNaam.value = await _naam(p.organisatie_id)
+    ouderAfdelingNaam.value = await _naam(p.afdeling_id)
+  }
+}
+
 function _toastFout(e) {
   const detail =
     e?.status === 409
@@ -89,6 +117,7 @@ async function bevestigVerwijderen() {
 onMounted(async () => {
   await laad()
   if (isExternePartij.value) await laadContracten({ reset: true })
+  await laadSamenhang()
 })
 
 const RIJEN = [
@@ -123,6 +152,11 @@ const RIJEN = [
         </template>
       </dl>
 
+      <!-- Hoort bij (afdeling/persoon) -->
+      <p v-if="ouderOrgNaam" data-testid="partij-hoortbij" class="mt-[var(--cd-space-md)] text-[var(--cd-color-text-muted)]">
+        Hoort bij: <strong>{{ ouderOrgNaam }}</strong><span v-if="ouderAfdelingNaam"> — afdeling {{ ouderAfdelingNaam }}</span>
+      </p>
+
       <div class="mt-[var(--cd-space-lg)] flex flex-wrap gap-[var(--cd-space-md)]">
         <Button
           v-if="magBewerken"
@@ -132,6 +166,22 @@ const RIJEN = [
         />
         <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
       </div>
+
+      <!-- Onderdelen/personen ("hoort bij", andere kant) — organisatie/externe partij of afdeling -->
+      <section v-if="isOrganisatieAchtig || isAfdeling" class="card mt-[var(--cd-space-lg)]" data-testid="partij-leden-sectie" aria-labelledby="sectie-partij-leden">
+        <h2 id="sectie-partij-leden" class="text-[length:var(--cd-text-lg)] font-semibold mb-[var(--cd-space-sm)]">
+          {{ isAfdeling ? 'Personen in deze afdeling' : 'Afdelingen en personen' }}
+        </h2>
+        <DataTable :value="leden" data-testid="partij-leden-tabel">
+          <Column header="Naam">
+            <template #body="{ data }">
+              <router-link :to="{ name: 'partij-detail', params: { id: data.id } }" data-testid="partij-lid-link" class="text-[var(--cd-color-primary)] hover:underline">{{ data.naam }}</router-link>
+            </template>
+          </Column>
+          <Column header="Aard"><template #body="{ data }"><Tag :value="aardLabel(data.aard)" severity="info" /></template></Column>
+          <template #empty><span data-testid="partij-leden-leeg">Nog geen onderliggende partijen.</span></template>
+        </DataTable>
+      </section>
 
       <!-- Contracten (tegenpartij-koppeling) — alleen voor een externe partij -->
       <section v-if="isExternePartij" class="card mt-[var(--cd-space-lg)]" aria-labelledby="sectie-partij-contracten" data-testid="partij-contracten-sectie">

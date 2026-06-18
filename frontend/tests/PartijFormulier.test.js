@@ -8,7 +8,7 @@ import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
-  api: { partijen: { maak: vi.fn(), werkBij: vi.fn(), haal: vi.fn(), soorten: vi.fn() } },
+  api: { partijen: { maak: vi.fn(), werkBij: vi.fn(), haal: vi.fn(), soorten: vi.fn(), lijst: vi.fn() } },
 }))
 
 import { api } from '@/api'
@@ -42,6 +42,10 @@ async function mountForm({ id = null } = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   api.partijen.soorten.mockResolvedValue([{ optie_sleutel: 'leverancier', label: 'Leverancier' }])
+  // org-/afdeling-kandidaten voor de "hoort bij"-pickers (één organisatie beschikbaar).
+  api.partijen.lijst.mockResolvedValue({
+    items: [{ id: 'org1', naam: 'Gemeente X', aard: 'organisatie' }], volgende_cursor: null,
+  })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -62,16 +66,26 @@ describe('PartijFormulier — aanmaken', () => {
     expect(api.partijen.maak).not.toHaveBeenCalled()
   })
 
-  it('aanmaken persoon stuurt aard + naam + soort', async () => {
+  it('persoon zonder organisatie ⇒ validatiefout, geen API-call', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('persoon')
+    await w.find('[data-testid="veld-naam"]').setValue('J. de Vries')
+    await w.find('[data-testid="partij-form"]').trigger('submit')
+    expect(w.find('[data-testid="fout-organisatie_id"]').exists()).toBe(true)
+    expect(api.partijen.maak).not.toHaveBeenCalled()
+  })
+
+  it('aanmaken persoon stuurt aard + naam + soort + organisatie', async () => {
     api.partijen.maak.mockResolvedValueOnce({ id: 'p1' })
     const { w, router } = await mountForm()
     await w.find('[data-testid="veld-aard"]').setValue('persoon')
     await w.find('[data-testid="veld-naam"]').setValue('J. de Vries')
     await w.find('[data-testid="veld-soort"]').setValue('leverancier')
+    await w.find('[data-testid="veld-organisatie"]').setValue('org1')  // verplicht voor persoon
     await w.find('[data-testid="partij-form"]').trigger('submit')
     await flushPromises()
     expect(api.partijen.maak).toHaveBeenCalledWith(
-      expect.objectContaining({ aard: 'persoon', naam: 'J. de Vries', soort: 'leverancier' }),
+      expect.objectContaining({ aard: 'persoon', naam: 'J. de Vries', soort: 'leverancier', organisatie_id: 'org1' }),
     )
     expect(router.currentRoute.value.name).toBe('partij-detail')
   })
@@ -95,7 +109,8 @@ describe('PartijFormulier — aanmaken', () => {
 
 describe('PartijFormulier — bewerken', () => {
   it('aard is read-only (geen keuzeveld) en niet in de payload', async () => {
-    api.partijen.haal.mockResolvedValueOnce({ id: 'p1', aard: 'organisatie_eenheid', naam: 'Afdeling I&A', soort: null })
+    // Afdeling hoort verplicht bij een organisatie (org1 zit in de kandidaten-mock).
+    api.partijen.haal.mockResolvedValueOnce({ id: 'p1', aard: 'organisatie_eenheid', naam: 'Afdeling I&A', soort: null, organisatie_id: 'org1' })
     api.partijen.werkBij.mockResolvedValueOnce({ id: 'p1' })
     const { w } = await mountForm({ id: 'p1' })
     expect(w.find('[data-testid="veld-aard"]').exists()).toBe(false)

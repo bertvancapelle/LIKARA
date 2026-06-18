@@ -8,7 +8,7 @@ import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
-  api: { partijen: { haal: vi.fn(), verwijder: vi.fn() }, contracten: { lijst: vi.fn() } },
+  api: { partijen: { haal: vi.fn(), verwijder: vi.fn(), lijst: vi.fn() }, contracten: { lijst: vi.fn() } },
 }))
 
 import { api } from '@/api'
@@ -52,6 +52,7 @@ const _partij = (over = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks()
   api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+  api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })  // leden-overzicht
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -77,6 +78,36 @@ describe('PartijDetail', () => {
     const { w } = await mountDetail()
     expect(w.find('[data-testid="partij-contracten-sectie"]').exists()).toBe(true)
     expect(api.contracten.lijst).toHaveBeenCalledWith(expect.objectContaining({ leverancierId: 'p1' }))
+  })
+
+  it('organisatie: onderdelen-sectie toont afdelingen + personen ("hoort bij", andere kant)', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', naam: 'Gemeente X', soort: null }))
+    api.partijen.lijst.mockResolvedValue({
+      items: [
+        { id: 'a1', naam: 'Afdeling I&A', aard: 'organisatie_eenheid' },
+        { id: 'pp1', naam: 'J. Jansen', aard: 'persoon' },
+      ],
+      volgende_cursor: null,
+    })
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="partij-leden-sectie"]').exists()).toBe(true)
+    expect(api.partijen.lijst).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'p1' }))
+    expect(w.text()).toContain('Afdeling I&A')
+    expect(w.text()).toContain('J. Jansen')
+  })
+
+  it('afdeling: personen-sectie + "hoort bij" de organisatie', async () => {
+    api.partijen.haal.mockImplementation((id) =>
+      id === 'p1'
+        ? Promise.resolve(_partij({ aard: 'organisatie_eenheid', naam: 'Afdeling I&A', soort: null, organisatie_id: 'org9' }))
+        : Promise.resolve(_partij({ id: 'org9', aard: 'organisatie', naam: 'Gemeente X' })),
+    )
+    api.partijen.lijst.mockResolvedValue({ items: [{ id: 'pp1', naam: 'J. Jansen', aard: 'persoon' }], volgende_cursor: null })
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="partij-leden-sectie"]').exists()).toBe(true)
+    expect(api.partijen.lijst).toHaveBeenCalledWith(expect.objectContaining({ afdeling_id: 'p1' }))
+    expect(w.find('[data-testid="partij-hoortbij"]').text()).toContain('Gemeente X')
+    expect(w.text()).toContain('J. Jansen')
   })
 
   it('verwijderen 409 IN_GEBRUIK blijft op het detail', async () => {

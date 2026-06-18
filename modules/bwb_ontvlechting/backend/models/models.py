@@ -740,6 +740,30 @@ class Partij(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "id"], ["element.tenant_id", "element.id"],
             name="fk_partij_element", ondelete="CASCADE",
         ),
+        # ADR-024 slice 2a-bis — "hoort bij": persoon/afdeling horen verplicht bij een
+        # organisatie(-achtige) partij; een persoon optioneel ook bij een afdeling. Composiet-FK's
+        # naar het element-supertype (tenant-consistent), RESTRICT zodat een organisatie/afdeling
+        # met leden niet stil verdwijnt. Dat het de juiste aard is (organisatie-achtig resp.
+        # organisatie_eenheid binnen die organisatie) borgt de service.
+        ForeignKeyConstraint(
+            ["tenant_id", "organisatie_id"], ["element.tenant_id", "element.id"],
+            name="fk_partij_organisatie", ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "afdeling_id"], ["element.tenant_id", "element.id"],
+            name="fk_partij_afdeling", ondelete="RESTRICT",
+        ),
+        # Harde invariant (DB-backstop): organisatie verplicht voor persoon + organisatie_eenheid,
+        # en verboden voor organisatie + externe_partij (de top staat op zichzelf).
+        CheckConstraint(
+            "(aard IN ('persoon', 'organisatie_eenheid')) = (organisatie_id IS NOT NULL)",
+            name="ck_partij_organisatie_verplicht",
+        ),
+        # Een afdelings-koppeling is alleen zinvol voor een persoon.
+        CheckConstraint(
+            "afdeling_id IS NULL OR aard = 'persoon'",
+            name="ck_partij_afdeling_alleen_persoon",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
@@ -754,6 +778,9 @@ class Partij(Base, TenantMixin, TimestampMixin):
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
     soort: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # ADR-024 slice 2a-bis — lidmaatschap (zie __table_args__).
+    organisatie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    afdeling_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
 
 class PartijsoortOptie(Base):

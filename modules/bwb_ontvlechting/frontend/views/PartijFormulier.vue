@@ -33,7 +33,49 @@ const soort = ref('')     // optioneel
 const soortOpties = ref([])
 const fouten = reactive({})
 
+// ADR-024 slice 2a-bis — "hoort bij". Persoon/afdeling horen verplicht bij een organisatie;
+// persoon optioneel ook bij een afdeling binnen die organisatie.
+const organisatieId = ref('')
+const afdelingId = ref('')
+const orgKandidaten = ref([])       // organisatie-achtige partijen (organisatie + externe_partij)
+const afdelingKandidaten = ref([])  // afdelingen binnen de gekozen organisatie
+const heeftOrgOuder = computed(() => ['persoon', 'organisatie_eenheid'].includes(aard.value))
+const magAfdeling = computed(() => aard.value === 'persoon')
+
+async function _laadOrgKandidaten() {
+  try {
+    const [orgs, externe] = await Promise.all([
+      api.partijen.lijst({ aard: 'organisatie', limit: 100 }),
+      api.partijen.lijst({ aard: 'externe_partij', limit: 100 }),
+    ])
+    orgKandidaten.value = [...orgs.items, ...externe.items]
+  } catch {
+    orgKandidaten.value = []
+  }
+}
+
+async function _laadAfdelingen() {
+  if (!organisatieId.value) {
+    afdelingKandidaten.value = []
+    return
+  }
+  try {
+    const r = await api.partijen.lijst({ aard: 'organisatie_eenheid', organisatie_id: organisatieId.value, limit: 100 })
+    afdelingKandidaten.value = r.items
+  } catch {
+    afdelingKandidaten.value = []
+  }
+}
+
+// Gebruiker wisselt de organisatie → reset de (nu mogelijk niet-passende) afdelingkeuze en
+// herlaad de afdelingen. (Geen watch: zou de edit-initialisatie hieronder verstoren.)
+async function onOrgChange() {
+  afdelingId.value = ''
+  await _laadAfdelingen()
+}
+
 async function init() {
+  await _laadOrgKandidaten()
   try {
     soortOpties.value = await api.partijen.soorten()
   } catch {
@@ -45,6 +87,9 @@ async function init() {
     for (const v of VELDEN) form[v] = p[v] || ''
     aard.value = p.aard || ''
     soort.value = p.soort || ''
+    organisatieId.value = p.organisatie_id || ''
+    await _laadAfdelingen()                 // ná het zetten van de organisatie (geen watch-reset)
+    afdelingId.value = p.afdeling_id || ''
   } catch (e) {
     _toastFout(e)
   }
@@ -55,6 +100,8 @@ function valideer() {
   if (!form.naam.trim()) fouten.naam = 'Naam is verplicht.'
   else if (form.naam.trim().length > 255) fouten.naam = 'Maximaal 255 tekens.'
   if (!bewerken.value && !aard.value) fouten.aard = 'Kies een aard.'
+  // "hoort bij": organisatie verplicht voor persoon/afdeling.
+  if (heeftOrgOuder.value && !organisatieId.value) fouten.organisatie_id = 'Kies een organisatie.'
   return Object.keys(fouten).length === 0
 }
 
@@ -65,6 +112,9 @@ function _payload() {
     uit[v] = v === 'naam' ? w : w || null
   }
   uit.soort = soort.value || null
+  // Lidmaatschap: organisatie alleen voor persoon/afdeling; afdeling alleen voor persoon.
+  uit.organisatie_id = heeftOrgOuder.value ? organisatieId.value || null : null
+  uit.afdeling_id = magAfdeling.value ? afdelingId.value || null : null
   // `aard` alleen bij aanmaken (vast daarna; Update kent geen aard → extra='forbid').
   if (!bewerken.value) uit.aard = aard.value
   return uit
@@ -75,7 +125,7 @@ function _serverveldfouten(e) {
     let t = false
     for (const d of e.detail) {
       const veld = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : null
-      if (veld && (veld in form || veld === 'aard' || veld === 'soort')) {
+      if (veld && (veld in form || ['aard', 'soort', 'organisatie_id', 'afdeling_id'].includes(veld))) {
         fouten[veld] = d.msg || 'Ongeldige waarde.'
         t = true
       }
@@ -151,6 +201,38 @@ const TEKSTVELDEN = [
         </select>
         <span v-else data-testid="aard-readonly" class="text-[var(--cd-color-text-muted)]">{{ aardLabel(aard) }} (vast)</span>
         <span v-if="fouten.aard" role="alert" data-testid="fout-aard" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.aard }}</span>
+      </div>
+
+      <!-- "Hoort bij": organisatie verplicht voor persoon/afdeling; afdeling optioneel voor persoon -->
+      <div v-if="heeftOrgOuder" class="flex flex-col gap-[var(--cd-space-xs)]">
+        <label for="pf-organisatie" class="font-semibold">Organisatie *</label>
+        <select
+          id="pf-organisatie"
+          v-model="organisatieId"
+          data-testid="veld-organisatie"
+          :aria-invalid="!!fouten.organisatie_id"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
+          @change="onOrgChange"
+        >
+          <option value="">— kies —</option>
+          <option v-for="o in orgKandidaten" :key="o.id" :value="o.id">{{ o.naam }} ({{ aardLabel(o.aard) }})</option>
+        </select>
+        <span v-if="fouten.organisatie_id" role="alert" data-testid="fout-organisatie_id" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.organisatie_id }}</span>
+      </div>
+
+      <div v-if="magAfdeling" class="flex flex-col gap-[var(--cd-space-xs)]">
+        <label for="pf-afdeling" class="font-semibold">Afdeling (optioneel)</label>
+        <select
+          id="pf-afdeling"
+          v-model="afdelingId"
+          data-testid="veld-afdeling"
+          :disabled="!organisatieId"
+          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-50"
+        >
+          <option value="">— geen —</option>
+          <option v-for="a in afdelingKandidaten" :key="a.id" :value="a.id">{{ a.naam }}</option>
+        </select>
+        <span v-if="fouten.afdeling_id" role="alert" data-testid="fout-afdeling_id" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.afdeling_id }}</span>
       </div>
 
       <div class="flex flex-col gap-[var(--cd-space-xs)]">

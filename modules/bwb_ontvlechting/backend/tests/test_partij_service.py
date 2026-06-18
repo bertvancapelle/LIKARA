@@ -40,14 +40,15 @@ def test_maak_aan_is_element_backed_en_zet_meegegeven_aard():
     from schemas.partij import PartijCreate
     from services import partij_service as svc
 
-    # Generalisatie: een persoon (niet externe_partij) wordt element-backed aangemaakt.
+    # Generalisatie: een organisatie (niet externe_partij) wordt element-backed aangemaakt.
+    # Aard organisatie heeft géén organisatie-ouder → geen cross-row lookup nodig (mock-vrij).
     session = AsyncMock()
     toegevoegd = []
     session.add = lambda o: toegevoegd.append(o)
-    asyncio.run(svc.maak_aan(session, uuid.uuid4(), PartijCreate(aard="persoon", naam="J. Jansen")))
+    asyncio.run(svc.maak_aan(session, uuid.uuid4(), PartijCreate(aard="organisatie", naam="Gemeente X")))
     assert isinstance(toegevoegd[0], Element) and toegevoegd[0].element_type == ElementType.partij
-    assert isinstance(toegevoegd[1], Partij) and toegevoegd[1].aard == PartijAard.persoon
-    assert toegevoegd[1].naam == "J. Jansen"
+    assert isinstance(toegevoegd[1], Partij) and toegevoegd[1].aard == PartijAard.organisatie
+    assert toegevoegd[1].naam == "Gemeente X"
     session.flush.assert_awaited()  # flush vóór de partij (shared-PK)
     session.commit.assert_awaited_once()
 
@@ -99,6 +100,62 @@ def test_soort_validatie_weigert_onbekende_soort():
     with pytest.raises(OngeldigeRegistratie) as ei:
         asyncio.run(partijsoort_catalog.valideer_soort(session, "onzin"))
     assert ei.value.code == "ONGELDIGE_SOORT"
+
+
+# ── Lidmaatschap (slice 2a-bis): structuur + cross-row laag-consistentie ─────────
+
+def test_schema_persoon_zonder_organisatie_geweigerd():
+    from pydantic import ValidationError
+    from schemas.partij import PartijCreate
+
+    with pytest.raises(ValidationError):
+        PartijCreate(aard="persoon", naam="J")  # organisatie verplicht
+    with pytest.raises(ValidationError):
+        PartijCreate(aard="organisatie_eenheid", naam="A")  # afdeling vereist organisatie
+    with pytest.raises(ValidationError):
+        PartijCreate(aard="organisatie", naam="O", organisatie_id=uuid.uuid4())  # top staat op zichzelf
+
+
+def test_lidmaatschap_organisatie_moet_organisatie_achtig_zijn():
+    from models.models import PartijAard
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    org_id = uuid.uuid4()
+    persoon = SimpleNamespace(id=org_id, aard=PartijAard.persoon, organisatie_id=uuid.uuid4())
+    session = AsyncMock()
+    session.execute.return_value = _result(persoon)  # de "organisatie" is in werkelijkheid een persoon
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc._valideer_lidmaatschap(session, uuid.uuid4(), PartijAard.persoon, org_id, None))
+    assert ei.value.code == "ONGELDIGE_ORGANISATIE"
+
+
+def test_lidmaatschap_afdeling_moet_bij_gekozen_organisatie_horen():
+    from models.models import PartijAard
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    org_id, afd_id = uuid.uuid4(), uuid.uuid4()
+    org = SimpleNamespace(id=org_id, aard=PartijAard.organisatie, organisatie_id=None)
+    afd_andere_org = SimpleNamespace(id=afd_id, aard=PartijAard.organisatie_eenheid, organisatie_id=uuid.uuid4())
+    session = AsyncMock()
+    session.execute.side_effect = [_result(org), _result(afd_andere_org)]
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc._valideer_lidmaatschap(session, uuid.uuid4(), PartijAard.persoon, org_id, afd_id))
+    assert ei.value.code == "ONGELDIGE_AFDELING"
+
+
+def test_lidmaatschap_geldig_persoon_org_en_afdeling():
+    from models.models import PartijAard
+    from services import partij_service as svc
+
+    org_id, afd_id = uuid.uuid4(), uuid.uuid4()
+    org = SimpleNamespace(id=org_id, aard=PartijAard.organisatie, organisatie_id=None)
+    afd = SimpleNamespace(id=afd_id, aard=PartijAard.organisatie_eenheid, organisatie_id=org_id)
+    session = AsyncMock()
+    session.execute.side_effect = [_result(org), _result(afd)]
+    # Geldig: afdeling hoort bij de gekozen organisatie ⇒ geen exception.
+    asyncio.run(svc._valideer_lidmaatschap(session, uuid.uuid4(), PartijAard.persoon, org_id, afd_id))
 
 
 # ── Engine-onaangeroerd (1): offline import-afwezigheid ──────────────────────────

@@ -42,11 +42,26 @@ class PartijCreate(BaseModel):
     email: str | None = None
     omschrijving: str | None = None
     soort: str | None = None  # platform-catalogus partijsoort_optie; service valideert
+    # ADR-024 slice 2a-bis — lidmaatschap. Structuur (verplicht/verboden per aard) hieronder;
+    # de fijnere aard-/laag-consistentie van de doelen valideert de service (cross-row).
+    organisatie_id: uuid.UUID | None = None
+    afdeling_id: uuid.UUID | None = None
 
     @field_validator("naam")
     @classmethod
     def _v_naam(cls, v: str) -> str:
         return _verplichte_tekst(v, "naam", 255)
+
+    @model_validator(mode="after")
+    def _v_lidmaatschap(self) -> "PartijCreate":
+        heeft_org_ouder = self.aard in (PartijAard.persoon, PartijAard.organisatie_eenheid)
+        if heeft_org_ouder and self.organisatie_id is None:
+            raise ValueError("Een persoon of afdeling hoort verplicht bij een organisatie.")
+        if not heeft_org_ouder and self.organisatie_id is not None:
+            raise ValueError("Een organisatie/externe partij hoort niet onder een andere partij.")
+        if self.afdeling_id is not None and self.aard != PartijAard.persoon:
+            raise ValueError("Alleen een persoon kan bij een afdeling horen.")
+        return self
 
     @field_validator("postcode")
     @classmethod
@@ -90,6 +105,10 @@ class PartijUpdate(BaseModel):
     email: str | None = None
     omschrijving: str | None = None
     soort: str | None = None
+    # ADR-024 slice 2a-bis — lidmaatschap kan wijzigen (bv. persoon verhuist); de service
+    # valideert aard-bewust (de aard zelf ligt vast).
+    organisatie_id: uuid.UUID | None = None
+    afdeling_id: uuid.UUID | None = None
 
     @field_validator("naam")
     @classmethod
@@ -144,6 +163,8 @@ class PartijRead(BaseModel):
     email: str | None
     omschrijving: str | None
     soort: str | None
+    organisatie_id: uuid.UUID | None
+    afdeling_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 

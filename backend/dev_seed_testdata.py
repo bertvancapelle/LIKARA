@@ -527,20 +527,31 @@ async def _seed_aanvulling_d(session, app_ids: dict) -> dict:
         lev_ids[lev["naam"]] = obj.id
         print(f"  + externe partij {lev['naam']}")
 
-    # ADR-024 slice 2a: een paar voorbeeld-partijen van de nieuwe aarden (idempotent op naam),
-    # zodat het Partijen-scherm niet leeg is om mee te testen.
-    bestaande_namen = {
-        r.naam for r in (await session.execute(select(Partij))).scalars().all()
-    }
-    for aard, naam, extra in (
-        (PartijAard.organisatie_eenheid, "Afdeling Informatievoorziening", {"omschrijving": "Interne afdeling I&A"}),
-        (PartijAard.persoon, "J. de Vries", {"email": "j.devries@gemeente.example", "omschrijving": "Functioneel beheerder"}),
-    ):
-        if naam in bestaande_namen:
+    # ADR-024 slice 2a/2a-bis: voorbeeld-partijen met "hoort bij"-samenhang (idempotent op naam).
+    # Organisatie (top) → afdeling onder de organisatie → persoon onder org + afdeling.
+    partij_ids = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
+
+    async def _zorg_partij(aard, naam, **velden):
+        if naam in partij_ids:
             print(f"  = partij {naam} ({aard.value}): bestaat al — overgeslagen")
-            continue
-        await partij_service.maak_aan(session, DEV_TENANT, PartijCreate(aard=aard, naam=naam, **extra))
+            return partij_ids[naam]
+        obj = await partij_service.maak_aan(session, DEV_TENANT, PartijCreate(aard=aard, naam=naam, **velden))
+        partij_ids[naam] = obj.id
         print(f"  + partij {naam} ({aard.value})")
+        return obj.id
+
+    org_id = await _zorg_partij(
+        PartijAard.organisatie, "Gemeente Veldendam", omschrijving="Eigen organisatie"
+    )
+    afd_id = await _zorg_partij(
+        PartijAard.organisatie_eenheid, "Afdeling Informatievoorziening",
+        organisatie_id=org_id, omschrijving="Interne afdeling I&A",
+    )
+    await _zorg_partij(
+        PartijAard.persoon, "J. de Vries",
+        organisatie_id=org_id, afdeling_id=afd_id,
+        email="j.devries@gemeente.example", omschrijving="Functioneel beheerder",
+    )
 
     # --- Contracten (idempotent op contractnaam; mantel vóór deel) ---
     con_ids = {
