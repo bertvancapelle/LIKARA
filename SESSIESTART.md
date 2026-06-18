@@ -1,4 +1,4 @@
-# SESSIESTART — CompliData V012
+# SESSIESTART — CompliData V013
 
 **Datum**: 2026-06-18
 **Platform**: CompliData — een product van G. van Capelle Beheer B.V.
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle complidata-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — CompliData V012 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — CompliData V013 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,7 +40,7 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — CompliData V012
+# SESSIE_BRIEFING.md — CompliData V013
 
 **Gegenereerd**: 2026-06-18
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V012 |
+| Build | V013 |
 | Datum | June 2026 |
-| Commit | 0a11038 |
-| Tests | 769 backend + 330 frontend groen (1 pre-existing env-test) |
-| TST-rapport | TST-V012-Validatierapport.md |
+| Commit | c7dd827 |
+| Tests | 799 backend + 429 frontend groen (1 pre-existing env-test, OP-30) |
+| TST-rapport | TST-V013-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,11 +64,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
-0a11038 fix(partij): leden-overzicht filtert op organisatie + server-side sorteerbaar (Naam/Aard) en gepagineerd
-b2b1216 feat(partij): ADR-024 slice 2a-bis — partij-lidmaatschap (persoon/afdeling → organisatie)
-0e02e2d feat(partij): ADR-024 slice 2a — Partijen-beheer (persoon + afdeling), aard-filter, PARTIJ-recht
-8923114 fix(dashboard): label "Open blokkades" → "Actieve blokkades" (terminologie)
-988e337 feat(blokkades): component-kolom + type met doorklik naar juiste detailscherm (checklistvraag gemarkeerd)
+c7dd827 feat(applicatie/component): UX-B6-b — eigenaar-organisatie als verwijzing naar het partijenregister — ADR-024
+c795db4 feat(gebruikersgroep): UX-B6-a — organisatie als verwijzing naar het partijenregister — ADR-024
+33a5f85 fix(ux): UX-B-opschoning B1-B5 + architectuuroverzicht sorteerbaar
+44caf67 feat(gap): UX-A4-4 — gap beheerbaar in de UI (baseline/doel, leden, readiness)
+8fc5ed1 feat(deliverable): UX-A4-3 — deliverable + realisatieketen beheerbaar in de UI
 ```
 
 ---
@@ -130,6 +130,6 @@ Elke opdracht-`.md` begint op **regel 1** met `START: [taaknaam]`. **`AKKOORD: c
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — CompliData V012"
+3. Bevestig: "Sessie-briefing geladen — CompliData V013"
 4. Wacht op START: [naam] van Bert
 

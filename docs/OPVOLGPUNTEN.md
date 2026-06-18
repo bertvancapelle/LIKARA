@@ -7,6 +7,49 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V013 (sessie-afsluiting DC012, 2026-06-18) — ADR-024-vervolg + UX-doorlichting
+
+Build **V013**, migratie head **`0032`**. Tests: **799** backend + **429** frontend groen
+(1 pre-existing env-auth-test, OP-30). Deze sessie: rol-toewijzing (eigen tabel), volledige
+UX-doorlichting gedicht, migratielaag-CRUD compleet, organisatie overal als verwijzing naar
+het partijenregister.
+
+**AF deze sessie (DC012)**: UX-doorlichting **volledig gedicht** (A1–A4, B1–B6); **rol-toewijzing**
+(`roltoewijzing`, slice 2b — eigen tabel bij tegengestelde uniciteit); **migratielaag-CRUD compleet**
+(plateau/werkpakket/deliverable/gap beheerbaar in de UI); **`complidata-ux`-skill geland**;
+architectuuroverzicht server-side sorteerbaar; B6 organisatie-uit-partijenregister (gebruikersgroep +
+applicatie/component).
+
+**Volgende prioriteiten (DC012 → DC013)**:
+
+1. **ADR-024-document bijwerken — EERSTE PRIORITEIT.** Het ADR-024-document staat nog op
+   "slice 1 (externe partij)", terwijl deze sessie **rol-toewijzing**, **partij-lidmaatschap-beheer**
+   (persoon/afdeling → organisatie) en **organisatie-koppeling** (gebruikersgroep-organisatie +
+   eigenaar-organisatie als partij-verwijzing) zijn gebouwd. Het document **loopt achter op de bouw**
+   → bijwerken zodat het de werkelijke stand weerspiegelt.
+
+2. **Signalerings-ADR / registratiegaten ("bolletjes")** — verzameld, **geen actie tot opgepakt**.
+   Verzamelde gevallen:
+   - (1) **object zonder toegewezen rol** (applicatie/component/contract zonder verantwoordelijke);
+   - (2) **lege eigenaar-organisatie** op applicatie/component én **lege organisatie** op gebruikersgroep
+     (B6 DC012: het veld is nu een optionele keuze uit het partijenregister; signaleren-als-gat geparkeerd);
+   - (3) **contract zonder leverancier** (groen/amber-indicator + statusfilter + dashboard-ratio met
+     drill-down — apart contract-spoor, pas ná leverancier-optioneel-maken);
+   - (4) **lege 'Eigenaar'-kolom op de blokkadelijst.**
+   **Patroon (generalisatie-discipline n≥2)**: bouw de tweede concrete instance naast de eerste vóór je
+   abstraheert. **Score blijft de enige lifecycle-driver**; signalering is puur **read-only**, geen
+   engine-poort.
+
+3. **Architectuuroverzicht-sortering volgt codewaarde, niet het NL-label** — geaccepteerd randgeval
+   (B2/B6-a): Laag/Aspect/Soort sorteren server-breed op de opgeslagen **snake_case-codewaarde**; de UI
+   toont het NL-label. Sorteren-op-label zou een verbouwing vergen voor klein effect → pas oppakken bij
+   een concrete wens.
+
+**Blijvend open (ongewijzigd geldig)**: tenant-eigen partijsoort (geparkeerd); per-tenant zichtbaarheid
+van catalogus-opties; **ADR-025** (praatplaat) en **ADR-027** (categorie-klaarverklaring) als geplande
+ADR's na het ADR-024-vervolg; eventuele resterende ADR-022-follow-ups (o.a. OP-29 label-rename,
+`SUBTYPE_HEEFT_DATA` 422↔409-heroverweging).
+
 ### Stand V008 (sessie-afsluiting 2026-06-13) — ADR-022 volledig afgerond
 
 Build **V008**, migratie head **`0009`** (3 ADR-022-migraties: `0007` profiel, `0008` tenant-vragenset,
@@ -131,13 +174,12 @@ statische volgorde-guard via `inspect.getsource`).
 (`index` ≈ 164 kB). Het oorspronkelijke symptoom doet zich niet meer voor; verdere reductie is
 optioneel (geen verplichting).
 
-### OP-21 — Eigenaar-filter als distinct-dropdown (UX, optioneel) — OPEN
+### OP-21 — Eigenaar-filter als distinct-dropdown (UX, optioneel) — AFGEROND (B6-b, DC012)
 
-CD017 filtert `eigenaar_organisatie` met een vrije-tekst `ilike`-contains (robuust
-bij ongecontroleerde vrije tekst). Als de organisatie-waardenset per tenant klein
-en stabiel blijkt, is een tenant-scoped distinct-waarden-dropdown
-(`GET .../eigenaar-organisaties`) een nettere UX. Geen verplichting; pas oppakken
-als de praktijk erom vraagt.
+Ingehaald door **UX-B6-b**: `eigenaar_organisatie` is geen vrije tekst meer maar een
+**verwijzing naar een organisatie-partij**. Het lijstfilter is daarmee een **zoekbare
+organisatie-keuze** (`ZoekSelect` op `eigenaar_organisatie_id`, server-side), en sortering loopt
+op de gejoinde organisatie-naam (v2n-keyset). De vrije-tekst-`ilike` bestaat niet meer.
 
 ### OP-20 — Live-DB-verificatie NULLS-LAST-paginering blokkadesoverzicht (#23) — OPEN
 
@@ -170,13 +212,11 @@ drempel-gedreven. [CD049]
 De Uvicorn-accesslog mist timestamps, wat live-debugging bemoeilijkt. Logformat configureren
 (timestamp + niveau) bij een logging-/observability-pass. Klein, nice-to-have. [CD048]
 
-### OP-26 — `component.eigenaar_organisatie` NOT NULL vs. optionele eigenaar — OPEN
+### OP-26 — `component.eigenaar_organisatie` NOT NULL vs. optionele eigenaar — AFGEROND (B6-b, DC012)
 
-De kolom `component.eigenaar_organisatie` is in de DB **NOT NULL**, terwijl een kaal component
-(database/fileshare) en de convergente aanmaak een **lege** eigenaar toestaan (service defaultt
-`None`→`""`). De `""`-default is een workaround; bij een volgende migratie-gelegenheid de kolom
-**nullable** maken en de API/schema's `None` laten dragen i.p.v. lege string. Geen functionele
-bug; opruimpunt. [CD054]
+Ingehaald door **UX-B6-b** (migratie 0032): de NOT NULL-vrije-tekstkolom `eigenaar_organisatie` is
+vervangen door een **optionele** composiet-FK `eigenaar_organisatie_id → element` (partij,
+aard=organisatie). De `""`-workaround is verdwenen; schema's/API dragen nu `None` (echt optioneel).
 
 ### OP-27 — Dev-seed in een dev-guarded init-stap — OPEN (nice-to-have)
 

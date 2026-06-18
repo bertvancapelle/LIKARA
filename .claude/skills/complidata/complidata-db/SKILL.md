@@ -2,7 +2,7 @@
 name: complidata-db
 description: Database-patronen voor CompliData (PostgreSQL 16, RLS, Alembic). Beschrijft de werkelijke V001-staat.
 stack: PostgreSQL 16, SQLAlchemy asyncio, Alembic
-bijgewerkt: V010
+bijgewerkt: V013
 ---
 
 # CompliData Database Skill
@@ -346,3 +346,35 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
   - **Composiet-FK naar het element-supertype** voor een "hoort bij"-verband:
     `(tenant_id, <kol>) → element(tenant_id, id)` ON DELETE **RESTRICT** (tenant-consistent; een ouder
     met leden verdwijnt niet stil) + reverse-lookup-index `(tenant_id, <kol>)`.
+
+## V013-patronen (ADR-024 rol-toewijzing + B6 organisatie-verwijzingen, geverifieerd)
+
+- **Eigen tabel bij tegengestelde uniciteit (aanvulling op het facade-over-`Relatie`-patroon).**
+  De gedeelde `relatie`-tabel dwingt `UNIQUE(tenant,bron,doel,relatietype)` af — één relatie per
+  (bron,doel,type). Heeft een nieuw verband een **andere uniciteit** nodig én is het beoogde relatietype
+  al elders in gebruik met een tegengestelde behoefte → kies een **eigen tenant-scoped tabel** met exact
+  de gewenste uniciteit, NIET de relatie-facade. Een registratie-feit dat **geen ArchiMate-element** is,
+  is een gewone tenant-tabel (geen element-subtype).
+  - **Voorbeeld DC012 — `roltoewijzing`** (migratie 0029/0030): `UNIQUE(tenant_id, partij_id, object_id, rol)`
+    → meerdere rollen per (partij,object) als losse regels; onmogelijk via een association op `relatie`.
+    Composiet-FK's naar `element` (partij én object), ON DELETE CASCADE; rol uit de `beheerrol`-catalogus.
+- **Kolom-specifieke `ON DELETE SET NULL` op een composiet-FK (concrete les B6-a/B6-b).** Een kale
+  `ON DELETE SET NULL` op `(tenant_id, x_id) → element` nullt **óók de gedeelde `tenant_id`** (NOT NULL)
+  → constraint-violation bij het verwijderen van het doel. Gebruik de **PostgreSQL 15+ kolom-specifieke
+  variant** zodat alleen de optionele kolom genulld wordt — Alembic kent dit niet, dus raw SQL:
+  ```python
+  op.execute(
+      "ALTER TABLE <tabel> ADD CONSTRAINT <fk> "
+      "FOREIGN KEY (tenant_id, x_id) REFERENCES element (tenant_id, id) "
+      "ON DELETE SET NULL (x_id)"
+  )
+  ```
+  Toegepast op `gebruikersgroep.organisatie_id` (0031) en `component.eigenaar_organisatie_id` (0032):
+  optionele verwijzing naar een **organisatie-partij** (aard=organisatie, app-side geborgd via
+  `partij_service.valideer_organisatie` → 422 `ONGELDIGE_ORGANISATIE`); verdwijnt de organisatie, dan
+  wordt de verwijzing 'onbekend' (null), tenant_id intact. Kies SET NULL (optioneel veld) i.p.v.
+  RESTRICT (verplichte koppeling) bewust per geval.
+- **Naam-in-read via een gejoinde partij-alias.** Een FK-verwijzing tonen + erop sorteren: LEFT JOIN
+  een `aliased(Partij)` op de FK, selecteer `alias.naam`, sorteer met de **v2n-keyset** (NULLS-LAST, want
+  de FK is nullable). Voor het ORM-from_attributes-leespad (applicatie) kan de naam als **transient
+  attribuut** op het ORM-object gehangen worden i.p.v. een dict-herbouw.

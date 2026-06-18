@@ -13,6 +13,18 @@ gebruikerservaring.** Techniek, schema en proces zijn vangrail, nooit het vertre
 Deze skill maakt dat uitgangspunt operationeel voor het scherm: bij elke functie die de
 UI raakt, eerst denken vanuit wat de gebruiker ziet, verwacht en wil doen — pas daarna bouwen.
 
+## Vast uitgangspunt — GENERIEK multi-tenant platform (niet-onderhandelbaar)
+
+CompliData/CompliMan is een **generiek multi-tenant platform**. **BWB** is slechts een
+voorbeeld van een organisatie die het gebruikt; **Tiel** een voorbeeld van een
+ontvlechtingscontext. Ontwerp platform, datamodel, schermen, terminologie en features
+**nooit** alsof ze BWB/Tiel-specifiek zijn — alles is **tenant-agnostisch en herbruikbaar**
+voor elke tenant. BWB/Tiel dienen uitsluitend als concreet voorbeeld om scenario's te
+toetsen, niet als ontwerpdoel. Concreet: geen hardcoded organisatie-/operatornamen,
+geen aannames over één specifieke ontvlechting, labels en velden algemeen genoeg voor
+elke overheidsorganisatie. Dit geldt platform-breed (ook backend/db/frontend), maar staat
+hier omdat het ontwerp-denken ermee begint.
+
 Twee concrete missers die deze skill voorkomt (DC012):
 1. **Partij-detailscherm met drie leeslijsten en geen enkele toevoeg-knop.** De gebruiker
    verwachtte afdelingen/personen te kunnen toevoegen op de plek waar ze getoond worden,
@@ -71,6 +83,23 @@ zodat de gebruiker niet per scherm opnieuw moet leren.
   wijst de gebruiker naar waar de actie wél plaatsvindt.
 - **Bij een nieuwe beheerbare catalogus**: controleer of er een beheerscherm bij hoort —
   een lijst configureerbaar maken in de backend zonder UI laat de functie onvindbaar.
+
+## UX-doorlichting bij een afgeronde feature-reeks (beproefd, DC012)
+
+Na een afgeronde reeks slices loont een **read-only UX-doorlichting** over álle geraakte
+schermen, langs de denkmethode hierboven. Bevindingen geprioriteerd:
+- **A — storend gat**: de gebruiker kan iets niet wat het scherm wél suggereert (lijst zonder
+  toevoeg-route; beheerbare catalogus zonder beheerscherm).
+- **B — inconsistentie**: jargon i.p.v. gebruikerstaal, afwijkende kolomkop/term, ontbrekende
+  doorklik/sortering t.o.v. vergelijkbare schermen.
+- **C — nette to-have**: kleine politoer, geen functioneel gat.
+Uit de doorlichting volgen **landbare reparatie-slices** (één bevinding of een kleine bundel
+per gate-slice). De doorlichting zelf muteert niets — alleen rapporteren + prioriteren.
+
+**Toets "lijst-zonder-CRUD-op-de-plek-waar-het-leeft = gat"** (DC012 meermaals raak): toont een
+scherm een lijst van X'en die daar thuishoren, dan hoort de gebruiker X daar ook te kunnen
+toevoegen/wijzigen — tenzij zichtbaar gemaakt is dat het elders gebeurt (dan de lege-staat-route,
+stap 4). Een leeslijst zonder die route is bijna altijd een A-gat.
 
 ## Verhouding tot andere skills
 
