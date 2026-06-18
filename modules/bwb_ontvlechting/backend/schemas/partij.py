@@ -1,10 +1,11 @@
-"""Pydantic v2-schemas voor het externe-partij-beheer (ADR-024 slice 1).
+"""Pydantic v2-schemas voor het partij-beheer (ADR-024 slice 2a; vervangt externe_partij).
 
-Vervangt de leverancier-schemas: een externe partij is een element-backed `partij`
-(aard `externe_partij`). Gescheiden Create/Update/Read, `extra='forbid'`. `email`/`telefoon`
-zijn gewone `str` (geen formaatvalidatie). De `soort` is **optioneel** (platform-catalogus
-`partijsoort_optie`, app-side gevalideerd in de service). `aard` is in slice 1 vast
-`externe_partij` (door de service gezet) — niet in Create/Update.
+Eén beheerpad voor alle partij-aarden (externe_partij / organisatie / organisatie_eenheid /
+persoon). Gescheiden Create/Update/Read, `extra='forbid'`. `email`/`telefoon` zijn gewone `str`
+(geen formaatvalidatie). `soort` is **optioneel** (platform-catalogus `partijsoort_optie`,
+app-side gevalideerd in de service). `aard` is **verplicht bij aanmaken** en daarna **niet
+wijzigbaar** (ontbreekt in Update). `naam` is het enige verplichte inhoudsveld; de overige
+contactvelden zijn optioneel en gedeeld over alle aarden (geen aard-eigen velden).
 """
 import uuid
 from datetime import datetime
@@ -12,10 +13,11 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from models.models import PartijAard
 from schemas.applicatie import _optionele_tekst, _verplichte_tekst
 
 
-class ExternePartijSorteerveld(str, Enum):
+class PartijSorteerveld(str, Enum):
     """Allowlist van sorteerbare velden (ADR-017). `plaats` is nullable (v2n-NULLS-LAST)."""
 
     created_at = "created_at"
@@ -26,9 +28,10 @@ class ExternePartijSorteerveld(str, Enum):
 _VERPLICHTE_VELDEN = frozenset({"naam"})
 
 
-class ExternePartijCreate(BaseModel):
+class PartijCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    aard: PartijAard  # verplicht; daarna niet wijzigbaar (ontbreekt in Update)
     naam: str
     straat_huisnummer: str | None = None
     postcode: str | None = None
@@ -71,8 +74,9 @@ class ExternePartijCreate(BaseModel):
         return _optionele_tekst(v, 10_000)
 
 
-class ExternePartijUpdate(BaseModel):
-    """Partiële update (PATCH). `naam` mag weggelaten, maar niet op null gezet."""
+class PartijUpdate(BaseModel):
+    """Partiële update (PATCH). `naam` mag weggelaten, maar niet op null gezet. `aard` ontbreekt
+    bewust — de aard ligt vast na aanmaken (een persoon blijft een persoon)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -118,14 +122,14 @@ class ExternePartijUpdate(BaseModel):
         return _optionele_tekst(v, 10_000)
 
     @model_validator(mode="after")
-    def _verbied_null_op_verplicht(self) -> "ExternePartijUpdate":
+    def _verbied_null_op_verplicht(self) -> "PartijUpdate":
         for veld in _VERPLICHTE_VELDEN:
             if veld in self.model_fields_set and getattr(self, veld) is None:
                 raise ValueError(f"{veld} mag niet op null worden gezet")
         return self
 
 
-class ExternePartijRead(BaseModel):
+class PartijRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -144,6 +148,6 @@ class ExternePartijRead(BaseModel):
     updated_at: datetime
 
 
-class ExternePartijPagina(BaseModel):
-    items: list[ExternePartijRead]
+class PartijPagina(BaseModel):
+    items: list[PartijRead]
     volgende_cursor: str | None = None

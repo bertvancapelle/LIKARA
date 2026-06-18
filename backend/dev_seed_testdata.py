@@ -65,14 +65,14 @@ from schemas.blokkade import BlokkadeUpdate  # noqa: E402
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate  # noqa: E402
 from schemas.contract import ContractCreate  # noqa: E402
 from schemas.relatie import RelatieCreate  # noqa: E402
-from schemas.externe_partij import ExternePartijCreate  # noqa: E402
+from schemas.partij import PartijCreate  # noqa: E402
 from services import (  # noqa: E402
     component_contract_service,
     applicatie_service,
     blokkade_service,
     checklistscore_service,
     contract_service,
-    externe_partij_service,
+    partij_service,
     relatie_service,
 )
 from services.seed import CHECKLIST_VRAGEN, seed_checklist_vragen  # noqa: E402
@@ -521,9 +521,26 @@ async def _seed_aanvulling_d(session, app_ids: dict) -> dict:
         if lev["naam"] in lev_ids:
             print(f"  = externe partij {lev['naam']}: bestaat al — overgeslagen")
             continue
-        obj = await externe_partij_service.maak_aan(session, DEV_TENANT, ExternePartijCreate(**lev))
+        obj = await partij_service.maak_aan(
+            session, DEV_TENANT, PartijCreate(aard=PartijAard.externe_partij, **lev)
+        )
         lev_ids[lev["naam"]] = obj.id
         print(f"  + externe partij {lev['naam']}")
+
+    # ADR-024 slice 2a: een paar voorbeeld-partijen van de nieuwe aarden (idempotent op naam),
+    # zodat het Partijen-scherm niet leeg is om mee te testen.
+    bestaande_namen = {
+        r.naam for r in (await session.execute(select(Partij))).scalars().all()
+    }
+    for aard, naam, extra in (
+        (PartijAard.organisatie_eenheid, "Afdeling Informatievoorziening", {"omschrijving": "Interne afdeling I&A"}),
+        (PartijAard.persoon, "J. de Vries", {"email": "j.devries@gemeente.example", "omschrijving": "Functioneel beheerder"}),
+    ):
+        if naam in bestaande_namen:
+            print(f"  = partij {naam} ({aard.value}): bestaat al — overgeslagen")
+            continue
+        await partij_service.maak_aan(session, DEV_TENANT, PartijCreate(aard=aard, naam=naam, **extra))
+        print(f"  + partij {naam} ({aard.value})")
 
     # --- Contracten (idempotent op contractnaam; mantel vóór deel) ---
     con_ids = {

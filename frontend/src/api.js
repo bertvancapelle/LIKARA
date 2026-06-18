@@ -142,17 +142,17 @@ export const api = {
     opties: () => request('/koppelingen/opties'),
   },
 
-  // ADR-024 slice 1 — externe-partij-beheer (element-backed; vervangt /leveranciers).
-  // Optie A: het contract-domein behoudt de term "leverancier" en hergebruikt deze client.
-  leveranciers: {
-    lijst: ({ limit, after, sort, order, zoek } = {}) =>
-      request(`/externe-partijen${_query({ limit, after, sort, order, zoek })}`),
-    haal: (id) => request(`/externe-partijen/${id}`),
-    maak: (data) => request('/externe-partijen', { method: 'POST', body: JSON.stringify(data) }),
+  // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.
+  // Het contract-domein hergebruikt deze client voor de leverancier-picker (aard externe_partij).
+  partijen: {
+    lijst: ({ aard, limit, after, sort, order, zoek } = {}) =>
+      request(`/partijen${_query({ aard, limit, after, sort, order, zoek })}`),
+    haal: (id) => request(`/partijen/${id}`),
+    maak: (data) => request('/partijen', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
-      request(`/externe-partijen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    verwijder: (id) => request(`/externe-partijen/${id}`, { method: 'DELETE' }),
-    soorten: () => request('/externe-partijen/soorten'),
+      request(`/partijen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/partijen/${id}`, { method: 'DELETE' }),
+    soorten: () => request('/partijen/soorten'),
   },
 
   // ADR-020 contractregister — contract (tenant-CRUD) + sub-overzichten.

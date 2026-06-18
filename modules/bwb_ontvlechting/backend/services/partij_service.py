@@ -1,10 +1,12 @@
-"""Service-laag — externe-partij-beheer (ADR-024 slice 1). Vervangt `leverancier_service`.
+"""Service-laag — partij-beheer (ADR-024 slice 2a; vervangt externe_partij_service).
 
-Een externe partij is een **element-backed** `partij` (aard `externe_partij`): aanmaak
-schrijft een `element`-rij (shared-PK) + een `partij`-rij in één tenant-transactie; verwijderen
-loopt via het **element-supertype** (`DELETE FROM element`) → CASCADE neemt de partij-rij mee,
-géén wees-element (les commit 109ced8). Tenant-scoped (RLS + expliciet `tenant_id`-filter).
-Puur registratief — geen engine-koppeling. v2n-keyset-paginering (`plaats` nullable).
+Eén beheerpad voor alle partij-aarden (externe_partij / organisatie / organisatie_eenheid /
+persoon). Een partij is een **element-backed** record: aanmaak schrijft een `element`-rij
+(shared-PK) + een `partij`-rij in één tenant-transactie; verwijderen loopt via het
+**element-supertype** (`DELETE FROM element`) → CASCADE neemt de partij-rij mee, géén wees-element
+(les commit 109ced8). Tenant-scoped (RLS + expliciet `tenant_id`-filter). De `aard` wordt bij
+aanmaken gezet en is daarna niet wijzigbaar (geen `aard` in Update). Puur registratief — geen
+engine-koppeling. v2n-keyset-paginering (`plaats` nullable).
 """
 import uuid
 from datetime import datetime
@@ -13,7 +15,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import Contract, Element, ElementType, Partij, PartijAard
-from schemas.externe_partij import ExternePartijCreate, ExternePartijUpdate
+from schemas.partij import PartijCreate, PartijUpdate
 from services import partijsoort_catalog
 from services.errors import NietGevonden, RegistratieConflict
 from services.pagination import (
@@ -23,8 +25,7 @@ from services.pagination import (
     keyset_seek_nulls_last,
 )
 
-_ENTITEIT = "externe_partij"
-_AARD = PartijAard.externe_partij
+_ENTITEIT = "partij"
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
 _STANDAARD_SORT = "created_at"
@@ -56,13 +57,15 @@ async def lijst(
     session: AsyncSession,
     tenant_id,
     *,
+    aard: PartijAard | None = None,
     limit: int = _STANDAARD_LIMIT,
     after: str | None = None,
     sort: str = _STANDAARD_SORT,
     order: str = _STANDAARD_ORDER,
     zoek: str | None = None,
 ) -> tuple[list[Partij], str | None]:
-    """v2n-keyset-lijst binnen de tenant (alleen aard `externe_partij`). `zoek` = ILIKE op naam."""
+    """v2n-keyset-lijst binnen de tenant. `aard=None` ⇒ alle aarden; anders gefilterd.
+    `zoek` = ge-escapete ILIKE op `naam`."""
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
 
@@ -72,7 +75,9 @@ async def lijst(
         raise ValueError(f"onbekende sorteerrichting: {order}")
     kolom = _SORTEERBARE_KOLOMMEN[sort]
 
-    stmt = select(Partij).where(Partij.tenant_id == tid, Partij.aard == _AARD)
+    stmt = select(Partij).where(Partij.tenant_id == tid)
+    if aard is not None:
+        stmt = stmt.where(Partij.aard == aard)
     if zoek:
         stmt = stmt.where(Partij.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
     if after:
@@ -99,33 +104,31 @@ async def lijst(
 
 
 async def haal_op(session: AsyncSession, tenant_id, partij_id) -> Partij:
+    """Eén partij binnen de tenant (aard-agnostisch); niet gevonden ⇒ `NietGevonden` (404)."""
     tid = _tenant_uuid(tenant_id)
-    stmt = select(Partij).where(
-        Partij.id == partij_id, Partij.tenant_id == tid, Partij.aard == _AARD
-    )
+    stmt = select(Partij).where(Partij.id == partij_id, Partij.tenant_id == tid)
     obj = (await session.execute(stmt)).scalar_one_or_none()
     if obj is None:
         raise NietGevonden(_ENTITEIT, partij_id)
     return obj
 
 
-async def maak_aan(session: AsyncSession, tenant_id, data: ExternePartijCreate) -> Partij:
+async def maak_aan(session: AsyncSession, tenant_id, data: PartijCreate) -> Partij:
     tid = _tenant_uuid(tenant_id)
     await partijsoort_catalog.valideer_soort(session, data.soort)
-    # Element-identiteit eerst (shared-PK), dan de partij-subtype-rij.
+    # Element-identiteit eerst (shared-PK), dan de partij-subtype-rij. `aard` uit de invoer.
     elem = Element(tenant_id=tid, element_type=ElementType.partij)
     session.add(elem)
     await session.flush()
-    obj = Partij(id=elem.id, tenant_id=tid, aard=_AARD, **data.model_dump())
+    obj = Partij(id=elem.id, tenant_id=tid, **data.model_dump())
     session.add(obj)
     await session.commit()
     await session.refresh(obj)
     return obj
 
 
-async def werk_bij(
-    session: AsyncSession, tenant_id, partij_id, data: ExternePartijUpdate
-) -> Partij:
+async def werk_bij(session: AsyncSession, tenant_id, partij_id, data: PartijUpdate) -> Partij:
+    """Wijzig contactvelden/soort. `aard` is niet wijzigbaar (ontbreekt in PartijUpdate)."""
     obj = await haal_op(session, tenant_id, partij_id)
     velden = data.model_dump(exclude_unset=True)
     if "soort" in velden:
@@ -138,9 +141,9 @@ async def werk_bij(
 
 
 async def verwijder(session: AsyncSession, tenant_id, partij_id) -> None:
-    """Verwijder binnen de tenant. Een partij met contracten wordt geweigerd
-    (409 `IN_GEBRUIK`) — nette app-fout vóór de FK `RESTRICT`. Verwijderen loopt via het
-    element-supertype (CASCADE naar de partij-rij) → geen wees-element."""
+    """Verwijder binnen de tenant. Een partij met contracten (als leverancier/tegenpartij)
+    wordt geweigerd (409 `IN_GEBRUIK`) — nette app-fout vóór de FK `RESTRICT`. Verwijderen loopt
+    via het element-supertype (CASCADE naar de partij-rij) → geen wees-element."""
     obj = await haal_op(session, tenant_id, partij_id)
     tid = _tenant_uuid(tenant_id)
     aantal = (
@@ -152,7 +155,7 @@ async def verwijder(session: AsyncSession, tenant_id, partij_id) -> None:
     ).scalar_one()
     if aantal:
         raise RegistratieConflict(
-            "IN_GEBRUIK", "Deze externe partij heeft nog contracten en kan niet worden verwijderd."
+            "IN_GEBRUIK", "Deze partij heeft nog contracten en kan niet worden verwijderd."
         )
     # Via het element-supertype (CASCADE wist de partij-subtype-rij) — geen wees-element.
     await session.execute(delete(Element).where(Element.id == obj.id, Element.tenant_id == tid))

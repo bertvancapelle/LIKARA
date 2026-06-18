@@ -6,23 +6,25 @@ from pydantic import ValidationError
 
 
 def test_leverancier_create_naam_verplicht_en_extra_forbid():
-    # ADR-024 slice 1: leverancier-schema vervangen door externe-partij-schema.
-    from schemas.externe_partij import ExternePartijCreate as LeverancierCreate
+    # ADR-024 slice 2a: leverancier-/externe-partij-schema gegeneraliseerd naar partij (aard verplicht).
+    from schemas.partij import PartijCreate
 
-    lev = LeverancierCreate(naam="  Acme BV  ", postcode="1234AB")
+    lev = PartijCreate(aard="externe_partij", naam="  Acme BV  ", postcode="1234AB")
     assert lev.naam == "Acme BV"  # gestript
     assert lev.plaats is None
 
     with pytest.raises(ValidationError):
-        LeverancierCreate(naam="   ")  # leeg na strip
+        PartijCreate(aard="externe_partij", naam="   ")  # leeg na strip
     with pytest.raises(ValidationError):
-        LeverancierCreate(naam="X", onbekend="y")  # extra='forbid'
+        PartijCreate(naam="X")  # aard verplicht
     with pytest.raises(ValidationError):
-        LeverancierCreate(naam="X", postcode="X" * 21)  # max_length 20
+        PartijCreate(aard="externe_partij", naam="X", onbekend="y")  # extra='forbid'
+    with pytest.raises(ValidationError):
+        PartijCreate(aard="externe_partij", naam="X", postcode="X" * 21)  # max_length 20
 
 
 def test_leverancier_update_verbiedt_null_op_naam():
-    from schemas.externe_partij import ExternePartijUpdate as LeverancierUpdate
+    from schemas.partij import PartijUpdate as LeverancierUpdate
 
     assert LeverancierUpdate(plaats="Tiel").naam is None  # weglaten mag
     with pytest.raises(ValidationError):

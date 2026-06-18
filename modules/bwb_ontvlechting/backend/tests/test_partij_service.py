@@ -1,8 +1,8 @@
-"""Tests — externe-partij-beheer (ADR-024 slice 1). Vervangt test_leverancier_service.
+"""Tests — partij-beheer (ADR-024 slice 2a). Vervangt test_externe_partij_service.
 
 Offline (mocked) service-/schema-asserts + engine-onaangeroerd-borging (import-afwezigheid).
-Live (Fase 2, na DB-reset): element-backed aanmaak, delete via element-supertype (geen
-wees-element), contract-RESTRICT, soort-validatie, geen trigger op `partij`.
+Live: geen trigger op `partij`, geen wees-element. Generalisatie: maak_aan zet de meegegeven
+aard (niet langer hardgecodeerd externe_partij).
 """
 import asyncio
 import pathlib
@@ -29,32 +29,31 @@ def _scalar_one(val):
 # ── Offline: schema-/service-asserts ─────────────────────────────────────────────
 
 def test_sorteer_allowlist_synchroon_met_schema():
-    from schemas.externe_partij import ExternePartijSorteerveld
-    from services import externe_partij_service as svc
+    from schemas.partij import PartijSorteerveld
+    from services import partij_service as svc
 
-    assert set(svc._SORTEERBARE_KOLOMMEN) == {e.value for e in ExternePartijSorteerveld}
+    assert set(svc._SORTEERBARE_KOLOMMEN) == {e.value for e in PartijSorteerveld}
 
 
-def test_maak_aan_is_element_backed_en_zet_aard():
+def test_maak_aan_is_element_backed_en_zet_meegegeven_aard():
     from models.models import Element, ElementType, Partij, PartijAard
-    from schemas.externe_partij import ExternePartijCreate
-    from services import externe_partij_service as svc
+    from schemas.partij import PartijCreate
+    from services import partij_service as svc
 
+    # Generalisatie: een persoon (niet externe_partij) wordt element-backed aangemaakt.
     session = AsyncMock()
     toegevoegd = []
     session.add = lambda o: toegevoegd.append(o)
-    # soort=None ⇒ valideer_soort doet geen DB-call.
-    asyncio.run(svc.maak_aan(session, uuid.uuid4(), ExternePartijCreate(naam="Acme BV")))
-    # Element-identiteit eerst, dan de partij-subtype-rij.
+    asyncio.run(svc.maak_aan(session, uuid.uuid4(), PartijCreate(aard="persoon", naam="J. Jansen")))
     assert isinstance(toegevoegd[0], Element) and toegevoegd[0].element_type == ElementType.partij
-    assert isinstance(toegevoegd[1], Partij) and toegevoegd[1].aard == PartijAard.externe_partij
-    assert toegevoegd[1].naam == "Acme BV"
+    assert isinstance(toegevoegd[1], Partij) and toegevoegd[1].aard == PartijAard.persoon
+    assert toegevoegd[1].naam == "J. Jansen"
     session.flush.assert_awaited()  # flush vóór de partij (shared-PK)
     session.commit.assert_awaited_once()
 
 
 def test_haal_op_niet_gevonden():
-    from services import externe_partij_service as svc
+    from services import partij_service as svc
     from services.errors import NietGevonden
 
     session = AsyncMock()
@@ -63,9 +62,19 @@ def test_haal_op_niet_gevonden():
         asyncio.run(svc.haal_op(session, uuid.uuid4(), uuid.uuid4()))
 
 
+def test_update_kent_geen_aard():
+    """De aard is vast na aanmaken — PartijUpdate heeft geen aard-veld (extra='forbid')."""
+    from pydantic import ValidationError
+    from schemas.partij import PartijUpdate
+
+    assert "aard" not in PartijUpdate.model_fields
+    with pytest.raises(ValidationError):
+        PartijUpdate(aard="organisatie")  # extra veld geweigerd
+
+
 def test_verwijder_met_contracten_geeft_in_gebruik():
     from models.models import PartijAard
-    from services import externe_partij_service as svc
+    from services import partij_service as svc
     from services.errors import RegistratieConflict
 
     partij = SimpleNamespace(id=uuid.uuid4(), aard=PartijAard.externe_partij, naam="Acme")
@@ -83,7 +92,6 @@ def test_soort_validatie_weigert_onbekende_soort():
     from services.errors import OngeldigeRegistratie
 
     session = AsyncMock()
-    # actieve_sleutels ⇒ {'leverancier'}; 'onzin' valt erbuiten ⇒ 422.
     r = MagicMock()
     r.scalars.return_value.all.return_value = ["leverancier"]
     session.execute.return_value = r
@@ -98,7 +106,7 @@ def test_soort_validatie_weigert_onbekende_soort():
 def test_engine_niet_geimporteerd_in_partij_paden():
     base = pathlib.Path(__file__).resolve().parents[1] / "services"
     verboden = ("lifecycle_service", "herbereken_lifecycle", "ComponentProfiel", "Blokkade", "Checklistscore")
-    for naam in ("externe_partij_service.py", "partijsoort_catalog.py"):
+    for naam in ("partij_service.py", "partijsoort_catalog.py"):
         importregels = [
             r for r in (base / naam).read_text(encoding="utf-8").splitlines()
             if r.lstrip().startswith(("import ", "from "))
@@ -108,10 +116,10 @@ def test_engine_niet_geimporteerd_in_partij_paden():
             assert term not in blob, f"{naam} importeert onverwacht {term}"
 
 
-# ── Live (Fase 2, na DB-reset) ───────────────────────────────────────────────────
+# ── Live (na DB-reset) ───────────────────────────────────────────────────────────
 
 _CD_APP_URL = "postgresql+asyncpg://cd_app:changeme_dev@localhost:5432/complidata"
-_DEV_TENANT = "00000000-0000-0000-0000-000000000001"
+_DEV_TENANT = "11111111-1111-1111-1111-111111111111"
 
 
 def _partij_tabel_bestaat() -> bool:
@@ -163,8 +171,7 @@ def test_live_geen_wees_element_partij():
         eng = create_async_engine(_CD_APP_URL)
         try:
             async with eng.connect() as c:
-                # `element`/`partij` zijn FORCE RLS → tenant-context zetten vóór de telling
-                # (cd_app, scope = dev-tenant waar de partijen leven). Invariant ongewijzigd.
+                # `element`/`partij` zijn FORCE RLS → tenant-context zetten vóór de telling.
                 await c.execute(
                     text("SELECT set_config('app.tenant_id', :t, false)"), {"t": _DEV_TENANT}
                 )

@@ -40,7 +40,7 @@ VERWACHT = {
     Entiteit.KOPPELING: _INHOUD,
     Entiteit.CHECKLISTSCORE: _INHOUD,
     Entiteit.BLOKKADE: _INHOUD,
-    Entiteit.EXTERNE_PARTIJ: _INHOUD,
+    Entiteit.PARTIJ: _INHOUD,
     Entiteit.CONTRACT: _INHOUD,
     Entiteit.COMPONENT_CONTRACT: _INHOUD,
     Entiteit.COMPONENT: _INHOUD,            # ADR-021 Fase B (CD052)

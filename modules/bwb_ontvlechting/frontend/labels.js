@@ -172,6 +172,14 @@ export const CONTRACTTYPE = {
   los_contract: 'Los contract',
 }
 
+// ADR-024 slice 2a — aard van een partij (betrokkene). "organisatie_eenheid" = afdeling.
+export const PARTIJ_AARD = {
+  externe_partij: 'Externe partij',
+  organisatie: 'Organisatie',
+  organisatie_eenheid: 'Afdeling',
+  persoon: 'Persoon',
+}
+
 export const CONTRACTTYPE_SEVERITY = {
   mantelcontract: 'info',
   deelcontract: 'warn',

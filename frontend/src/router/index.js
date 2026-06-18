@@ -26,10 +26,10 @@ const ComponentDetail = () => import('@modules/bwb_ontvlechting/frontend/views/C
 const ComponentFormulier = () =>
   import('@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue')
 // ADR-020 contractregister (Fase D1), lazy (OP-19).
-const LeverancierLijst = () => import('@modules/bwb_ontvlechting/frontend/views/LeverancierLijst.vue')
-const LeverancierFormulier = () =>
-  import('@modules/bwb_ontvlechting/frontend/views/LeverancierFormulier.vue')
-const LeverancierDetail = () => import('@modules/bwb_ontvlechting/frontend/views/LeverancierDetail.vue')
+const PartijLijst = () => import('@modules/bwb_ontvlechting/frontend/views/PartijLijst.vue')
+const PartijFormulier = () =>
+  import('@modules/bwb_ontvlechting/frontend/views/PartijFormulier.vue')
+const PartijDetail = () => import('@modules/bwb_ontvlechting/frontend/views/PartijDetail.vue')
 const ContractLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ContractLijst.vue')
 const ContractFormulier = () => import('@modules/bwb_ontvlechting/frontend/views/ContractFormulier.vue')
 const ContractDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ContractDetail.vue')
@@ -104,14 +104,14 @@ const routes = [
         component: ComponentFormulier,
         props: true,
       },
-      // ADR-020 contractregister — statische subpaden vóór de dynamische /:id.
-      { path: 'leveranciers', name: 'leverancier-lijst', component: LeverancierLijst },
-      { path: 'leveranciers/nieuw', name: 'leverancier-nieuw', component: LeverancierFormulier },
-      { path: 'leveranciers/:id', name: 'leverancier-detail', component: LeverancierDetail, props: true },
+      // ADR-024 partijenregister — statische subpaden vóór de dynamische /:id.
+      { path: 'partijen', name: 'partij-lijst', component: PartijLijst },
+      { path: 'partijen/nieuw', name: 'partij-nieuw', component: PartijFormulier },
+      { path: 'partijen/:id', name: 'partij-detail', component: PartijDetail, props: true },
       {
-        path: 'leveranciers/:id/bewerken',
-        name: 'leverancier-bewerken',
-        component: LeverancierFormulier,
+        path: 'partijen/:id/bewerken',
+        name: 'partij-bewerken',
+        component: PartijFormulier,
         props: true,
       },
       { path: 'contracten', name: 'contract-lijst', component: ContractLijst },

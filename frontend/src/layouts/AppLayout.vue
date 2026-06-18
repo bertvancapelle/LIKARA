@@ -116,11 +116,11 @@ async function uitloggen() {
             Componenten
           </router-link>
           <router-link
-            :to="{ name: 'leverancier-lijst' }"
-            data-testid="nav-leveranciers"
+            :to="{ name: 'partij-lijst' }"
+            data-testid="nav-partijen"
             class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
           >
-            Externe partijen
+            Partijen
           </router-link>
           <router-link
             :to="{ name: 'contract-lijst' }"

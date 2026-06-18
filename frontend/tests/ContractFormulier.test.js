@@ -8,7 +8,7 @@ import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
   api: {
-    leveranciers: { lijst: vi.fn() },
+    partijen: { lijst: vi.fn() },
     contractconfig: { opties: vi.fn() },
     contracten: { lijst: vi.fn(), maak: vi.fn(), haal: vi.fn(), werkBij: vi.fn() },
   },
@@ -61,7 +61,7 @@ async function vulBasis(w) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  api.leveranciers.lijst.mockResolvedValue({ items: [{ id: 'l1', naam: 'Acme BV' }], volgende_cursor: null })
+  api.partijen.lijst.mockResolvedValue({ items: [{ id: 'l1', naam: 'Acme BV' }], volgende_cursor: null })
   api.contractconfig.opties.mockResolvedValue({
     dekking: [{ optie_sleutel: 'hosting', label: 'Hosting', volgorde: 0 }],
     kostenmodel: [{ optie_sleutel: 'volume', label: 'Volumemodel', volgorde: 0 }],

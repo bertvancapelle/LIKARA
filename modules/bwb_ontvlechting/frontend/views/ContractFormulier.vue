@@ -51,7 +51,9 @@ const registerFout = ref(null)
 const isDeel = computed(() => form.contracttype === 'deelcontract')
 
 // ZoekSelect-koppelingen (CD049): server-side zoeken i.p.v. volledige dropdowns.
-const zoekLeveranciers = (params) => api.leveranciers.lijst(params)
+// ADR-024 slice 2a: de leverancier-picker (tegenpartij) put uit de partijen, gefilterd op
+// aard `externe_partij` (optie A — het contract houdt de term "leverancier").
+const zoekLeveranciers = (params) => api.partijen.lijst({ ...params, aard: 'externe_partij' })
 const zoekMantels = (params) => api.contracten.lijst(params)
 // Mantel client-side gespiegeld op type+leverancier (I1/I2); de backend blijft de waarheid.
 const mantelFilters = computed(() => ({
