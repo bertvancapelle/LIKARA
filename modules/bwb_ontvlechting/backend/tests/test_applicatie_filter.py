@@ -53,9 +53,9 @@ def test_escape_like_escapet_wildcards_en_escapeteken():
 
 # ── Regressie: default-pad ongewijzigd ──────────────────────────────────────
 
-def test_default_pad_zonder_filters_ongewijzigd():
+def test_default_pad_zonder_filters_v2n():
     sql = _sql(limit=25)
-    assert "ORDER BY applicatie.created_at ASC, applicatie.id ASC" in sql
+    assert "ORDER BY applicatie.created_at ASC NULLS LAST, applicatie.id ASC" in sql
     assert " IN " not in sql  # geen statusfilter
     assert "LIKE" not in sql  # geen ilike-contains
     # alleen de tenant-filter in de WHERE
@@ -80,10 +80,10 @@ def test_hostingmodel_geeft_gelijkheid():
     assert "component.hostingmodel =" in sql
 
 
-def test_eigenaar_geeft_geescapte_ilike():
-    sql = _sql(eigenaar="tiel")
-    assert "lower(component.eigenaar_organisatie) LIKE" in sql
-    assert "ESCAPE" in sql
+def test_eigenaar_organisatie_geeft_gelijkheid():
+    # UX-B6-b — eigenaar-filter is nu een gelijkheid op de FK i.p.v. ILIKE op vrije tekst.
+    sql = _sql(eigenaar_organisatie_id=uuid.uuid4())
+    assert "component.eigenaar_organisatie_id =" in sql
 
 
 def test_zoek_geeft_geescapte_ilike_op_naam():
@@ -95,10 +95,10 @@ def test_zoek_geeft_geescapte_ilike_op_naam():
 # ── AND-combinatie ──────────────────────────────────────────────────────────
 
 def test_alle_filters_and_gecombineerd():
-    sql = _sql(status=["concept"], hostingmodel="saas", eigenaar="tiel", zoek="zaak")
+    sql = _sql(status=["concept"], hostingmodel="saas", eigenaar_organisatie_id=uuid.uuid4(), zoek="zaak")
     assert "lifecycle_status IN" in sql
     assert "component.hostingmodel =" in sql
-    assert "lower(component.eigenaar_organisatie) LIKE" in sql
+    assert "component.eigenaar_organisatie_id =" in sql
     assert "lower(component.naam) LIKE" in sql
 
 
@@ -107,7 +107,7 @@ def test_alle_filters_and_gecombineerd():
 def test_filter_met_sortering_behoudt_order_by():
     sql = _sql(zoek="zaak", sort="naam", order="desc")
     assert "lower(component.naam) LIKE" in sql
-    assert "ORDER BY component.naam DESC, applicatie.id DESC" in sql
+    assert "ORDER BY component.naam DESC NULLS LAST, applicatie.id DESC" in sql
 
 
 # ── Escaping is echt actief: een wildcard wordt letterlijk gebonden ─────────

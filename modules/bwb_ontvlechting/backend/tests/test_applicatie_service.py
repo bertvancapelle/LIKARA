@@ -17,7 +17,6 @@ def _create_data():
     return ApplicatieCreate(
         naam="Zaaksysteem",
         hostingmodel="saas",
-        eigenaar_organisatie="Gemeente Veldendam",
         migratiepad="herbouw",
         complexiteit="midden",
         prioriteit="hoog",

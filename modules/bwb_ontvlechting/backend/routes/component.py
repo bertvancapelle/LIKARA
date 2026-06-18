@@ -51,7 +51,7 @@ async def lijst_componenten(
     laag: str | None = Query(None, max_length=40),
     status: list[ApplicatieStatusFilter] = Query(default=[]),
     hostingmodel: HostingModel | None = Query(None),
-    eigenaar: str | None = Query(None, max_length=120),
+    eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
@@ -60,7 +60,8 @@ async def lijst_componenten(
         items, volgende = await svc.lijst(
             session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value,
             componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
-            hostingmodel=hostingmodel.value if hostingmodel else None, eigenaar=eigenaar, zoek=zoek,
+            hostingmodel=hostingmodel.value if hostingmodel else None,
+            eigenaar_organisatie_id=eigenaar_organisatie_id, zoek=zoek,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De sorteer-/paginatieparameters zijn ongeldig.")

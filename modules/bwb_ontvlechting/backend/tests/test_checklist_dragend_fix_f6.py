@@ -150,9 +150,9 @@ def test_generiek_pad_profiel_volgt_vlag_live():
         ids = []
         try:
             srv = await comp.maak_aan(s, _TID, ComponentCreate(
-                naam="WT-F6-srv", componenttype="applicatieserver", eigenaar_organisatie="ICT"))
+                naam="WT-F6-srv", componenttype="applicatieserver"))
             app = await comp.maak_aan(s, _TID, ComponentCreate(
-                naam="WT-F6-app", componenttype="applicatie", eigenaar_organisatie="ICT"))
+                naam="WT-F6-app", componenttype="applicatie"))
             ids += [srv["id"], app["id"]]
             prof_srv = (await s.execute(_text(
                 "SELECT count(*) FROM component_profiel WHERE id=:i"), {"i": str(srv["id"])})).scalar()

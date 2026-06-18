@@ -275,7 +275,15 @@ onMounted(async () => {
       >
         <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--cd-space-lg)] gap-y-[var(--cd-space-sm)]">
           <dt class="font-semibold">Eigenaar-organisatie</dt>
-          <dd>{{ applicatie.eigenaar_organisatie }}</dd>
+          <dd>
+            <router-link
+              v-if="applicatie.eigenaar_organisatie_id"
+              :to="{ name: 'partij-detail', params: { id: applicatie.eigenaar_organisatie_id } }"
+              data-testid="app-eigenaar-org-link"
+              class="text-[var(--cd-color-primary)] hover:underline"
+            >{{ applicatie.eigenaar_organisatie_naam }}</router-link>
+            <span v-else>—</span>
+          </dd>
           <dt class="font-semibold">Eigenaar (naam)</dt>
           <dd>{{ applicatie.eigenaar_naam || '—' }}</dd>
           <dt class="font-semibold">Leverancier</dt>

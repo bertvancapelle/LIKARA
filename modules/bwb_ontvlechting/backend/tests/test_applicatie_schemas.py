@@ -9,10 +9,10 @@ from pydantic import ValidationError
 
 
 def _basis() -> dict:
+    # UX-B6-b — eigenaar-organisatie is een optionele verwijzing (eigenaar_organisatie_id).
     return dict(
         naam="Zaaksysteem",
         hostingmodel="saas",
-        eigenaar_organisatie="Gemeente Veldendam",
         migratiepad="herbouw",
         complexiteit="midden",
         prioriteit="hoog",
@@ -73,21 +73,20 @@ def test_create_naam_wordt_gestript():
     assert ApplicatieCreate(**d).naam == "Zaaksysteem"
 
 
-def test_create_eigenaar_organisatie_te_lang_geweigerd():
+def test_create_eigenaar_organisatie_geen_uuid_geweigerd():
     from schemas.applicatie import ApplicatieCreate
 
     d = _basis()
-    d["eigenaar_organisatie"] = "x" * 121  # max 120
+    d["eigenaar_organisatie_id"] = "geen-uuid"
     with pytest.raises(ValidationError):
         ApplicatieCreate(**d)
 
 
-def test_create_eigenaar_organisatie_is_vrije_tekst():
+def test_create_eigenaar_organisatie_optioneel():
+    # UX-B6-b — zonder eigenaar-organisatie is geldig (optioneel veld).
     from schemas.applicatie import ApplicatieCreate
 
-    d = _basis()
-    d["eigenaar_organisatie"] = "Willekeurige Dienst BV"
-    assert ApplicatieCreate(**d).eigenaar_organisatie == "Willekeurige Dienst BV"
+    assert ApplicatieCreate(**_basis()).eigenaar_organisatie_id is None
 
 
 def test_create_optionele_lege_tekst_wordt_none():

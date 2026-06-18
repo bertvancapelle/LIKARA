@@ -32,7 +32,7 @@ class ApplicatieSorteerveld(str, Enum):
 
     created_at = "created_at"
     naam = "naam"
-    eigenaar_organisatie = "eigenaar_organisatie"
+    eigenaar_organisatie = "eigenaar_organisatie"  # sorteert op de naam van de gekoppelde organisatie (UX-B6-b)
     hostingmodel = "hostingmodel"
     complexiteit = "complexiteit"
     prioriteit = "prioriteit"
@@ -53,7 +53,7 @@ class ApplicatieStatusFilter(str, Enum):
 # Verplichte, niet-nullbare tekstvelden mogen bij een PATCH niet expliciet op
 # null worden gezet (zou een DB NOT NULL-overtreding lekken).
 _VERPLICHTE_VELDEN = frozenset(
-    {"naam", "hostingmodel", "eigenaar_organisatie", "migratiepad", "complexiteit", "prioriteit"}
+    {"naam", "hostingmodel", "migratiepad", "complexiteit", "prioriteit"}
 )
 
 
@@ -89,7 +89,8 @@ class ApplicatieCreate(BaseModel):
     naam: str
     beschrijving: str | None = None
     hostingmodel: HostingModel
-    eigenaar_organisatie: str
+    # ADR-024 UX-B6-b — optionele verwijzing naar de eigenaar-organisatie (partij, aard=organisatie).
+    eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_naam: str | None = None
     leverancier: str | None = None
     migratiepad: Migratiepad
@@ -100,12 +101,6 @@ class ApplicatieCreate(BaseModel):
     @classmethod
     def _v_naam(cls, v: str) -> str:
         return _verplichte_tekst(v, "naam", 255)
-
-    @field_validator("eigenaar_organisatie")
-    @classmethod
-    def _v_eigenaar_organisatie(cls, v: str) -> str:
-        # Vrije tekst (configureerbaar per tenant) — geen enum.
-        return _verplichte_tekst(v, "eigenaar_organisatie", 120)
 
     @field_validator("eigenaar_naam", "leverancier")
     @classmethod
@@ -132,7 +127,7 @@ class ApplicatieUpdate(BaseModel):
     naam: str | None = None
     beschrijving: str | None = None
     hostingmodel: HostingModel | None = None
-    eigenaar_organisatie: str | None = None
+    eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_naam: str | None = None
     leverancier: str | None = None
     migratiepad: Migratiepad | None = None
@@ -143,11 +138,6 @@ class ApplicatieUpdate(BaseModel):
     @classmethod
     def _v_naam(cls, v: str | None) -> str | None:
         return v if v is None else _verplichte_tekst(v, "naam", 255)
-
-    @field_validator("eigenaar_organisatie")
-    @classmethod
-    def _v_eigenaar_organisatie(cls, v: str | None) -> str | None:
-        return v if v is None else _verplichte_tekst(v, "eigenaar_organisatie", 120)
 
     @field_validator("eigenaar_naam", "leverancier")
     @classmethod
@@ -177,7 +167,9 @@ class ApplicatieRead(BaseModel):
     naam: str
     beschrijving: str | None
     hostingmodel: HostingModel
-    eigenaar_organisatie: str
+    # ADR-024 UX-B6-b — eigenaar-organisatie als verwijzing + geresolveerde naam (read).
+    eigenaar_organisatie_id: uuid.UUID | None = None
+    eigenaar_organisatie_naam: str | None = None
     eigenaar_naam: str | None
     leverancier: str | None
     migratiepad: Migratiepad

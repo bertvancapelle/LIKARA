@@ -39,7 +39,7 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
     out = asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentCreate(naam="Nieuwe app", componenttype="applicatie")))
     assert out["heeft_applicatie_subtype"] is True
     assert vastgelegd["naam"] == "Nieuwe app"
-    assert vastgelegd["eigenaar_organisatie"] == ""  # leeg toegestaan (bewerkbaar op detail)
+    assert vastgelegd["eigenaar_organisatie_id"] is None  # optioneel (UX-B6-b)
     assert vastgelegd["migratiepad"] == Migratiepad.onbekend
     assert vastgelegd["complexiteit"] == NiveauEnum.midden
     assert vastgelegd["prioriteit"] == NiveauEnum.midden
@@ -53,20 +53,21 @@ def test_component_sort_allowlist_synchroon():
     enum_namen = {e.value for e in ComponentSorteerveld}
     assert enum_namen == set(svc._SORTEERBARE_KOLOMMEN)
     assert enum_namen == set(svc._WAARDE_PARSERS)
-    # De twee additieve velden zitten in de allowlist en mappen op echte Component-kolommen.
+    # De twee additieve velden zitten in de allowlist.
     assert {"eigenaar", "hostingmodel"} <= enum_namen
-    assert svc._SORTEERBARE_KOLOMMEN["eigenaar"].key == "eigenaar_organisatie"
+    # UX-B6-b — `eigenaar` is de placeholder-FK-kolom (gesorteerd wordt op de org-naam via de join).
+    assert svc._SORTEERBARE_KOLOMMEN["eigenaar"].key == "eigenaar_organisatie_id"
     assert svc._SORTEERBARE_KOLOMMEN["hostingmodel"].key == "hostingmodel"
 
 
 def test_sorteer_waarde_mapt_eigenaar_en_hostingmodel():
-    # Cursor-sleutel: `eigenaar` → kolom eigenaar_organisatie; hostingmodel direct.
+    # Cursor-sleutel: `eigenaar` → de gejoinde organisatie-naam (eig_naam); hostingmodel direct.
     from models.models import HostingModel
     from services.component_service import _sorteer_waarde
 
-    comp = SimpleNamespace(eigenaar_organisatie="Gemeente X", hostingmodel=HostingModel.saas)
-    assert _sorteer_waarde(comp, None, None, "eigenaar") == "Gemeente X"
-    assert _sorteer_waarde(comp, None, None, "hostingmodel") == HostingModel.saas
+    comp = SimpleNamespace(hostingmodel=HostingModel.saas)
+    assert _sorteer_waarde(comp, None, None, "Gemeente X", "eigenaar") == "Gemeente X"
+    assert _sorteer_waarde(comp, None, None, None, "hostingmodel") == HostingModel.saas
 
 
 # De statische SUBTYPE_BESCHERMD-type-guard is vervangen door de toestand-gebaseerde
@@ -148,7 +149,7 @@ def test_component_crud_roundtrip():
     naam = f"CD052-test-{uuid.uuid4().hex[:8]}"
 
     async def _flow(s):
-        comp = await svc.maak_aan(s, _TID, ComponentCreate(naam=naam, componenttype="database", eigenaar_organisatie="IT"))
+        comp = await svc.maak_aan(s, _TID, ComponentCreate(naam=naam, componenttype="database"))
         assert comp["heeft_applicatie_subtype"] is False
         assert comp["componenttype_label"] == "Database"
         detail = await svc.lees_detail(s, _TID, comp["id"])
@@ -261,7 +262,7 @@ def test_component_contract_op_niet_applicatie_component():
 
     async def _flow(s):
         comp = await component_service.maak_aan(
-            s, _TID, ComponentCreate(naam=naam, componenttype="database", eigenaar_organisatie="IT")
+            s, _TID, ComponentCreate(naam=naam, componenttype="database")
         )
         cid = (await s.execute(
             text("select id from contract where contractnaam='GeoWorks Licentieovereenkomst'")
@@ -296,19 +297,32 @@ def test_server_side_sort_eigenaar_en_hostingmodel_live():
     ]
 
     async def _flow(s):
-        ids = []
+        # UX-B6-b — eigenaar-organisatie is een verwijzing; maak eerst de organisatie-partijen.
+        from sqlalchemy import text as _text
+        from models.models import Element, ElementType, Partij, PartijAard
+
+        tid = uuid.UUID(_TID)
+        ids, org_ids, orgs = [], [], {}
         try:
+            for label in ("MMM-org", "AAA-org", "ZZZ-org"):
+                oe = Element(tenant_id=tid, element_type=ElementType.partij)
+                s.add(oe); await s.flush()
+                s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam=label))
+                await s.flush()
+                orgs[label] = oe.id; org_ids.append(oe.id)
+            await s.commit()
+
             for naam, eig, host in rijen:
                 c = await svc.maak_aan(
                     s, _TID,
                     ComponentCreate(naam=naam, componenttype="database",
-                                    eigenaar_organisatie=eig, hostingmodel=host),
+                                    eigenaar_organisatie_id=orgs[eig], hostingmodel=host),
                 )
                 ids.append(c["id"])
 
             async def _eig(order):
                 items, _ = await svc.lijst(s, _TID, sort="eigenaar", order=order, zoek=sfx, limit=50)
-                return [i["eigenaar_organisatie"] for i in items if i["id"] in ids]
+                return [i["eigenaar_organisatie_naam"] for i in items if i["id"] in ids]
 
             async def _host(order):
                 items, _ = await svc.lijst(s, _TID, sort="hostingmodel", order=order, zoek=sfx, limit=50)
@@ -326,6 +340,9 @@ def test_server_side_sort_eigenaar_en_hostingmodel_live():
         finally:
             for cid in ids:
                 await svc.verwijder(s, _TID, cid)
+            for oid in org_ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(oid)})
+            await s.commit()
 
     eig_asc, eig_desc, host_asc, host_desc, onbekend = asyncio.run(_sessie_run(_flow))
 

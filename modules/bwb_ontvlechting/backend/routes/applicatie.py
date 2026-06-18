@@ -53,7 +53,7 @@ async def lijst_applicaties(
     order: Sorteerrichting = Query(Sorteerrichting.asc),
     status: list[ApplicatieStatusFilter] = Query(default=[]),
     hostingmodel: HostingModel | None = Query(None),
-    eigenaar: str | None = Query(None, max_length=120),
+    eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=100),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.APPLICATIE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
@@ -78,7 +78,7 @@ async def lijst_applicaties(
             order=order.value,
             status=[s.value for s in status] or None,
             hostingmodel=hostingmodel.value if hostingmodel else None,
-            eigenaar=eigenaar,
+            eigenaar_organisatie_id=eigenaar_organisatie_id,
             zoek=zoek,
         )
     except ValueError:

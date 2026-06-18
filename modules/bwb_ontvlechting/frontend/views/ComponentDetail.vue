@@ -172,7 +172,15 @@ onMounted(() => {
         <dt class="font-semibold">Hostingmodel</dt>
         <dd>{{ label(HOSTINGMODEL, component.hostingmodel) }}</dd>
         <dt class="font-semibold">Eigenaar-organisatie</dt>
-        <dd>{{ component.eigenaar_organisatie || '—' }}</dd>
+        <dd>
+          <router-link
+            v-if="component.eigenaar_organisatie_id"
+            :to="{ name: 'partij-detail', params: { id: component.eigenaar_organisatie_id } }"
+            data-testid="comp-eigenaar-org-link"
+            class="text-[var(--cd-color-primary)] hover:underline"
+          >{{ component.eigenaar_organisatie_naam }}</router-link>
+          <span v-else>—</span>
+        </dd>
         <dt class="font-semibold">Eigenaar (naam)</dt>
         <dd>{{ component.eigenaar_naam || '—' }}</dd>
         <dt class="font-semibold">Leverancier</dt>

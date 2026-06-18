@@ -17,6 +17,7 @@ import { useRoute } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
+import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import {
   ARCHIMATE_ELEMENT,
   ARCHIMATE_LAAG,
@@ -45,8 +46,12 @@ const filterStatus = ref([])
 const filterType = ref('') // '' = alle; kan via ?type= worden voorgezet
 const filterLaag = ref('') // ADR-023 Fase C: '' = alle ArchiMate-lagen
 const filterHosting = ref('')
-const filterEigenaar = ref('')
+// UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
+const filterEigenaarId = ref(null)
 const filterZoek = ref('')
+
+// Organisatie-keuze (filter): server-side zoeken, beperkt tot aard=organisatie.
+const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
 
 // Server-side sortering (ADR-017) — null = server-default (created_at asc), niet
 // meegestuurd. Spiegelt BlokkadeOverzichtView: @sort → sort/order + cursor-reset + refetch.
@@ -69,7 +74,7 @@ const heeftFilters = computed(
     !!filterType.value ||
     !!filterLaag.value ||
     !!filterHosting.value ||
-    !!filterEigenaar.value.trim() ||
+    !!filterEigenaarId.value ||
     !!filterZoek.value.trim(),
 )
 
@@ -82,7 +87,7 @@ async function laad({ reset = false } = {}) {
     if (filterType.value) params.componenttype = filterType.value
     if (filterLaag.value) params.laag = filterLaag.value
     if (filterHosting.value) params.hostingmodel = filterHosting.value
-    if (filterEigenaar.value.trim()) params.eigenaar = filterEigenaar.value.trim()
+    if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
     if (sortVeld.value) {
       params.sort = sortVeld.value
@@ -120,7 +125,7 @@ function wisFilters() {
   filterType.value = ''
   filterLaag.value = ''
   filterHosting.value = ''
-  filterEigenaar.value = ''
+  filterEigenaarId.value = null
   filterZoek.value = ''
   herfilter()
 }
@@ -240,15 +245,12 @@ onMounted(async () => {
 
       <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
         <span class="text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Eigenaar</span>
-        <input
-          v-model="filterEigenaar"
-          type="search"
-          maxlength="120"
-          data-testid="filter-eigenaar"
-          aria-label="Filter op eigenaar-organisatie"
-          placeholder="bevat…"
-          class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] px-[var(--cd-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
-          @input="herfilterDebounced"
+        <ZoekSelect
+          testid="filter-eigenaar"
+          v-model="filterEigenaarId"
+          :zoek-functie="zoekOrganisaties"
+          placeholder="Kies een organisatie…"
+          @update:model-value="herfilter"
         />
       </label>
 
@@ -325,7 +327,15 @@ onMounted(async () => {
         </template>
       </Column>
       <Column header="Eigenaar" sort-field="eigenaar" sortable>
-        <template #body="{ data }">{{ data.eigenaar_organisatie || '—' }}</template>
+        <template #body="{ data }">
+          <router-link
+            v-if="data.eigenaar_organisatie_id"
+            :to="{ name: 'partij-detail', params: { id: data.eigenaar_organisatie_id } }"
+            :data-testid="`comp-eigenaar-org-link-${data.id}`"
+            class="text-[var(--cd-color-primary)] hover:underline"
+          >{{ data.eigenaar_organisatie_naam }}</router-link>
+          <span v-else>—</span>
+        </template>
       </Column>
       <Column header="Hosting" sort-field="hostingmodel" sortable>
         <template #body="{ data }">{{ hosting(data.hostingmodel) }}</template>

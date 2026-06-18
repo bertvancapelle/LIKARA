@@ -79,9 +79,9 @@ export const api = {
     // sort/order/filters optioneel — alles weggelaten → server-default
     // (created_at asc, geen filters), exact backwards-compatible (ADR-017/CD017).
     // `status` is een array (herhaalde param); lege array → geen statusfilter.
-    lijst: ({ limit, after, sort, order, status, hostingmodel, eigenaar, zoek } = {}) =>
+    lijst: ({ limit, after, sort, order, status, hostingmodel, eigenaar_organisatie_id, zoek } = {}) =>
       request(
-        `/applicaties${_query({ limit, after, sort, order, status, hostingmodel, eigenaar, zoek })}`,
+        `/applicaties${_query({ limit, after, sort, order, status, hostingmodel, eigenaar_organisatie_id, zoek })}`,
       ),
     haal: (id) => request(`/applicaties/${id}`),
     maak: (data) => request('/applicaties', { method: 'POST', body: JSON.stringify(data) }),
@@ -199,9 +199,9 @@ export const api = {
     // naast componenttype + zoek. `status` is een array (herhaalde param).
     // ADR-023 Fase C: `laag` (application/technology) filtert op ArchiMate-laag
     // (read-only catalogus-typing) bovenop het type-filter.
-    lijst: ({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar, zoek } = {}) =>
+    lijst: ({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek } = {}) =>
       request(
-        `/componenten${_query({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar, zoek })}`,
+        `/componenten${_query({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek })}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),

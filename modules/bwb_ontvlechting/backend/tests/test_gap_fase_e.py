@@ -169,7 +169,7 @@ async def _maak_component(s, tid, naam, status=None):
     s.add(elem)
     await s.flush()
     comp = Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="database",
-                     hostingmodel=HostingModel.on_premise, eigenaar_organisatie="WT-Gap")
+                     hostingmodel=HostingModel.on_premise)
     s.add(comp)
     await s.flush()
     if status is not None:

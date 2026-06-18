@@ -169,7 +169,7 @@ def test_start_inventarisatie_herberekent_na_transitie(monkeypatch):
 
     # ADR-022 Fase E: start_inventarisatie delegeert naar de type-generieke
     # lifecycle_service.start_beoordeling (concept → in_inventarisatie + herberekening).
-    app_obj = SimpleNamespace(profiel=SimpleNamespace(lifecycle_status=LifecycleStatus.concept))
+    app_obj = SimpleNamespace(profiel=SimpleNamespace(lifecycle_status=LifecycleStatus.concept), eigenaar_organisatie_id=None)
 
     async def _haal(session, tenant_id, app_id):
         return app_obj

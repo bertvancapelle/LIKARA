@@ -301,14 +301,21 @@ class Component(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "id"], ["element.tenant_id", "element.id"],
             name="fk_component_element", ondelete="CASCADE",
         ),
+        # ADR-024 UX-B6-b — eigenaar-organisatie verwijst naar een partij-element (aard=organisatie,
+        # app-side geborgd). Optioneel; ON DELETE SET NULL (kolom-specifiek op eigenaar_organisatie_id
+        # in de migratie — een kale SET NULL zou óók de gedeelde tenant_id nullen).
+        ForeignKeyConstraint(
+            ["tenant_id", "eigenaar_organisatie_id"], ["element.tenant_id", "element.id"],
+            name="fk_component_eigenaar_organisatie", ondelete="SET NULL",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
     naam: Mapped[str] = mapped_column(String(255), nullable=False)
     componenttype: Mapped[str] = mapped_column(String(60), nullable=False)
     hostingmodel: Mapped[HostingModel] = mapped_column(hostingmodel_enum, nullable=False)
-    # Configureerbaar per tenant — bewust geen hardcoded enum (verboden patronen)
-    eigenaar_organisatie: Mapped[str] = mapped_column(String(120), nullable=False)
+    # ADR-024 UX-B6-b — optionele verwijzing naar de eigenaar-organisatie (partij, aard=organisatie).
+    eigenaar_organisatie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     eigenaar_naam: Mapped[str | None] = mapped_column(String(255), nullable=True)
     leverancier: Mapped[str | None] = mapped_column(String(255), nullable=True)  # B4
     beschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -370,8 +377,8 @@ class Applicatie(Base, TenantMixin, TimestampMixin):
         return self.component.hostingmodel
 
     @property
-    def eigenaar_organisatie(self) -> str:
-        return self.component.eigenaar_organisatie
+    def eigenaar_organisatie_id(self) -> "uuid.UUID | None":
+        return self.component.eigenaar_organisatie_id
 
     @property
     def eigenaar_naam(self) -> str | None:

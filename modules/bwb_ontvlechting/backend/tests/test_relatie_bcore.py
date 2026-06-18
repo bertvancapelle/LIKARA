@@ -153,7 +153,7 @@ def test_relatie_crud_en_integriteit_live():
         elem = Element(tenant_id=tid, element_type=ElementType.component)
         s.add(elem); await s.flush()
         c = Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
-                      hostingmodel="on_premise", eigenaar_organisatie="ICT")
+                      hostingmodel="on_premise")
         s.add(c); await s.flush()
         return c.id
 

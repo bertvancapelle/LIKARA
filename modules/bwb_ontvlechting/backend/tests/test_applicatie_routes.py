@@ -27,7 +27,6 @@ _ID = "22222222-2222-2222-2222-222222222222"
 _CREATE_BODY = {
     "naam": "Zaaksysteem",
     "hostingmodel": "saas",
-    "eigenaar_organisatie": "Gemeente Veldendam",
     "migratiepad": "herbouw",
     "complexiteit": "midden",
     "prioriteit": "hoog",
@@ -41,7 +40,8 @@ def _fake_applicatie():
         naam="Zaaksysteem",
         beschrijving=None,
         hostingmodel="saas",
-        eigenaar_organisatie="Gemeente Veldendam",
+        eigenaar_organisatie_id=None,
+        eigenaar_organisatie_naam=None,
         eigenaar_naam=None,
         leverancier=None,
         migratiepad="herbouw",
@@ -238,7 +238,7 @@ def test_geldige_filters_geven_200(monkeypatch):
     client = _client(app)
     resp = client.get(
         "/api/v1/applicaties?status=concept&status=geblokkeerd"
-        "&hostingmodel=saas&eigenaar=tiel&zoek=zaak"
+        f"&hostingmodel=saas&eigenaar_organisatie_id={uuid.uuid4()}&zoek=zaak"
     )
     assert resp.status_code == 200, resp.text
 
@@ -262,7 +262,8 @@ def test_te_lange_zoekterm_geeft_422(monkeypatch):
     app, _ = _maak_app(monkeypatch, _payload("viewer"))
     client = _client(app)
     assert client.get(f"/api/v1/applicaties?zoek={'a' * 101}").status_code == 422
-    assert client.get(f"/api/v1/applicaties?eigenaar={'b' * 121}").status_code == 422
+    # UX-B6-b — eigenaar-filter is nu een UUID-verwijzing: een niet-UUID ⇒ 422.
+    assert client.get("/api/v1/applicaties?eigenaar_organisatie_id=geen-uuid").status_code == 422
 
 
 # ── Paginerings-mechaniek (service met fake-sessie; keyset is DB-zijdig) ─────
@@ -287,23 +288,24 @@ class _FakeSession:
 
 
 def _rij(i):
-    return SimpleNamespace(
-        created_at=datetime(2026, 6, 6, 12, 0, i, tzinfo=timezone.utc),
-        id=uuid.uuid4(),
+    # UX-B6-b: de lijst-query levert nu (Applicatie, eigenaar_organisatie_naam)-rijen.
+    return (
+        SimpleNamespace(created_at=datetime(2026, 6, 6, 12, 0, i, tzinfo=timezone.utc), id=uuid.uuid4()),
+        None,
     )
 
 
 def test_lijst_geeft_cursor_bij_volgende_pagina():
     from services import applicatie_service as svc
-    from services.pagination import decode_sort_cursor
+    from services.pagination import decode_sort_cursor_nullable
 
     rows = [_rij(i) for i in range(26)]  # limit 25 → 26 rijen ⇒ er is meer
     items, cursor = asyncio.run(svc.lijst(_FakeSession(rows), TENANT_A, limit=25))
     assert len(items) == 25
     assert cursor is not None
-    # White-box: de Applicatie-service geeft het zelfbeschrijvende v2-formaat uit
-    # (ADR-017). Default-pad = created_at/asc (regressie: gedrag ongewijzigd).
-    sort, order, _waarde, ident = decode_sort_cursor(cursor)
+    # White-box: de Applicatie-service geeft het zelfbeschrijvende v2n-formaat uit (ADR-017).
+    # Default-pad = created_at/asc.
+    sort, order, _isnull, _waarde, ident = decode_sort_cursor_nullable(cursor)
     assert (sort, order) == ("created_at", "asc")
     assert ident == items[-1].id  # cursor verwijst naar laatste geziene rij
 

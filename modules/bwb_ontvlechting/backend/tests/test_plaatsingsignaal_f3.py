@@ -147,7 +147,7 @@ async def _maak_component(s, tid, naam, componenttype):
     elem = Element(tenant_id=tid, element_type=ElementType.component)
     s.add(elem); await s.flush()
     s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype=componenttype,
-                    hostingmodel=HostingModel.on_premise, eigenaar_organisatie="WT-F3S"))
+                    hostingmodel=HostingModel.on_premise))
     await s.flush()
     return elem.id
 

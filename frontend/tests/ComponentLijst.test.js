@@ -6,7 +6,8 @@ import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 
 vi.mock('@/api', () => ({
-  api: { componenten: { lijst: vi.fn(), opties: vi.fn() } },
+  // UX-B6-b — partijen.lijst voedt de eigenaar-organisatie-ZoekSelect (filter).
+  api: { componenten: { lijst: vi.fn(), opties: vi.fn() }, partijen: { lijst: vi.fn() } },
 }))
 
 import { api } from '@/api'
@@ -22,6 +23,7 @@ function maakRouter() {
       { path: '/componenten/nieuw', name: 'component-nieuw', component: { template: '<div/>' } },
       { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
+      { path: '/partijen/:id', name: 'partij-detail', component: { template: '<div/>' } },
     ],
   })
 }
@@ -51,7 +53,8 @@ const _comp = (naam, id, { type = 'database', label = 'Database', subtype = fals
   hostingmodel: 'on_premise',
   heeft_applicatie_subtype: subtype,
   // Besturingsvelden (CD054b W1) — gevuld voor subtypen, null voor kale infra.
-  eigenaar_organisatie: subtype ? 'Gemeente Veldendam' : null,
+  eigenaar_organisatie_id: subtype ? 'org-1' : null,
+  eigenaar_organisatie_naam: subtype ? 'Gemeente Veldendam' : null,
   complexiteit: subtype ? 'midden' : null,
   prioriteit: subtype ? 'hoog' : null,
   lifecycle_status: subtype ? 'concept' : null,
@@ -59,6 +62,7 @@ const _comp = (naam, id, { type = 'database', label = 'Database', subtype = fals
 
 beforeEach(() => {
   vi.clearAllMocks()
+  api.partijen.lijst.mockResolvedValue({ items: [{ id: 'org-1', naam: 'Gemeente Veldendam', aard: 'organisatie' }], volgende_cursor: null })
   api.componenten.opties.mockResolvedValue({
     componenttype: [
       { optie_sleutel: 'database', label: 'Database', laag: 'technology', archimate_element: 'system_software' },
@@ -198,17 +202,17 @@ describe('ComponentLijst', () => {
   })
 
   it('hostingmodel- en eigenaar-filter worden meegestuurd', async () => {
-    vi.useFakeTimers()
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
     await w.find('[data-testid="filter-hosting"]').setValue('saas')
     await flushPromises()
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ hostingmodel: 'saas' }))
-    await w.find('[data-testid="filter-eigenaar"]').setValue('veldendam')
-    vi.advanceTimersByTime(350)
-    vi.useRealTimers()
+    // UX-B6-b — eigenaar-filter is een organisatie-keuze (ZoekSelect op eigenaar_organisatie_id).
+    await w.find('[data-testid="filter-eigenaar-input"]').trigger('focus')
     await flushPromises()
-    expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ eigenaar: 'veldendam' }))
+    await w.find('[data-testid="filter-eigenaar-optie-org-1"]').trigger('mousedown')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ eigenaar_organisatie_id: 'org-1' }))
   })
 
   it('een ?type=applicatie-query preselecteert het typefilter (Applicaties-redirect)', async () => {

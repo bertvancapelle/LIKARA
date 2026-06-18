@@ -237,7 +237,7 @@ async def _maak_component(s, tid, naam):
     s.add(elem)
     await s.flush()
     comp = Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="database",
-                     hostingmodel=HostingModel.on_premise, eigenaar_organisatie="WT-Test")
+                     hostingmodel=HostingModel.on_premise)
     s.add(comp)
     await s.flush()
     return elem.id

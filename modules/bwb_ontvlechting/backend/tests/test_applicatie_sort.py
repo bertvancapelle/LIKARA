@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import pytest
 
 from services import applicatie_service as svc
-from services.pagination import encode_sort_cursor
+from services.pagination import encode_sort_cursor_nullable
 
 TENANT_A = "11111111-1111-1111-1111-111111111111"
 
@@ -56,8 +56,9 @@ def test_allowlist_enum_en_kolommen_synchroon():
 
 # ── Regressie: default-pad ongewijzigd ──────────────────────────────────────
 
-def test_default_pad_ordening_en_seek_ongewijzigd():
-    cursor = encode_sort_cursor(
+def test_default_pad_ordening_en_seek_v2n():
+    # UX-B6-b: applicatie-lijst draait nu op de v2n-keyset (NULLS-LAST), consistent met B6-a/B2.
+    cursor = encode_sort_cursor_nullable(
         sort="created_at",
         order="asc",
         waarde=datetime(2026, 6, 6, tzinfo=timezone.utc),
@@ -66,8 +67,8 @@ def test_default_pad_ordening_en_seek_ongewijzigd():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, after=cursor))
     sql = _sql(sess)
-    assert "ORDER BY applicatie.created_at ASC, applicatie.id ASC" in sql
-    assert "> (" in sql  # oplopende keyset-seek
+    assert "ORDER BY applicatie.created_at ASC NULLS LAST, applicatie.id ASC" in sql
+    assert "IS NULL" in sql  # NULLS-LAST keyset-seek
 
 
 # ── Richting per order ──────────────────────────────────────────────────────
@@ -75,23 +76,23 @@ def test_default_pad_ordening_en_seek_ongewijzigd():
 def test_sort_naam_asc_zonder_cursor():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, sort="naam", order="asc"))
-    assert "ORDER BY component.naam ASC, applicatie.id ASC" in _sql(sess)
+    assert "ORDER BY component.naam ASC NULLS LAST, applicatie.id ASC" in _sql(sess)
 
 
-def test_sort_naam_desc_seek_is_kleiner_dan():
-    cursor = encode_sort_cursor(sort="naam", order="desc", waarde="Zaaksysteem", id=uuid.uuid4())
+def test_sort_naam_desc_seek_v2n():
+    cursor = encode_sort_cursor_nullable(sort="naam", order="desc", waarde="Zaaksysteem", id=uuid.uuid4())
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, after=cursor, sort="naam", order="desc"))
     sql = _sql(sess)
-    assert "ORDER BY component.naam DESC, applicatie.id DESC" in sql
-    assert "< (" in sql  # aflopende keyset-seek
+    assert "ORDER BY component.naam DESC NULLS LAST, applicatie.id DESC" in sql
+    assert "IS NULL" in sql  # NULLS-LAST keyset-seek
 
 
 # ── Cursor↔sort/order-mismatch → ValueError (route ⇒ 400) ───────────────────
 
 def test_cursor_mismatch_geeft_valueerror():
     # Cursor uitgegeven voor created_at/asc, maar gebruikt onder naam/asc.
-    cursor = encode_sort_cursor(
+    cursor = encode_sort_cursor_nullable(
         sort="created_at",
         order="asc",
         waarde=datetime(2026, 6, 6, tzinfo=timezone.utc),

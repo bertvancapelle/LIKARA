@@ -36,7 +36,8 @@ class ComponentCreate(BaseModel):
     naam: str
     componenttype: str
     hostingmodel: HostingModel = HostingModel.onbekend
-    eigenaar_organisatie: str | None = None
+    # ADR-024 UX-B6-b — optionele verwijzing naar de eigenaar-organisatie (partij, aard=organisatie).
+    eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_naam: str | None = None
     leverancier: str | None = None
     beschrijving: str | None = None
@@ -58,7 +59,7 @@ class ComponentUpdate(BaseModel):
     naam: str | None = None
     componenttype: str | None = None
     hostingmodel: HostingModel | None = None
-    eigenaar_organisatie: str | None = None
+    eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_naam: str | None = None
     leverancier: str | None = None
     beschrijving: str | None = None
@@ -80,7 +81,9 @@ class ComponentRead(BaseModel):
     componenttype: str
     componenttype_label: str
     hostingmodel: HostingModel
-    eigenaar_organisatie: str
+    # ADR-024 UX-B6-b — eigenaar-organisatie als verwijzing + geresolveerde naam (read).
+    eigenaar_organisatie_id: uuid.UUID | None = None
+    eigenaar_organisatie_naam: str | None = None
     eigenaar_naam: str | None
     leverancier: str | None
     beschrijving: str | None
@@ -122,8 +125,9 @@ class ComponentLijstItem(BaseModel):
     # element-label + laag-filter in de lijst; null als het type geen mapping draagt.
     archimate_element: str | None = None
     laag: str | None = None
-    # Besturingsvelden uit het subtype (CD054b W1) — null voor niet-applicatie-typen.
-    eigenaar_organisatie: str | None = None
+    # ADR-024 UX-B6-b — eigenaar-organisatie als verwijzing + geresolveerde naam (lijst).
+    eigenaar_organisatie_id: uuid.UUID | None = None
+    eigenaar_organisatie_naam: str | None = None
     complexiteit: NiveauEnum | None = None
     prioriteit: NiveauEnum | None = None
     lifecycle_status: LifecycleStatus | None = None

@@ -147,7 +147,7 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
             comp = await component_service.maak_aan(
                 s, DEV_TENANT,
                 ComponentCreate(naam=naam, componenttype="client_software",
-                                hostingmodel="on_premise", eigenaar_organisatie="ICT-beheer"),
+                                hostingmodel="on_premise"),
             )
             comp_id = comp["id"]
             await lifecycle_service.start_beoordeling(s, DEV_TENANT, comp_id)
@@ -202,7 +202,7 @@ def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
         async with _worker(DEV_TENANT) as s:
             app = await applicatie_service.maak_aan(
                 s, DEV_TENANT,
-                ApplicatieCreate(naam=naam, hostingmodel="saas", eigenaar_organisatie="ICT",
+                ApplicatieCreate(naam=naam, hostingmodel="saas",
                                  migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
             )
             app_id = app.id

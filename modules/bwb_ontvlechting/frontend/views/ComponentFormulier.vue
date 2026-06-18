@@ -15,6 +15,10 @@ import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
 import { HOSTINGMODEL, REGISTER_FOUT, label } from '../labels'
+import ZoekSelect from './ZoekSelect.vue'
+
+// Eigenaar-organisatie: server-side zoeken, beperkt tot partijen met aard=organisatie (UX-B6-b).
+const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -33,7 +37,8 @@ const form = reactive({
   naam: '',
   componenttype: '',
   hostingmodel: 'onbekend',
-  eigenaar_organisatie: '',
+  eigenaar_organisatie_id: null,
+  eigenaar_organisatie_naam: '',  // initieel label voor de ZoekSelect (bewerken-modus)
   eigenaar_naam: '',
   leverancier: '',
   beschrijving: '',
@@ -71,7 +76,8 @@ async function init() {
         naam: c.naam,
         componenttype: c.componenttype,
         hostingmodel: c.hostingmodel,
-        eigenaar_organisatie: c.eigenaar_organisatie || '',
+        eigenaar_organisatie_id: c.eigenaar_organisatie_id ?? null,
+        eigenaar_organisatie_naam: c.eigenaar_organisatie_naam || '',
         eigenaar_naam: c.eigenaar_naam || '',
         leverancier: c.leverancier || '',
         beschrijving: c.beschrijving || '',
@@ -101,7 +107,7 @@ function _payload() {
     naam: form.naam.trim(),
     componenttype: form.componenttype,
     hostingmodel: form.hostingmodel,
-    eigenaar_organisatie: form.eigenaar_organisatie.trim() || null,
+    eigenaar_organisatie_id: form.eigenaar_organisatie_id || null,
     eigenaar_naam: form.eigenaar_naam.trim() || null,
     leverancier: form.leverancier.trim() || null,
     beschrijving: form.beschrijving.trim() || null,
@@ -211,7 +217,14 @@ onMounted(init)
 
       <div class="flex flex-col gap-[var(--cd-space-xs)]">
         <label for="f-eigenaar-org" class="font-semibold">Eigenaar-organisatie</label>
-        <InputText id="f-eigenaar-org" v-model="form.eigenaar_organisatie" data-testid="veld-eigenaar-organisatie" />
+        <ZoekSelect
+          id="f-eigenaar-org"
+          testid="veld-eigenaar-organisatie"
+          v-model="form.eigenaar_organisatie_id"
+          :initieel-weergave="form.eigenaar_organisatie_naam"
+          :zoek-functie="zoekOrganisaties"
+          placeholder="Zoek een organisatie (optioneel)…"
+        />
       </div>
 
       <div class="flex flex-col gap-[var(--cd-space-xs)]">

@@ -113,7 +113,7 @@ async def _maak_app(s, tid):
 
     app = await applicatie_service.maak_applicatie_subtype(
         s, tid, naam="WT-B6a-App", beschrijving=None, hostingmodel=HostingModel.on_premise,
-        eigenaar_organisatie="WT-B6a", eigenaar_naam=None, leverancier=None,
+        eigenaar_organisatie_id=None, eigenaar_naam=None, leverancier=None,
         migratiepad=Migratiepad.onbekend, complexiteit=NiveauEnum.midden, prioriteit=NiveauEnum.midden,
     )
     return app.id

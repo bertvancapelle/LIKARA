@@ -13,6 +13,8 @@ vi.mock('@/api', () => ({
       maak: vi.fn(),
       werkBij: vi.fn(),
     },
+    // UX-B6-b — ZoekSelect voor de eigenaar-organisatie (partijen, aard=organisatie).
+    partijen: { lijst: vi.fn() },
   },
 }))
 
@@ -47,9 +49,16 @@ async function mountForm({ id = null } = {}) {
   return { wrapper, pushSpy }
 }
 
+async function kiesOrganisatie(wrapper) {
+  await wrapper.find('[data-testid="veld-eigenaar-organisatie-input"]').trigger('focus')
+  await flushPromises()
+  await wrapper.find('[data-testid="veld-eigenaar-organisatie-optie-org-1"]').trigger('mousedown')
+  await flushPromises()
+}
+
 async function vulGeldig(wrapper) {
   await wrapper.find('[data-testid="veld-naam"]').setValue('Zaaksysteem')
-  await wrapper.find('[data-testid="veld-eigenaar-organisatie"]').setValue('Gemeente Veldendam')
+  await kiesOrganisatie(wrapper)
   await wrapper.find('[data-testid="veld-hostingmodel"]').setValue('saas')
   await wrapper.find('[data-testid="veld-migratiepad"]').setValue('herbouw')
   await wrapper.find('[data-testid="veld-complexiteit"]').setValue('midden')
@@ -59,6 +68,7 @@ async function vulGeldig(wrapper) {
 beforeEach(() => {
   vi.clearAllMocks()
   api.applicaties.opties.mockResolvedValue(OPTIES)
+  api.partijen.lijst.mockResolvedValue({ items: [{ id: 'org-1', naam: 'Gemeente Veldendam', aard: 'organisatie' }], volgende_cursor: null })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -107,7 +117,7 @@ describe('ApplicatieFormulier', () => {
     const payload = api.applicaties.maak.mock.calls[0][0]
     expect(payload).toMatchObject({
       naam: 'Zaaksysteem',
-      eigenaar_organisatie: 'Gemeente Veldendam',
+      eigenaar_organisatie_id: 'org-1',
       hostingmodel: 'saas',
       migratiepad: 'herbouw',
       complexiteit: 'midden',

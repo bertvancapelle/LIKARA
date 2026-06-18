@@ -11,6 +11,10 @@ import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
 import { HOSTINGMODEL, MIGRATIEPAD, NIVEAU, label } from '../labels'
+import ZoekSelect from './ZoekSelect.vue'
+
+// Eigenaar-organisatie: server-side zoeken, beperkt tot partijen met aard=organisatie (UX-B6-b).
+const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -25,7 +29,8 @@ const form = reactive({
   naam: '',
   beschrijving: '',
   hostingmodel: '',
-  eigenaar_organisatie: '',
+  eigenaar_organisatie_id: null,
+  eigenaar_organisatie_naam: '',  // initieel label voor de ZoekSelect (bewerken-modus)
   eigenaar_naam: '',
   leverancier: '',
   migratiepad: '',
@@ -51,7 +56,8 @@ async function init() {
         naam: a.naam,
         beschrijving: a.beschrijving || '',
         hostingmodel: a.hostingmodel,
-        eigenaar_organisatie: a.eigenaar_organisatie,
+        eigenaar_organisatie_id: a.eigenaar_organisatie_id ?? null,
+        eigenaar_organisatie_naam: a.eigenaar_organisatie_naam || '',
         eigenaar_naam: a.eigenaar_naam || '',
         leverancier: a.leverancier || '',
         migratiepad: a.migratiepad,
@@ -75,9 +81,7 @@ function valideer() {
   if (!form.naam.trim()) fouten.naam = 'Naam is verplicht.'
   else if (form.naam.trim().length > 255) fouten.naam = 'Maximaal 255 tekens.'
 
-  if (!form.eigenaar_organisatie.trim()) fouten.eigenaar_organisatie = 'Eigenaar-organisatie is verplicht.'
-  else if (form.eigenaar_organisatie.trim().length > 120) fouten.eigenaar_organisatie = 'Maximaal 120 tekens.'
-
+  // UX-B6-b — eigenaar-organisatie is optioneel (verwijzing); geen verplicht-/lengtecheck.
   for (const veld of ['hostingmodel', 'migratiepad', 'complexiteit', 'prioriteit']) {
     if (!form[veld]) fouten[veld] = 'Maak een keuze.'
   }
@@ -89,7 +93,7 @@ function _payload() {
     naam: form.naam.trim(),
     beschrijving: form.beschrijving.trim() || null,
     hostingmodel: form.hostingmodel,
-    eigenaar_organisatie: form.eigenaar_organisatie.trim(),
+    eigenaar_organisatie_id: form.eigenaar_organisatie_id || null,
     eigenaar_naam: form.eigenaar_naam.trim() || null,
     leverancier: form.leverancier.trim() || null,
     migratiepad: form.migratiepad,
@@ -174,9 +178,17 @@ onMounted(init)
       </div>
 
       <div class="flex flex-col gap-[var(--cd-space-xs)]">
-        <label for="f-eigenaar-org" class="font-semibold">Eigenaar-organisatie *</label>
-        <InputText id="f-eigenaar-org" v-model="form.eigenaar_organisatie" data-testid="veld-eigenaar-organisatie" :aria-invalid="!!fouten.eigenaar_organisatie" aria-describedby="fout-eigenaar-organisatie" />
-        <span v-if="fouten.eigenaar_organisatie" id="fout-eigenaar-organisatie" role="alert" data-testid="fout-eigenaar-organisatie" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.eigenaar_organisatie }}</span>
+        <label for="f-eigenaar-org" class="font-semibold">Eigenaar-organisatie</label>
+        <ZoekSelect
+          id="f-eigenaar-org"
+          testid="veld-eigenaar-organisatie"
+          v-model="form.eigenaar_organisatie_id"
+          :initieel-weergave="form.eigenaar_organisatie_naam"
+          :zoek-functie="zoekOrganisaties"
+          :invalid="!!fouten.eigenaar_organisatie_id"
+          placeholder="Zoek een organisatie (optioneel)…"
+        />
+        <span v-if="fouten.eigenaar_organisatie_id" id="fout-eigenaar-organisatie" role="alert" data-testid="fout-eigenaar-organisatie" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.eigenaar_organisatie_id }}</span>
       </div>
 
       <div class="flex flex-col gap-[var(--cd-space-xs)]">

@@ -10,7 +10,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import lazyload
+from sqlalchemy.orm import aliased, lazyload
 
 from models.models import (
     Applicatie,
@@ -28,6 +28,7 @@ from models.models import (
     LifecycleStatus,
     Migratiepad,
     NiveauEnum,
+    Partij,
     Relatie,
 )
 
@@ -58,8 +59,9 @@ _SORTEERBARE_KOLOMMEN = {
     "created_at": Component.created_at,
     "naam": Component.naam,
     "componenttype": Component.componenttype,
-    # Beide bestaande Component-kolommen (NOT NULL) — additief, geen schema/migratie.
-    "eigenaar": Component.eigenaar_organisatie,
+    # ADR-024 UX-B6-b — `eigenaar` sorteert op de naam van de gekoppelde organisatie-partij
+    # (per-call alias in `lijst`); de dict-waarde hier is een placeholder voor de allowlist-test.
+    "eigenaar": Component.eigenaar_organisatie_id,
     "hostingmodel": Component.hostingmodel,
     "complexiteit": Applicatie.complexiteit,
     "prioriteit": Applicatie.prioriteit,
@@ -213,7 +215,18 @@ async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
         "archimate_element": typing.get("archimate_element"),
         "laag": typing.get("laag"),
         "hostingmodel": obj.hostingmodel,
-        "eigenaar_organisatie": obj.eigenaar_organisatie,
+        "eigenaar_organisatie_id": obj.eigenaar_organisatie_id,
+        "eigenaar_organisatie_naam": (
+            (
+                await session.execute(
+                    select(Partij.naam).where(
+                        Partij.id == obj.eigenaar_organisatie_id, Partij.tenant_id == tid
+                    )
+                )
+            ).scalar_one_or_none()
+            if obj.eigenaar_organisatie_id is not None
+            else None
+        ),
         "eigenaar_naam": obj.eigenaar_naam,
         "leverancier": obj.leverancier,
         "beschrijving": obj.beschrijving,
@@ -256,15 +269,16 @@ async def lees_detail(session: AsyncSession, tenant_id, component_id) -> dict:
     return await _lees(session, tid, await haal_op(session, tenant_id, component_id))
 
 
-def _sorteer_waarde(comp: Component, app: Applicatie | None, lifecycle, sort: str):
-    """Sleutelwaarde voor de cursor: subtype-kolommen van het (mogelijk afwezige)
-    subtype, `lifecycle_status` van het profiel, overige van de component."""
+def _sorteer_waarde(comp: Component, app: Applicatie | None, lifecycle, eig_naam, sort: str):
+    """Sleutelwaarde voor de cursor: subtype-kolommen van het (mogelijk afwezige) subtype,
+    `lifecycle_status` van het profiel, `eigenaar` = de organisatie-naam (gejoind), overige
+    van de component."""
     if sort == "lifecycle_status":
         return lifecycle
     if sort in ("complexiteit", "prioriteit"):
         return getattr(app, sort) if app is not None else None
     if sort == "eigenaar":
-        return comp.eigenaar_organisatie  # schema-veld `eigenaar` → kolom `eigenaar_organisatie`
+        return eig_naam  # UX-B6-b: sorteren op de naam van de gekoppelde organisatie-partij
     return getattr(comp, sort)  # naam / componenttype / hostingmodel / created_at
 
 
@@ -272,7 +286,7 @@ async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
-    eigenaar: str | None = None, zoek: str | None = None,
+    eigenaar_organisatie_id: uuid.UUID | None = None, zoek: str | None = None,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
 
@@ -290,15 +304,20 @@ async def lijst(
         raise ValueError(f"onbekend sorteerveld: {sort}")
     if order not in ("asc", "desc"):
         raise ValueError(f"onbekende sorteerrichting: {order}")
-    kolom = _SORTEERBARE_KOLOMMEN[sort]
+    # UX-B6-b — eigenaar-organisatie als gejoinde partij; `eigenaar` sorteert op de org-naam.
+    eig = aliased(Partij)
+    kolom = eig.naam if sort == "eigenaar" else _SORTEERBARE_KOLOMMEN[sort]
 
     stmt = (
         # ADR-022 Fase A: lifecycle_status komt expliciet uit het profiel; de
         # Applicatie-eager-load van `profiel` wordt onderdrukt (`lazyload`) zodat de
-        # query één join naar component_profiel houdt.
-        select(Component, Applicatie, ComponentProfiel.lifecycle_status.label("lifecycle_status"))
+        # query één join naar component_profiel houdt. UX-B6-b: LEFT JOIN de eigenaar-org-partij
+        # voor naam-in-read + sortering op naam.
+        select(Component, Applicatie, ComponentProfiel.lifecycle_status.label("lifecycle_status"),
+               eig.naam.label("eigenaar_organisatie_naam"))
         .outerjoin(Applicatie, and_(Applicatie.id == Component.id, Applicatie.tenant_id == tid))
         .outerjoin(ComponentProfiel, and_(ComponentProfiel.id == Component.id, ComponentProfiel.tenant_id == tid))
+        .outerjoin(eig, and_(eig.id == Component.eigenaar_organisatie_id, eig.tenant_id == tid))
         .options(lazyload(Applicatie.profiel))
         .where(Component.tenant_id == tid)
     )
@@ -315,10 +334,8 @@ async def lijst(
         stmt = stmt.where(ComponentProfiel.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
     if hostingmodel:
         stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
-    if eigenaar:
-        stmt = stmt.where(
-            Component.eigenaar_organisatie.ilike(f"%{_escape_like(eigenaar)}%", escape=_LIKE_ESCAPE)
-        )
+    if eigenaar_organisatie_id:
+        stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
     if zoek:
         stmt = stmt.where(Component.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
     if after:
@@ -333,7 +350,7 @@ async def lijst(
         )
     stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Component.id, order)).limit(limit + 1)
 
-    rijen = list((await session.execute(stmt)).all())  # rijen van (Component, Applicatie|None, lifecycle|None)
+    rijen = list((await session.execute(stmt)).all())  # (Component, Applicatie|None, lifecycle|None, eigenaar_org_naam|None)
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
@@ -345,18 +362,20 @@ async def lijst(
             "laag": typing.get(c.componenttype, {}).get("laag"),
             "hostingmodel": c.hostingmodel,
             "heeft_applicatie_subtype": a is not None,
-            "eigenaar_organisatie": c.eigenaar_organisatie,
+            "eigenaar_organisatie_id": c.eigenaar_organisatie_id,
+            "eigenaar_organisatie_naam": eig_naam,
             "complexiteit": a.complexiteit if a is not None else None,
             "prioriteit": a.prioriteit if a is not None else None,
             "lifecycle_status": lc,
         }
-        for (c, a, lc) in items
+        for (c, a, lc, eig_naam) in items
     ]
     if heeft_meer:
-        laatste_comp, laatste_app, laatste_lc = items[-1]
+        laatste_comp, laatste_app, laatste_lc, laatste_eig = items[-1]
         volgende = encode_sort_cursor_nullable(
             sort=sort, order=order,
-            waarde=_sorteer_waarde(laatste_comp, laatste_app, laatste_lc, sort), id=laatste_comp.id,
+            waarde=_sorteer_waarde(laatste_comp, laatste_app, laatste_lc, laatste_eig, sort),
+            id=laatste_comp.id,
         )
     else:
         volgende = None
@@ -365,15 +384,19 @@ async def lijst(
 
 async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
+    # UX-B6-b — als een eigenaar-organisatie is opgegeven, valideer dat het een organisatie-partij is.
+    if data.eigenaar_organisatie_id is not None:
+        from services import partij_service
+        await partij_service.valideer_organisatie(session, tid, data.eigenaar_organisatie_id)
     if data.componenttype == _APPLICATIE_TYPE:
         # Convergente aanmaak (CD054b W1): atomair het applicatie-subtype met defaults,
-        # via dezelfde service-kern als het applicatie-pad. Eigenaar mag leeg ("").
+        # via dezelfde service-kern als het applicatie-pad. Eigenaar-organisatie optioneel.
         from services import applicatie_service
 
         obj = await applicatie_service.maak_applicatie_subtype(
             session, tid,
             naam=data.naam, beschrijving=data.beschrijving, hostingmodel=data.hostingmodel,
-            eigenaar_organisatie=data.eigenaar_organisatie or "",
+            eigenaar_organisatie_id=data.eigenaar_organisatie_id,
             eigenaar_naam=data.eigenaar_naam, leverancier=data.leverancier,
             **_SUBTYPE_DEFAULTS,
         )
@@ -386,7 +409,7 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
     obj = Component(
         id=elem.id, tenant_id=tid, naam=data.naam, componenttype=data.componenttype,
         hostingmodel=data.hostingmodel,
-        eigenaar_organisatie=data.eigenaar_organisatie or "",
+        eigenaar_organisatie_id=data.eigenaar_organisatie_id,
         eigenaar_naam=data.eigenaar_naam, leverancier=data.leverancier,
         beschrijving=data.beschrijving,
     )
@@ -451,9 +474,11 @@ async def werk_bij(session: AsyncSession, tenant_id, component_id, data: Compone
     nieuw_type = velden.pop("componenttype", None)
     if nieuw_type is not None and nieuw_type != obj.componenttype:
         await _wissel_type(session, tid, obj, nieuw_type)
+    # UX-B6-b — eigenaar-organisatie wijzigen: valideer aard=organisatie als een id wordt gezet.
+    if velden.get("eigenaar_organisatie_id") is not None:
+        from services import partij_service
+        await partij_service.valideer_organisatie(session, tid, velden["eigenaar_organisatie_id"])
     for veld, waarde in velden.items():
-        if veld == "eigenaar_organisatie" and waarde is None:
-            waarde = ""
         setattr(obj, veld, waarde)
     await session.commit()
     await session.refresh(obj)

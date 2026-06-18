@@ -59,7 +59,8 @@ function _app(extra = {}) {
     naam: 'Zaaksysteem',
     beschrijving: null,
     hostingmodel: 'saas',
-    eigenaar_organisatie: 'Gemeente Veldendam',
+    eigenaar_organisatie_id: 'org-1',
+    eigenaar_organisatie_naam: 'Gemeente Veldendam',
     eigenaar_naam: null,
     leverancier: null,
     migratiepad: 'herbouw',
@@ -79,6 +80,8 @@ async function mountDetail({ rollen = ['beheerder'], query = '' } = {}) {
       { path: '/applicaties/:id/bewerken', name: 'applicatie-bewerken', component: { template: '<div/>' } },
       // ContractSectie (in het contracten-tabpaneel) rendert links naar contract-detail.
       { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
+      // UX-B6-b — eigenaar-organisatie linkt door naar de partij.
+      { path: '/partijen/:id', name: 'partij-detail', component: { template: '<div/>' } },
     ],
   })
   await router.push(`/applicaties/${_ID}${query}`)
