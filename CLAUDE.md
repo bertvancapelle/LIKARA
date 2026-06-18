@@ -64,6 +64,7 @@ Lees bij elke nieuwe sessie onderstaande skills in hun geheel voordat je iets an
 
 Read CONTRIBUTING.md
 Read .claude/skills/complidata/complidata-backend/SKILL.md
+Read .claude/skills/complidata/complidata-domeinmodel/SKILL.md
 Read .claude/skills/complidata/complidata-db/SKILL.md
 Read .claude/skills/complidata/complidata-frontend/SKILL.md
 Read .claude/skills/complidata/complidata-ux/SKILL.md
