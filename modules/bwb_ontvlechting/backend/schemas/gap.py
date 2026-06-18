@@ -34,13 +34,18 @@ class GapCreate(BaseModel):
 
 
 class GapUpdate(BaseModel):
-    """Partieel — alléén de beschrijvende velden. De plateau-referenties zijn structureel
-    en daarom immutabel (niet in Update), conform de FK-immutabiliteitsconventie."""
+    """Partieel. Naast naam/toelichting mogen ook baseline-/doel-plateau gewijzigd worden
+    (UX-A4-4-aanvulling): een gebruiker corrigeert een vergissing of een verschoven planning
+    ter plekke, zónder de gap weg te gooien en de leden te verliezen. Dezelfde validatie als
+    bij aanmaken geldt (beide een geldig plateau, baseline ≠ doel) — in de servicelaag, omdat
+    die een DB-lookup vergt. De kolommen waren al NOT NULL; alleen de mutatie-conventie wijzigt."""
 
     model_config = ConfigDict(extra="forbid")
 
     naam: str | None = None
     toelichting: str | None = None
+    baseline_plateau_id: uuid.UUID | None = None
+    doel_plateau_id: uuid.UUID | None = None
 
     @field_validator("naam")
     @classmethod

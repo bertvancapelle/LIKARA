@@ -127,7 +127,8 @@ describe('F-1 gap-detail', () => {
     expect(w.find('[data-testid="gap-overgang"]').text()).toContain('Baseline')
     expect(w.find('[data-testid="gap-overgang"]').text()).toContain('Doel')
     expect(w.find('[data-testid="readiness-technisch"]').text()).toContain('1 van 2 (50%)')
-    expect(w.find('[data-testid="readiness-contractueel"]').text()).toContain('n.v.t.')
+    // Lege noemer: nette uitleg i.p.v. 0% (UX-A4-4-tekst).
+    expect(w.find('[data-testid="readiness-contractueel"]').text()).toContain('Nog geen leden')
     expect(w.find('[data-testid="readiness-contractueel"]').text()).not.toContain('0%')
     expect(w.text()).toContain('App X')
   })

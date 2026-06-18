@@ -263,7 +263,12 @@ export const api = {
   gaps: {
     lijst: ({ limit, after } = {}) => request(`/gaps${_query({ limit, after })}`),
     haal: (id) => request(`/gaps/${id}`), // GapDetail incl. de twee readiness-cijfers
+    maak: (data) => request('/gaps', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) => request(`/gaps/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/gaps/${id}`, { method: 'DELETE' }),
     leden: (id) => request(`/gaps/${id}/leden`),
+    voegLid: (id, lid_id) => request(`/gaps/${id}/leden`, { method: 'POST', body: JSON.stringify({ lid_id }) }),
+    verwijderLid: (id, lidId) => request(`/gaps/${id}/leden/${lidId}`, { method: 'DELETE' }),
   },
   workPackages: {
     // `zoek` (CD017 ILIKE op naam) bedient het "bovenliggend werkpakket"-keuzeveld (UX-A4-2).

@@ -1,11 +1,21 @@
 <script setup>
 /**
- * GapLijstView — migratielaag (ADR-023 Fase F / F-1): lijst van gaps.
- * Read-only; leunt op `GET /gaps`. Keyset-paginering ("Meer laden").
+ * GapLijstView — migratielaag (ADR-023 Fase E/F): lijst + aanmaken van gaps.
+ * Leunt op `GET /gaps` (keyset) + `POST /gaps`. "+ Nieuwe gap" (rol-gegate op GAP·AANMAKEN)
+ * opent een dialog: naam + toelichting + een verplicht baseline-plateau (vertreksituatie) en
+ * doel-plateau (eindsituatie), beide via een zoekveld. Na opslaan naar het nieuwe gap-detail.
  */
-import { onMounted, ref } from 'vue'
-import { Button, Column, DataTable } from '@/primevue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { Button, Column, DataTable, Dialog, InputText, Textarea, useToast } from '@/primevue'
+import { useRouter } from '@/composables/router'
+import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
+
+const router = useRouter()
+const toast = useToast()
+const auth = useAuthStore()
+const magAanmaken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const items = ref([])
 const cursor = ref(null)
@@ -28,17 +38,67 @@ async function laad({ reset = false } = {}) {
   }
 }
 
+// ── Nieuwe gap ─────────────────────────────────────────────────────────────────
+const nieuwOpen = ref(false)
+const bezig = ref(false)
+const form = reactive({ naam: '', toelichting: '', baseline_plateau_id: '', doel_plateau_id: '' })
+const fouten = reactive({})
+const zoekPlateaus = (params) => api.plateaus.lijst(params)
+
+function openNieuw() {
+  Object.assign(form, { naam: '', toelichting: '', baseline_plateau_id: '', doel_plateau_id: '' })
+  Object.keys(fouten).forEach((k) => delete fouten[k])
+  nieuwOpen.value = true
+}
+function valideer() {
+  Object.keys(fouten).forEach((k) => delete fouten[k])
+  if (!form.naam.trim()) fouten.naam = 'Naam is verplicht.'
+  if (!form.baseline_plateau_id) fouten.baseline_plateau_id = 'Kies een baseline-plateau (vertreksituatie).'
+  if (!form.doel_plateau_id) fouten.doel_plateau_id = 'Kies een doel-plateau (eindsituatie).'
+  if (form.baseline_plateau_id && form.baseline_plateau_id === form.doel_plateau_id)
+    fouten.doel_plateau_id = 'Baseline en doel mogen niet hetzelfde plateau zijn.'
+  return Object.keys(fouten).length === 0
+}
+async function bevestigNieuw() {
+  if (!valideer()) return
+  bezig.value = true
+  try {
+    const g = await api.gaps.maak({
+      naam: form.naam.trim(),
+      toelichting: form.toelichting.trim() || null,
+      baseline_plateau_id: form.baseline_plateau_id,
+      doel_plateau_id: form.doel_plateau_id,
+    })
+    toast.add({ severity: 'success', summary: 'Gap aangemaakt', life: 3000 })
+    nieuwOpen.value = false
+    router.push({ name: 'gap-detail', params: { id: g.id } })
+  } catch (e) {
+    if (e?.code === 'BASELINE_GELIJK_AAN_DOEL') {
+      fouten.doel_plateau_id = 'Baseline en doel mogen niet hetzelfde plateau zijn.'
+    } else if (e?.code === 'ONGELDIG_PLATEAU') {
+      fouten.baseline_plateau_id = 'Baseline en doel moeten een plateau zijn.'
+    } else if (e?.status === 422 && Array.isArray(e.detail)) {
+      for (const d of e.detail) {
+        const veld = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : null
+        if (veld && veld in form) fouten[veld] = d.msg
+      }
+    } else {
+      toast.add({ severity: 'error', summary: 'Fout', detail: e?.message || 'Er ging iets mis.', life: 5000 })
+    }
+  } finally {
+    bezig.value = false
+  }
+}
+
 onMounted(() => laad({ reset: true }))
 </script>
 
 <template>
   <section aria-labelledby="gaps-titel">
-    <h1
-      id="gaps-titel"
-      class="mb-[var(--cd-space-md)] text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]"
-    >
-      Gaps
-    </h1>
+    <div class="mb-[var(--cd-space-md)] flex items-center gap-[var(--cd-space-md)]">
+      <h1 id="gaps-titel" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">Gaps</h1>
+      <Button v-if="magAanmaken" label="+ Nieuwe gap" size="small" data-testid="gap-nieuw" class="ml-auto" @click="openNieuw" />
+    </div>
 
     <p
       v-if="fout"
@@ -49,11 +109,7 @@ onMounted(() => laad({ reset: true }))
       {{ fout }}
     </p>
 
-    <DataTable
-      :value="items"
-      data-testid="gaps-tabel"
-      class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]"
-    >
+    <DataTable :value="items" data-testid="gaps-tabel" class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]">
       <Column field="naam" header="Naam">
         <template #body="{ data }">
           <router-link
@@ -67,28 +123,48 @@ onMounted(() => laad({ reset: true }))
       </Column>
       <Column header="Omschrijving">
         <template #body="{ data }">
-          <span class="block max-w-[40ch] truncate" :title="data.toelichting || ''">
-            {{ data.toelichting || '—' }}
-          </span>
+          <span class="block max-w-[40ch] truncate" :title="data.toelichting || ''">{{ data.toelichting || '—' }}</span>
         </template>
       </Column>
       <template #empty>
         <span v-if="eersteGeladen && !laden" data-testid="gap-lijst-leeg">
-          Nog geen gaps geregistreerd.
+          Nog geen gaps.
+          <template v-if="magAanmaken">Maak de eerste gap aan met “+ Nieuwe gap”.</template>
         </span>
         <span v-else>Laden…</span>
       </template>
     </DataTable>
 
     <div class="mt-[var(--cd-space-md)]">
-      <Button
-        v-if="cursor"
-        label="Meer laden"
-        severity="secondary"
-        data-testid="meer-laden"
-        :disabled="laden"
-        @click="laad()"
-      />
+      <Button v-if="cursor" label="Meer laden" severity="secondary" data-testid="meer-laden" :disabled="laden" @click="laad()" />
     </div>
+
+    <Dialog v-model:visible="nieuwOpen" modal :closable="false" header="Nieuwe gap" data-testid="gap-nieuw-dialog">
+      <form class="flex flex-col gap-[var(--cd-space-md)] min-w-[26rem]" data-testid="gap-nieuw-form" @submit.prevent="bevestigNieuw">
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="gn-naam" class="font-semibold">Naam *</label>
+          <InputText id="gn-naam" v-model="form.naam" data-testid="gn-naam" :aria-invalid="!!fouten.naam" />
+          <span v-if="fouten.naam" role="alert" data-testid="gn-fout-naam" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.naam }}</span>
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="gn-toelichting" class="font-semibold">Toelichting</label>
+          <Textarea id="gn-toelichting" v-model="form.toelichting" rows="2" data-testid="gn-toelichting" />
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="gn-baseline" class="font-semibold">Baseline-plateau (vertreksituatie) *</label>
+          <ZoekSelect id="gn-baseline" testid="gn-baseline-zoek" v-model="form.baseline_plateau_id" :zoek-functie="zoekPlateaus" :invalid="!!fouten.baseline_plateau_id" placeholder="Zoek een plateau…" />
+          <span v-if="fouten.baseline_plateau_id" role="alert" data-testid="gn-fout-baseline" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.baseline_plateau_id }}</span>
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="gn-doel" class="font-semibold">Doel-plateau (eindsituatie) *</label>
+          <ZoekSelect id="gn-doel" testid="gn-doel-zoek" v-model="form.doel_plateau_id" :zoek-functie="zoekPlateaus" :invalid="!!fouten.doel_plateau_id" placeholder="Zoek een plateau…" />
+          <span v-if="fouten.doel_plateau_id" role="alert" data-testid="gn-fout-doel" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.doel_plateau_id }}</span>
+        </div>
+        <div class="flex gap-[var(--cd-space-md)]">
+          <Button type="submit" label="Aanmaken" data-testid="gn-opslaan" :disabled="bezig" />
+          <Button type="button" label="Annuleren" severity="secondary" @click="nieuwOpen = false" />
+        </div>
+      </form>
+    </Dialog>
   </section>
 </template>

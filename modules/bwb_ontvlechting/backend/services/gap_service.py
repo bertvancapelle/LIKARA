@@ -82,18 +82,23 @@ async def _element_type(session: AsyncSession, tid: uuid.UUID, eid) -> str:
     return et.value if hasattr(et, "value") else str(et)
 
 
-async def maak_aan(session: AsyncSession, tenant_id, data: GapCreate) -> dict:
-    tid = _tenant_uuid(tenant_id)
-    if data.baseline_plateau_id == data.doel_plateau_id:
+async def _valideer_plateaus(session: AsyncSession, tid: uuid.UUID, baseline_id, doel_id) -> None:
+    """Gedeelde 2-ariteit-validatie (aanmaken én wijzigen): baseline ≠ doel, en beide verwijzen
+    naar een plateau binnen de tenant. Foutcodes identiek over beide paden."""
+    if baseline_id == doel_id:
         raise OngeldigeRegistratie(
             "BASELINE_GELIJK_AAN_DOEL", "Baseline- en doel-plateau mogen niet identiek zijn."
         )
-    # Beide referenties moeten daadwerkelijk een plateau zijn (404 als buiten de tenant).
-    for plateau_id in (data.baseline_plateau_id, data.doel_plateau_id):
+    for plateau_id in (baseline_id, doel_id):
         if await _element_type(session, tid, plateau_id) != ElementType.plateau.value:
             raise OngeldigeRegistratie(
                 "ONGELDIG_PLATEAU", "Baseline en doel moeten verwijzen naar een plateau."
             )
+
+
+async def maak_aan(session: AsyncSession, tenant_id, data: GapCreate) -> dict:
+    tid = _tenant_uuid(tenant_id)
+    await _valideer_plateaus(session, tid, data.baseline_plateau_id, data.doel_plateau_id)
     elem = Element(tenant_id=tid, element_type=ElementType.gap)
     session.add(elem)
     await session.flush()
@@ -120,8 +125,16 @@ async def lees_detail(session: AsyncSession, tenant_id, gap_id) -> dict:
 
 
 async def werk_bij(session: AsyncSession, tenant_id, gap_id, data: GapUpdate) -> dict:
+    tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, gap_id)
-    for veld, waarde in data.model_dump(exclude_unset=True).items():
+    velden = data.model_dump(exclude_unset=True)
+    # Baseline/doel wijzigbaar (UX-A4-4): valideer de effectieve waarden (nieuw of bestaand)
+    # met exact dezelfde 2-ariteit-regel als bij aanmaken.
+    if "baseline_plateau_id" in velden or "doel_plateau_id" in velden:
+        nieuw_baseline = velden.get("baseline_plateau_id", obj.baseline_plateau_id)
+        nieuw_doel = velden.get("doel_plateau_id", obj.doel_plateau_id)
+        await _valideer_plateaus(session, tid, nieuw_baseline, nieuw_doel)
+    for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     await session.commit()
     await session.refresh(obj)

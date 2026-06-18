@@ -62,8 +62,8 @@ def test_gap_schema_validatie():
         GapCreate(naam="x", baseline_plateau_id=uuid.uuid4(), doel_plateau_id=uuid.uuid4(), onbekend="y")
     with pytest.raises(ValidationError):
         GapLidCreate(lid_id="geen-uuid")
-    # Plateau-referenties zijn structureel/immutabel ⇒ niet in Update.
-    assert set(GapUpdate.model_fields) == {"naam", "toelichting"}
+    # UX-A4-4-aanvulling: baseline/doel zijn nu óók wijzigbaar (naast naam/toelichting).
+    assert set(GapUpdate.model_fields) == {"naam", "toelichting", "baseline_plateau_id", "doel_plateau_id"}
 
 
 # ── Offline: RBAC + audit ────────────────────────────────────────────────────────
@@ -276,6 +276,57 @@ def test_gap_crud_en_plateau_validatie_live():
     # Lege gap: beide cijfers leeg (percentage None, aantallen 0); nooit vermengd.
     assert detail["readiness_technisch"] == {"aantal_klaar": 0, "aantal_totaal": 0, "percentage": None}
     assert detail["readiness_contractueel"] == {"aantal_klaar": 0, "aantal_totaal": 0, "percentage": None}
+    assert fouten == {"zelfde": "BASELINE_GELIJK_AAN_DOEL", "geen_plateau": "ONGELDIG_PLATEAU"}
+
+
+@integratie
+def test_gap_baseline_doel_wijzigen_live():
+    """UX-A4-4-aanvulling: baseline/doel wijzigen via update (happy + baseline=doel 422 +
+    niet-plateau 422), met behoud van de gekoppelde leden."""
+    from schemas.gap import GapCreate, GapUpdate
+    from schemas.plateau import PlateauCreate
+    from services import gap_service as gsvc
+    from services import plateau_service as psvc
+    from services.errors import OngeldigeRegistratie
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            base = await psvc.maak_aan(s, _TID, PlateauCreate(naam="WT-GapW Base"))
+            doel = await psvc.maak_aan(s, _TID, PlateauCreate(naam="WT-GapW Doel"))
+            doel2 = await psvc.maak_aan(s, _TID, PlateauCreate(naam="WT-GapW Doel2"))
+            comp_id = await _maak_component(s, tid, "WT-GapW-comp")
+            await s.commit()
+            ids += [base["id"], doel["id"], doel2["id"], comp_id]
+
+            gap = await gsvc.maak_aan(s, _TID, GapCreate(
+                naam="WT-GapW", baseline_plateau_id=base["id"], doel_plateau_id=doel["id"]))
+            ids.append(gap["id"])
+            lid = await gsvc.maak_lid(s, _TID, gap["id"], comp_id)
+
+            # Happy: doel verleggen naar doel2.
+            na = await gsvc.werk_bij(s, _TID, gap["id"], GapUpdate(doel_plateau_id=doel2["id"]))
+            # Lid behouden?
+            leden_na = await gsvc.lijst_leden(s, _TID, gap["id"])
+
+            fouten = {}
+            try:  # baseline := huidig doel2 (== doel na update) → 422
+                await gsvc.werk_bij(s, _TID, gap["id"], GapUpdate(baseline_plateau_id=doel2["id"]))
+            except OngeldigeRegistratie as e:
+                fouten["zelfde"] = e.code
+            try:  # baseline := een component → 422
+                await gsvc.werk_bij(s, _TID, gap["id"], GapUpdate(baseline_plateau_id=comp_id))
+            except OngeldigeRegistratie as e:
+                fouten["geen_plateau"] = e.code
+            return na, [l["lid_id"] for l in leden_na], fouten, lid["lid_id"]
+        finally:
+            await _ruim(s, ids)
+
+    na, leden_na, fouten, lid_id = asyncio.run(_run_rls(_TID, "test:bert", _flow))
+    assert na["doel_plateau_id"] is not None  # doel verlegd
+    assert leden_na == [lid_id]  # leden behouden bij het wijzigen van het doel
     assert fouten == {"zelfde": "BASELINE_GELIJK_AAN_DOEL", "geen_plateau": "ONGELDIG_PLATEAU"}
 
 

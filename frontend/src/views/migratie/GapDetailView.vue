@@ -1,16 +1,27 @@
 <script setup>
 /**
- * GapDetailView — migratielaag (ADR-023 Fase F / F-1): gap-detail.
- * Read-only; leunt op `GET /gaps/{id}` (GapDetail incl. de twee readiness-cijfers),
- * `GET /gaps/{id}/leden`, en `GET /plateaus/{id}` voor de baseline-/doel-plateaunamen.
- * De twee readiness-cijfers (technisch + contractueel) worden gescheiden getoond; een
- * lege noemer (percentage = null) als "n.v.t.", niet als 0%.
+ * GapDetailView — migratielaag (ADR-023 Fase E/F): gap-detail + beheer.
+ * UX-A4-4: wijzigen (naam/toelichting), verwijderen, leden koppelen/ontkoppelen (component/
+ * contract), en de twee read-only readiness-cijfers (technisch + contractueel) die automatisch
+ * meebewegen met de leden. Baseline-/doel-plateau liggen vast na aanmaken (immutabel, FK-conventie)
+ * en worden read-only getoond. Registratie/migratielaag — engine onaangeroerd; readiness is puur
+ * afgeleid (geen invoer, geen tweede bron).
+ *
+ * Rol-gating: wijzigen/koppelen = medewerker/beheerder; verwijderen + ontkoppelen = beheerder.
  */
-import { onMounted, ref } from 'vue'
-import { Column, DataTable } from '@/primevue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast } from '@/primevue'
+import { useRouter } from '@/composables/router'
+import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
+const router = useRouter()
+const toast = useToast()
+const auth = useAuthStore()
+const magBeheren = computed(() => auth.hasRole('medewerker', 'beheerder'))
+const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 const gap = ref(null)
 const leden = ref([])
@@ -18,21 +29,42 @@ const baselineNaam = ref(null)
 const doelNaam = ref(null)
 const laden = ref(true)
 const fout = ref(null)
+const bezig = ref(false)
 
 const TYPE_LABEL = { component: 'Component', contract: 'Contract' }
 
 function readinessTekst(cijfer) {
   if (!cijfer || cijfer.percentage === null || cijfer.percentage === undefined) {
-    return 'n.v.t. (geen leden in de noemer)'
+    return 'Nog geen leden om gereedheid uit af te leiden'
   }
   return `${cijfer.aantal_klaar} van ${cijfer.aantal_totaal} (${cijfer.percentage}%)`
 }
 
-onMounted(async () => {
+function _foutMelding(e) {
+  if (e?.code === 'LID_BESTAAT') return 'Dit lid zit al in deze gap.'
+  if (e?.code === 'ONGELDIG_LID') return e?.message || 'Alleen componenten en contracten kunnen lid zijn.'
+  return (
+    { 403: 'Je hebt geen rechten voor deze actie.', 404: 'Niet gevonden.' }[e?.status] ||
+    e?.message ||
+    'Er ging iets mis.'
+  )
+}
+function _toastFout(e) {
+  toast.add({ severity: 'error', summary: 'Fout', detail: _foutMelding(e), life: 6000 })
+}
+
+async function laadLeden() {
+  leden.value = await api.gaps.leden(props.id)
+}
+async function herlaadGap() {
+  gap.value = await api.gaps.haal(props.id) // readiness zit in de detail-respons → beweegt mee
+}
+async function laad() {
+  laden.value = true
+  fout.value = null
   try {
-    gap.value = await api.gaps.haal(props.id)
-    leden.value = await api.gaps.leden(props.id)
-    // Plateaunamen los ophalen (bestaande plateau-read); faalt er één, toon de id niet.
+    await herlaadGap()
+    await laadLeden()
     const [b, d] = await Promise.all([
       api.plateaus.haal(gap.value.baseline_plateau_id).catch(() => null),
       api.plateaus.haal(gap.value.doel_plateau_id).catch(() => null),
@@ -44,31 +76,140 @@ onMounted(async () => {
   } finally {
     laden.value = false
   }
-})
+}
+
+// ── Bewerken (naam/toelichting + baseline/doel, UX-A4-4-aanvulling) ──────────
+const editOpen = ref(false)
+const editForm = reactive({ naam: '', toelichting: '', baseline_plateau_id: '', doel_plateau_id: '' })
+const editFouten = reactive({})
+const zoekPlateaus = (params) => api.plateaus.lijst(params)
+function openBewerken() {
+  editForm.naam = gap.value?.naam || ''
+  editForm.toelichting = gap.value?.toelichting || ''
+  editForm.baseline_plateau_id = gap.value?.baseline_plateau_id || ''
+  editForm.doel_plateau_id = gap.value?.doel_plateau_id || ''
+  Object.keys(editFouten).forEach((k) => delete editFouten[k])
+  editOpen.value = true
+}
+function _valideerEdit() {
+  Object.keys(editFouten).forEach((k) => delete editFouten[k])
+  if (!editForm.naam.trim()) editFouten.naam = 'Naam is verplicht.'
+  if (!editForm.baseline_plateau_id) editFouten.baseline_plateau_id = 'Kies een baseline-plateau.'
+  if (!editForm.doel_plateau_id) editFouten.doel_plateau_id = 'Kies een doel-plateau.'
+  if (editForm.baseline_plateau_id && editForm.baseline_plateau_id === editForm.doel_plateau_id)
+    editFouten.doel_plateau_id = 'Baseline en doel mogen niet hetzelfde plateau zijn.'
+  return Object.keys(editFouten).length === 0
+}
+async function bevestigBewerken() {
+  if (!_valideerEdit()) return
+  bezig.value = true
+  try {
+    await api.gaps.werkBij(props.id, {
+      naam: editForm.naam.trim(),
+      toelichting: editForm.toelichting.trim() || null,
+      baseline_plateau_id: editForm.baseline_plateau_id,
+      doel_plateau_id: editForm.doel_plateau_id,
+    })
+    toast.add({ severity: 'success', summary: 'Opgeslagen', life: 3000 })
+    editOpen.value = false
+    await laad() // readiness + baseline/doel-namen bewegen mee
+  } catch (e) {
+    if (e?.code === 'BASELINE_GELIJK_AAN_DOEL') {
+      editFouten.doel_plateau_id = 'Baseline en doel mogen niet hetzelfde plateau zijn.'
+    } else if (e?.code === 'ONGELDIG_PLATEAU') {
+      editFouten.baseline_plateau_id = 'Baseline en doel moeten een plateau zijn.'
+    } else {
+      _toastFout(e)
+    }
+  } finally {
+    bezig.value = false
+  }
+}
+
+// ── Verwijderen ──────────────────────────────────────────────────────────────
+const verwijderOpen = ref(false)
+async function bevestigVerwijderen() {
+  bezig.value = true
+  try {
+    await api.gaps.verwijder(props.id)
+    toast.add({ severity: 'success', summary: 'Gap verwijderd', life: 3000 })
+    router.push({ name: 'gap-lijst' })
+  } catch (e) {
+    verwijderOpen.value = false
+    _toastFout(e)
+  } finally {
+    bezig.value = false
+  }
+}
+
+// ── Lid koppelen / ontkoppelen ───────────────────────────────────────────────
+const koppelOpen = ref(false)
+const eersteVeld = ref(null)
+const lidForm = reactive({ lidType: 'component', lid_id: '' })
+const lidFout = ref(null)
+const isContractLid = computed(() => lidForm.lidType === 'contract')
+const zoekFunctie = computed(() => (isContractLid.value ? (p) => api.contracten.lijst(p) : (p) => api.componenten.lijst(p)))
+const lidWeergave = (item) => (isContractLid.value ? `${item.contractnaam} — ${item.leverancier_naam}` : item.naam)
+
+function openKoppelen() {
+  lidForm.lidType = 'component'
+  lidForm.lid_id = ''
+  lidFout.value = null
+  koppelOpen.value = true
+}
+function onLidTypeChange() {
+  lidForm.lid_id = ''
+}
+function focusEerste() {
+  setTimeout(() => eersteVeld.value?.focus?.(), 0)
+}
+async function bevestigKoppel() {
+  if (!lidForm.lid_id) {
+    lidFout.value = `Kies een ${isContractLid.value ? 'contract' : 'component'}.`
+    return
+  }
+  bezig.value = true
+  try {
+    await api.gaps.voegLid(props.id, lidForm.lid_id)
+    toast.add({ severity: 'success', summary: 'Lid gekoppeld', life: 3000 })
+    koppelOpen.value = false
+    await Promise.all([laadLeden(), herlaadGap()]) // readiness beweegt mee
+  } catch (e) {
+    _toastFout(e)
+  } finally {
+    bezig.value = false
+  }
+}
+async function ontkoppel(lid) {
+  try {
+    await api.gaps.verwijderLid(props.id, lid.id)
+    toast.add({ severity: 'success', summary: 'Ontkoppeld', life: 2500 })
+    await Promise.all([laadLeden(), herlaadGap()])
+  } catch (e) {
+    _toastFout(e)
+  }
+}
+
+onMounted(laad)
 </script>
 
 <template>
   <section aria-labelledby="gap-detail-titel">
-    <router-link
-      :to="{ name: 'gap-lijst' }"
-      class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-primary)] hover:underline"
-    >
+    <router-link :to="{ name: 'gap-lijst' }" class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-primary)] hover:underline">
       ← Gaps
     </router-link>
 
-    <p v-if="fout" role="alert" data-testid="gap-detail-fout" class="my-[var(--cd-space-md)] text-[var(--cd-color-danger)]">
-      {{ fout }}
-    </p>
+    <p v-if="fout" role="alert" data-testid="gap-detail-fout" class="my-[var(--cd-space-md)] text-[var(--cd-color-danger)]">{{ fout }}</p>
     <p v-else-if="laden" data-testid="gap-detail-laden" class="my-[var(--cd-space-md)] text-[var(--cd-color-text-muted)]">Laden…</p>
 
     <template v-else-if="gap">
-      <h1
-        id="gap-detail-titel"
-        data-testid="gap-naam"
-        class="mt-[var(--cd-space-sm)] mb-[var(--cd-space-sm)] text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]"
-      >
-        {{ gap.naam }}
-      </h1>
+      <div class="mt-[var(--cd-space-sm)] mb-[var(--cd-space-sm)] flex items-center gap-[var(--cd-space-md)]">
+        <h1 id="gap-detail-titel" data-testid="gap-naam" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
+          {{ gap.naam }}
+        </h1>
+        <Button v-if="magBeheren" label="Bewerken" size="small" data-testid="gap-bewerken" class="ml-auto" @click="openBewerken" />
+        <Button v-if="magVerwijderen" label="Verwijderen" size="small" severity="danger" data-testid="gap-verwijderen" @click="verwijderOpen = true" />
+      </div>
       <p v-if="gap.toelichting" class="mb-[var(--cd-space-md)] text-[var(--cd-color-text)]">{{ gap.toelichting }}</p>
 
       <p data-testid="gap-overgang" class="mb-[var(--cd-space-lg)] text-[var(--cd-color-text)]">
@@ -76,43 +217,113 @@ onMounted(async () => {
         {{ baselineNaam || 'baseline-plateau' }} → {{ doelNaam || 'doel-plateau' }}
       </p>
 
-      <div class="mb-[var(--cd-space-lg)] grid gap-[var(--cd-space-md)] sm:grid-cols-2">
-        <div
-          data-testid="readiness-technisch"
-          class="rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]"
-        >
-          <h2 class="mb-1 text-[length:var(--cd-text-sm)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">
-            Technische readiness
-          </h2>
+      <div class="mb-[var(--cd-space-sm)] grid gap-[var(--cd-space-md)] sm:grid-cols-2">
+        <div data-testid="readiness-technisch" class="rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]">
+          <h2 class="mb-1 text-[length:var(--cd-text-sm)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Technische gereedheid</h2>
           <p class="text-[length:var(--cd-text-lg)]">{{ readinessTekst(gap.readiness_technisch) }}</p>
         </div>
-        <div
-          data-testid="readiness-contractueel"
-          class="rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]"
-        >
-          <h2 class="mb-1 text-[length:var(--cd-text-sm)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">
-            Contractuele readiness
-          </h2>
+        <div data-testid="readiness-contractueel" class="rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]">
+          <h2 class="mb-1 text-[length:var(--cd-text-sm)] font-semibold uppercase tracking-wide text-[var(--cd-color-text-muted)]">Contractuele gereedheid</h2>
           <p class="text-[length:var(--cd-text-lg)]">{{ readinessTekst(gap.readiness_contractueel) }}</p>
         </div>
       </div>
+      <p data-testid="readiness-uitleg" class="mb-[var(--cd-space-lg)] text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
+        Deze cijfers worden automatisch afgeleid uit de stand van de gekoppelde leden (technisch: componenten die migratieklaar
+        zijn; contractueel: bevestigde contracten op het doel-plateau). Ze zijn niet handmatig te wijzigen.
+      </p>
 
-      <h2 class="mb-[var(--cd-space-sm)] text-[length:var(--cd-text-lg)] font-semibold">Leden</h2>
-      <DataTable
-        :value="leden"
-        data-testid="gap-leden-tabel"
-        class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]"
-      >
-        <Column header="Type">
-          <template #body="{ data }">{{ TYPE_LABEL[data.lid_element_type] || data.lid_element_type }}</template>
-        </Column>
-        <Column field="naam" header="Naam">
-          <template #body="{ data }">{{ data.naam || '—' }}</template>
+      <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-sm)]">
+        <h2 class="text-[length:var(--cd-text-lg)] font-semibold">Leden</h2>
+        <Button v-if="magBeheren" label="+ Lid koppelen" size="small" data-testid="gap-lid-koppelen" class="ml-auto" @click="openKoppelen" />
+      </div>
+      <DataTable :value="leden" data-testid="gap-leden-tabel" class="bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)]">
+        <Column header="Type"><template #body="{ data }"><Tag :value="TYPE_LABEL[data.lid_element_type] || data.lid_element_type" severity="secondary" /></template></Column>
+        <Column field="naam" header="Naam"><template #body="{ data }">{{ data.naam || '—' }}</template></Column>
+        <Column header="">
+          <template #body="{ data }">
+            <Button v-if="magVerwijderen" label="Ontkoppelen" size="small" severity="danger" :data-testid="`gap-lid-ontkoppel-${data.id}`" @click="ontkoppel(data)" />
+          </template>
         </Column>
         <template #empty>
-          <span data-testid="gap-leden-leeg">Deze gap heeft nog geen leden.</span>
+          <span data-testid="gap-leden-leeg">
+            Deze gap heeft nog geen leden.
+            <template v-if="magBeheren">Koppel een component of contract met “+ Lid koppelen”.</template>
+          </span>
         </template>
       </DataTable>
     </template>
+
+    <!-- Bewerken -->
+    <Dialog v-model:visible="editOpen" modal :closable="false" header="Gap bewerken" data-testid="gap-edit-dialog">
+      <form class="flex flex-col gap-[var(--cd-space-md)] min-w-[24rem]" data-testid="gap-edit-form" @submit.prevent="bevestigBewerken">
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="ge-naam" class="font-semibold">Naam *</label>
+          <InputText id="ge-naam" v-model="editForm.naam" data-testid="ge-naam" :aria-invalid="!!editFouten.naam" />
+          <span v-if="editFouten.naam" role="alert" data-testid="ge-fout" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ editFouten.naam }}</span>
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="ge-toelichting" class="font-semibold">Toelichting</label>
+          <Textarea id="ge-toelichting" v-model="editForm.toelichting" rows="3" data-testid="ge-toelichting" />
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="ge-baseline" class="font-semibold">Baseline-plateau (vertreksituatie) *</label>
+          <ZoekSelect id="ge-baseline" testid="ge-baseline-zoek" v-model="editForm.baseline_plateau_id" :zoek-functie="zoekPlateaus" :initieel-weergave="baselineNaam || ''" :invalid="!!editFouten.baseline_plateau_id" placeholder="Zoek een plateau…" />
+          <span v-if="editFouten.baseline_plateau_id" role="alert" data-testid="ge-fout-baseline" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ editFouten.baseline_plateau_id }}</span>
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="ge-doel" class="font-semibold">Doel-plateau (eindsituatie) *</label>
+          <ZoekSelect id="ge-doel" testid="ge-doel-zoek" v-model="editForm.doel_plateau_id" :zoek-functie="zoekPlateaus" :initieel-weergave="doelNaam || ''" :invalid="!!editFouten.doel_plateau_id" placeholder="Zoek een plateau…" />
+          <span v-if="editFouten.doel_plateau_id" role="alert" data-testid="ge-fout-doel" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ editFouten.doel_plateau_id }}</span>
+        </div>
+        <div class="flex gap-[var(--cd-space-md)]">
+          <Button type="submit" label="Opslaan" data-testid="ge-opslaan" :disabled="bezig" />
+          <Button type="button" label="Annuleren" severity="secondary" @click="editOpen = false" />
+        </div>
+      </form>
+    </Dialog>
+
+    <!-- Verwijderen -->
+    <Dialog v-model:visible="verwijderOpen" modal header="Gap verwijderen" data-testid="gap-verwijder-dialog">
+      <p class="mb-[var(--cd-space-md)] max-w-prose">
+        Weet je zeker dat je <strong>{{ gap?.naam }}</strong> wilt verwijderen? De leden-koppelingen vervallen; de
+        componenten, contracten en plateaus zelf blijven bestaan.
+      </p>
+      <div class="flex justify-end gap-[var(--cd-space-md)]">
+        <Button label="Annuleren" severity="secondary" @click="verwijderOpen = false" />
+        <Button label="Definitief verwijderen" severity="danger" data-testid="gap-verwijder-bevestig" :disabled="bezig" @click="bevestigVerwijderen" />
+      </div>
+    </Dialog>
+
+    <!-- Lid koppelen -->
+    <Dialog v-model:visible="koppelOpen" modal :closable="false" header="Lid koppelen" data-testid="gap-lid-dialog" @show="focusEerste">
+      <form class="flex flex-col gap-[var(--cd-space-md)] min-w-[24rem]" data-testid="gap-lid-form" @submit.prevent="bevestigKoppel">
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="gl-type" class="font-semibold">Type lid</label>
+          <select id="gl-type" v-model="lidForm.lidType" data-testid="gl-type" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white" @change="onLidTypeChange">
+            <option value="component">Component</option>
+            <option value="contract">Contract</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+          <label for="gl-lid" class="font-semibold">{{ isContractLid ? 'Contract' : 'Component' }} *</label>
+          <ZoekSelect
+            id="gl-lid"
+            ref="eersteVeld"
+            :key="lidForm.lidType"
+            testid="gap-lid-zoek"
+            v-model="lidForm.lid_id"
+            :zoek-functie="zoekFunctie"
+            :weergave="lidWeergave"
+            :invalid="!!lidFout"
+            :placeholder="isContractLid ? 'Zoek een contract…' : 'Zoek een component…'"
+          />
+          <span v-if="lidFout" role="alert" data-testid="gap-lid-fout" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ lidFout }}</span>
+        </div>
+        <div class="flex gap-[var(--cd-space-md)]">
+          <Button type="submit" label="Koppelen" data-testid="gap-lid-opslaan" :disabled="bezig" />
+          <Button type="button" label="Annuleren" severity="secondary" @click="koppelOpen = false" />
+        </div>
+      </form>
+    </Dialog>
   </section>
 </template>
