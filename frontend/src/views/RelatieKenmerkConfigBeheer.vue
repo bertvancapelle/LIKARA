@@ -3,7 +3,8 @@
  * RelatieKenmerkConfigBeheer — platform-beheer van de relatie-kenmerk-catalogus
  * (ADR-023 Fase F / F-4). Schil op `/platform/relatiekenmerkconfig`. Spiegel van
  * ComponentConfigBeheer, maar ZONDER beschermde systeem-sleutel: álle waarden zijn
- * deactiveerbaar. GEEN verwijderen (soft-deactivate). Dimensies: dispositie + relatie_rol.
+ * deactiveerbaar. GEEN verwijderen (soft-deactivate). Dimensies: dispositie + relatie_rol +
+ * beheerrol (ADR-024 slice 2b — de rollen voor de roltoewijzing-dropdown).
  */
 import { computed, reactive, ref } from 'vue'
 import Dialog from 'primevue/dialog'
@@ -16,6 +17,8 @@ import { api } from '@/api'
 const DIMENSIES = [
   { key: 'dispositie', label: 'Dispositie' },
   { key: 'relatie_rol', label: 'Relatie-rol' },
+  // ADR-024 slice 2b — de beheerbare rollen die in de roltoewijzing-dropdown verschijnen.
+  { key: 'beheerrol', label: 'Beheerrollen' },
 ]
 const SLEUTEL_PATROON = /^[a-z][a-z0-9_]*$/
 

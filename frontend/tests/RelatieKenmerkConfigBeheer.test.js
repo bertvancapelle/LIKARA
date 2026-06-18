@@ -18,6 +18,9 @@ const _opties = () => [
   { id: 2, dimensie: 'dispositie', optie_sleutel: 'migreren', label: 'Migreren', volgorde: 1, actief: true },
   { id: 3, dimensie: 'dispositie', optie_sleutel: 'oud', label: 'Oud', volgorde: 2, actief: false },
   { id: 4, dimensie: 'relatie_rol', optie_sleutel: 'valt_onder', label: 'Valt onder', volgorde: 0, actief: true },
+  // ADR-024 slice 2b — beheerrol-dimensie (zelfde catalogus/endpoint).
+  { id: 5, dimensie: 'beheerrol', optie_sleutel: 'functioneel_beheer', label: 'Functioneel beheer', volgorde: 0, actief: true },
+  { id: 6, dimensie: 'beheerrol', optie_sleutel: 'eigenaar', label: 'Eigenaar', volgorde: 5, actief: true },
 ]
 
 async function mountBeheer({ rollen = ['platformbeheerder'] } = {}) {
@@ -56,6 +59,36 @@ describe('RelatieKenmerkConfigBeheer — render', () => {
     expect(w.find('[data-testid="rk-deactiveer-4"]').exists()).toBe(true) // valt_onder
     // gedeactiveerde rij toont reactiveer i.p.v. deactiveer
     expect(w.find('[data-testid="rk-reactiveer-3"]').exists()).toBe(true)
+  })
+
+  it('toont de Beheerrollen-sectie (ADR-024 slice 2b) met de rollen en dezelfde acties', async () => {
+    const w = await mountBeheer()
+    const sectie = w.find('[data-testid="rk-sectie-beheerrol"]')
+    expect(sectie.exists()).toBe(true)
+    // gebruikerslabel-kop, geen datamodel-sleutel
+    expect(w.find('#rk-kop-beheerrol').text()).toBe('Beheerrollen')
+    // geseede rollen zichtbaar
+    expect(sectie.text()).toContain('Functioneel beheer')
+    expect(sectie.text()).toContain('Eigenaar')
+    // identieke acties als de andere dimensies: toevoegen op de sectie + per-rij bewerken/deactiveren
+    expect(w.find('[data-testid="rk-toevoegen-beheerrol"]').exists()).toBe(true)
+    expect(w.find('[data-testid="rk-bewerk-5"]').exists()).toBe(true)
+    expect(w.find('[data-testid="rk-deactiveer-5"]').exists()).toBe(true)
+  })
+
+  it('voegt een beheerrol toe met de juiste dimensie', async () => {
+    api.platformRelatiekenmerkconfig.maak.mockResolvedValue({
+      id: 10, dimensie: 'beheerrol', optie_sleutel: 'security_officer', label: 'Security officer', volgorde: 7, actief: true,
+    })
+    const w = await mountBeheer()
+    await w.find('[data-testid="rk-toevoegen-beheerrol"]').trigger('click')
+    await w.find('[data-testid="rk-add-sleutel"]').setValue('security_officer')
+    await w.find('[data-testid="rk-add-label"]').setValue('Security officer')
+    await w.find('[data-testid="rk-add-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.platformRelatiekenmerkconfig.maak).toHaveBeenCalledWith(
+      expect.objectContaining({ dimensie: 'beheerrol', optie_sleutel: 'security_officer', label: 'Security officer' }),
+    )
   })
 
   it('verbergt beheer-acties zonder platformbeheerder-rol', async () => {
