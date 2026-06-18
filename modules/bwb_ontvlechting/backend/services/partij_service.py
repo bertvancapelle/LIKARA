@@ -39,11 +39,15 @@ _SORTEERBARE_KOLOMMEN = {
     "created_at": Partij.created_at,
     "naam": Partij.naam,
     "plaats": Partij.plaats,
+    # ADR-024 — `aard` server-side sorteerbaar (leden-overzicht). Keyset op de enum-kolom
+    # werkt (enum heeft ordening); de cursorwaarde is de enum-sleutel (str).
+    "aard": Partij.aard,
 }
 _WAARDE_PARSERS = {
     "created_at": datetime.fromisoformat,
     "naam": str,
     "plaats": str,
+    "aard": str,
 }
 
 _LIKE_ESCAPE = "\\"

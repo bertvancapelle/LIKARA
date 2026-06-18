@@ -23,6 +23,7 @@ class PartijSorteerveld(str, Enum):
     created_at = "created_at"
     naam = "naam"
     plaats = "plaats"
+    aard = "aard"
 
 
 _VERPLICHTE_VELDEN = frozenset({"naam"})

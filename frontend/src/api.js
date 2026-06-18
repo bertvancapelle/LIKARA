@@ -145,8 +145,8 @@ export const api = {
   // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.
   // Het contract-domein hergebruikt deze client voor de leverancier-picker (aard externe_partij).
   partijen: {
-    lijst: ({ aard, limit, after, sort, order, zoek } = {}) =>
-      request(`/partijen${_query({ aard, limit, after, sort, order, zoek })}`),
+    lijst: ({ aard, organisatie_id, afdeling_id, limit, after, sort, order, zoek } = {}) =>
+      request(`/partijen${_query({ aard, organisatie_id, afdeling_id, limit, after, sort, order, zoek })}`),
     haal: (id) => request(`/partijen/${id}`),
     maak: (data) => request('/partijen', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>

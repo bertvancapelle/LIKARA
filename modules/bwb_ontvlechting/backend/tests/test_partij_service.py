@@ -33,6 +33,18 @@ def test_sorteer_allowlist_synchroon_met_schema():
     from services import partij_service as svc
 
     assert set(svc._SORTEERBARE_KOLOMMEN) == {e.value for e in PartijSorteerveld}
+    # elke sorteerbare kolom heeft een cursor-waardeparser (keyset)
+    assert set(svc._SORTEERBARE_KOLOMMEN) == set(svc._WAARDE_PARSERS)
+
+
+def test_aard_is_server_side_sorteerbaar():
+    """ADR-024 — `aard` sorteerbaar voor het leden-overzicht (enum + kolom + parser)."""
+    from schemas.partij import PartijSorteerveld
+    from services import partij_service as svc
+
+    assert "aard" in {e.value for e in PartijSorteerveld}
+    assert "aard" in svc._SORTEERBARE_KOLOMMEN
+    assert svc._WAARDE_PARSERS["aard"] is str
 
 
 def test_maak_aan_is_element_backed_en_zet_meegegeven_aard():

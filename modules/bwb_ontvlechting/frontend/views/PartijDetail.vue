@@ -56,22 +56,61 @@ async function laadContracten({ reset = false } = {}) {
 const isOrganisatieAchtig = computed(() => ['organisatie', 'externe_partij'].includes(partij.value?.aard))
 const isAfdeling = computed(() => partij.value?.aard === 'organisatie_eenheid')
 const isPersoon = computed(() => partij.value?.aard === 'persoon')
-const leden = ref([])
+const heeftLeden = computed(() => isOrganisatieAchtig.value || isAfdeling.value)
 const ouderOrgNaam = ref(null)
 const ouderAfdelingNaam = ref(null)
+
+// Leden-overzicht — server-side ADR-017 (lazy + keyset + @sort), zoals ComponentLijst. De
+// filter (organisatie_id voor een organisatie; afdeling_id voor een afdeling) gaat in elke fetch.
+const leden = ref([])
+const ledenFilter = ref(null)        // { organisatie_id } | { afdeling_id }
+const ledenCursor = ref(null)
+const ledenLaden = ref(false)
+const ledenSortVeld = ref('naam')
+const ledenSortRichting = ref('asc')
+const ledenPrimeSortOrder = computed(() => (ledenSortRichting.value === 'asc' ? 1 : -1))
 
 async function _naam(id) {
   if (!id) return null
   try { return (await api.partijen.haal(id)).naam } catch { return null }
 }
 
+async function laadLeden({ reset = false } = {}) {
+  if (!ledenFilter.value) return
+  ledenLaden.value = true
+  try {
+    const pagina = await api.partijen.lijst({
+      ...ledenFilter.value,
+      sort: ledenSortVeld.value,
+      order: ledenSortRichting.value,
+      limit: 25,
+      after: reset ? undefined : ledenCursor.value,
+    })
+    leden.value = reset ? pagina.items : leden.value.concat(pagina.items)
+    ledenCursor.value = pagina.volgende_cursor
+  } catch {
+    if (reset) leden.value = []
+  } finally {
+    ledenLaden.value = false
+  }
+}
+
+function onLedenSort(event) {
+  ledenSortVeld.value = event.sortField
+  ledenSortRichting.value = event.sortOrder === 1 ? 'asc' : 'desc'
+  ledenCursor.value = null
+  laadLeden({ reset: true })
+}
+
 async function laadSamenhang() {
   const p = partij.value
   if (!p) return
   if (isOrganisatieAchtig.value) {
-    try { leden.value = (await api.partijen.lijst({ organisatie_id: p.id, limit: 100 })).items } catch { leden.value = [] }
+    ledenFilter.value = { organisatie_id: p.id }
+    await laadLeden({ reset: true })
   } else if (isAfdeling.value) {
-    try { leden.value = (await api.partijen.lijst({ afdeling_id: p.id, limit: 100 })).items } catch { leden.value = [] }
+    ledenFilter.value = { afdeling_id: p.id }
+    await laadLeden({ reset: true })
     ouderOrgNaam.value = await _naam(p.organisatie_id)
   } else if (isPersoon.value) {
     ouderOrgNaam.value = await _naam(p.organisatie_id)
@@ -168,19 +207,30 @@ const RIJEN = [
       </div>
 
       <!-- Onderdelen/personen ("hoort bij", andere kant) — organisatie/externe partij of afdeling -->
-      <section v-if="isOrganisatieAchtig || isAfdeling" class="card mt-[var(--cd-space-lg)]" data-testid="partij-leden-sectie" aria-labelledby="sectie-partij-leden">
+      <section v-if="heeftLeden" class="card mt-[var(--cd-space-lg)]" data-testid="partij-leden-sectie" aria-labelledby="sectie-partij-leden">
         <h2 id="sectie-partij-leden" class="text-[length:var(--cd-text-lg)] font-semibold mb-[var(--cd-space-sm)]">
           {{ isAfdeling ? 'Personen in deze afdeling' : 'Afdelingen en personen' }}
         </h2>
-        <DataTable :value="leden" data-testid="partij-leden-tabel">
-          <Column header="Naam">
+        <!-- Server-side sortering (ADR-017): lazy + @sort → sort/order + cursor-reset + refetch. -->
+        <DataTable
+          :value="leden"
+          data-testid="partij-leden-tabel"
+          lazy
+          :sort-field="ledenSortVeld"
+          :sort-order="ledenPrimeSortOrder"
+          @sort="onLedenSort"
+        >
+          <Column field="naam" header="Naam" sortable>
             <template #body="{ data }">
               <router-link :to="{ name: 'partij-detail', params: { id: data.id } }" data-testid="partij-lid-link" class="text-[var(--cd-color-primary)] hover:underline">{{ data.naam }}</router-link>
             </template>
           </Column>
-          <Column header="Aard"><template #body="{ data }"><Tag :value="aardLabel(data.aard)" severity="info" /></template></Column>
+          <Column field="aard" header="Aard" sortable><template #body="{ data }"><Tag :value="aardLabel(data.aard)" severity="info" /></template></Column>
           <template #empty><span data-testid="partij-leden-leeg">Nog geen onderliggende partijen.</span></template>
         </DataTable>
+        <div v-if="ledenCursor" class="mt-[var(--cd-space-sm)]">
+          <Button label="Meer laden" text data-testid="leden-meer-laden" :loading="ledenLaden" @click="laadLeden()" />
+        </div>
       </section>
 
       <!-- Contracten (tegenpartij-koppeling) — alleen voor een externe partij -->

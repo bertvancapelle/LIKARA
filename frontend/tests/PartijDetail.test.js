@@ -6,6 +6,7 @@ import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
+import DataTable from 'primevue/datatable'
 
 vi.mock('@/api', () => ({
   api: { partijen: { haal: vi.fn(), verwijder: vi.fn(), lijst: vi.fn() }, contracten: { lijst: vi.fn() } },
@@ -94,6 +95,46 @@ describe('PartijDetail', () => {
     expect(api.partijen.lijst).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'p1' }))
     expect(w.text()).toContain('Afdeling I&A')
     expect(w.text()).toContain('J. Jansen')
+  })
+
+  it('leden-blok sorteert server-side (Aard) met cursor-reset', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', naam: 'Gemeente X', soort: null }))
+    api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const { w } = await mountDetail()
+    // initiële load: organisatie-filter + default sort naam/asc
+    expect(api.partijen.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ organisatie_id: 'p1', sort: 'naam', order: 'asc', after: undefined }),
+    )
+    // @sort op de Aard-kolom (aflopend) → refetch met sort=aard/desc en gereset cursor
+    await w.findComponent(DataTable).vm.$emit('sort', { sortField: 'aard', sortOrder: -1 })
+    await flushPromises()
+    expect(api.partijen.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ organisatie_id: 'p1', sort: 'aard', order: 'desc', after: undefined }),
+    )
+  })
+
+  it('leden-blok pagineert met de keyset-cursor ("Meer laden")', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', naam: 'Gemeente X', soort: null }))
+    api.partijen.lijst
+      .mockResolvedValueOnce({ items: [{ id: 'a1', naam: 'Afd', aard: 'organisatie_eenheid' }], volgende_cursor: 'cur-1' })
+      .mockResolvedValueOnce({ items: [{ id: 'pp1', naam: 'Jan', aard: 'persoon' }], volgende_cursor: null })
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="leden-meer-laden"]').exists()).toBe(true)
+    await w.find('[data-testid="leden-meer-laden"]').trigger('click')
+    await flushPromises()
+    expect(api.partijen.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ organisatie_id: 'p1', after: 'cur-1' }))
+    expect(w.find('[data-testid="leden-meer-laden"]').exists()).toBe(false)  // cursor op null
+    expect(w.text()).toContain('Afd')
+    expect(w.text()).toContain('Jan')
+  })
+
+  it('externe partij zonder leden → leden-blok is leeg', async () => {
+    api.partijen.haal.mockResolvedValue(_partij())  // externe_partij, organisatie-achtig
+    api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="partij-leden-sectie"]').exists()).toBe(true)
+    expect(w.find('[data-testid="partij-leden-leeg"]').exists()).toBe(true)
+    expect(api.partijen.lijst).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'p1' }))
   })
 
   it('afdeling: personen-sectie + "hoort bij" de organisatie', async () => {
