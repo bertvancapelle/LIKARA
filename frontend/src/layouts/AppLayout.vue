@@ -153,6 +153,14 @@ async function uitloggen() {
           </router-link>
           <router-link
             v-if="magArchitectuurZien"
+            :to="{ name: 'landschapskaart' }"
+            data-testid="nav-landschapskaart"
+            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Landschapskaart
+          </router-link>
+          <router-link
+            v-if="magArchitectuurZien"
             :to="{ name: 'plaatsingssignalen' }"
             data-testid="nav-plaatsingssignalen"
             class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"

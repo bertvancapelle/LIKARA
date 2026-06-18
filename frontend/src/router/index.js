@@ -15,6 +15,7 @@ const BlokkadeOverzichtView = () => import('../views/BlokkadeOverzichtView.vue')
 const KoppelingenkaartView = () => import('../views/KoppelingenkaartView.vue')
 // ADR-023 Fase F / F-2 — cross-element laagprojectie, lazy.
 const ArchitectuurView = () => import('../views/ArchitectuurView.vue')
+const LandschapskaartView = () => import('@modules/bwb_ontvlechting/frontend/views/LandschapskaartView.vue')
 // ADR-023 Fase F / F-3 stap 2 — consistentie-signalering technische plaatsing, lazy.
 const PlaatsingSignalenView = () => import('../views/PlaatsingSignalenView.vue')
 const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
@@ -78,6 +79,8 @@ const routes = [
       { path: 'koppelingenkaart', name: 'koppelingenkaart', component: KoppelingenkaartView },
       // ADR-023 Fase F / F-2 — cross-element laagprojectie (read-only); élke tenant-rol leest.
       { path: 'architectuur', name: 'architectuur', component: ArchitectuurView, meta: { roles: MIGRATIE_ROLLEN } },
+      // ADR-025 — Landschapskaart (read-only grafische landschapsweergave); zelfde leesrecht als architectuur.
+      { path: 'landschapskaart', name: 'landschapskaart', component: LandschapskaartView, meta: { roles: MIGRATIE_ROLLEN } },
       { path: 'signalen/plaatsing', name: 'plaatsingssignalen', component: PlaatsingSignalenView, meta: { roles: MIGRATIE_ROLLEN } },
       // ADR-021 W1 (CD054b): de Applicaties-lijst is opgegaan in de verenigde
       // Componenten-lijst. `/applicaties` redirect (naam behouden zodat bestaande

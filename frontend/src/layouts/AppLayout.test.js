@@ -29,6 +29,7 @@ function maakRouter() {
           { path: 'koppelingenkaart', name: 'koppelingenkaart', component: { template: '<div/>' } },
           { path: 'checklistvragen', name: 'checklistvragen', component: { template: '<div/>' } },
           { path: 'architectuur', name: 'architectuur', component: { template: '<div/>' } },
+          { path: 'landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
           { path: 'signalen/plaatsing', name: 'plaatsingssignalen', component: { template: '<div/>' } },
           // ADR-023 Fase F (F-1) — migratielaag-nav (gegate op tenant-rol).
           { path: 'migratie/plateaus', name: 'plateau-lijst', component: { template: '<div/>' } },

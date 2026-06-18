@@ -239,6 +239,11 @@ export const api = {
       request(`/architectuur/elementen${_query({ limit, after, laag, aspect, type, sort, order })}`),
   },
 
+  // ADR-025 — Landschapskaart: volledige graaf (nodes + edges) in één read-only call.
+  landschapskaart: {
+    haalGrafdata: () => request('/landschapskaart'),
+  },
+
   // ADR-023 Fase F (F-3 stap 2) — consistentie-signalering technische plaatsing (read-only).
   signalen: {
     plaatsing: () => request('/signalen/plaatsing'),
