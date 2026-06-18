@@ -28,6 +28,7 @@ import DatatypeSectie from './DatatypeSectie.vue'
 import GebruikersgroepSectie from './GebruikersgroepSectie.vue'
 import KoppelingSectie from './KoppelingSectie.vue'
 import ContractSectie from './ContractSectie.vue'
+import VerantwoordelijkheidSectie from './VerantwoordelijkheidSectie.vue'
 // ADR-021 Fase D — de Opbouw-laag (structuurgraaf) van deze applicatie-component
 // (shared-PK: applicatie-id ís component-id).
 import StructuurSectie from './StructuurSectie.vue'
@@ -152,6 +153,7 @@ const TOP_TABS = [
   { key: 'opbouw', label: 'Opbouw' },
   { key: 'impact', label: 'Impact' },
   { key: 'contracten', label: 'Contracten' },
+  { key: 'verantwoordelijkheden', label: 'Verantwoordelijkheden' },
   { key: 'blokkades', label: 'Blokkades' },
 ]
 const TOP_KEYS = TOP_TABS.map((t) => t.key)
@@ -429,6 +431,14 @@ onMounted(async () => {
         aria-labelledby="detailtabs-tab-contracten"
       >
         <ContractSectie ref="contractSectie" :applicatie-id="props.id" />
+      </div>
+      <div
+        v-show="activeTop === 'verantwoordelijkheden'"
+        id="detailtabs-panel-verantwoordelijkheden"
+        role="tabpanel"
+        aria-labelledby="detailtabs-tab-verantwoordelijkheden"
+      >
+        <VerantwoordelijkheidSectie :object-id="props.id" />
       </div>
       <div
         v-show="activeTop === 'blokkades'"

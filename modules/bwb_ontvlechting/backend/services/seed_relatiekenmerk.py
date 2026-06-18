@@ -25,10 +25,23 @@ _RELATIE_ROL: list[tuple[str, str]] = [
     ("onderhoud", "Onderhoud"),
     ("hosting", "Hosting"),
 ]
+# `beheerrol` (ADR-024 slice 2b) — de rol die een partij vervult op een component/contract
+# (rol-toewijzing). Startset van 7; beheerbaar (toevoegen/hernoemen/deactiveren) door de
+# platformbeheerder via de relatiekenmerk-catalogus.
+_BEHEERROL: list[tuple[str, str]] = [
+    ("functioneel_beheer", "Functioneel beheer"),
+    ("technisch_beheer", "Technisch beheer"),
+    ("applicatiebeheer", "Applicatiebeheer"),
+    ("contractbeheer", "Contractbeheer"),
+    ("product_owner", "Product owner"),
+    ("eigenaar", "Eigenaar"),
+    ("proceseigenaar", "Proceseigenaar"),
+]
 
 _CATALOGUS: list[tuple[RelatieKenmerkDimensie, list[tuple[str, str]]]] = [
     (RelatieKenmerkDimensie.dispositie, _DISPOSITIE),
     (RelatieKenmerkDimensie.relatie_rol, _RELATIE_ROL),
+    (RelatieKenmerkDimensie.beheerrol, _BEHEERROL),
 ]
 
 
@@ -49,7 +62,7 @@ def bouw_relatiekenmerk() -> list[dict]:
 
 async def seed_relatiekenmerk(session) -> int:
     """Zaai de default-catalogus (idempotent). Geeft het aantal optie-rijen terug
-    (vast 7 = 4 dispositie + 3 relatie_rol, ook bij een tweede idempotente run)."""
+    (vast 14 = 4 dispositie + 3 relatie_rol + 7 beheerrol, ook bij een tweede idempotente run)."""
     rijen = bouw_relatiekenmerk()
     stmt = pg_insert(RelatieKenmerkOptie).values(rijen).on_conflict_do_nothing(
         index_elements=["dimensie", "optie_sleutel"]

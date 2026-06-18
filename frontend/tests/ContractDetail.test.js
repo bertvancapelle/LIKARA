@@ -9,6 +9,14 @@ import ToastService from 'primevue/toastservice'
 vi.mock('@/api', () => ({
   api: {
     contracten: { haal: vi.fn(), deelcontracten: vi.fn(), applicaties: vi.fn(), verwijder: vi.fn() },
+    // ADR-024 slice 2b — VerantwoordelijkheidSectie (náást de leverancier-weergave).
+    roltoewijzingen: {
+      lijst: vi.fn(() => Promise.resolve([])),
+      rollen: vi.fn(() => Promise.resolve([])),
+      maak: vi.fn(),
+      verwijder: vi.fn(),
+    },
+    partijen: { lijst: vi.fn(() => Promise.resolve({ items: [] })) },
   },
 }))
 
@@ -103,5 +111,14 @@ describe('ContractDetail — §2 gekoppelde applicaties', () => {
     api.contracten.haal.mockResolvedValue(_contract({ contracttype: 'los_contract' }))
     const w = await mountDetail()
     expect(w.find('[data-testid="gekoppelde-apps-leeg"]').exists()).toBe(true)
+  })
+})
+
+describe('ContractDetail — ADR-024 slice 2b verantwoordelijkheden', () => {
+  it('toont de Verantwoordelijkheden-sectie náást de leverancier-weergave', async () => {
+    api.contracten.haal.mockResolvedValue(_contract({ contracttype: 'los_contract' }))
+    const w = await mountDetail()
+    expect(w.find('[data-testid="vw-sectie"]').exists()).toBe(true)
+    expect(api.roltoewijzingen.lijst).toHaveBeenCalledWith({ object_id: 'c1' })
   })
 })

@@ -26,6 +26,14 @@ vi.mock('@/api', () => ({
     checklistscores: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), opties: vi.fn() },
     // F-1-vervolg — BlokkadeSectie (met herkomst-kolom) komt mee bij checklist_dragend.
     blokkades: { lijst: vi.fn(), opties: vi.fn(), werkBij: vi.fn() },
+    // ADR-024 slice 2b — VerantwoordelijkheidSectie laadt bij mount lijst + rollen.
+    roltoewijzingen: {
+      lijst: vi.fn(() => Promise.resolve([])),
+      rollen: vi.fn(() => Promise.resolve([])),
+      maak: vi.fn(),
+      verwijder: vi.fn(),
+    },
+    partijen: { lijst: vi.fn(() => Promise.resolve({ items: [] })) },
   },
 }))
 
@@ -139,6 +147,12 @@ describe('ComponentDetail', () => {
     const { w } = await mountDetail()
     expect(w.find('[data-testid="ct-tabel"]').text()).toContain('Oracle licentie')
     expect(api.componenten.contracten).toHaveBeenCalledWith(ID)
+  })
+
+  it('toont de Verantwoordelijkheden-sectie (ADR-024 slice 2b)', async () => {
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="vw-sectie"]').exists()).toBe(true)
+    expect(api.roltoewijzingen.lijst).toHaveBeenCalledWith({ object_id: ID })
   })
 
   it('verwijderen met 409 IN_GEBRUIK wordt afgevangen (blijft op het detail)', async () => {

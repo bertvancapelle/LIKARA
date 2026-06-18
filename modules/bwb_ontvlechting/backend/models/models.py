@@ -153,11 +153,14 @@ class RelatieKenmerkDimensie(str, Enum):
     """ADR-023 Fase E — discriminator van de platform-brede **relatie-kenmerk-vocabulaire**-
     catalogus `relatiekenmerk_optie`. Hier horen de beheerbare waardenlijsten van
     relatie-kenmerken thuis — losgekoppeld van de contract-configuratie (`ContractConfig`):
-    `dispositie` (plateau-lidmaatschap) en `relatie_rol` (rol van een contract in zijn
-    association met een component). Toekomstige relatie-kenmerken landen hier eveneens."""
+    `dispositie` (plateau-lidmaatschap), `relatie_rol` (rol van een contract in zijn
+    association met een component) en `beheerrol` (ADR-024 slice 2b — de rol die een partij
+    vervult op een component/contract; gebruikt door de `roltoewijzing`-tabel, niet door het
+    relatie-model). Toekomstige relatie-kenmerken landen hier eveneens."""
 
     dispositie = "dispositie"
     relatie_rol = "relatie_rol"
+    beheerrol = "beheerrol"
 
 
 class ComponentConfigDimensie(str, Enum):
@@ -799,6 +802,41 @@ class PartijsoortOptie(Base):
     label: Mapped[str] = mapped_column(String(120), nullable=False)
     volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
+
+
+class Roltoewijzing(Base, TenantMixin, TimestampMixin):
+    """ADR-024 slice 2b — rol-toewijzing: "partij X vervult rol Y op object Z".
+
+    Eigen tenant-scoped registratie-feit (GEEN ArchiMate-element, dus geen element-subtype) —
+    bewust los van het unified `relatie`-model: dat dwingt `UNIQUE(tenant,bron,doel,relatietype)`
+    af en `association` is al in gebruik voor de component↔contract-koppeling (precies één),
+    wat "meerdere rollen per partij per object als losse regels" onmogelijk maakt. Hier is de
+    uniciteit exact `(tenant, partij, object, rol)`: dezelfde rol niet dubbel, maar wél meerdere
+    rollen per (partij, object) en meerdere partijen met dezelfde rol op één object.
+
+    `partij_id`/`object_id` zijn composiet-FK's naar `element` (CASCADE: de toewijzing verdwijnt
+    met de partij of het object). `rol` is een tekst-sleutel naar de `beheerrol`-catalogus
+    (`relatiekenmerk_optie`); geldigheid is app-side geborgd (geen harde FK — de sleutel is
+    stabiel, soft-deactiveerbaar). Puur registratief — geen engine-koppeling. Tenant-scoped
+    (FORCE RLS)."""
+
+    __tablename__ = "roltoewijzing"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "partij_id", "object_id", "rol", name="uq_roltoewijzing"),
+        ForeignKeyConstraint(
+            ["tenant_id", "partij_id"], ["element.tenant_id", "element.id"],
+            name="fk_roltoewijzing_partij", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "object_id"], ["element.tenant_id", "element.id"],
+            name="fk_roltoewijzing_object", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    partij_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    object_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    rol: Mapped[str] = mapped_column(String(60), nullable=False)
 
 
 class Contract(Base, TenantMixin, TimestampMixin):

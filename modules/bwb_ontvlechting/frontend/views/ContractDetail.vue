@@ -20,6 +20,7 @@ import {
   REGISTER_FOUT,
   label,
 } from '../labels'
+import VerantwoordelijkheidSectie from './VerantwoordelijkheidSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -199,6 +200,11 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
           <template #empty><span data-testid="gekoppelde-apps-leeg">Geen gekoppelde applicaties.</span></template>
         </DataTable>
       </section>
+
+      <!-- ADR-024 slice 2b — verantwoordelijkheden (rol-toewijzing), náást de leverancier-weergave -->
+      <div class="mt-[var(--cd-space-lg)]">
+        <VerantwoordelijkheidSectie :object-id="props.id" />
+      </div>
     </template>
 
     <Dialog v-model:visible="verwijderDialog" modal header="Contract verwijderen" data-testid="verwijder-dialog">

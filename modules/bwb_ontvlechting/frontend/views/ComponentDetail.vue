@@ -16,6 +16,7 @@ import { api } from '@/api'
 import { HOSTINGMODEL, LIFECYCLE, LIFECYCLE_SEVERITY, REGISTER_FOUT, label } from '../labels'
 import StructuurSectie from './StructuurSectie.vue'
 import ContractSectie from './ContractSectie.vue'
+import VerantwoordelijkheidSectie from './VerantwoordelijkheidSectie.vue'
 import ImpactSectie from './ImpactSectie.vue'
 // ADR-022 Fase E — checklist (scoring) voor checklist-dragende NIET-applicatie-typen.
 import ChecklistscoreSectie from './ChecklistscoreSectie.vue'
@@ -196,6 +197,7 @@ onMounted(() => {
       <div class="mt-[var(--cd-space-lg)] flex flex-col gap-[var(--cd-space-lg)]">
         <StructuurSectie :component-id="props.id" />
         <ContractSectie :applicatie-id="props.id" />
+        <VerantwoordelijkheidSectie :object-id="props.id" />
         <ImpactSectie :component-id="props.id" />
         <!-- ADR-022 Fase E — checklist alleen voor checklist-dragende typen. -->
         <ChecklistscoreSectie

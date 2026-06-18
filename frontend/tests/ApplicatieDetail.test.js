@@ -33,6 +33,14 @@ vi.mock('@/api', () => {
       checklistvragen: { lijst: vi.fn(() => Promise.resolve([])) },
       contracten: { lijst: vi.fn(leeg) },
       contractconfig: { opties: vi.fn(() => Promise.resolve({ dekking: [], kostenmodel: [], relatie_rol: [] })) },
+      // ADR-024 slice 2b — VerantwoordelijkheidSectie (eigen tab) laadt bij mount.
+      roltoewijzingen: {
+        lijst: vi.fn(() => Promise.resolve([])),
+        rollen: vi.fn(() => Promise.resolve([])),
+        maak: vi.fn(),
+        verwijder: vi.fn(),
+      },
+      partijen: { lijst: vi.fn(leeg) },
     },
   }
 })
@@ -202,12 +210,20 @@ describe('ApplicatieDetail — categorie-tabs (CD022, #11)', () => {
     api.applicaties.haal.mockResolvedValue(_app())
     const { wrapper } = await mountDetail()
     expect(wrapper.find('[role="tablist"]').exists()).toBe(true)
-    for (const k of ['overzicht', 'checklist', 'datatypes', 'gebruikersgroepen', 'koppelingen', 'blokkades']) {
+    for (const k of ['overzicht', 'checklist', 'datatypes', 'gebruikersgroepen', 'koppelingen', 'verantwoordelijkheden', 'blokkades']) {
       expect(wrapper.find(`[data-testid="detailtabs-tab-${k}"]`).exists()).toBe(true)
     }
     expect(wrapper.find('[data-testid="detailtabs-tab-overzicht"]').attributes('aria-selected')).toBe('true')
     // metadata staat in het Overzicht-panel
     expect(wrapper.find('[data-testid="panel-overzicht"]').text()).toContain('Gemeente Veldendam')
+  })
+
+  it('Verantwoordelijkheden-tab toont de sectie (ADR-024 slice 2b)', async () => {
+    api.applicaties.haal.mockResolvedValue(_app())
+    const { wrapper } = await mountDetail()
+    await wrapper.find('[data-testid="detailtabs-tab-verantwoordelijkheden"]').trigger('click')
+    expect(wrapper.find('[data-testid="vw-sectie"]').exists()).toBe(true)
+    expect(api.roltoewijzingen.lijst).toHaveBeenCalledWith({ object_id: _ID })
   })
 
   it('tab-klik wisselt de actieve tab (aria-selected verspringt)', async () => {

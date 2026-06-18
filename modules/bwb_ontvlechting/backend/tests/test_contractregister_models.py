@@ -30,7 +30,8 @@ def test_nieuwe_enum_waarden():
     ]
     # ADR-023 consistentie-opruim: relatie_rol verhuisd naar de relatie-kenmerk-catalogus.
     assert [e.value for e in m.ContractConfigDimensie] == ["dekking", "kostenmodel"]
-    assert [e.value for e in m.RelatieKenmerkDimensie] == ["dispositie", "relatie_rol"]
+    # ADR-024 slice 2b: `beheerrol` toegevoegd (rol-toewijzing partij → object).
+    assert [e.value for e in m.RelatieKenmerkDimensie] == ["dispositie", "relatie_rol", "beheerrol"]
 
 
 def test_tenant_tabellen_hebben_tenant_id():

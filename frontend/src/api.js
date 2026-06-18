@@ -155,6 +155,17 @@ export const api = {
     soorten: () => request('/partijen/soorten'),
   },
 
+  // ADR-024 slice 2b — rol-toewijzing (partij vervult rol op component/contract). Eigen tabel
+  // (geen relatie-model). Lezen filtert op precies één van object_id/partij_id; rollen = de
+  // beheerbare beheerrol-catalogus voor het rol-dropdown.
+  roltoewijzingen: {
+    lijst: ({ object_id, partij_id } = {}) =>
+      request(`/roltoewijzingen${_query({ object_id, partij_id })}`),
+    rollen: () => request('/roltoewijzingen/rollen'),
+    maak: (data) => request('/roltoewijzingen', { method: 'POST', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/roltoewijzingen/${id}`, { method: 'DELETE' }),
+  },
+
   // ADR-020 contractregister — contract (tenant-CRUD) + sub-overzichten.
   contracten: {
     lijst: ({ limit, after, sort, order, leverancierId, contracttype, dekking, kostenmodel, zoek } = {}) =>

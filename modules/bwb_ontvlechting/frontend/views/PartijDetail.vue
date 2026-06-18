@@ -13,6 +13,7 @@ import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, PARTIJ_AARD, REGISTER_FOUT, label } from '../labels'
+import PartijRollenSectie from './PartijRollenSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -232,6 +233,11 @@ const RIJEN = [
           <Button label="Meer laden" text data-testid="leden-meer-laden" :loading="ledenLaden" @click="laadLeden()" />
         </div>
       </section>
+
+      <!-- ADR-024 slice 2b — rollen die deze partij vervult op objecten (alleen-lezen) -->
+      <div class="mt-[var(--cd-space-lg)]">
+        <PartijRollenSectie :partij-id="props.id" />
+      </div>
 
       <!-- Contracten (tegenpartij-koppeling) — alleen voor een externe partij -->
       <section v-if="isExternePartij" class="card mt-[var(--cd-space-lg)]" aria-labelledby="sectie-partij-contracten" data-testid="partij-contracten-sectie">

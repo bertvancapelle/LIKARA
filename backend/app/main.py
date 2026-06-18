@@ -56,6 +56,7 @@ from routes.datatype import router as datatype_router  # noqa: E402
 from routes.gebruikersgroep import router as gebruikersgroep_router  # noqa: E402
 from routes.partij import router as partij_router  # noqa: E402
 from routes.relatie import router as relatie_router  # noqa: E402
+from routes.roltoewijzing import router as roltoewijzing_router  # noqa: E402
 from routes.architectuur import router as architectuur_router  # noqa: E402
 from routes.plaatsingsignaal import router as plaatsingsignaal_router  # noqa: E402
 from routes.plateau import router as plateau_router  # noqa: E402
@@ -130,6 +131,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(platform.router, prefix="/api/v1")
 app.include_router(applicatie_router, prefix="/api/v1")
 app.include_router(partij_router, prefix="/api/v1")
+app.include_router(roltoewijzing_router, prefix="/api/v1")
 app.include_router(contract_router, prefix="/api/v1")
 app.include_router(component_router, prefix="/api/v1")
 app.include_router(component_contract_router, prefix="/api/v1")

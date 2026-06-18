@@ -9,7 +9,12 @@ import ToastService from 'primevue/toastservice'
 import DataTable from 'primevue/datatable'
 
 vi.mock('@/api', () => ({
-  api: { partijen: { haal: vi.fn(), verwijder: vi.fn(), lijst: vi.fn() }, contracten: { lijst: vi.fn() } },
+  api: {
+    partijen: { haal: vi.fn(), verwijder: vi.fn(), lijst: vi.fn() },
+    contracten: { lijst: vi.fn() },
+    // ADR-024 slice 2b — PartijRollenSectie (alleen-lezen) laadt bij mount.
+    roltoewijzingen: { lijst: vi.fn(() => Promise.resolve([])) },
+  },
 }))
 
 import { api } from '@/api'
@@ -64,6 +69,13 @@ describe('PartijDetail', () => {
     expect(w.find('#partij-detail-titel').text()).toContain('Acme BV')
     expect(w.find('[data-testid="detail-aard"]').text()).toContain('Externe partij')
     expect(w.text()).toContain('leverancier')  // soort-rij
+  })
+
+  it('toont de alleen-lezen "Rollen op objecten"-sectie (ADR-024 slice 2b)', async () => {
+    api.partijen.haal.mockResolvedValue(_partij())
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="pr-sectie"]').exists()).toBe(true)
+    expect(api.roltoewijzingen.lijst).toHaveBeenCalledWith({ partij_id: 'p1' })
   })
 
   it('contracten-sectie + contractenlaad ALLEEN voor een externe partij', async () => {
