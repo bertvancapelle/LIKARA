@@ -100,7 +100,10 @@ async def _verwijder(smf, naam):
     try:
         async with smf() as s:
             s.sync_session.info["rls"] = True
-            await s.execute(text("DELETE FROM leverancier WHERE naam = :n"), {"n": naam})
+            await s.execute(
+                text("DELETE FROM element WHERE id IN (SELECT id FROM partij WHERE naam = :n)"),
+                {"n": naam},
+            )
             await s.commit()
     finally:
         tc.reset_tenant_context(token)
@@ -110,7 +113,8 @@ async def _verwijder(smf, naam):
 def test_post_commit_refresh_op_verse_verbinding_slaagt():
     """NullPool ⇒ de refresh ná commit treft gegarandeerd een VERSE verbinding —
     exact het CD047-scenario. De hook herstelt de context per transactie ⇒ slaagt."""
-    from models.models import Leverancier
+    # ADR-024 slice 1: sample tenant-rij is nu een element-backed partij.
+    from models.models import Element, ElementType, Partij, PartijAard
 
     eng, smf = _smf(poolclass=NullPool)
     naam = f"CD048-checkout-{uuid.uuid4().hex[:8]}"
@@ -120,7 +124,11 @@ def test_post_commit_refresh_op_verse_verbinding_slaagt():
         try:
             async with smf() as s:
                 s.sync_session.info["rls"] = True
-                obj = Leverancier(tenant_id=uuid.UUID(_TENANT_A), naam=naam)
+                elem = Element(tenant_id=uuid.UUID(_TENANT_A), element_type=ElementType.partij)
+                s.add(elem)
+                await s.flush()
+                obj = Partij(id=elem.id, tenant_id=uuid.UUID(_TENANT_A),
+                             aard=PartijAard.externe_partij, naam=naam)
                 s.add(obj)
                 await s.commit()      # verbinding terug naar (Null)pool
                 await s.refresh(obj)  # VERSE verbinding → hook → SELECT slaagt
@@ -166,7 +174,7 @@ def test_context_lekt_niet_naar_volgende_checkout():
 def test_wisseltest_tenants_zien_alleen_eigen_rijen():
     """Insert als tenant A; daarna A→B→A op dezelfde pool (size 1). Elke transactie krijgt
     via de hook uitsluitend de eigen context ⇒ B ziet A's rij niet, A wel."""
-    from models.models import Leverancier
+    from models.models import Element, ElementType, Partij, PartijAard
 
     eng, smf = _smf(pool_size=1, max_overflow=0)
     naam = f"CD048-wissel-{uuid.uuid4().hex[:8]}"
@@ -184,18 +192,25 @@ def test_wisseltest_tenants_zien_alleen_eigen_rijen():
 
     async def _scenario():
         async def _insert(s):
-            s.add(Leverancier(tenant_id=uuid.UUID(_TENANT_A), naam=naam))
+            elem = Element(tenant_id=uuid.UUID(_TENANT_A), element_type=ElementType.partij)
+            s.add(elem)
+            await s.flush()
+            s.add(Partij(id=elem.id, tenant_id=uuid.UUID(_TENANT_A),
+                         aard=PartijAard.externe_partij, naam=naam))
             await s.commit()
 
         async def _count(s):
             return (
                 await s.execute(
-                    select(func.count()).select_from(Leverancier).where(Leverancier.naam == naam)
+                    select(func.count()).select_from(Partij).where(Partij.naam == naam)
                 )
             ).scalar()
 
         async def _delete(s):
-            await s.execute(text("DELETE FROM leverancier WHERE naam = :n"), {"n": naam})
+            await s.execute(
+                text("DELETE FROM element WHERE id IN (SELECT id FROM partij WHERE naam = :n)"),
+                {"n": naam},
+            )
             await s.commit()
 
         await _met(_TENANT_A, _insert)

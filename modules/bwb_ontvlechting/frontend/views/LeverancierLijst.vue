@@ -80,7 +80,7 @@ onMounted(() => laad({ reset: true }))
         id="leveranciers-titel"
         class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]"
       >
-        Leveranciers
+        Externe partijen
       </h1>
       <router-link
         v-if="magAanmaken"
@@ -88,7 +88,7 @@ onMounted(() => laad({ reset: true }))
         data-testid="nieuwe-leverancier"
         class="ml-auto inline-flex items-center rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-white text-[length:var(--cd-text-sm)] font-semibold hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
       >
-        Nieuwe leverancier
+        Nieuwe externe partij
       </router-link>
     </div>
 

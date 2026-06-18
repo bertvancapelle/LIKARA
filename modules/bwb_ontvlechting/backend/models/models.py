@@ -182,6 +182,20 @@ class ElementType(str, Enum):
     gap = "gap"
     work_package = "work_package"
     deliverable = "deliverable"
+    # ADR-024 slice 1 — partij-supertype (business actor). Slice 1 realiseert alleen
+    # aard `externe_partij`; de andere aarden (organisatie/persoon/…) zijn latere slices.
+    partij = "partij"
+
+
+class PartijAard(str, Enum):
+    """ADR-024 — aard van een partij (discriminator op de `partij`-subtabel). Slice 1
+    gebruikt alleen `externe_partij`; de overige aarden zijn structureel voorzien maar
+    nog niet gerealiseerd. Geen combinatie-/businessregels — alleen geldigheid."""
+
+    externe_partij = "externe_partij"
+    organisatie = "organisatie"
+    organisatie_eenheid = "organisatie_eenheid"
+    persoon = "persoon"
 
 
 # Gedeelde sa.Enum-typeobjecten (één type per naam; migratie beheert de DDL).
@@ -209,6 +223,7 @@ componentconfig_dimensie_enum = sa.Enum(
     ComponentConfigDimensie, name="componentconfig_dimensie_enum"
 )
 element_type_enum = sa.Enum(ElementType, name="element_type_enum")
+partij_aard_enum = sa.Enum(PartijAard, name="partij_aard_enum")
 
 
 def _pk() -> Mapped[uuid.UUID]:
@@ -711,13 +726,24 @@ class Blokkade(Base, TenantMixin, TimestampMixin):
 # laag van Fase B — hier alleen de DB-borging (CHECK + UNIQUE + FK-ondelete).
 # --------------------------------------------------------------------------
 
-class Leverancier(Base, TenantMixin, TimestampMixin):
-    """ADR-020 — leverancier (tenant-scoped, RLS). Eén platte contactset;
-    0..n contactpersonen is een latere uitbreiding (ADR-020 Niet in scope)."""
+class Partij(Base, TenantMixin, TimestampMixin):
+    """ADR-024 slice 1 — partij-supertype als **element-subtype** (vervangt `leverancier`).
+    Shared-PK composiet-FK `(tenant_id, id) → element(tenant_id, id)` ON DELETE CASCADE;
+    FORCE RLS (migratie). Eén gedeelde contactset; `aard` discrimineert (slice 1: alleen
+    `externe_partij`). `soort` is een **optioneel** platform-catalogus-kenmerk
+    (`partijsoort_optie`, app-side gevalideerd — geen harde FK, platform-referentiedata).
+    Puur registratief: voedt de engine NOOIT."""
 
-    __tablename__ = "leverancier"
+    __tablename__ = "partij"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_partij_element", ondelete="CASCADE",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _pk()
+    aard: Mapped[PartijAard] = mapped_column(partij_aard_enum, nullable=False)
     naam: Mapped[str] = mapped_column(String(255), nullable=False)
     straat_huisnummer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     postcode: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -727,6 +753,25 @@ class Leverancier(Base, TenantMixin, TimestampMixin):
     mobiel: Mapped[str | None] = mapped_column(String(40), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+    soort: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class PartijsoortOptie(Base):
+    """ADR-024 — platform-brede partijsoort-catalogus (GEEN RLS, GEEN tenant_id). Eigen
+    catalogus (soort is een element-attribuut, geen relatie-kenmerk). Grants/soft-
+    deactivate identiek aan `vraagbetekenis_optie`. Default-seed: leverancier/partner/
+    ketenpartner."""
+
+    __tablename__ = "partijsoort_optie"
+    __table_args__ = (
+        UniqueConstraint("optie_sleutel", name="uq_partijsoort_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
 
 
 class Contract(Base, TenantMixin, TimestampMixin):
@@ -749,12 +794,18 @@ class Contract(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "id"], ["element.tenant_id", "element.id"],
             name="fk_contract_element", ondelete="CASCADE",
         ),
+        # ADR-024 slice 1 (optie A): de term "leverancier" blijft; de FK-target verschuift
+        # van de vervallen `leverancier`-tabel naar het **partij-element** (composiet,
+        # tenant-consistent). RESTRICT: een partij met contracten is niet verwijderbaar.
+        # Dat het écht een partij (aard=externe_partij) is, borgt de service.
+        ForeignKeyConstraint(
+            ["tenant_id", "leverancier_id"], ["element.tenant_id", "element.id"],
+            name="fk_contract_leverancier_partij", ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
-    leverancier_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("leverancier.id", ondelete="RESTRICT"), nullable=False
-    )
+    leverancier_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     contracttype: Mapped[ContractType] = mapped_column(contracttype_enum, nullable=False)
     mantelcontract_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("contract.id", ondelete="RESTRICT"), nullable=True

@@ -198,13 +198,13 @@ def test_lijst_cursor_mismatch_geeft_valueerror():
 def test_maak_aan_roept_validaties_en_commit(monkeypatch):
     from services import contract_service as svc
     from services import contractconfig_catalog as catalog
-    from services import leverancier_service
     from schemas.contract import ContractCreate
 
     sporen = []
 
-    async def _lev(session, tenant_id, lid):
-        sporen.append("lev"); return MagicMock()
+    # ADR-024 slice 1: de leverancier-verwijzing wordt nu als externe partij gevalideerd.
+    async def _lev(session, tid, pid):
+        sporen.append("lev")
 
     async def _cons(*a, **k):
         sporen.append("cons")
@@ -218,7 +218,7 @@ def test_maak_aan_roept_validaties_en_commit(monkeypatch):
     async def _detail(session, tenant_id, cid):
         return {"id": cid, "ok": True}
 
-    monkeypatch.setattr(leverancier_service, "haal_op", _lev)
+    monkeypatch.setattr(svc, "_valideer_externe_partij", _lev)
     monkeypatch.setattr(svc, "_valideer_consistentie", _cons)
     monkeypatch.setattr(catalog, "valideer_sleutels", _val)
     monkeypatch.setattr(svc, "_zet_tags", _zet)

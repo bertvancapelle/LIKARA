@@ -19,6 +19,8 @@ def test_element_type_enum_waarden():
     assert [e.value for e in ElementType] == [
         "component", "datatype", "gebruikersgroep", "contract",
         "plateau", "gap", "work_package", "deliverable",
+        # ADR-024 slice 1 — partij-supertype (business actor).
+        "partij",
     ]
 
 

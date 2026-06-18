@@ -30,6 +30,7 @@ if str(_MOD_BACKEND) not in sys.path:
 
 from services.seed_componentconfig import seed_componentconfig  # noqa: E402
 from services.seed_contractconfig import seed_contractconfig  # noqa: E402
+from services.seed_partijsoort import seed_partijsoort  # noqa: E402
 from services.seed_relatiekenmerk import seed_relatiekenmerk  # noqa: E402
 from services.seed_vraagbetekenis import seed_vraagbetekenis  # noqa: E402
 
@@ -63,6 +64,7 @@ async def platform_init(session_factory=None) -> int:
             await seed_contractconfig(session)
             await seed_relatiekenmerk(session)
             await seed_vraagbetekenis(session)
+            await seed_partijsoort(session)
             aantal = await seed_componentconfig(session)
             return aantal
     finally:

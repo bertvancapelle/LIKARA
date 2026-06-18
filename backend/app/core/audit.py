@@ -54,7 +54,7 @@ auditactie_enum = sa.Enum(AuditActie, name="auditactie_enum")
 AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "element", "component", "applicatie", "component_profiel", "datatype",
     "gebruikersgroep", "relatie", "checklistscore", "blokkade", "checklistvraag",
-    "checklistvraag_optie", "leverancier", "contract", "contract_dekking",
+    "checklistvraag_optie", "partij", "contract", "contract_dekking",
     "contract_kostenmodel",
     # ADR-023 Fase E — migratielaag. Het plateau-/gap-lidmaatschap loopt via `relatie`
     # (aggregation/association) → al gedekt door het bestaande relatie-spoor.

@@ -91,24 +91,32 @@ async def _platform(actor="system:platform_init"):
 
 @live
 def test_capture_create_actor_hash_en_correlatie():
-    from models.models import AuditLog, Leverancier
+    # ADR-024 slice 1: sample tenant-entiteit is nu een element-backed partij.
+    from models.models import AuditLog, Element, ElementType, Partij, PartijAard
 
     naam = f"AUDIT-LEV-{uuid.uuid4().hex[:8]}"
 
     async def _run():
         async with _worker(DEV_TENANT) as s:
             corr = tc.huidige_correlatie_id()
-            s.add(Leverancier(tenant_id=uuid.UUID(DEV_TENANT), naam=naam))
+            elem = Element(tenant_id=uuid.UUID(DEV_TENANT), element_type=ElementType.partij)
+            s.add(elem)
+            await s.flush()
+            s.add(Partij(id=elem.id, tenant_id=uuid.UUID(DEV_TENANT),
+                         aard=PartijAard.externe_partij, naam=naam))
             await s.commit()
             rows = (await s.execute(
                 select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
             )).scalars().all()
-            await s.execute(text("DELETE FROM leverancier WHERE naam = :n"), {"n": naam})
+            await s.execute(
+                text("DELETE FROM element WHERE id IN (SELECT id FROM partij WHERE naam = :n)"),
+                {"n": naam},
+            )
             await s.commit()
             return rows
 
     rows = asyncio.run(_run())
-    lev_rows = [r for r in rows if r.entiteit_type == "leverancier"]
+    lev_rows = [r for r in rows if r.entiteit_type == "partij"]
     assert len(lev_rows) == 1
     r = lev_rows[0]
     assert r.actie == "create"
@@ -233,25 +241,32 @@ def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
 @live
 def test_rls_isolatie_auditlog():
     """Tenant B ziet de audit-rijen van tenant A niet."""
-    from models.models import AuditLog, Leverancier
+    from models.models import AuditLog, Element, ElementType, Partij, PartijAard
 
     naam = f"AUDIT-RLS-{uuid.uuid4().hex[:8]}"
 
     async def _run():
         async with _worker(DEV_TENANT) as s:
-            s.add(Leverancier(tenant_id=uuid.UUID(DEV_TENANT), naam=naam))
+            elem = Element(tenant_id=uuid.UUID(DEV_TENANT), element_type=ElementType.partij)
+            s.add(elem)
+            await s.flush()
+            s.add(Partij(id=elem.id, tenant_id=uuid.UUID(DEV_TENANT),
+                         aard=PartijAard.externe_partij, naam=naam))
             await s.commit()
         async with _worker(TENANT_B) as s:
             n_b = (await s.execute(
-                select(AuditLog).where(AuditLog.entiteit_type == "leverancier",
+                select(AuditLog).where(AuditLog.entiteit_type == "partij",
                                        AuditLog.wijziging["naam"]["nieuw"].astext == naam)
             )).scalars().all()
         async with _worker(DEV_TENANT) as s:
             n_a = (await s.execute(
-                select(AuditLog).where(AuditLog.entiteit_type == "leverancier",
+                select(AuditLog).where(AuditLog.entiteit_type == "partij",
                                        AuditLog.wijziging["naam"]["nieuw"].astext == naam)
             )).scalars().all()
-            await s.execute(text("DELETE FROM leverancier WHERE naam = :n"), {"n": naam})
+            await s.execute(
+                text("DELETE FROM element WHERE id IN (SELECT id FROM partij WHERE naam = :n)"),
+                {"n": naam},
+            )
             await s.commit()
         return len(n_b), len(n_a)
 
@@ -309,14 +324,18 @@ def test_gelijktijdige_appends_blijven_lineair_geen_fork():
     """v4: meerdere gelijktijdige audit-appends binnen één tenant serialiseren via de
     per-tenant advisory lock tot een LINEAIRE keten — geen twee records ankeren op
     dezelfde voorganger (geen fork); de keten blijft groen verifiëren."""
-    from models.models import AuditLog, Leverancier
+    from models.models import AuditLog, Element, ElementType, Partij, PartijAard
 
     prefix = f"AUDIT-CONC-{uuid.uuid4().hex[:8]}"
     K = 5
 
     async def _een(i):
         async with _worker(DEV_TENANT) as s:
-            s.add(Leverancier(tenant_id=uuid.UUID(DEV_TENANT), naam=f"{prefix}-{i}"))
+            elem = Element(tenant_id=uuid.UUID(DEV_TENANT), element_type=ElementType.partij)
+            s.add(elem)
+            await s.flush()
+            s.add(Partij(id=elem.id, tenant_id=uuid.UUID(DEV_TENANT),
+                         aard=PartijAard.externe_partij, naam=f"{prefix}-{i}"))
             await s.commit()
 
     async def _run():
@@ -324,7 +343,7 @@ def test_gelijktijdige_appends_blijven_lineair_geen_fork():
         async with _worker(DEV_TENANT) as s:
             batch = (await s.execute(
                 select(AuditLog).where(
-                    AuditLog.entiteit_type == "leverancier",
+                    AuditLog.entiteit_type == "partij",
                     AuditLog.wijziging["naam"]["nieuw"].astext.like(prefix + "%"),
                 )
             )).scalars().all()
@@ -332,7 +351,8 @@ def test_gelijktijdige_appends_blijven_lineair_geen_fork():
                 select(AuditLog).order_by(AuditLog.tijdstip, AuditLog.id)
             )).scalars().all()
             await s.execute(
-                text("DELETE FROM leverancier WHERE naam LIKE :p"), {"p": prefix + "%"}
+                text("DELETE FROM element WHERE id IN (SELECT id FROM partij WHERE naam LIKE :p)"),
+                {"p": prefix + "%"},
             )
             await s.commit()
             return batch, keten
@@ -343,11 +363,13 @@ def test_gelijktijdige_appends_blijven_lineair_geen_fork():
     # `vorige_hash`).
     vorige = [r.vorige_hash for r in batch]
     assert len(set(vorige)) == K, f"fork gedetecteerd: dubbele vorige_hash in {vorige}"
-    # De batch vormt een aaneengesloten lineaire schakel: op één na verwijst elk
-    # batch-record naar het record_hash van een ander batch-record.
-    batch_hashes = {r.record_hash for r in batch}
-    intern_gelinkt = sum(1 for r in batch if r.vorige_hash in batch_hashes)
-    assert intern_gelinkt == K - 1
+    # ADR-024: de element-backed dubbel-write schrijft per insert twee auditrecords
+    # (element + partij), dus de partij-records zijn niet meer aaneengesloten. De
+    # echte garantie is fork-vrijheid over de HELE keten: geen twee records ankeren op
+    # dezelfde voorganger (lineair, niet vertakt) — strenger dan de batch-only check,
+    # want dit dekt óók de element-records. Genesis (NULL vorige_hash) telt niet mee.
+    keten_vorige = [r.vorige_hash for r in keten if r.vorige_hash is not None]
+    assert len(set(keten_vorige)) == len(keten_vorige), "fork in de keten: dubbele vorige_hash"
     # Volledige tenant-keten blijft intact.
     records = [
         {

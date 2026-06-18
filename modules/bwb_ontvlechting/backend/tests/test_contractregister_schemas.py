@@ -6,7 +6,8 @@ from pydantic import ValidationError
 
 
 def test_leverancier_create_naam_verplicht_en_extra_forbid():
-    from schemas.leverancier import LeverancierCreate
+    # ADR-024 slice 1: leverancier-schema vervangen door externe-partij-schema.
+    from schemas.externe_partij import ExternePartijCreate as LeverancierCreate
 
     lev = LeverancierCreate(naam="  Acme BV  ", postcode="1234AB")
     assert lev.naam == "Acme BV"  # gestript
@@ -21,7 +22,7 @@ def test_leverancier_create_naam_verplicht_en_extra_forbid():
 
 
 def test_leverancier_update_verbiedt_null_op_naam():
-    from schemas.leverancier import LeverancierUpdate
+    from schemas.externe_partij import ExternePartijUpdate as LeverancierUpdate
 
     assert LeverancierUpdate(plaats="Tiel").naam is None  # weglaten mag
     with pytest.raises(ValidationError):

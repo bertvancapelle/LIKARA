@@ -112,7 +112,7 @@ const TEKSTVELDEN = [
       id="lev-form-titel"
       class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)] mb-[var(--cd-space-lg)]"
     >
-      {{ bewerken ? 'Leverancier bewerken' : 'Nieuwe leverancier' }}
+      {{ bewerken ? 'Externe partij bewerken' : 'Nieuwe externe partij' }}
     </h1>
 
     <form class="card flex flex-col gap-[var(--cd-space-md)] max-w-2xl" data-testid="leverancier-form" @submit.prevent="opslaan">

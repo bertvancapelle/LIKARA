@@ -72,7 +72,7 @@ async function bevestigVerwijderen() {
   try {
     await api.leveranciers.verwijder(props.id)
     verwijderDialog.value = false
-    toast.add({ severity: 'success', summary: 'Leverancier verwijderd', life: 3000 })
+    toast.add({ severity: 'success', summary: 'Externe partij verwijderd', life: 3000 })
     router.push({ name: 'leverancier-lijst' })
   } catch (e) {
     verwijderDialog.value = false
@@ -145,7 +145,7 @@ const RIJEN = [
       </section>
     </template>
 
-    <Dialog v-model:visible="verwijderDialog" modal header="Leverancier verwijderen" data-testid="verwijder-dialog">
+    <Dialog v-model:visible="verwijderDialog" modal header="Externe partij verwijderen" data-testid="verwijder-dialog">
       <p class="mb-[var(--cd-space-md)] max-w-prose">
         Weet je zeker dat je <strong>{{ leverancier?.naam }}</strong> wilt verwijderen? Een
         leverancier met gekoppelde contracten kan niet worden verwijderd.

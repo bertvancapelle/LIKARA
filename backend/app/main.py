@@ -54,7 +54,7 @@ from routes.dashboard import router as dashboard_router  # noqa: E402
 from routes.checklistvraag import router as checklistvraag_router  # noqa: E402
 from routes.datatype import router as datatype_router  # noqa: E402
 from routes.gebruikersgroep import router as gebruikersgroep_router  # noqa: E402
-from routes.leverancier import router as leverancier_router  # noqa: E402
+from routes.externe_partij import router as externe_partij_router  # noqa: E402
 from routes.relatie import router as relatie_router  # noqa: E402
 from routes.architectuur import router as architectuur_router  # noqa: E402
 from routes.plaatsingsignaal import router as plaatsingsignaal_router  # noqa: E402
@@ -129,7 +129,7 @@ app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(platform.router, prefix="/api/v1")
 app.include_router(applicatie_router, prefix="/api/v1")
-app.include_router(leverancier_router, prefix="/api/v1")
+app.include_router(externe_partij_router, prefix="/api/v1")
 app.include_router(contract_router, prefix="/api/v1")
 app.include_router(component_router, prefix="/api/v1")
 app.include_router(component_contract_router, prefix="/api/v1")

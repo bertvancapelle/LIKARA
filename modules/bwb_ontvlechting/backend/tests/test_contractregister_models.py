@@ -13,7 +13,8 @@ def test_nieuwe_modellen_importeerbaar():
     from models import models as m
 
     for naam in [
-        "Leverancier", "Contract", "ContractDekking",
+        # ADR-024 slice 1: Leverancier vervangen door element-backed Partij + PartijsoortOptie.
+        "Partij", "PartijsoortOptie", "Contract", "ContractDekking",
         "ContractKostenmodel", "ContractConfigOptie",
     ]:
         assert hasattr(m, naam), f"ontbrekend model: {naam}"
@@ -35,7 +36,7 @@ def test_nieuwe_enum_waarden():
 def test_tenant_tabellen_hebben_tenant_id():
     from models import models as m
 
-    for model in (m.Leverancier, m.Contract, m.ContractDekking, m.ContractKostenmodel):
+    for model in (m.Partij, m.Contract, m.ContractDekking, m.ContractKostenmodel):
         assert "tenant_id" in model.__table__.columns, f"{model.__name__} mist tenant_id"
 
 
@@ -98,7 +99,7 @@ def test_fk_ondelete_gedrag():
 def test_verplichte_velden_not_null():
     from models import models as m
 
-    assert m.Leverancier.__table__.c.naam.nullable is False
+    assert m.Partij.__table__.c.naam.nullable is False
     assert m.Contract.__table__.c.contractnaam.nullable is False
     assert m.Contract.__table__.c.contracttype.nullable is False
     assert m.Contract.__table__.c.leverancier_id.nullable is False

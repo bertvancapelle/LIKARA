@@ -142,15 +142,17 @@ export const api = {
     opties: () => request('/koppelingen/opties'),
   },
 
-  // ADR-020 contractregister — leverancier (tenant-CRUD).
+  // ADR-024 slice 1 — externe-partij-beheer (element-backed; vervangt /leveranciers).
+  // Optie A: het contract-domein behoudt de term "leverancier" en hergebruikt deze client.
   leveranciers: {
     lijst: ({ limit, after, sort, order, zoek } = {}) =>
-      request(`/leveranciers${_query({ limit, after, sort, order, zoek })}`),
-    haal: (id) => request(`/leveranciers/${id}`),
-    maak: (data) => request('/leveranciers', { method: 'POST', body: JSON.stringify(data) }),
+      request(`/externe-partijen${_query({ limit, after, sort, order, zoek })}`),
+    haal: (id) => request(`/externe-partijen/${id}`),
+    maak: (data) => request('/externe-partijen', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
-      request(`/leveranciers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    verwijder: (id) => request(`/leveranciers/${id}`, { method: 'DELETE' }),
+      request(`/externe-partijen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/externe-partijen/${id}`, { method: 'DELETE' }),
+    soorten: () => request('/externe-partijen/soorten'),
   },
 
   // ADR-020 contractregister — contract (tenant-CRUD) + sub-overzichten.

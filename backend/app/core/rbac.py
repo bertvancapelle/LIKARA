@@ -26,8 +26,10 @@ class Entiteit(str, Enum):
     KOPPELING = "koppeling"
     CHECKLISTSCORE = "checklistscore"
     BLOKKADE = "blokkade"
-    # ADR-020 — contractregister (tenant-zijde, inhoud-entiteiten)
-    LEVERANCIER = "leverancier"
+    # ADR-020/ADR-024 — contractregister + partijenregister (tenant-zijde, inhoud-entiteiten).
+    # ADR-024 slice 1: het leverancier-beheer is opgegaan in het externe-partij-beheer
+    # (element-backed partij, aard externe_partij). Het contract houdt de term "leverancier".
+    EXTERNE_PARTIJ = "externe_partij"
     CONTRACT = "contract"
     # ADR-021 Fase D — contract-koppeling generaliseerde naar component-niveau.
     COMPONENT_CONTRACT = "component_contract"
@@ -90,8 +92,8 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.KOPPELING: dict(_INHOUD),
     Entiteit.CHECKLISTSCORE: dict(_INHOUD),
     Entiteit.BLOKKADE: dict(_INHOUD),
-    # ADR-020 contractregister — zelfde inhoud-patroon als Applicatie.
-    Entiteit.LEVERANCIER: dict(_INHOUD),
+    # ADR-020/ADR-024 contract- + partijenregister — zelfde inhoud-patroon als Applicatie.
+    Entiteit.EXTERNE_PARTIJ: dict(_INHOUD),
     Entiteit.CONTRACT: dict(_INHOUD),
     Entiteit.COMPONENT_CONTRACT: dict(_INHOUD),
     # ADR-021 — component/structuurrelatie, zelfde inhoud-patroon als Applicatie.

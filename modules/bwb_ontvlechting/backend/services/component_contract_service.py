@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Contract, Leverancier, Relatie, RelatieKenmerkDimensie
+from models.models import Contract, Partij, Relatie, RelatieKenmerkDimensie
 from schemas.component_contract import ComponentContractCreate, ComponentContractUpdate
 from services import component_service, contract_service
 from services import relatiekenmerk_catalog as catalog
@@ -115,13 +115,13 @@ async def contracten_van_component(session: AsyncSession, tenant_id, component_i
                 Contract.contractnaam.label("contractnaam"),
                 Contract.contracttype.label("contracttype"),
                 Contract.leverancier_id.label("leverancier_id"),
-                Leverancier.naam.label("leverancier_naam"),
+                Partij.naam.label("leverancier_naam"),
                 Contract.begindatum.label("begindatum"),
                 Contract.einddatum.label("einddatum"),
                 Relatie.kenmerken.label("kenmerken"),
             )
             .join(Contract, Contract.id == Relatie.doel_id)
-            .join(Leverancier, Leverancier.id == Contract.leverancier_id)
+            .join(Partij, Partij.id == Contract.leverancier_id)
             .where(
                 Relatie.tenant_id == tid, Relatie.bron_id == component_id,
                 Relatie.relatietype == _ASSOCIATION,

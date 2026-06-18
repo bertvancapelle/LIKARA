@@ -179,9 +179,13 @@ async def _maak_component(s, tid, naam, status=None):
 
 
 async def _maak_contract(s, tid, naam):
-    from models.models import Contract, ContractType, Element, ElementType, Leverancier
+    # ADR-024 slice 1: de contract-"leverancier" is een element-backed partij (externe_partij).
+    from models.models import Contract, ContractType, Element, ElementType, Partij, PartijAard
 
-    lev = Leverancier(tenant_id=tid, naam=f"{naam}-lev")
+    lev_elem = Element(tenant_id=tid, element_type=ElementType.partij)
+    s.add(lev_elem)
+    await s.flush()
+    lev = Partij(id=lev_elem.id, tenant_id=tid, aard=PartijAard.externe_partij, naam=f"{naam}-lev")
     s.add(lev)
     await s.flush()
     elem = Element(tenant_id=tid, element_type=ElementType.contract)
@@ -218,7 +222,7 @@ async def _ruim(s, ids):
     for eid in ids:
         await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
     try:
-        await s.execute(_text("DELETE FROM leverancier WHERE naam LIKE 'WT-Gap%'"))
+        await s.execute(_text("DELETE FROM element WHERE id IN (SELECT id FROM partij WHERE naam LIKE 'WT-Gap%')"))
     except Exception:
         pass
     await s.commit()

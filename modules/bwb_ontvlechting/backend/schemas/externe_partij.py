@@ -1,10 +1,10 @@
-"""Pydantic v2-schemas voor de entiteit Leverancier (ADR-020 Besluit 1).
+"""Pydantic v2-schemas voor het externe-partij-beheer (ADR-024 slice 1).
 
-Gescheiden Create / Update / Read, `extra='forbid'`. Puur registratief: `email`
-en `telefoon` zijn gewone `str` (GEEN `EmailStr`/formaatvalidatie — B-besluit).
-`max_length`-grenzen op de API-rand spiegelen de DB-kolommen (structureel 422
-native, ADR-014). Server-velden (`id`, `tenant_id`, timestamps) nooit in Create/Update;
-`tenant_id` ook niet in Read.
+Vervangt de leverancier-schemas: een externe partij is een element-backed `partij`
+(aard `externe_partij`). Gescheiden Create/Update/Read, `extra='forbid'`. `email`/`telefoon`
+zijn gewone `str` (geen formaatvalidatie). De `soort` is **optioneel** (platform-catalogus
+`partijsoort_optie`, app-side gevalideerd in de service). `aard` is in slice 1 vast
+`externe_partij` (door de service gezet) — niet in Create/Update.
 """
 import uuid
 from datetime import datetime
@@ -15,9 +15,8 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from schemas.applicatie import _optionele_tekst, _verplichte_tekst
 
 
-class LeverancierSorteerveld(str, Enum):
-    """Allowlist van sorteerbare Leverancier-velden (ADR-017). `plaats` is nullable
-    (v2n-NULLS-LAST); `naam`/`created_at` zijn NOT NULL."""
+class ExternePartijSorteerveld(str, Enum):
+    """Allowlist van sorteerbare velden (ADR-017). `plaats` is nullable (v2n-NULLS-LAST)."""
 
     created_at = "created_at"
     naam = "naam"
@@ -27,7 +26,7 @@ class LeverancierSorteerveld(str, Enum):
 _VERPLICHTE_VELDEN = frozenset({"naam"})
 
 
-class LeverancierCreate(BaseModel):
+class ExternePartijCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     naam: str
@@ -39,6 +38,7 @@ class LeverancierCreate(BaseModel):
     mobiel: str | None = None
     email: str | None = None
     omschrijving: str | None = None
+    soort: str | None = None  # platform-catalogus partijsoort_optie; service valideert
 
     @field_validator("naam")
     @classmethod
@@ -60,13 +60,18 @@ class LeverancierCreate(BaseModel):
     def _v_opt_255(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 255)
 
+    @field_validator("soort")
+    @classmethod
+    def _v_soort(cls, v: str | None) -> str | None:
+        return _optionele_tekst(v, 60)
+
     @field_validator("omschrijving")
     @classmethod
     def _v_omschrijving(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 10_000)
 
 
-class LeverancierUpdate(BaseModel):
+class ExternePartijUpdate(BaseModel):
     """Partiële update (PATCH). `naam` mag weggelaten, maar niet op null gezet."""
 
     model_config = ConfigDict(extra="forbid")
@@ -80,6 +85,7 @@ class LeverancierUpdate(BaseModel):
     mobiel: str | None = None
     email: str | None = None
     omschrijving: str | None = None
+    soort: str | None = None
 
     @field_validator("naam")
     @classmethod
@@ -101,23 +107,29 @@ class LeverancierUpdate(BaseModel):
     def _v_opt_255(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 255)
 
+    @field_validator("soort")
+    @classmethod
+    def _v_soort(cls, v: str | None) -> str | None:
+        return _optionele_tekst(v, 60)
+
     @field_validator("omschrijving")
     @classmethod
     def _v_omschrijving(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 10_000)
 
     @model_validator(mode="after")
-    def _verbied_null_op_verplicht(self) -> "LeverancierUpdate":
+    def _verbied_null_op_verplicht(self) -> "ExternePartijUpdate":
         for veld in _VERPLICHTE_VELDEN:
             if veld in self.model_fields_set and getattr(self, veld) is None:
                 raise ValueError(f"{veld} mag niet op null worden gezet")
         return self
 
 
-class LeverancierRead(BaseModel):
+class ExternePartijRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    aard: str
     naam: str
     straat_huisnummer: str | None
     postcode: str | None
@@ -127,10 +139,11 @@ class LeverancierRead(BaseModel):
     mobiel: str | None
     email: str | None
     omschrijving: str | None
+    soort: str | None
     created_at: datetime
     updated_at: datetime
 
 
-class LeverancierPagina(BaseModel):
-    items: list[LeverancierRead]
+class ExternePartijPagina(BaseModel):
+    items: list[ExternePartijRead]
     volgende_cursor: str | None = None

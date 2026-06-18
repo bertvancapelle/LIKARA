@@ -46,6 +46,8 @@ ELEMENT_ARCHIMATE_TYPING: dict[ElementType, dict[str, str]] = {
     ElementType.datatype: {"archimate_element": "data_object", "laag": "application", "aspect": "passive"},
     # Gebruikersgroep: business-laag, actieve structuur (ArchiMate Business Role/Actor).
     ElementType.gebruikersgroep: {"archimate_element": "business_role", "laag": "business", "aspect": "active"},
+    # ADR-024 slice 1 — Partij: business-laag, actieve structuur (ArchiMate Business Actor).
+    ElementType.partij: {"archimate_element": "business_actor", "laag": "business", "aspect": "active"},
     # ── ADR-023 Fase E (E0) — migratielaag (Implementation & Migration) ────────────
     # `laag = implementation_migration` is vast (OK-3). Plateau/gap/deliverable zijn
     # (passieve) structuur; Work Package is in ArchiMate een GEDRAGSelement → aspect

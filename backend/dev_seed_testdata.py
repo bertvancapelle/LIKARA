@@ -55,7 +55,8 @@ from models.models import (  # noqa: E402
     Element,
     ElementType,
     HostingModel,
-    Leverancier,
+    Partij,
+    PartijAard,
     Relatie,
 )
 from schemas.applicatie import ApplicatieCreate  # noqa: E402
@@ -64,14 +65,14 @@ from schemas.blokkade import BlokkadeUpdate  # noqa: E402
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate  # noqa: E402
 from schemas.contract import ContractCreate  # noqa: E402
 from schemas.relatie import RelatieCreate  # noqa: E402
-from schemas.leverancier import LeverancierCreate  # noqa: E402
+from schemas.externe_partij import ExternePartijCreate  # noqa: E402
 from services import (  # noqa: E402
     component_contract_service,
     applicatie_service,
     blokkade_service,
     checklistscore_service,
     contract_service,
-    leverancier_service,
+    externe_partij_service,
     relatie_service,
 )
 from services.seed import CHECKLIST_VRAGEN, seed_checklist_vragen  # noqa: E402
@@ -509,17 +510,20 @@ async def _seed_aanvulling_d(session, app_ids: dict) -> dict:
     (applicatie_id, contract_id). Tweede run wijzigt niets. De service-laag handhaaft
     I1/I2 (mantel/leverancier-erving), catalogus-validatie en uniciteit.
     """
-    # --- Leveranciers (idempotent op naam) ---
+    # --- Externe partijen (element-backed, idempotent op naam) ---
     lev_ids = {
-        r.naam: r.id for r in (await session.execute(select(Leverancier))).scalars().all()
+        r.naam: r.id
+        for r in (
+            await session.execute(select(Partij).where(Partij.aard == PartijAard.externe_partij))
+        ).scalars().all()
     }
     for lev in LEVERANCIERS_D:
         if lev["naam"] in lev_ids:
-            print(f"  = leverancier {lev['naam']}: bestaat al — overgeslagen")
+            print(f"  = externe partij {lev['naam']}: bestaat al — overgeslagen")
             continue
-        obj = await leverancier_service.maak_aan(session, DEV_TENANT, LeverancierCreate(**lev))
+        obj = await externe_partij_service.maak_aan(session, DEV_TENANT, ExternePartijCreate(**lev))
         lev_ids[lev["naam"]] = obj.id
-        print(f"  + leverancier {lev['naam']}")
+        print(f"  + externe partij {lev['naam']}")
 
     # --- Contracten (idempotent op contractnaam; mantel vóór deel) ---
     con_ids = {

@@ -1,0 +1,159 @@
+"""Service-laag — externe-partij-beheer (ADR-024 slice 1). Vervangt `leverancier_service`.
+
+Een externe partij is een **element-backed** `partij` (aard `externe_partij`): aanmaak
+schrijft een `element`-rij (shared-PK) + een `partij`-rij in één tenant-transactie; verwijderen
+loopt via het **element-supertype** (`DELETE FROM element`) → CASCADE neemt de partij-rij mee,
+géén wees-element (les commit 109ced8). Tenant-scoped (RLS + expliciet `tenant_id`-filter).
+Puur registratief — geen engine-koppeling. v2n-keyset-paginering (`plaats` nullable).
+"""
+import uuid
+from datetime import datetime
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from models.models import Contract, Element, ElementType, Partij, PartijAard
+from schemas.externe_partij import ExternePartijCreate, ExternePartijUpdate
+from services import partijsoort_catalog
+from services.errors import NietGevonden, RegistratieConflict
+from services.pagination import (
+    decode_sort_cursor_nullable,
+    encode_sort_cursor_nullable,
+    keyset_order_by_nulls_last,
+    keyset_seek_nulls_last,
+)
+
+_ENTITEIT = "externe_partij"
+_AARD = PartijAard.externe_partij
+_STANDAARD_LIMIT = 25
+_MAX_LIMIT = 100
+_STANDAARD_SORT = "created_at"
+_STANDAARD_ORDER = "asc"
+
+_SORTEERBARE_KOLOMMEN = {
+    "created_at": Partij.created_at,
+    "naam": Partij.naam,
+    "plaats": Partij.plaats,
+}
+_WAARDE_PARSERS = {
+    "created_at": datetime.fromisoformat,
+    "naam": str,
+    "plaats": str,
+}
+
+_LIKE_ESCAPE = "\\"
+
+
+def _escape_like(term: str) -> str:
+    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
+
+
+def _tenant_uuid(tenant_id) -> uuid.UUID:
+    return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
+
+
+async def lijst(
+    session: AsyncSession,
+    tenant_id,
+    *,
+    limit: int = _STANDAARD_LIMIT,
+    after: str | None = None,
+    sort: str = _STANDAARD_SORT,
+    order: str = _STANDAARD_ORDER,
+    zoek: str | None = None,
+) -> tuple[list[Partij], str | None]:
+    """v2n-keyset-lijst binnen de tenant (alleen aard `externe_partij`). `zoek` = ILIKE op naam."""
+    limit = max(1, min(limit, _MAX_LIMIT))
+    tid = _tenant_uuid(tenant_id)
+
+    if sort not in _SORTEERBARE_KOLOMMEN:
+        raise ValueError(f"onbekend sorteerveld: {sort}")
+    if order not in (_STANDAARD_ORDER, "desc"):
+        raise ValueError(f"onbekende sorteerrichting: {order}")
+    kolom = _SORTEERBARE_KOLOMMEN[sort]
+
+    stmt = select(Partij).where(Partij.tenant_id == tid, Partij.aard == _AARD)
+    if zoek:
+        stmt = stmt.where(Partij.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+    if after:
+        c_sort, c_order, c_is_null, c_waarde_str, c_id = decode_sort_cursor_nullable(after)
+        if c_sort != sort or c_order != order:
+            raise ValueError("cursor past niet bij de actieve sortering")
+        c_waarde = None if c_is_null else _WAARDE_PARSERS[sort](c_waarde_str)
+        stmt = stmt.where(
+            keyset_seek_nulls_last(
+                kolom, Partij.id, order=order, is_null=c_is_null, waarde=c_waarde, cursor_id=c_id
+            )
+        )
+    stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Partij.id, order)).limit(limit + 1)
+
+    rijen = list((await session.execute(stmt)).scalars().all())
+    heeft_meer = len(rijen) > limit
+    items = rijen[:limit]
+    volgende = (
+        encode_sort_cursor_nullable(sort=sort, order=order, waarde=getattr(items[-1], sort), id=items[-1].id)
+        if heeft_meer
+        else None
+    )
+    return items, volgende
+
+
+async def haal_op(session: AsyncSession, tenant_id, partij_id) -> Partij:
+    tid = _tenant_uuid(tenant_id)
+    stmt = select(Partij).where(
+        Partij.id == partij_id, Partij.tenant_id == tid, Partij.aard == _AARD
+    )
+    obj = (await session.execute(stmt)).scalar_one_or_none()
+    if obj is None:
+        raise NietGevonden(_ENTITEIT, partij_id)
+    return obj
+
+
+async def maak_aan(session: AsyncSession, tenant_id, data: ExternePartijCreate) -> Partij:
+    tid = _tenant_uuid(tenant_id)
+    await partijsoort_catalog.valideer_soort(session, data.soort)
+    # Element-identiteit eerst (shared-PK), dan de partij-subtype-rij.
+    elem = Element(tenant_id=tid, element_type=ElementType.partij)
+    session.add(elem)
+    await session.flush()
+    obj = Partij(id=elem.id, tenant_id=tid, aard=_AARD, **data.model_dump())
+    session.add(obj)
+    await session.commit()
+    await session.refresh(obj)
+    return obj
+
+
+async def werk_bij(
+    session: AsyncSession, tenant_id, partij_id, data: ExternePartijUpdate
+) -> Partij:
+    obj = await haal_op(session, tenant_id, partij_id)
+    velden = data.model_dump(exclude_unset=True)
+    if "soort" in velden:
+        await partijsoort_catalog.valideer_soort(session, velden["soort"])
+    for veld, waarde in velden.items():
+        setattr(obj, veld, waarde)
+    await session.commit()
+    await session.refresh(obj)
+    return obj
+
+
+async def verwijder(session: AsyncSession, tenant_id, partij_id) -> None:
+    """Verwijder binnen de tenant. Een partij met contracten wordt geweigerd
+    (409 `IN_GEBRUIK`) — nette app-fout vóór de FK `RESTRICT`. Verwijderen loopt via het
+    element-supertype (CASCADE naar de partij-rij) → geen wees-element."""
+    obj = await haal_op(session, tenant_id, partij_id)
+    tid = _tenant_uuid(tenant_id)
+    aantal = (
+        await session.execute(
+            select(func.count())
+            .select_from(Contract)
+            .where(Contract.tenant_id == tid, Contract.leverancier_id == obj.id)
+        )
+    ).scalar_one()
+    if aantal:
+        raise RegistratieConflict(
+            "IN_GEBRUIK", "Deze externe partij heeft nog contracten en kan niet worden verwijderd."
+        )
+    # Via het element-supertype (CASCADE wist de partij-subtype-rij) — geen wees-element.
+    await session.execute(delete(Element).where(Element.id == obj.id, Element.tenant_id == tid))
+    await session.commit()

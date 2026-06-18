@@ -43,9 +43,10 @@ def test_classificeer_overige_passthrough():
 # ── Besluit 7: diff = {veld: {oud, nieuw}}, alleen betekenisvolle velden ──────────
 
 def test_bouw_wijziging_create_skipt_pk_en_timestamps():
-    from models.models import Leverancier
+    from models.models import PartijAard, Partij
 
-    lev = Leverancier(tenant_id=uuid.uuid4(), naam="GemSoft B.V.", plaats="Amersfoort")
+    lev = Partij(tenant_id=uuid.uuid4(), aard=PartijAard.externe_partij,
+                 naam="GemSoft B.V.", plaats="Amersfoort")
     wijz = bouw_wijziging(lev, AuditActie.create)
     assert wijz["naam"] == {"oud": None, "nieuw": "GemSoft B.V."}
     assert wijz["plaats"] == {"oud": None, "nieuw": "Amersfoort"}
@@ -55,9 +56,9 @@ def test_bouw_wijziging_create_skipt_pk_en_timestamps():
 
 
 def test_bouw_wijziging_delete_is_snapshot_oud():
-    from models.models import Leverancier
+    from models.models import PartijAard, Partij
 
-    lev = Leverancier(tenant_id=uuid.uuid4(), naam="CivData")
+    lev = Partij(tenant_id=uuid.uuid4(), aard=PartijAard.externe_partij, naam="CivData")
     wijz = bouw_wijziging(lev, AuditActie.delete)
     assert wijz["naam"] == {"oud": "CivData", "nieuw": None}
 
