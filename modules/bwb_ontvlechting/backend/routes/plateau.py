@@ -39,11 +39,12 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
 async def lijst_plateaus(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
+    zoek: str | None = Query(None, max_length=255),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PLATEAU, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     try:
-        items, volgende = await svc.lijst(session, user.tenant_id, limit=limit, after=after)
+        items, volgende = await svc.lijst(session, user.tenant_id, limit=limit, after=after, zoek=zoek)
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")
     return {"items": items, "volgende_cursor": volgende}

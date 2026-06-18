@@ -341,6 +341,32 @@ def test_plateau_lidmaatschap_component_en_contract_live():
 
 
 @integratie
+def test_plateau_zoekfilter_live():
+    """De `zoek`-filter (ILIKE op naam) bedient het plateau-koppelveld (deliverable-keten)."""
+    from sqlalchemy import text as _text
+    from schemas.plateau import PlateauCreate
+    from services import plateau_service as svc
+
+    async def _flow(s):
+        ids = []
+        try:
+            a = await svc.maak_aan(s, _TID, PlateauCreate(naam="WT-PZoek Alpha uniek"))
+            ids.append(a["id"])
+            b = await svc.maak_aan(s, _TID, PlateauCreate(naam="WT-PZoek Beta uniek"))
+            ids.append(b["id"])
+            items, _ = await svc.lijst(s, _TID, zoek="alpha uniek")
+            return [i["naam"] for i in items]
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    namen = asyncio.run(_run_rls(_TID, "test:bert", _flow))
+    assert "WT-PZoek Alpha uniek" in namen
+    assert "WT-PZoek Beta uniek" not in namen
+
+
+@integratie
 def test_plateau_rls_isolatie_live():
     from sqlalchemy import text as _text
     from schemas.plateau import PlateauCreate

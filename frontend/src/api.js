@@ -246,7 +246,8 @@ export const api = {
   // ADR-023 Fase E/F (F-1) — migratielaag (read-only overzicht). Leunt volledig op de
   // bestaande lees-endpoints; geen nieuwe backend-semantiek.
   plateaus: {
-    lijst: ({ limit, after } = {}) => request(`/plateaus${_query({ limit, after })}`),
+    // `zoek` (ILIKE op naam) bedient het plateau-koppelveld in de deliverable-keten (UX-A4-3).
+    lijst: ({ limit, after, zoek } = {}) => request(`/plateaus${_query({ limit, after, zoek })}`),
     haal: (id) => request(`/plateaus/${id}`),
     maak: (data) => request('/plateaus', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/plateaus/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -276,7 +277,19 @@ export const api = {
   deliverables: {
     lijst: ({ limit, after } = {}) => request(`/deliverables${_query({ limit, after })}`),
     haal: (id) => request(`/deliverables/${id}`),
+    maak: (data) => request('/deliverables', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) => request(`/deliverables/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/deliverables/${id}`, { method: 'DELETE' }),
     keten: (id) => request(`/deliverables/${id}/keten`),
+    // Realisatieketen: werkpakket → deliverable → plateau (UX-A4-3, expliciet + optioneel).
+    koppelWerkpakket: (id, work_package_id) =>
+      request(`/deliverables/${id}/werkpakketten`, { method: 'POST', body: JSON.stringify({ work_package_id }) }),
+    ontkoppelWerkpakket: (id, relatieId) =>
+      request(`/deliverables/${id}/werkpakketten/${relatieId}`, { method: 'DELETE' }),
+    koppelPlateau: (id, plateau_id) =>
+      request(`/deliverables/${id}/plateaus`, { method: 'POST', body: JSON.stringify({ plateau_id }) }),
+    ontkoppelPlateau: (id, relatieId) =>
+      request(`/deliverables/${id}/plateaus/${relatieId}`, { method: 'DELETE' }),
   },
 
   componentContracten: {

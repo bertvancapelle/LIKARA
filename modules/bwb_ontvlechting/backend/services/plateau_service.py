@@ -43,6 +43,11 @@ _ENTITEIT = "plateau"
 _AGGREGATION = "aggregation"
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
+_LIKE_ESCAPE = "\\"
+
+
+def _escape_like(term: str) -> str:
+    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 # Toegestane lid-element-typen in deze slice (E1). Datatype/gebruikersgroep later additief.
 _TOEGESTANE_LID_TYPES = frozenset({ElementType.component.value, ElementType.contract.value})
@@ -114,12 +119,16 @@ async def verwijder(session: AsyncSession, tenant_id, plateau_id) -> None:
 
 
 async def lijst(
-    session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None
+    session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
+    zoek: str | None = None,
 ) -> tuple[list[dict], str | None]:
-    """Keyset-lijst binnen de tenant (created_at oplopend). Cursor-mismatch ⇒ ValueError (400)."""
+    """Keyset-lijst binnen de tenant (created_at oplopend). `zoek` = ge-escapete ILIKE op `naam`
+    (voor het plateau-koppelveld in de deliverable-keten). Cursor-mismatch ⇒ ValueError (400)."""
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
     stmt = select(Plateau).where(Plateau.tenant_id == tid)
+    if zoek:
+        stmt = stmt.where(Plateau.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
     if after:
         _s, _o, waarde_str, c_id = decode_sort_cursor(after)
         c_waarde = datetime.fromisoformat(waarde_str)
