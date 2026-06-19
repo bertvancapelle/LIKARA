@@ -2,13 +2,19 @@
 /**
  * KoppelingSectie — koppelingen van één applicatie (in ApplicatieDetail).
  *
- * Dialog-in-sectie (zie DatatypeSectie voor de motivatie). De API kent geen
- * "bron OF doel"-filter, dus twee disjuncte calls (DB-CHECK bron != doel →
- * geen overlap): Uitgaand (deze applicatie = bron) en Inkomend (= doel), elk met
- * eigen keyset-cursor en eigen "Meer laden". Bron/doel via applicatie-pickers;
- * bron == doel client-side geweigerd; bron/doel immutabel bij bewerken.
+ * ADR-023: een koppeling IS een `flow`-relatie in het unified relatiemodel. Deze sectie
+ * leest/schrijft daarom via `/relaties` (relatietype="flow") i.p.v. het in de cutover
+ * vervallen `/koppelingen`-endpoint. richting/protocol/impact_bij_verbreking leven in
+ * `kenmerken` (jsonb); de tegenpartij-naam wordt client-side geresolveerd uit een
+ * applicatie-namenkaart (de relatie-respons draagt geen endpoint-namen).
+ *
+ * Dialog-in-sectie. De API kent geen "bron OF doel"-filter, dus twee disjuncte calls
+ * (DB-CHECK bron != doel → geen overlap): Uitgaand (deze applicatie = bron) en Inkomend
+ * (= doel), elk met eigen keyset-cursor en eigen "Meer laden". Bron/doel via applicatie-
+ * pickers; bron == doel client-side geweigerd; endpoints immutabel bij bewerken.
+ * NB: `/relaties` kent (nog) geen server-side sortering → de kolommen zijn niet sorteerbaar.
  */
-import { computed, nextTick, reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
@@ -25,13 +31,10 @@ const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const VELD_LABEL = { richting: 'Richting', protocol: 'Protocol', impact_bij_verbreking: 'Impact bij verbreking' }
 const OPTIE_MAP = { richting: KOPPELRICHTING, protocol: KOPPELPROTOCOL, impact_bij_verbreking: IMPACT_VERBREKING }
 
-// Elke richting heeft een eigen keyset-cursor én eigen sortering (CD020).
-const uitgaand = reactive({ items: [], cursor: null, laden: false, sort: null, order: null })
-const inkomend = reactive({ items: [], cursor: null, laden: false, sort: null, order: null })
+// Elke richting heeft een eigen keyset-cursor (server-side paginering via /relaties).
+const uitgaand = reactive({ items: [], cursor: null, laden: false })
+const inkomend = reactive({ items: [], cursor: null, laden: false })
 const fout = ref(null)
-
-// PrimeVue sortOrder (1/-1/0) uit de per-richting sort-state.
-const primeOrder = (state) => (state.sort ? (state.order === 'asc' ? 1 : -1) : 0)
 
 // Bron/doel-pickers: server-side zoeken (CD049). `dezeAppNaam` + bron/doel-initieel
 // leveren de weergavelabels voor de reeds-gekozen waarden (default-bron / bewerken).
@@ -39,6 +42,37 @@ const zoekApplicaties = (params) => api.applicaties.lijst(params)
 const dezeAppNaam = ref('')
 const bronInitieel = ref('')
 const doelInitieel = ref('')
+
+// Applicatie-namenkaart (id → naam) — voor de tegenpartij-kolom (de flow-relatie draagt
+// geen endpoint-namen). Eenmalig geladen; flow-koppelingen lopen tussen applicaties.
+const appNamen = ref(null)
+const appNaam = (id) => appNamen.value?.[id] ?? ''
+async function _zorgAppNamen() {
+  if (appNamen.value) return
+  try {
+    const p = await api.applicaties.lijst({ limit: 100 })
+    appNamen.value = Object.fromEntries((p.items || []).map((a) => [a.id, a.naam]))
+  } catch (e) {
+    appNamen.value = {}
+    _toastFout(e)
+  }
+}
+
+// Eén flow-relatie → de koppeling-weergavevorm die de tabel/het formulier verwacht.
+function _naarKoppeling(r) {
+  const tegen = r.bron_id === props.applicatieId ? r.doel_id : r.bron_id
+  const k = r.kenmerken || {}
+  return {
+    id: r.id,
+    bron_applicatie_id: r.bron_id,
+    doel_applicatie_id: r.doel_id,
+    tegenpartij_naam: appNaam(tegen),
+    richting: k.richting,
+    protocol: k.protocol,
+    impact_bij_verbreking: k.impact_bij_verbreking,
+    omschrijving: r.omschrijving,
+  }
+}
 
 const dialogOpen = ref(false)
 const bewerkenId = ref(null)
@@ -65,9 +99,9 @@ async function _laadRichting(state, params, reset) {
   state.laden = true
   try {
     const after = reset ? undefined : state.cursor
-    const sortering = state.sort ? { sort: state.sort, order: state.order } : {}
-    const p = await api.koppelingen.lijst({ ...params, limit: 25, after, ...sortering })
-    state.items = reset ? p.items : state.items.concat(p.items)
+    const p = await api.relaties.lijst({ relatietype: 'flow', ...params, limit: 25, after })
+    const mapped = (p.items || []).map(_naarKoppeling)
+    state.items = reset ? mapped : state.items.concat(mapped)
     state.cursor = p.volgende_cursor
   } catch (e) {
     fout.value = e?.message || 'Laden van koppelingen mislukt.'
@@ -75,40 +109,28 @@ async function _laadRichting(state, params, reset) {
     state.laden = false
   }
 }
-const laadUitgaand = (reset = false) => _laadRichting(uitgaand, { bronApplicatieId: props.applicatieId }, reset)
-const laadInkomend = (reset = false) => _laadRichting(inkomend, { doelApplicatieId: props.applicatieId }, reset)
+const laadUitgaand = (reset = false) => _laadRichting(uitgaand, { bron_id: props.applicatieId }, reset)
+const laadInkomend = (reset = false) => _laadRichting(inkomend, { doel_id: props.applicatieId }, reset)
 
-// Sorteerklik per richting → eigen cursor resetten en vanaf pagina 1 herladen.
-function _onSort(state, laadFn, event) {
-  state.sort = event.sortField
-  state.order = event.sortOrder === 1 ? 'asc' : 'desc'
-  state.cursor = null
-  laadFn(true)
-}
-const onSortUitgaand = (e) => _onSort(uitgaand, laadUitgaand, e)
-const onSortInkomend = (e) => _onSort(inkomend, laadInkomend, e)
-function laadBeide() {
+async function laadBeide() {
   fout.value = null
+  await _zorgAppNamen() // namenkaart vóór het mappen van de tegenpartij-kolom
   laadUitgaand(true)
   laadInkomend(true)
 }
 
 async function _laadOptiesEenmalig() {
+  // richting/protocol/impact zijn vaste enums (flow-kenmerken) — opties uit de label-maps,
+  // geen apart opties-endpoint meer.
   if (!opties.value.richting.length) {
-    try {
-      opties.value = await api.koppelingen.opties()
-    } catch (e) {
-      _toastFout(e)
+    opties.value = {
+      richting: Object.keys(KOPPELRICHTING),
+      protocol: Object.keys(KOPPELPROTOCOL),
+      impact_bij_verbreking: Object.keys(IMPACT_VERBREKING),
     }
   }
-  if (!dezeAppNaam.value) {
-    try {
-      const a = await api.applicaties.haal(props.applicatieId)
-      dezeAppNaam.value = a.naam
-    } catch (e) {
-      _toastFout(e)
-    }
-  }
+  await _zorgAppNamen()
+  if (!dezeAppNaam.value) dezeAppNaam.value = appNaam(props.applicatieId)
 }
 
 function _reset() {
@@ -191,21 +213,23 @@ async function opslaan() {
   if (!valideer()) return
   bezig.value = true
   try {
+    const kenmerken = {
+      richting: form.richting,
+      protocol: form.protocol,
+      impact_bij_verbreking: form.impact_bij_verbreking,
+    }
     if (bewerkenId.value) {
-      // bron/doel immutabel → niet meesturen
-      await api.koppelingen.werkBij(bewerkenId.value, {
-        richting: form.richting,
-        protocol: form.protocol,
-        impact_bij_verbreking: form.impact_bij_verbreking,
+      // endpoints immutabel → alleen kenmerken + omschrijving wijzigen
+      await api.relaties.werkBij(bewerkenId.value, {
+        kenmerken,
         omschrijving: form.omschrijving.trim() || null,
       })
     } else {
-      await api.koppelingen.maak({
-        bron_applicatie_id: form.bron_applicatie_id,
-        doel_applicatie_id: form.doel_applicatie_id,
-        richting: form.richting,
-        protocol: form.protocol,
-        impact_bij_verbreking: form.impact_bij_verbreking,
+      await api.relaties.maak({
+        bron_id: form.bron_applicatie_id,
+        doel_id: form.doel_applicatie_id,
+        relatietype: 'flow',
+        kenmerken,
         omschrijving: form.omschrijving.trim() || null,
       })
     }
@@ -229,7 +253,7 @@ function vraagVerwijder(e, rij) {
 async function bevestigVerwijder() {
   bezig.value = true
   try {
-    await api.koppelingen.verwijder(teVerwijderen.value.id)
+    await api.relaties.verwijder(teVerwijderen.value.id)
     toast.add({ severity: 'success', summary: 'Verwijderd', life: 3000 })
     verwijderOpen.value = false
     laadBeide()
@@ -257,16 +281,13 @@ laadBeide()
     <DataTable
       :value="uitgaand.items"
       lazy
-      :sort-field="uitgaand.sort"
-      :sort-order="primeOrder(uitgaand)"
       data-testid="kp-tabel-uitgaand"
-      @sort="onSortUitgaand"
     >
       <Column header="Rol"><template #body>Bron</template></Column>
-      <Column header="Tegenpartij (doel)" sort-field="tegenpartij_naam" sortable><template #body="{ data }">{{ data.tegenpartij_naam }}</template></Column>
-      <Column header="Richting" sort-field="richting" sortable><template #body="{ data }"><Tag :value="label(KOPPELRICHTING, data.richting)" /></template></Column>
-      <Column header="Protocol" sort-field="protocol" sortable><template #body="{ data }">{{ label(KOPPELPROTOCOL, data.protocol) }}</template></Column>
-      <Column header="Impact" sort-field="impact_bij_verbreking" sortable><template #body="{ data }"><Tag :value="label(IMPACT_VERBREKING, data.impact_bij_verbreking)" :severity="IMPACT_SEVERITY[data.impact_bij_verbreking] || 'info'" /></template></Column>
+      <Column header="Tegenpartij (doel)"><template #body="{ data }">{{ data.tegenpartij_naam }}</template></Column>
+      <Column header="Richting"><template #body="{ data }"><Tag :value="label(KOPPELRICHTING, data.richting)" /></template></Column>
+      <Column header="Protocol"><template #body="{ data }">{{ label(KOPPELPROTOCOL, data.protocol) }}</template></Column>
+      <Column header="Impact"><template #body="{ data }"><Tag :value="label(IMPACT_VERBREKING, data.impact_bij_verbreking)" :severity="IMPACT_SEVERITY[data.impact_bij_verbreking] || 'info'" /></template></Column>
       <Column header="">
         <template #body="{ data }">
           <div v-if="mag" class="flex gap-[var(--cd-space-sm)]">
@@ -284,16 +305,13 @@ laadBeide()
     <DataTable
       :value="inkomend.items"
       lazy
-      :sort-field="inkomend.sort"
-      :sort-order="primeOrder(inkomend)"
       data-testid="kp-tabel-inkomend"
-      @sort="onSortInkomend"
     >
       <Column header="Rol"><template #body>Doel</template></Column>
-      <Column header="Tegenpartij (bron)" sort-field="tegenpartij_naam" sortable><template #body="{ data }">{{ data.tegenpartij_naam }}</template></Column>
-      <Column header="Richting" sort-field="richting" sortable><template #body="{ data }"><Tag :value="label(KOPPELRICHTING, data.richting)" /></template></Column>
-      <Column header="Protocol" sort-field="protocol" sortable><template #body="{ data }">{{ label(KOPPELPROTOCOL, data.protocol) }}</template></Column>
-      <Column header="Impact" sort-field="impact_bij_verbreking" sortable><template #body="{ data }"><Tag :value="label(IMPACT_VERBREKING, data.impact_bij_verbreking)" :severity="IMPACT_SEVERITY[data.impact_bij_verbreking] || 'info'" /></template></Column>
+      <Column header="Tegenpartij (bron)"><template #body="{ data }">{{ data.tegenpartij_naam }}</template></Column>
+      <Column header="Richting"><template #body="{ data }"><Tag :value="label(KOPPELRICHTING, data.richting)" /></template></Column>
+      <Column header="Protocol"><template #body="{ data }">{{ label(KOPPELPROTOCOL, data.protocol) }}</template></Column>
+      <Column header="Impact"><template #body="{ data }"><Tag :value="label(IMPACT_VERBREKING, data.impact_bij_verbreking)" :severity="IMPACT_SEVERITY[data.impact_bij_verbreking] || 'info'" /></template></Column>
       <Column header="">
         <template #body="{ data }">
           <div v-if="mag" class="flex gap-[var(--cd-space-sm)]">

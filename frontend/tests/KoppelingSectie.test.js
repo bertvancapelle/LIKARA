@@ -1,4 +1,4 @@
-/** Tests — KoppelingSectie (child-sectie via @modules; twee richtingen). */
+/** Tests — KoppelingSectie (child-sectie via @modules; flow-relaties, twee richtingen). */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
@@ -7,12 +7,12 @@ import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
   api: {
-    koppelingen: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn(), opties: vi.fn() },
-    applicaties: { lijst: vi.fn(), haal: vi.fn() },
+    // ADR-023: koppeling = flow-relatie → via het unified /relaties-endpoint.
+    relaties: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
+    applicaties: { lijst: vi.fn() },
   },
 }))
 
-import DataTable from 'primevue/datatable'
 import { api } from '@/api'
 import { useAuthStore } from '@/store/auth'
 import KoppelingSectie from '@modules/bwb_ontvlechting/frontend/views/KoppelingSectie.vue'
@@ -20,14 +20,14 @@ import KoppelingSectie from '@modules/bwb_ontvlechting/frontend/views/KoppelingS
 const APP = 'app-1'
 const ANDER = 'app-2'
 
-function _kp(id, bron, doel) {
+// Eén flow-relatie (RELATIE-vorm): kenmerken dragen richting/protocol/impact.
+function _rel(id, bron, doel) {
   return {
     id,
-    bron_applicatie_id: bron,
-    doel_applicatie_id: doel,
-    richting: 'eenrichting',
-    protocol: 'api',
-    impact_bij_verbreking: 'hoog',
+    bron_id: bron,
+    doel_id: doel,
+    relatietype: 'flow',
+    kenmerken: { richting: 'eenrichting', protocol: 'api', impact_bij_verbreking: 'hoog' },
     omschrijving: null,
   }
 }
@@ -47,12 +47,8 @@ async function mountSectie({ rollen = ['beheerder'] } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  api.koppelingen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
-  api.koppelingen.opties.mockResolvedValue({
-    richting: ['eenrichting', 'tweerichting'],
-    protocol: ['api', 'overig'],
-    impact_bij_verbreking: ['laag', 'midden', 'hoog', 'kritiek'],
-  })
+  api.relaties.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+  // Voedt zowel de namenkaart (tegenpartij-kolom) als de ZoekSelect-pickers.
   api.applicaties.lijst.mockResolvedValue({
     items: [
       { id: APP, naam: 'Deze App' },
@@ -60,7 +56,6 @@ beforeEach(() => {
     ],
     volgende_cursor: null,
   })
-  api.applicaties.haal.mockResolvedValue({ id: APP, naam: 'Deze App' }) // dezeAppNaam (ZoekSelect-label)
 })
 
 // ZoekSelect-interactie (CD049): focus → zoek → klik resultaat.
@@ -90,21 +85,23 @@ describe('KoppelingSectie — B4 gecureerde labels', () => {
 })
 
 describe('KoppelingSectie', () => {
-  it('doet twee calls (uitgaand bron + inkomend doel) en toont beide sets', async () => {
-    api.koppelingen.lijst.mockImplementation(({ bronApplicatieId }) =>
+  it('doet twee flow-calls (uitgaand bron_id + inkomend doel_id) en toont beide sets', async () => {
+    api.relaties.lijst.mockImplementation(({ bron_id }) =>
       Promise.resolve(
-        bronApplicatieId === APP
-          ? { items: [_kp('k1', APP, ANDER)], volgende_cursor: null } // uitgaand
-          : { items: [_kp('k2', ANDER, APP)], volgende_cursor: null }, // inkomend
+        bron_id === APP
+          ? { items: [_rel('k1', APP, ANDER)], volgende_cursor: null } // uitgaand
+          : { items: [_rel('k2', ANDER, APP)], volgende_cursor: null }, // inkomend
       ),
     )
     const w = await mountSectie()
-    // twee calls: één met bron, één met doel
-    const calls = api.koppelingen.lijst.mock.calls.map((c) => c[0])
-    expect(calls.some((a) => a.bronApplicatieId === APP)).toBe(true)
-    expect(calls.some((a) => a.doelApplicatieId === APP)).toBe(true)
+    const calls = api.relaties.lijst.mock.calls.map((c) => c[0])
+    expect(calls.every((a) => a.relatietype === 'flow')).toBe(true)
+    expect(calls.some((a) => a.bron_id === APP)).toBe(true)
+    expect(calls.some((a) => a.doel_id === APP)).toBe(true)
     expect(w.find('[data-testid="kp-tabel-uitgaand"]').exists()).toBe(true)
     expect(w.find('[data-testid="kp-tabel-inkomend"]').exists()).toBe(true)
+    // tegenpartij-naam client-side geresolveerd uit de namenkaart.
+    expect(w.find('[data-testid="kp-tabel-uitgaand"]').text()).toContain('Andere App')
   })
 
   it('rol-gating: viewer geen Toevoegen, beheerder wel', async () => {
@@ -116,9 +113,7 @@ describe('KoppelingSectie', () => {
     const w = await mountSectie()
     await w.find('[data-testid="kp-toevoegen"]').trigger('click')
     await flushPromises()
-    // bron toont de huidige applicatie als startwaarde
     expect(w.find('[data-testid="kp-veld-bron-input"]').element.value).toBe('Deze App')
-    // zet doel == bron (APP) via de zoek-combobox
     await kiesZoek(w, 'kp-veld-doel', APP)
     await w.find('[data-testid="kp-veld-richting"]').setValue('eenrichting')
     await w.find('[data-testid="kp-veld-protocol"]').setValue('api')
@@ -126,13 +121,13 @@ describe('KoppelingSectie', () => {
     await w.find('[data-testid="kp-form"]').trigger('submit')
     await flushPromises()
     expect(w.find('[data-testid="kp-fout-doel"]').exists()).toBe(true)
-    expect(api.koppelingen.maak).not.toHaveBeenCalled()
+    expect(api.relaties.maak).not.toHaveBeenCalled()
   })
 
-  it('maakt aan met geldige bron≠doel en ververst beide richtingen', async () => {
-    api.koppelingen.maak.mockResolvedValueOnce({ id: 'new' })
+  it('maakt een flow-relatie aan met geldige bron≠doel en ververst beide richtingen', async () => {
+    api.relaties.maak.mockResolvedValueOnce({ id: 'new' })
     const w = await mountSectie()
-    const voor = api.koppelingen.lijst.mock.calls.length
+    const voor = api.relaties.lijst.mock.calls.length
     await w.find('[data-testid="kp-toevoegen"]').trigger('click')
     await flushPromises()
     await kiesZoek(w, 'kp-veld-doel', ANDER)
@@ -141,21 +136,35 @@ describe('KoppelingSectie', () => {
     await w.find('[data-testid="kp-veld-impact_bij_verbreking"]').setValue('hoog')
     await w.find('[data-testid="kp-form"]').trigger('submit')
     await flushPromises()
-    expect(api.koppelingen.maak).toHaveBeenCalledTimes(1)
-    expect(api.koppelingen.maak.mock.calls[0][0]).toMatchObject({
-      bron_applicatie_id: APP,
-      doel_applicatie_id: ANDER,
+    expect(api.relaties.maak).toHaveBeenCalledTimes(1)
+    expect(api.relaties.maak.mock.calls[0][0]).toMatchObject({
+      bron_id: APP,
+      doel_id: ANDER,
+      relatietype: 'flow',
+      kenmerken: { richting: 'eenrichting', protocol: 'api', impact_bij_verbreking: 'hoog' },
     })
-    // beide richtingen herladen (2 extra calls)
-    expect(api.koppelingen.lijst.mock.calls.length).toBe(voor + 2)
+    expect(api.relaties.lijst.mock.calls.length).toBe(voor + 2) // beide richtingen herladen
   })
 
-  it('per-richting "Meer laden" gebruikt de cursor van de juiste richting', async () => {
-    api.koppelingen.lijst.mockImplementation(({ bronApplicatieId }) =>
+  it('verwijdert een koppeling via api.relaties.verwijder', async () => {
+    api.relaties.lijst.mockImplementation(({ bron_id }) =>
+      Promise.resolve(bron_id === APP ? { items: [_rel('k1', APP, ANDER)], volgende_cursor: null } : { items: [], volgende_cursor: null }),
+    )
+    api.relaties.verwijder.mockResolvedValueOnce(undefined)
+    const w = await mountSectie()
+    await w.find('[data-testid="kp-verwijder-k1"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="kp-verwijder-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.relaties.verwijder).toHaveBeenCalledWith('k1')
+  })
+
+  it('per-richting "Meer laden" gebruikt de cursor van de juiste richting (flow)', async () => {
+    api.relaties.lijst.mockImplementation(({ bron_id }) =>
       Promise.resolve(
-        bronApplicatieId === APP
-          ? { items: [_kp('k1', APP, ANDER)], volgende_cursor: 'cur-uit' }
-          : { items: [_kp('k2', ANDER, APP)], volgende_cursor: null },
+        bron_id === APP
+          ? { items: [_rel('k1', APP, ANDER)], volgende_cursor: 'cur-uit' }
+          : { items: [_rel('k2', ANDER, APP)], volgende_cursor: null },
       ),
     )
     const w = await mountSectie()
@@ -163,21 +172,6 @@ describe('KoppelingSectie', () => {
     expect(w.find('[data-testid="kp-meer-inkomend"]').exists()).toBe(false)
     await w.find('[data-testid="kp-meer-uitgaand"]').trigger('click')
     await flushPromises()
-    expect(api.koppelingen.lijst).toHaveBeenLastCalledWith({ bronApplicatieId: APP, limit: 25, after: 'cur-uit' })
-  })
-
-  it('sorteerklik op de uitgaande tabel → refetch met sort/order + cursor-reset (CD020)', async () => {
-    api.koppelingen.lijst.mockResolvedValue({ items: [_kp('k1', APP, ANDER)], volgende_cursor: 'cur-uit' })
-    const w = await mountSectie()
-    // eerste DataTable = uitgaand; sorteer op de tegenpartij-naam (join-kolom)
-    w.findAllComponents(DataTable)[0].vm.$emit('sort', { sortField: 'tegenpartij_naam', sortOrder: 1 })
-    await flushPromises()
-    expect(api.koppelingen.lijst).toHaveBeenCalledWith({
-      bronApplicatieId: APP,
-      limit: 25,
-      after: undefined, // eigen cursor-reset van de uitgaande richting
-      sort: 'tegenpartij_naam',
-      order: 'asc',
-    })
+    expect(api.relaties.lijst).toHaveBeenLastCalledWith({ relatietype: 'flow', bron_id: APP, limit: 25, after: 'cur-uit' })
   })
 })
