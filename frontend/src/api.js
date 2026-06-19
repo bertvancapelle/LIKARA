@@ -75,6 +75,13 @@ export const api = {
   // Tenant-breed dashboard-overzicht (read-only aggregatie, één respons).
   dashboard: () => request('/dashboard'),
 
+  // ADR-029 — gebruikersbeheer (GEBRUIKERSBEHEER, beheerder-only; backend handhaaft).
+  // `maak` retourneert { gebruiker, tijdelijk_wachtwoord } (eenmalig).
+  gebruikers: {
+    lijst: ({ limit, after } = {}) => request(`/gebruikers${_query({ limit, after })}`),
+    maak: (data) => request('/gebruikers', { method: 'POST', body: JSON.stringify(data) }),
+  },
+
   applicaties: {
     // sort/order/filters optioneel — alles weggelaten → server-default
     // (created_at asc, geen filters), exact backwards-compatible (ADR-017/CD017).

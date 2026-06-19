@@ -18,6 +18,7 @@ const NAMEN = [
   'dashboard', 'component-lijst', 'partij-lijst', 'contract-lijst', 'blokkades',
   'architectuur', 'landschapskaart', 'plaatsingssignalen', 'checklistvragen',
   'plateau-lijst', 'gap-lijst', 'work-package-lijst', 'deliverable-lijst',
+  'gebruikersbeheer',
 ]
 
 function maakRouter() {

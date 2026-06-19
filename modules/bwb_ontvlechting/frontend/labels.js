@@ -13,6 +13,12 @@ export function label(map, code) {
   return map[code] ?? humaniseer(code)
 }
 
+// ADR-029 — toewijsbare gebruikersrollen bij aanmaak (gesloten lijst; beheerder buiten KILARA).
+export const GEBRUIKER_ROL = {
+  medewerker: 'Medewerker',
+  viewer: 'Viewer',
+}
+
 // `checklist_compleet` is transient (ADR-013 B4) en wordt nooit als ruststatus
 // getoond; valt via de humanize-fallback op een generiek label terug.
 export const LIFECYCLE = {
