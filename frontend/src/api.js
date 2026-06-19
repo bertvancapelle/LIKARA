@@ -120,28 +120,6 @@ export const api = {
     // Gebruikersgroep heeft geen enum-velden → geen opties-endpoint.
   },
 
-  koppelingen: {
-    // Eén ouder-filter per call (bron OF doel); de detail-view doet twee calls
-    // en concateneert de disjuncte sets (DB-CHECK bron != doel → geen overlap).
-    lijst: ({ bronApplicatieId, doelApplicatieId, limit, after, sort, order } = {}) =>
-      request(
-        `/koppelingen${_query({
-          bron_applicatie_id: bronApplicatieId,
-          doel_applicatie_id: doelApplicatieId,
-          limit,
-          after,
-          sort,
-          order,
-        })}`,
-      ),
-    haal: (id) => request(`/koppelingen/${id}`),
-    maak: (data) => request('/koppelingen', { method: 'POST', body: JSON.stringify(data) }),
-    werkBij: (id, data) =>
-      request(`/koppelingen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    verwijder: (id) => request(`/koppelingen/${id}`, { method: 'DELETE' }),
-    opties: () => request('/koppelingen/opties'),
-  },
-
   // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.
   // Het contract-domein hergebruikt deze client voor de leverancier-picker (aard externe_partij).
   partijen: {

@@ -8,7 +8,8 @@ import PrimeVue from 'primevue/config'
 vi.mock('@/api', () => ({
   api: {
     applicaties: { lijst: vi.fn() },
-    koppelingen: { lijst: vi.fn() },
+    // ADR-023: koppeling = flow-relatie → via het unified /relaties-endpoint.
+    relaties: { lijst: vi.fn() },
   },
 }))
 
@@ -20,13 +21,14 @@ const APPS = [
   { id: 'a2', naam: 'DMS', lifecycle_status: 'in_inventarisatie', hostingmodel: 'on_premise' },
   { id: 'a3', naam: 'GIS', lifecycle_status: 'concept', hostingmodel: 'saas' },
 ]
+// Flow-relaties (RELATIE-vorm): kenmerken dragen richting/protocol/impact; geen endpoint-namen.
 const UIT_A1 = {
-  id: 'k1', bron_applicatie_id: 'a1', doel_applicatie_id: 'a2',
-  tegenpartij_naam: 'DMS', richting: 'eenrichting', protocol: 'api', impact_bij_verbreking: 'hoog',
+  id: 'k1', bron_id: 'a1', doel_id: 'a2', relatietype: 'flow',
+  kenmerken: { richting: 'eenrichting', protocol: 'api', impact_bij_verbreking: 'hoog' },
 }
 const IN_A1 = {
-  id: 'k2', bron_applicatie_id: 'a3', doel_applicatie_id: 'a1',
-  tegenpartij_naam: 'GIS', richting: 'tweerichting', protocol: 'database_link', impact_bij_verbreking: 'midden',
+  id: 'k2', bron_id: 'a3', doel_id: 'a1', relatietype: 'flow',
+  kenmerken: { richting: 'tweerichting', protocol: 'database_link', impact_bij_verbreking: 'midden' },
 }
 
 async function mountKaart({ query = '' } = {}) {
@@ -50,9 +52,9 @@ async function mountKaart({ query = '' } = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   api.applicaties.lijst.mockResolvedValue({ items: APPS, volgende_cursor: null })
-  api.koppelingen.lijst.mockImplementation(({ bronApplicatieId, doelApplicatieId }) => {
-    if (bronApplicatieId === 'a1') return Promise.resolve({ items: [UIT_A1], volgende_cursor: null })
-    if (doelApplicatieId === 'a1') return Promise.resolve({ items: [IN_A1], volgende_cursor: null })
+  api.relaties.lijst.mockImplementation(({ bron_id, doel_id }) => {
+    if (bron_id === 'a1') return Promise.resolve({ items: [UIT_A1], volgende_cursor: null })
+    if (doel_id === 'a1') return Promise.resolve({ items: [IN_A1], volgende_cursor: null })
     return Promise.resolve({ items: [], volgende_cursor: null })
   })
 })
@@ -94,9 +96,9 @@ describe('KoppelingenkaartView', () => {
     const w = await mountKaart()
     await w.find('[data-testid="kaart-hercentreer-k1"]').trigger('click') // tegenpartij = a2 (doel)
     await flushPromises()
-    const params = api.koppelingen.lijst.mock.calls.map((c) => c[0])
-    expect(params.some((p) => p.bronApplicatieId === 'a2')).toBe(true)
-    expect(params.some((p) => p.doelApplicatieId === 'a2')).toBe(true)
+    const params = api.relaties.lijst.mock.calls.map((c) => c[0])
+    expect(params.some((p) => p.relatietype === 'flow' && p.bron_id === 'a2')).toBe(true)
+    expect(params.some((p) => p.relatietype === 'flow' && p.doel_id === 'a2')).toBe(true)
   })
 
   it('deep-link ?app=a2 selecteert die applicatie', async () => {

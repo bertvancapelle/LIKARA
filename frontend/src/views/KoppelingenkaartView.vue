@@ -56,6 +56,27 @@ const geselecteerdeApp = computed(
   () => applicaties.value.find((a) => a.id === geselecteerd.value) || null,
 )
 
+// ADR-023: een koppeling IS een `flow`-relatie. We lezen via /relaties (relatietype="flow");
+// richting/protocol/impact zitten in `kenmerken`. De relatie-respons draagt geen endpoint-namen,
+// dus de tegenpartij-naam komt uit de al-geladen applicatielijst (id → naam).
+const _flowLijst = (params) => api.relaties.lijst({ relatietype: 'flow', ...params })
+const appNaamMap = computed(() => Object.fromEntries(applicaties.value.map((a) => [a.id, a.naam])))
+
+function _naarKoppeling(r) {
+  const tegen = r.bron_id === geselecteerd.value ? r.doel_id : r.bron_id
+  const k = r.kenmerken || {}
+  return {
+    id: r.id,
+    bron_applicatie_id: r.bron_id,
+    doel_applicatie_id: r.doel_id,
+    tegenpartij_naam: appNaamMap.value[tegen] ?? '',
+    richting: k.richting,
+    protocol: k.protocol,
+    impact_bij_verbreking: k.impact_bij_verbreking,
+    omschrijving: r.omschrijving,
+  }
+}
+
 async function laadRelaties() {
   if (!geselecteerd.value) {
     uitgaand.value = []
@@ -66,11 +87,11 @@ async function laadRelaties() {
   fout.value = null
   try {
     const [uit, ink] = await Promise.all([
-      _allePaginas(api.koppelingen.lijst, { bronApplicatieId: geselecteerd.value }),
-      _allePaginas(api.koppelingen.lijst, { doelApplicatieId: geselecteerd.value }),
+      _allePaginas(_flowLijst, { bron_id: geselecteerd.value }),
+      _allePaginas(_flowLijst, { doel_id: geselecteerd.value }),
     ])
-    uitgaand.value = uit
-    inkomend.value = ink
+    uitgaand.value = uit.map(_naarKoppeling)
+    inkomend.value = ink.map(_naarKoppeling)
   } catch (e) {
     fout.value = e?.message || 'Laden van de relaties mislukt.'
   } finally {
