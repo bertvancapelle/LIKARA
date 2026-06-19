@@ -12,6 +12,7 @@ import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter, useRoute } from '@/composables/router'
 import { api } from '@/api'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -38,45 +39,36 @@ const fouten = reactive({})
 // persoon optioneel ook bij een afdeling binnen die organisatie.
 const organisatieId = ref('')
 const afdelingId = ref('')
-const orgKandidaten = ref([])       // organisatie-achtige partijen (organisatie + externe_partij)
-const afdelingKandidaten = ref([])  // afdelingen binnen de gekozen organisatie
+// Weergavelabels voor de reeds-gekozen waarden (bewerken / vanuit-query) — ZoekSelect heeft het
+// item zelf nog niet geladen. CD049: server-side zoekend, geen voor-geladen kandidatenlijst.
+const orgInitieel = ref('')
+const afdInitieel = ref('')
 const heeftOrgOuder = computed(() => ['persoon', 'organisatie_eenheid'].includes(aard.value))
 const magAfdeling = computed(() => aard.value === 'persoon')
 
-async function _laadOrgKandidaten() {
-  try {
-    const [orgs, externe] = await Promise.all([
-      api.partijen.lijst({ aard: 'organisatie', limit: 100 }),
-      api.partijen.lijst({ aard: 'externe_partij', limit: 100 }),
-    ])
-    orgKandidaten.value = [...orgs.items, ...externe.items]
-  } catch {
-    orgKandidaten.value = []
-  }
-}
+// Zoekfuncties (server-side; ZoekSelect roept ze met { zoek, limit, ...extraFilters } aan).
+const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
+const zoekAfdelingen = (params) =>
+  api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: organisatieId.value })
 
-async function _laadAfdelingen() {
-  if (!organisatieId.value) {
-    afdelingKandidaten.value = []
-    return
-  }
-  try {
-    const r = await api.partijen.lijst({ aard: 'organisatie_eenheid', organisatie_id: organisatieId.value, limit: 100 })
-    afdelingKandidaten.value = r.items
-  } catch {
-    afdelingKandidaten.value = []
-  }
-}
-
-// Gebruiker wisselt de organisatie → reset de (nu mogelijk niet-passende) afdelingkeuze en
-// herlaad de afdelingen. (Geen watch: zou de edit-initialisatie hieronder verstoren.)
-async function onOrgChange() {
+// Gebruiker kiest een (andere) organisatie → reset de nu mogelijk niet-passende afdelingkeuze.
+function onOrgKies(val) {
+  organisatieId.value = val || ''
   afdelingId.value = ''
-  await _laadAfdelingen()
+  afdInitieel.value = ''
+}
+
+// Labels voor reeds-gezette ouder-ids ophalen (bewerken/vanuit-query) → ZoekSelect toont ze.
+async function _zetInitieelLabels() {
+  if (organisatieId.value) {
+    try { orgInitieel.value = (await api.partijen.haal(organisatieId.value)).naam } catch { /* label niet kritisch */ }
+  }
+  if (afdelingId.value) {
+    try { afdInitieel.value = (await api.partijen.haal(afdelingId.value)).naam } catch { /* idem */ }
+  }
 }
 
 async function init() {
-  await _laadOrgKandidaten()
   try {
     soortOpties.value = await api.partijen.soorten()
   } catch {
@@ -90,8 +82,8 @@ async function init() {
     if (q.aard && AARD_OPTIES.includes(String(q.aard))) aard.value = String(q.aard)
     if (q.organisatie_id) {
       organisatieId.value = String(q.organisatie_id)
-      await _laadAfdelingen()              // ná het zetten van de organisatie (geen watch-reset)
       if (q.afdeling_id) afdelingId.value = String(q.afdeling_id)
+      await _zetInitieelLabels()           // ná het zetten van de ids (ZoekSelect-weergave)
     }
     return
   }
@@ -101,8 +93,8 @@ async function init() {
     aard.value = p.aard || ''
     soort.value = p.soort || ''
     organisatieId.value = p.organisatie_id || ''
-    await _laadAfdelingen()                 // ná het zetten van de organisatie (geen watch-reset)
     afdelingId.value = p.afdeling_id || ''
+    await _zetInitieelLabels()             // ná het zetten van de ids (ZoekSelect-weergave)
   } catch (e) {
     _toastFout(e)
   }
@@ -224,36 +216,38 @@ const TEKSTVELDEN = [
         <span v-if="fouten.aard" role="alert" data-testid="fout-aard" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.aard }}</span>
       </div>
 
-      <!-- "Hoort bij": organisatie verplicht voor persoon/afdeling; afdeling optioneel voor persoon -->
+      <!-- "Hoort bij": organisatie verplicht voor persoon/afdeling; afdeling optioneel voor persoon.
+           CD049/ZoekSelect-standaard: server-side zoekend (onbegrensd), geen voor-geladen lijst. -->
       <div v-if="heeftOrgOuder" class="flex flex-col gap-[var(--cd-space-xs)]">
         <label for="pf-organisatie" class="font-semibold">Organisatie *</label>
-        <select
+        <ZoekSelect
           id="pf-organisatie"
-          v-model="organisatieId"
-          data-testid="veld-organisatie"
-          :aria-invalid="!!fouten.organisatie_id"
-          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white"
-          @change="onOrgChange"
-        >
-          <option value="">— kies —</option>
-          <option v-for="o in orgKandidaten" :key="o.id" :value="o.id">{{ o.naam }} ({{ aardLabel(o.aard) }})</option>
-        </select>
-        <span v-if="fouten.organisatie_id" role="alert" data-testid="fout-organisatie_id" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.organisatie_id }}</span>
+          testid="veld-organisatie"
+          :model-value="organisatieId"
+          :zoek-functie="zoekOrganisaties"
+          :initieel-weergave="orgInitieel"
+          :invalid="!!fouten.organisatie_id"
+          aria-describedby="fout-organisatie_id"
+          placeholder="Zoek een organisatie…"
+          @update:model-value="onOrgKies"
+        />
+        <span v-if="fouten.organisatie_id" id="fout-organisatie_id" role="alert" data-testid="fout-organisatie_id" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.organisatie_id }}</span>
       </div>
 
-      <div v-if="magAfdeling" class="flex flex-col gap-[var(--cd-space-xs)]">
+      <div v-if="magAfdeling && organisatieId" class="flex flex-col gap-[var(--cd-space-xs)]">
         <label for="pf-afdeling" class="font-semibold">Afdeling (optioneel)</label>
-        <select
+        <ZoekSelect
           id="pf-afdeling"
+          testid="veld-afdeling"
+          :key="organisatieId"
           v-model="afdelingId"
-          data-testid="veld-afdeling"
-          :disabled="!organisatieId"
-          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-[var(--cd-space-xs)] bg-white disabled:opacity-50"
-        >
-          <option value="">— geen —</option>
-          <option v-for="a in afdelingKandidaten" :key="a.id" :value="a.id">{{ a.naam }}</option>
-        </select>
-        <span v-if="fouten.afdeling_id" role="alert" data-testid="fout-afdeling_id" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.afdeling_id }}</span>
+          :zoek-functie="zoekAfdelingen"
+          :initieel-weergave="afdInitieel"
+          :invalid="!!fouten.afdeling_id"
+          aria-describedby="fout-afdeling_id"
+          placeholder="Zoek een afdeling…"
+        />
+        <span v-if="fouten.afdeling_id" id="fout-afdeling_id" role="alert" data-testid="fout-afdeling_id" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.afdeling_id }}</span>
       </div>
 
       <div class="flex flex-col gap-[var(--cd-space-xs)]">

@@ -44,13 +44,23 @@ async function mountForm({ id = null, query = null } = {}) {
   return { w, router }
 }
 
+// ZoekSelect-interactie (CD049): focus → zoek → klik resultaat (mousedown).
+async function kiesZoek(w, prefix, id) {
+  await w.find(`[data-testid="${prefix}-input"]`).trigger('focus')
+  await flushPromises()
+  await w.find(`[data-testid="${prefix}-optie-${id}"]`).trigger('mousedown')
+  await flushPromises()
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   api.partijen.soorten.mockResolvedValue([{ optie_sleutel: 'leverancier', label: 'Leverancier' }])
-  // org-/afdeling-kandidaten voor de "hoort bij"-pickers (één organisatie beschikbaar).
+  // ZoekSelect-zoekresultaten voor de "hoort bij"-pickers (één organisatie beschikbaar).
   api.partijen.lijst.mockResolvedValue({
     items: [{ id: 'org1', naam: 'Gemeente X', aard: 'organisatie' }], volgende_cursor: null,
   })
+  // Label-resolutie voor reeds-gekozen ouder-ids (ZoekSelect initieel-weergave).
+  api.partijen.haal.mockResolvedValue({ id: 'org1', naam: 'Gemeente X', aard: 'organisatie' })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -96,13 +106,29 @@ describe('PartijFormulier — aanmaken', () => {
     await w.find('[data-testid="veld-aard"]').setValue('persoon')
     await w.find('[data-testid="veld-naam"]').setValue('J. de Vries')
     await w.find('[data-testid="veld-soort"]').setValue('leverancier')
-    await w.find('[data-testid="veld-organisatie"]').setValue('org1')  // verplicht voor persoon
+    await kiesZoek(w, 'veld-organisatie', 'org1')  // verplicht voor persoon (ZoekSelect)
     await w.find('[data-testid="partij-form"]').trigger('submit')
     await flushPromises()
     expect(api.partijen.maak).toHaveBeenCalledWith(
       expect.objectContaining({ aard: 'persoon', naam: 'J. de Vries', soort: 'leverancier', organisatie_id: 'org1' }),
     )
     expect(router.currentRoute.value.name).toBe('partij-detail')
+  })
+
+  it('de organisatie-kiezer is een ZoekSelect-combobox (geen statische select)', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('persoon')
+    const input = w.find('[data-testid="veld-organisatie-input"]')
+    expect(input.exists()).toBe(true)
+    expect(input.attributes('role')).toBe('combobox')
+  })
+
+  it('de afdeling-kiezer verschijnt pas nadat een organisatie is gekozen', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('persoon')
+    expect(w.find('[data-testid="veld-afdeling-input"]').exists()).toBe(false)
+    await kiesZoek(w, 'veld-organisatie', 'org1')
+    expect(w.find('[data-testid="veld-afdeling-input"]').exists()).toBe(true)
   })
 
   it('soort-dropdown wordt gevuld uit de catalogus', async () => {
@@ -126,23 +152,19 @@ describe('PartijFormulier — prefill vanaf organisatie/afdeling (UX-A2/A3)', ()
   it('?aard=organisatie_eenheid&organisatie_id=org1 vult aard + organisatie voor', async () => {
     const { w } = await mountForm({ query: { aard: 'organisatie_eenheid', organisatie_id: 'org1' } })
     expect(w.find('[data-testid="veld-aard"]').element.value).toBe('organisatie_eenheid')
-    // organisatie-veld zichtbaar (heeftOrgOuder) en voorgevuld
-    expect(w.find('[data-testid="veld-organisatie"]').element.value).toBe('org1')
+    // organisatie-veld zichtbaar (heeftOrgOuder) en voorgevuld — ZoekSelect toont het label.
+    expect(w.find('[data-testid="veld-organisatie-input"]').element.value).toBe('Gemeente X')
   })
 
   it('?aard=persoon&organisatie_id=org1&afdeling_id=afd1 vult aard + organisatie + afdeling voor', async () => {
-    // afdeling-kandidaten binnen org1 leveren afd1.
-    api.partijen.lijst.mockImplementation(({ aard } = {}) =>
-      Promise.resolve(
-        aard === 'organisatie_eenheid'
-          ? { items: [{ id: 'afd1', naam: 'Afdeling I&A', aard: 'organisatie_eenheid' }], volgende_cursor: null }
-          : { items: [{ id: 'org1', naam: 'Gemeente X', aard: 'organisatie' }], volgende_cursor: null },
-      ),
+    // Label-resolutie per id (ZoekSelect initieel-weergave).
+    api.partijen.haal.mockImplementation((id) =>
+      Promise.resolve(id === 'afd1' ? { id: 'afd1', naam: 'Afdeling I&A' } : { id: 'org1', naam: 'Gemeente X' }),
     )
     const { w } = await mountForm({ query: { aard: 'persoon', organisatie_id: 'org1', afdeling_id: 'afd1' } })
     expect(w.find('[data-testid="veld-aard"]').element.value).toBe('persoon')
-    expect(w.find('[data-testid="veld-organisatie"]').element.value).toBe('org1')
-    expect(w.find('[data-testid="veld-afdeling"]').element.value).toBe('afd1')
+    expect(w.find('[data-testid="veld-organisatie-input"]').element.value).toBe('Gemeente X')
+    expect(w.find('[data-testid="veld-afdeling-input"]').element.value).toBe('Afdeling I&A')
   })
 
   it('voorgevulde persoon is direct opslaanbaar (organisatie al ingevuld, geen validatiefout)', async () => {
