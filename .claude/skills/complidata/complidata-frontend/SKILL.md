@@ -113,6 +113,39 @@ generieke get/post).
   409→conflict, 422→veldfouten, 401→bestaande sessie-flow.
 - Toegankelijk: `label/for`, `aria-invalid`, `aria-describedby`, focusbeheer.
 
+## ZoekSelect-standaard (niet-onderhandelbaar)
+
+Elke keuzelijst met meer dan 10 opties OF met een open-ended catalogus gebruikt altijd de
+`ZoekSelect`-component. Statische `<select>` alleen voor gesloten lijsten van maximaal 10
+vaste opties.
+
+**Altijd ZoekSelect:**
+- Partijen (organisatie / persoon / afdeling / externe partij)
+- Applicaties en componenten
+- Contracten
+- Plateaus, gaps, werkpakketten, deliverables
+- Componenttypen (kan groeien)
+
+**Mag statische `<select>`:**
+- Hostingmodel, migratiepad, complexiteit, prioriteit
+- Koppelingrichting, protocol, impact bij verbreking
+- Lifecycle-statusfilter, ArchiMate-laag, partij-aard
+- Elke andere gesloten lijst met ≤ 10 vaste opties
+
+**Patroon ZoekSelect** (gebruik de bestaande `modules/.../views/ZoekSelect.vue` — niet opnieuw
+implementeren; server-side `zoek-functie`, debounce, ~10 resultaten + "verfijn"-regel):
+
+```vue
+<ZoekSelect
+  v-model="gekozenId"
+  :zoek-functie="zoekPartijen"
+  :weergave="(p) => p.naam"
+  placeholder="Zoek een partij…"
+/>
+```
+
+Bij twijfel: kies ZoekSelect.
+
 ## Rol-gating = affordance (backend handhaaft)
 
 ```javascript
