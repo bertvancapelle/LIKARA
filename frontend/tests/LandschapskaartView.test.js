@@ -67,25 +67,41 @@ describe('LandschapskaartView', () => {
     expect(rect.attributes('data-fill')).toBe('#fee2e2')
   })
 
-  it('schakelt naar Impact-modus en toont de samenvatting-teller als overlay', async () => {
+  it('schakelt naar Impact-modus: vaste rechterzijbalk + legenda + samenvatting-teller', async () => {
     const w = await mountView()
+    // Ego-default: geen zijbalk.
+    expect(w.find('[data-testid="lk-sidebar"]').exists()).toBe(false)
     await w.find('[data-testid="lk-modus-impact"]').trigger('click')
     await flushPromises()
+    // Impact: vaste zijbalk met legenda + samenvatting als overlay.
+    expect(w.find('[data-testid="lk-sidebar"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda"]').exists()).toBe(true)
     const samenvatting = w.find('[data-testid="impact-samenvatting"]')
     expect(samenvatting.exists()).toBe(true)
     expect(samenvatting.text()).toBe('0 in set · 0 raakvlakken · 0 grensoverschrijdende koppelingen')
+    // De ego-overlay-filterknop is in impact-view weg.
+    expect(w.find('[data-testid="lk-filter-toggle"]').exists()).toBe(false)
   })
 
-  it('telt set/raakvlakken/grensoverschrijdend bij selectie in Impact-modus', async () => {
+  it('telt set/raakvlakken/grensoverschrijdend bij selectie via de zijbalk-checkbox', async () => {
     const w = await mountView()
     await w.find('[data-testid="lk-modus-impact"]').trigger('click')
     await flushPromises()
-    // Migratieset-chips zitten in het filterpaneel → eerst openen.
-    await w.find('[data-testid="lk-filter-toggle"]').trigger('click')
+    // Migratieset-checkboxen staan direct in de vaste zijbalk (geen paneel-open nodig).
     await w.find('[data-testid="lk-migratie-a1"]').setValue(true)
     await flushPromises()
     // a1 in de set; flow a1→a2 wordt grensoverschrijdend en a2 een raakvlak.
     expect(w.find('[data-testid="impact-samenvatting"]').text()).toBe('1 in set · 1 raakvlakken · 1 grensoverschrijdende koppelingen')
+  })
+
+  it('"Alles selecteren" in de zijbalk zet de hele migratieset', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="lk-modus-impact"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="lk-alles-toggle"]').trigger('click')
+    await flushPromises()
+    // Beide applicaties (a1+a2) in de set → geen raakvlak, koppeling intern (0 grensoverschrijdend).
+    expect(w.find('[data-testid="impact-samenvatting"]').text()).toBe('2 in set · 0 raakvlakken · 0 grensoverschrijdende koppelingen')
   })
 
   it('toont een lege staat als de API geen nodes teruggeeft', async () => {
