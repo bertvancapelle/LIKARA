@@ -2,7 +2,7 @@
 name: complidata-frontend
 description: Frontend-patronen voor CompliData (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V007
+bijgewerkt: V015
 ---
 
 # CompliData Frontend Skill
@@ -393,3 +393,23 @@ Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
   maken" (status-indicator + filter + dashboard-telling met doorklik) niet abstraheren tot er ≥3
   concrete instanties zijn. Bouw concrete gevallen apart langs bestaande patronen; abstraheer pas bij
   bewezen herhaling.
+
+## V015-patronen (ADR-027 — read-only sluiten + dashboard-doorklik, geverifieerd)
+
+- **Read-only sectie bij een gesloten invoerpad.** Vouw "mag bewerken" in één computed:
+  `mag = rolOK && bewerkbaar` (prop `bewerkbaar`, default true). Bij `bewerkbaar=false` zijn
+  alle invoercontrols `:disabled` én verschijnt een **banner** ("… gesloten voor bewerking,
+  bestaande antwoorden blijven leesbaar") — maar **alleen voor wie de rol heeft** (geen ruis
+  voor viewers): `toonMelding = rolOK && !bewerkbaar`. De parent geeft `:bewerkbaar` door en
+  toont de sectie ook read-only voor een gesloten-met-data geval (bv.
+  `v-if="dragend === true || lifecycle_status"`).
+- **Dashboard-tegel + doorklik (bestaand patroon).** Een telling = `<router-link class="card …">`
+  met `:to="{ name: 'component-lijst', query: { … } }"`, `--cd-`-tokens, `data-testid="telling-…"`.
+  Een afwijkings-/waarschuwingstegel krijgt nadruk via **kleur + icoon + tekstueel label**
+  (niet alléén kleur — toegankelijk) en is alléén warn-gekleurd bij `> 0`.
+- **Doorklik-filter end-to-end (V012-les, opnieuw).** Een nieuwe filter MOET in de api-client
+  zowel in de `lijst`-destructuring ALS in de `_query` staan, anders dropt de client hem stil.
+  De lijst-view leest de filter uit `route.query`, zet hem in `params`, en toont een **wisbare
+  chip** (zien + wissen) i.p.v. een dropdown wanneer de filter puur van een doorklik komt.
+  Bewijs het end-to-end met een component-test (route-query → de filter belandt in de api-call;
+  wissen → de filter verdwijnt uit de volgende call) — een SQL-/service-test bewijst dit niet.

@@ -1,7 +1,7 @@
 ---
 name: complidata-ux
 description: Interaction-design-denkmethode voor CompliData. Verplicht te raadplegen bij ELKE frontend-rakende slice (nieuw scherm, nieuwe sectie, nieuwe actie) — door zowel CC als claude.ai. Borgt dat een functie de UI logisch en compleet houdt voor de gebruiker: geen lege lijsten zonder route naar de actie, actie op de plek waar de gebruiker hem verwacht, terminologie vanuit de gebruiker. Dit is GEEN stijl-/visuele skill (dat is complidata-frontend); dit gaat over of het scherm doet wat de gebruiker verwacht.
-bijgewerkt: V013
+bijgewerkt: V015
 ---
 
 # CompliData UX / Interaction-Design Skill
@@ -15,6 +15,15 @@ Schema, migraties, RBAC en technische borging zijn vangrails die de UX-keuze
 ondersteunen — ze sturen hem niet.
 
 Dit principe overschrijft technische voorkeur als de twee conflicteren.
+
+### Functioneel beschrijven is de NORM, niet de uitzondering (DC014, niet-onderhandelbaar)
+
+Elke vraag, elk advies, elke afweging en elke analyse — door CC én claude.ai — vertrekt
+vanuit de gebruiker van KILARA: *wat betekent dit voor de gebruiker, wat ziet/doet hij?*
+Techniek (schema, endpoints, RLS, RBAC, migraties) komt **alleen** ter sprake als (a) de
+gebruiker er expliciet om vraagt, of (b) als vangrail bij een gate/borging — **nooit als
+opening of toon** van een antwoord. Een advies dat begint bij de tabel of het schema is
+fout, óók als het technisch klopt: herformuleer het vanuit wat de gebruiker wil bereiken.
 
 ## Waarom deze skill bestaat
 
@@ -34,6 +43,25 @@ toetsen, niet als ontwerpdoel. Concreet: geen hardcoded organisatie-/operatornam
 geen aannames over één specifieke ontvlechting, labels en velden algemeen genoeg voor
 elke overheidsorganisatie. Dit geldt platform-breed (ook backend/db/frontend), maar staat
 hier omdat het ontwerp-denken ermee begint.
+
+### Eén tenant nu — géén tenant-onderscheid in deze fase (DC014, niet-onderhandelbaar)
+
+"Tenant-agnostisch" (hierboven: niet BWB/Tiel hardcoden) is **niet** hetzelfde als
+"ontwerp voor meerdere gelijktijdige tenants met per-tenant-verschillen". KILARA draait nu
+als **één implementatie met één gebruikerswereld**; er is **geen functioneel
+tenant-onderscheid**. Dus:
+
+- **Niet vooruit ontwerpen op meerdere tenants** en niet de **"per-tenant"-reflex** inzetten
+  bij vragen over rechten, catalogi of zichtbaarheid. Voorbeeld: RBAC is één platform-brede
+  matrix (geen per-tenant-rechtenvariatie); catalogi zijn gedeeld, niet per-tenant
+  gedifferentieerd, tenzij de gebruikerslogica dat écht vraagt.
+- **RLS / tenant-isolatie blijft technisch bestaan als fundament** (`tenant_id` + policies) —
+  maar het is **geen ontwerp- of gespreksonderwerp** tot er echt meerdere tenants zijn.
+  Verschijnt "per tenant" in een advies/analyse zonder dat de gebruiker erom vroeg, dan is
+  dat bijna altijd de verkeerde abstractie voor deze fase: herformuleer vanuit de ene
+  gebruikerswereld.
+- Verenigbaar met het bovenstaande: bouw **generiek** (geen hardcoding), maar voeg **geen
+  per-tenant-differentiatielogica** toe zolang er één tenant is.
 
 Twee concrete missers die deze skill voorkomt (DC012):
 1. **Partij-detailscherm met drie leeslijsten en geen enkele toevoeg-knop.** De gebruiker

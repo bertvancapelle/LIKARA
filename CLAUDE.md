@@ -486,11 +486,11 @@ Pas dan: klaar.
 
 | Veld | Waarde |
 |------|--------|
-| Build | V014 |
+| Build | V015 |
 | Datum | June 2026 |
-| Commit | 8fd3be5 |
-| Tests | 810 backend + 440 frontend groen (52 files) |
-| TST-rapport | TST-V014-Validatierapport.md |
+| Commit | 6ffd7e6 |
+| Tests | 833 backend + 474 frontend groen (52→54 files) |
+| TST-rapport | TST-V015-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 <!-- BOUWSTATUS_END -->

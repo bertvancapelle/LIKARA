@@ -35,14 +35,12 @@ Tests: **810** backend + **440** frontend groen (52 files).
 
 **Volgende prioriteiten (DC013 → DC014)**:
 
-1. **ADR-027 — Component-klaarverklaring.** **Slice 1 GELAND op componentniveau** (DC014,
-   migratie 0036, commits d3353b5 → 4a66c17): niet-scorende klaarverklaring per component
-   (`component_klaarverklaring`, UNIQUE `(tenant_id, component_id)`), status klaar/open + verplichte
-   reden + server-gestempeld wie/wanneer, herroepbaar via audit, engine machinaal gescheiden.
-   **Per-categorie verlaten; onderdeel 4 (werkverdeling) vervallen.** Volgende: **slice 2 (UI** —
-   klaar verklaren/heropenen met reden + verloop tonen; `v-if` rol-computed), daarna slice 3
-   (tenant-brede voortgang + afwijkingssignaal "klaar verklaard terwijl nog open vragen").
-   Zie docs/adr/ADR-027_Categorie_klaarverklaring_voorstel.md (bijgewerkt naar componentniveau).
+1. **ADR-027 — Component-klaarverklaring. ✅ COMPLEET** (DC014): slice 1 model
+   (`component_klaarverklaring`, migratie 0036, niet-scorend, herroepbaar, engine-gescheiden) →
+   slice 2 UI (Migratiegereedheid-blok + klaar verklaren/heropenen met reden op ApplicatieDetail,
+   commit 979a646) → slice 3 dashboard (tellingen `klaar_verklaard` + `klaar_met_afwijking` +
+   lijstfilter `klaarverklaring=klaar`/`afwijking=1`, commit 6ffd7e6). Per-categorie + werkverdeling
+   bewust vervallen. **Restpunten (nieuw, zie hieronder):** klaarverklaring-blok ook op ComponentDetail.
 
 2. **ADR-029 — Gebruiker-partij-koppeling + per-type gereedmeld-autorisatie** (geparkeerd voorstel,
    fundament voor eerste implementatie). Brug Keycloak-login ↔ persoon-partij (ADR-024) + per-type
@@ -58,6 +56,16 @@ Tests: **810** backend + **440** frontend groen (52 files).
 
 5. **ADR-025 overige roadmap**: vervangingsrelatie, export PNG/PDF, pad-inzicht (kortste route
    A→B), clustering op domein.
+
+**Nieuwe opvolgpunten (DC014)**:
+- **Klaarverklaring-blok ook op ComponentDetail** (niet-applicatie checklist-dragende
+  componenten). Het model is component-generiek; alleen ApplicatieDetail heeft nu de
+  Migratiegereedheid-UI. Triviale follow-up: het herbruikbare `MigratiegereedheidSectie`-blok
+  + de knop op ComponentDetail plaatsen.
+- **Dode `<dl>`-rijen op ApplicatieDetail Overzicht** opruimen: "Eigenaar (naam)" + "Leverancier"
+  tonen sinds migratie 0034 (velden uit schema/form verwijderd) altijd "—".
+- **CLAUDE.md interactie-secties consolideren**: deels overlappende blokken (Werkprotocol +
+  "Werkwijze CC + claude.ai"); samenvoegen tot één gezaghebbende bron.
 
 **Nog open uit eerdere sessies (doorgeschoven, ongewijzigd geldig)**:
 - **Signalerings-ADR / registratiegaten ("bolletjes")** — (1) object zonder toegewezen rol;

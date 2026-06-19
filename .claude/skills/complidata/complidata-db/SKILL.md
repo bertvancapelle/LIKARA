@@ -2,7 +2,7 @@
 name: complidata-db
 description: Database-patronen voor CompliData (PostgreSQL 16, RLS, Alembic). Beschrijft de werkelijke V001-staat.
 stack: PostgreSQL 16, SQLAlchemy asyncio, Alembic
-bijgewerkt: V013
+bijgewerkt: V015
 ---
 
 # CompliData Database Skill
@@ -378,3 +378,19 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
   een `aliased(Partij)` op de FK, selecteer `alias.naam`, sorteer met de **v2n-keyset** (NULLS-LAST, want
   de FK is nullable). Voor het ORM-from_attributes-leespad (applicatie) kan de naam als **transient
   attribuut** op het ORM-object gehangen worden i.p.v. een dict-herbouw.
+
+## V015-patroon (ADR-027 niet-scorende registratie naast de engine)
+
+- **Niet-scorende registratie naast de engine** (`component_klaarverklaring`): eigen
+  tenant-tabel (RLS + `FORCE`), composiet-FK `(tenant_id, component_id) → element(tenant_id, id)`
+  `ON DELETE CASCADE` (kind-entiteit op het generieke component, niet op een subtype),
+  `UNIQUE(tenant_id, component_id)` (één levende verklaring per component), `status` enum
+  klaar↔open (server-default `klaar`), **verplichte `reden`-kolom**, server-stamped
+  `verklaard_door`/`verklaard_op`. Herroepbaar: elke statushandeling vraagt opnieuw een reden;
+  de historie leeft in de audit-trail (tabel op de `AUDIT_TENANT_ENTITEITEN`-allowlist →
+  `bouw_wijziging` capture't per-veld). Patroon van de plateau-bevestiging, maar **mét eigen
+  reden-kolom** (de plateau-toggle bewaart geen reden — onvoldoende voor dit doel).
+- **Engine-scheiding dubbel geborgd**: de service importeert geen lifecycle/score-symbolen
+  (offline `hasattr`-import-afwezigheidstest) + een live test bewijst dat een statuswissel de
+  `lifecycle_status` niet muteert. Geen schema-migratie nodig om er later read-only tellingen
+  (dashboard) of een lijstfilter op te bouwen — dat is puur een join op bestaande kolommen.

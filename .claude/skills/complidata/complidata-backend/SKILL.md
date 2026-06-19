@@ -2,7 +2,7 @@
 name: complidata-backend
 description: Backend-patronen voor CompliData (FastAPI + SQLAlchemy + Alembic). Beschrijft de werkelijke V001-staat.
 stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy asyncio, Alembic, PostgreSQL 16
-bijgewerkt: V010
+bijgewerkt: V015
 ---
 
 # CompliData Backend Skill
@@ -340,3 +340,29 @@ ongedefinieerde methodes → 405.
   ze op één platform-sessie (`bouw_*()` puur/DB-vrij + `seed_*()` idempotent `ON CONFLICT DO NOTHING`).
 - **Validator-helpers (signatuur)**: `_optionele_tekst(waarde, maxlen)` neemt **2** args (géén veldnaam);
   `_verplichte_tekst(waarde, veld, maxlen)` neemt **3**. Beide uit `schemas/applicatie.py`.
+
+## V015-patronen (ADR-027 component-klaarverklaring, geverifieerd)
+
+- **Read-only-bij-sluiten (invoer-blokkade ≠ engine-poort).** Een beheerschakel kan een
+  invoerpad sluiten zonder de engine te raken. Voorbeeld: `checklist_dragend=false` op een
+  componenttype → score-INVOER dicht (422 `CHECKLIST_GESLOTEN` op `maak_aan`/`werk_bij` in
+  `checklistscore_service`), maar bestaande scores/lifecycle blijven staan en leesbaar; niets
+  wordt gewist of herberekend. Het afdwingpunt zit op het **gebruikers-invoerpad**, NIET op het
+  auto-/lifecycle-pad (`_synchroniseer_blokkade`/`herbereken_lifecycle` draaien intern verder).
+  Symmetrisch omkeerbaar; geldt voor elk type (geen speciaal geval voor `applicatie`).
+  Borg de engine-onaangetastheid met een test die bewijst: geen `add`, geen `herbereken` bij
+  de geblokkeerde invoer. Bundel de check in één monkeypatchbare helper zodat offline-mocktests
+  hem als no-op kunnen zetten (de invariant krijgt een eigen test).
+- **Twee-assen read-only afleiding (geen tweede bron/telling).** Een afgeleid signaal wordt
+  berekend uit bestaande bronnen naast elkaar, nooit uit een nieuw opgeslagen veld/telling.
+  De `lifecycle_status` encodeert de vragen-volledigheid al: **compleet ⟺ status ∈
+  {migratieklaar, geblokkeerd}**. Het afwijkingsgeval ("klaar verklaard terwijl checklist niet
+  compleet") is dus een **read-only join** van de klaar-status (`component_klaarverklaring`) met
+  `component_profiel.lifecycle_status NOT IN (migratieklaar, geblokkeerd)` — op het dashboard
+  (`dashboard_service`, INNER join → kale componenten vallen uit) én als lijstfilter
+  (`component_service.lijst`, dezelfde definitie). Spiegelt het per-component-signaal (slice 2,
+  `aantalGescoord/aantalVragen`) op landschapsniveau met dezelfde bron.
+- **Dashboard = uitbreiding, geen nieuw endpoint.** Tenant-brede tellingen hangen aan
+  `dashboard_service.haal_dashboard` + `DashboardRead` (RLS-scoped `func.count()` + join, zoals de
+  readiness/blokkade-tellingen). Een nieuwe lijst-filterparam staat in de route-allowlist
+  (`Query(..., pattern=...)`) én wordt doorgegeven aan `svc.lijst`; engine ongemoeid.

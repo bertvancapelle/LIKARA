@@ -9,7 +9,7 @@ description: >
   ankerpunten, en harde architectuurregels. De HOE (implementatiepatronen) staat
   in complidata-db en complidata-backend; dit bestand beschrijft het WAT.
 stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026
-bijgewerkt: V014
+bijgewerkt: V015
 ---
 
 # CompliData Domeinmodel — Kaart
@@ -447,3 +447,24 @@ hasattr-test + bronscan-test.
 | Frontend-only / read-side | complidata-frontend + complidata-ux | dit bestand voor context |
 | ADR schrijven / bijwerken | **dit bestand** (context) | senior-architect |
 | Engine-naburige feature | **dit bestand** §6 (engine-invariant) | complidata-tests (borging-patroon) |
+
+## V015 — catalogus-beheer-principes (DC014)
+
+- **"Geseed maar niet beheerbaar" is een schuldcategorie — breed valideren.** Voordat je één
+  seed-only veld een beheerscherm geeft: **inventariseer ALLE geseede catalogi** en hun
+  beheer-dekking (componentconfig/contractconfig/relatiekenmerk/vraagbetekenis/partijsoort/
+  checklistvraag …), zodat je het hele gat in één keer ziet i.p.v. ad hoc te dweilen. (DC014:
+  de meeste catalogi waren al volledig beheerbaar; het gat was gericht — `checklist_dragend`
+  + twee volledig seed-only optiesets.)
+- **Modeldefinitie (code-owned) ≠ beheercatalogus.** Niet alles wat geseed is hoort een
+  beheerscherm te krijgen. `kenmerk_definitie` (welke kenmerken een relatietype mág dragen,
+  hard gelezen door `relatie_service._valideer_kenmerken` + `_KENMERK_ENUMS` + de
+  Landschapskaart/KoppelingSectie) is onderdeel van de relatiemodel-**definitie** (ADR-023) en
+  bewust **code-eigendom**: inzien mag (read-only viewer), bewerken niet — een vrije edit breekt
+  de relatie-semantiek (dode kenmerken, ontbrekende `richting`, enum/dimensie naar onbestaand).
+  "Geen schuld" = alles wat een beheerder HOORT te kunnen, kan hij — **niet** "alles krijgt een
+  knop". De catalogus-**inhoud** achter de verwijzingen (disposities, relatie-rollen) is wél
+  beheerbaar (relatiekenmerk-beheer); alleen de **structuur** is code-vast.
+- **Eén tenant nu — geen per-tenant-differentiatie** (zie complidata-ux): catalogi zijn
+  platform-breed/gedeeld, RBAC is één platform-brede matrix. RLS blijft technisch fundament,
+  geen ontwerponderwerp tot er echt meerdere tenants zijn.
