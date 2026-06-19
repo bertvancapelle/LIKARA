@@ -19,6 +19,7 @@ class AuditRecordRead(BaseModel):
     tijdstip: datetime
     actor_sub: str
     actor_email: str | None = None
+    actor_naam: str | None = None  # ADR-029 Fase 3a — sub → persoon.naam, anders e-mail-fallback (transient)
     entiteit_type: str
     entiteit_id: uuid.UUID
     actie: str
@@ -37,6 +38,7 @@ class AuditGebeurtenis(BaseModel):
     tijdstip: datetime
     actor_sub: str | None = None
     actor_email: str | None = None
+    actor_naam: str | None = None  # ADR-029 Fase 3a — geresolveerde naam (driver), e-mail-fallback
     records: list[AuditRecordRead]
 
 

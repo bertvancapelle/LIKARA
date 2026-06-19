@@ -19,6 +19,29 @@ export const GEBRUIKER_ROL = {
   viewer: 'Viewer',
 }
 
+// ADR-029 Fase 3a — audit-spoor: leesbare labels voor handeling + entiteit-type (humanize-fallback
+// vangt onbekende/nieuwe waarden op, zodat het spoor nooit "leeg" toont).
+export const AUDIT_ACTIE = {
+  create: 'Aangemaakt',
+  update: 'Gewijzigd',
+  delete: 'Verwijderd',
+  derive: 'Afgeleid',
+}
+
+export const AUDIT_ENTITEIT = {
+  applicatie: 'Applicatie',
+  component: 'Component',
+  component_profiel: 'Componentprofiel',
+  contract: 'Contract',
+  partij: 'Partij',
+  roltoewijzing: 'Roltoewijzing',
+  gebruiker_persoon: 'Gebruiker',
+  blokkade: 'Blokkade',
+  checklistscore: 'Checklistscore',
+  component_klaarverklaring: 'Klaarverklaring',
+  relatie: 'Relatie',
+}
+
 // `checklist_compleet` is transient (ADR-013 B4) en wordt nooit als ruststatus
 // getoond; valt via de humanize-fallback op een generiek label terug.
 export const LIFECYCLE = {

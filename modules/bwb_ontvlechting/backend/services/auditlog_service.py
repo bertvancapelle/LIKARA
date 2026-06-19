@@ -18,6 +18,7 @@ from sqlalchemy import Text, and_, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import AuditLog
+from services import actor_resolutie
 
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
@@ -44,11 +45,15 @@ def _decode_cursor(cursor: str) -> tuple[datetime, uuid.UUID]:
         raise ValueError("ongeldige cursor") from exc
 
 
-def _record_filters(tid: uuid.UUID, *, actor, entiteit_type, component_id, van, tot):
+def _record_filters(tid: uuid.UUID, *, actor, entiteit_type, component_id, van, tot, actie, subs):
     """Record-niveau filterclausules (een groep kwalificeert als ≥1 record matcht)."""
     clauses = [AuditLog.tenant_id == tid]
     if actor:
         clauses.append(AuditLog.actor_sub == actor)
+    if subs is not None:  # naam-filter (naam → subs); AND-gecombineerd met de overige filters
+        clauses.append(AuditLog.actor_sub.in_(subs))
+    if actie:
+        clauses.append(AuditLog.actie == actie)
     if entiteit_type:
         clauses.append(AuditLog.entiteit_type == entiteit_type)
     if van is not None:
@@ -77,19 +82,29 @@ async def lijst(
     limit: int = _STANDAARD_LIMIT,
     after: str | None = None,
     actor: str | None = None,
+    actor_naam: str | None = None,
     entiteit_type: str | None = None,
     component_id: uuid.UUID | None = None,
     van: datetime | None = None,
     tot: datetime | None = None,
+    actie: str | None = None,
 ) -> tuple[list[dict], str | None]:
     """Correlatie-gegroepeerde gebeurtenissen, nieuwste eerst. Cursor-mismatch/-corruptie
     ⇒ `ValueError` (route ⇒ 400)."""
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
 
+    # ADR-029 Fase 3a — naam-filter: resolveer het naam-fragment vóór de query naar sub's.
+    # Een fragment dat geen gekoppelde persoon matcht ⇒ lege set ⇒ lege auditlijst (geen fout).
+    subs = None
+    if actor_naam and actor_naam.strip():
+        subs = await actor_resolutie.subs_voor_naam(session, tid, actor_naam)
+        if not subs:
+            return [], None
+
     filters = _record_filters(
         tid, actor=actor, entiteit_type=entiteit_type, component_id=component_id,
-        van=van, tot=tot,
+        van=van, tot=tot, actie=actie, subs=subs,
     )
 
     # (1) Pagineer de groepen: per correlatie_id het anker (vroegste tijdstip = driver),
@@ -135,6 +150,12 @@ async def lijst(
     for rec in recs:
         per_corr.setdefault(rec.correlatie_id, []).append(rec)
 
+    # ADR-029 Fase 3a — naam-verrijking: ÉÉN batch-resolutie voor álle subs op de pagina
+    # (N+1-vrij). Transient `actor_naam` (sub → persoon.naam, anders e-mail-fallback, nooit leeg).
+    naam_map = await actor_resolutie.resolveer_namen(session, tid, {rec.actor_sub for rec in recs})
+    for rec in recs:
+        rec.actor_naam = naam_map.get(rec.actor_sub) or rec.actor_email
+
     gebeurtenissen: list[dict] = []
     for r in pagina:
         records = per_corr.get(r.correlatie_id, [])
@@ -144,6 +165,7 @@ async def lijst(
             "tijdstip": r.anker,
             "actor_sub": driver.actor_sub if driver else None,
             "actor_email": driver.actor_email if driver else None,
+            "actor_naam": (driver.actor_naam if driver else None),
             "records": records,
         })
 

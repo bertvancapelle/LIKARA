@@ -18,7 +18,7 @@ const NAMEN = [
   'dashboard', 'component-lijst', 'partij-lijst', 'contract-lijst', 'blokkades',
   'architectuur', 'landschapskaart', 'plaatsingssignalen', 'checklistvragen',
   'plateau-lijst', 'gap-lijst', 'work-package-lijst', 'deliverable-lijst',
-  'gebruikersbeheer',
+  'gebruikersbeheer', 'auditlog',
 ]
 
 function maakRouter() {
@@ -56,4 +56,12 @@ describe('AppLayout — migratie-nav-gating', () => {
     expect(w.find('[data-testid="nav-migratie-groep"]').exists()).toBe(false)
     expect(w.find('[data-testid="nav-plateaus"]').exists()).toBe(false)
   })
+
+  // ADR-029 Fase 3a — auditlog-nav alleen voor beheerder + auditor (AUDITLOG.LEZEN).
+  it.each([['beheerder', true], ['auditor', true], ['medewerker', false], ['viewer', false]])(
+    'auditlog-nav zichtbaar=%s voor rol %s', async (rol, zichtbaar) => {
+      const w = await mountLayout([rol])
+      expect(w.find('[data-testid="nav-auditlog"]').exists()).toBe(zichtbaar)
+    },
+  )
 })

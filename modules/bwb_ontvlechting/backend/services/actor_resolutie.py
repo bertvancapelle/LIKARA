@@ -56,3 +56,30 @@ async def resolveer_naam(session: AsyncSession, tenant_id, *, sub: str | None, e
         if sub in naam_map:
             return naam_map[sub]
     return email
+
+
+_LIKE_ESCAPE = "\\"
+
+
+def _escape_like(term: str) -> str:
+    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
+
+
+async def subs_voor_naam(session: AsyncSession, tenant_id, fragment: str) -> set[str]:
+    """Omgekeerde lookup voor het audit-naam-filter: alle `keycloak_sub`'s van gekoppelde
+    personen wier naam het (ge-escapete) fragment bevat (tenant-scoped, case-insensitive).
+    Lege/whitespace-fragment of geen match → lege set (caller toont dan een lege lijst)."""
+    frag = (fragment or "").strip()
+    if not frag:
+        return set()
+    rijen = (
+        await session.execute(
+            select(GebruikerPersoon.keycloak_sub)
+            .join(Partij, Partij.id == GebruikerPersoon.persoon_id)
+            .where(
+                GebruikerPersoon.tenant_id == _tid(tenant_id),
+                Partij.naam.ilike(f"%{_escape_like(frag)}%", escape=_LIKE_ESCAPE),
+            )
+        )
+    ).scalars().all()
+    return set(rijen)

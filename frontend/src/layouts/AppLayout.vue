@@ -26,6 +26,8 @@ const magArchitectuurZien = computed(() =>
 )
 // ADR-029: gebruikersbeheer is beheerder-only (GEBRUIKERSBEHEER); backend handhaaft.
 const magGebruikersbeheer = computed(() => auth.hasRole('beheerder'))
+// ADR-029 Fase 3a: het auditlog leest alleen beheerder + auditor (AUDITLOG.LEZEN).
+const magAuditlog = computed(() => auth.hasRole('beheerder', 'auditor'))
 
 function _laadVoorkeur() {
   try {
@@ -131,6 +133,14 @@ async function uitloggen() {
             class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
           >
             Gebruikersbeheer
+          </router-link>
+          <router-link
+            v-if="magAuditlog"
+            :to="{ name: 'auditlog' }"
+            data-testid="nav-auditlog"
+            class="rounded-[var(--cd-radius-nav)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-text)] hover:bg-[var(--cd-color-accent)] aria-[current=page]:bg-[var(--cd-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Auditlog
           </router-link>
           <router-link
             :to="{ name: 'contract-lijst' }"

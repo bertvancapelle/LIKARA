@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse
 
+from app.core.audit import AuditActie
 from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
@@ -36,8 +37,10 @@ async def lijst_auditlog(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
     actor: str | None = Query(None, max_length=255),
+    actor_naam: str | None = Query(None, max_length=255),
     entiteit_type: str | None = Query(None, max_length=60),
     component_id: uuid.UUID | None = Query(None),
+    actie: AuditActie | None = Query(None),
     van: datetime | None = Query(None),
     tot: datetime | None = Query(None),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.AUDITLOG, Actie.LEZEN)),
@@ -55,8 +58,10 @@ async def lijst_auditlog(
             limit=limit,
             after=after,
             actor=actor,
+            actor_naam=actor_naam,
             entiteit_type=entiteit_type,
             component_id=component_id,
+            actie=actie.value if actie else None,
             van=van,
             tot=tot,
         )

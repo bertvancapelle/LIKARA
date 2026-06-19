@@ -82,6 +82,13 @@ export const api = {
     maak: (data) => request('/gebruikers', { method: 'POST', body: JSON.stringify(data) }),
   },
 
+  // ADR-029 Fase 3a — audit-spoor lezen (AUDITLOG, beheerder/auditor; backend handhaaft).
+  // Lege filterparams worden door _query weggelaten. Levert {items, volgende_cursor}.
+  auditlog: {
+    lijst: ({ limit, after, actor_naam, component_id, actie, van, tot } = {}) =>
+      request(`/auditlog${_query({ limit, after, actor_naam, component_id, actie, van, tot })}`),
+  },
+
   applicaties: {
     // sort/order/filters optioneel — alles weggelaten → server-default
     // (created_at asc, geen filters), exact backwards-compatible (ADR-017/CD017).

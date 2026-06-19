@@ -35,6 +35,8 @@ const ContractFormulier = () => import('@modules/bwb_ontvlechting/frontend/views
 const ContractDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ContractDetail.vue')
 // ADR-029 Fase 4 — gebruikersbeheer (beheerder-only; backend handhaaft via GEBRUIKERSBEHEER).
 const GebruikersbeheerView = () => import('@modules/bwb_ontvlechting/frontend/views/GebruikersbeheerView.vue')
+// ADR-029 Fase 3a — auditlog (beheerder/auditor; backend handhaaft via AUDITLOG.LEZEN).
+const AuditTrailView = () => import('@modules/bwb_ontvlechting/frontend/views/AuditTrailView.vue')
 // ADR-022 W1 — tenant-beheer van de checklist-vragenset, lazy.
 const ChecklistConfigBeheer = () => import('../views/ChecklistConfigBeheer.vue')
 // ADR-020 fase E — platform-beheer contractcatalogus, lazy.
@@ -102,6 +104,8 @@ const routes = [
       },
       // ADR-029 — gebruikersbeheer (beheerder-only via de backend; nav-affordance gegate).
       { path: 'gebruikers', name: 'gebruikersbeheer', component: GebruikersbeheerView },
+      // ADR-029 Fase 3a — auditlog (beheerder/auditor; backend handhaaft AUDITLOG.LEZEN).
+      { path: 'auditlog', name: 'auditlog', component: AuditTrailView },
       // ADR-021 componenten — statische subpaden vóór de dynamische /:id.
       { path: 'componenten', name: 'component-lijst', component: ComponentLijst },
       { path: 'componenten/nieuw', name: 'component-nieuw', component: ComponentFormulier },
