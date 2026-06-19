@@ -1,8 +1,9 @@
-"""Pydantic v2-schemas — categorie-klaarverklaring (ADR-027 slice 1).
+"""Pydantic v2-schemas — component-klaarverklaring (ADR-027).
 
 Gescheiden Create (aanmaken = status `klaar`) + StatusWijzig (klaar↔open), beide met `extra='forbid'`
 en een verplichte, niet-lege `reden`. Server-velden (`id`, `tenant_id`, `status`-default,
 `verklaard_door`, `verklaard_op`, timestamps) staan NOOIT in de invoer — die stempelt de service.
+Klaarverklaring is op componentniveau (geen categorie-dimensie).
 """
 import uuid
 from datetime import datetime
@@ -23,7 +24,6 @@ class KlaarverklaringCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     component_id: uuid.UUID
-    categorie_nr: int
     reden: str
 
     @field_validator("reden")
@@ -58,7 +58,6 @@ class KlaarverklaringRead(BaseModel):
 
     id: uuid.UUID
     component_id: uuid.UUID
-    categorie_nr: int
     status: str
     reden: str
     verklaard_door: str | None

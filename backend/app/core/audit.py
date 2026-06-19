@@ -61,9 +61,9 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     # ADR-023 Fase E — migratielaag. Het plateau-/gap-lidmaatschap loopt via `relatie`
     # (aggregation/association) → al gedekt door het bestaande relatie-spoor.
     "plateau", "work_package", "deliverable", "gap",
-    # ADR-027 — niet-scorende categorie-klaarverklaring (klaar→open→klaar mét reden,
+    # ADR-027 — niet-scorende component-klaarverklaring (klaar→open→klaar mét reden,
     # per-veld-diffs in de append-only audit-trail; geen aparte historie-tabel).
-    "categorie_klaarverklaring",
+    "component_klaarverklaring",
 })
 AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "tenant", "componentconfig_optie", "contractconfig_optie",

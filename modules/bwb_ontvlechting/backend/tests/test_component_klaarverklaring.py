@@ -1,7 +1,7 @@
-"""Tests — categorie-klaarverklaring (ADR-027 slice 1).
+"""Tests — component-klaarverklaring (ADR-027, componentniveau).
 
 Offline: schema-validatie (verplichte reden, status-allowlist), engine-import-afwezigheid, RBAC.
-Live (skip-if-no-DB): maak_aan (happy/404/409/422), symmetrische statuswissel, RLS-isolatie,
+Live (skip-if-no-DB): maak_aan (happy/404/409), symmetrische statuswissel, RLS-isolatie,
 audit-record bij aanmaken én bij statuswissel, en bewijs dat lifecycle/profiel ONgewijzigd blijft.
 """
 import asyncio
@@ -26,27 +26,36 @@ _CD_APP_URL = "postgresql+asyncpg://cd_app:changeme_dev@localhost:5432/complidat
 
 # ── Offline: schema-validatie ────────────────────────────────────────────────────
 def test_create_reden_verplicht():
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
 
     cid = uuid.uuid4()
-    KlaarverklaringCreate(component_id=cid, categorie_nr=1, reden="beoordeeld, akkoord")
+    KlaarverklaringCreate(component_id=cid, reden="beoordeeld, akkoord")
     for leeg in ("", "   "):
         with pytest.raises(ValidationError):
-            KlaarverklaringCreate(component_id=cid, categorie_nr=1, reden=leeg)
+            KlaarverklaringCreate(component_id=cid, reden=leeg)
+
+
+def test_create_geen_categorie_meer():
+    """ADR-027 ompak: de categorie-dimensie is vervallen (component-niveau)."""
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
+
+    assert "categorie_nr" not in KlaarverklaringCreate.model_fields
+    with pytest.raises(ValidationError):  # extra='forbid' weigert het oude veld
+        KlaarverklaringCreate(component_id=uuid.uuid4(), categorie_nr=1, reden="x")
 
 
 def test_statuswijzig_validatie():
-    from schemas.categorie_klaarverklaring import KlaarverklaringStatusWijzig
+    from schemas.component_klaarverklaring import KlaarverklaringStatusWijzig
 
     KlaarverklaringStatusWijzig(status="open", reden="heropend wegens nieuwe info")
-    with pytest.raises(ValidationError):  # ongeldige status
+    with pytest.raises(ValidationError):
         KlaarverklaringStatusWijzig(status="afgehandeld", reden="x")
-    with pytest.raises(ValidationError):  # lege reden
+    with pytest.raises(ValidationError):
         KlaarverklaringStatusWijzig(status="klaar", reden="  ")
 
 
 def test_create_geen_serverbeheerde_velden():
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
 
     for veld in ("id", "tenant_id", "status", "verklaard_door", "verklaard_op", "created_at"):
         assert veld not in KlaarverklaringCreate.model_fields
@@ -54,7 +63,7 @@ def test_create_geen_serverbeheerde_velden():
 
 # ── Offline: engine onaangeroerd ─────────────────────────────────────────────────
 def test_klaarverklaring_service_raakt_engine_niet():
-    import services.categorie_klaarverklaring_service as s
+    import services.component_klaarverklaring_service as s
 
     for naam in (
         "lifecycle_service", "herbereken_lifecycle", "bepaal_lifecycle",
@@ -115,20 +124,14 @@ async def _run_rls(fn, tid=_TID):
         await eng.dispose()
 
 
-async def _maak_app_en_categorie(s, tid):
-    """Maak een applicatie + lever een geldig categorie_nr voor componenttype 'applicatie'."""
-    from sqlalchemy import select
-    from models.models import ChecklistVraag
+async def _maak_app(s, tid):
     from schemas.applicatie import ApplicatieCreate
     from services import applicatie_service
 
     app = await applicatie_service.maak_aan(
         s, tid, ApplicatieCreate(naam="WT-KV-App", hostingmodel="saas", migratiepad="onbekend",
                                  complexiteit="midden", prioriteit="midden"))
-    cat = (await s.execute(
-        select(ChecklistVraag.categorie_nr).where(ChecklistVraag.componenttype == "applicatie").limit(1)
-    )).scalar_one()
-    return app.id, cat
+    return app.id
 
 
 @integratie
@@ -136,27 +139,27 @@ def test_klaarverklaring_happy_statuswissel_audit_engine_live():
     """Happy aanmaak + symmetrische statuswissel + audit-historie + engine onaangeroerd."""
     from sqlalchemy import text as _text
 
-    from services import categorie_klaarverklaring_service as svc
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate, KlaarverklaringStatusWijzig
+    from services import component_klaarverklaring_service as svc
+    from schemas.component_klaarverklaring import KlaarverklaringCreate, KlaarverklaringStatusWijzig
 
     tid = uuid.UUID(_TID)
 
     async def _flow(s):
         ids = []
         try:
-            app_id, cat = await _maak_app_en_categorie(s, tid)
+            app_id = await _maak_app(s, tid)
             ids.append(app_id)
             lc_voor = (await s.execute(
                 _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app_id)}
             )).scalar_one()
 
             obj = await svc.maak_aan(s, tid, KlaarverklaringCreate(
-                component_id=app_id, categorie_nr=cat, reden="beoordeeld en akkoord"))
+                component_id=app_id, reden="gecoördineerd en akkoord"))
             assert obj.status.value == "klaar"
             assert obj.verklaard_door and obj.verklaard_op is not None
 
             n_na_create = (await s.execute(_text(
-                "SELECT count(*) FROM audit_log WHERE entiteit_type='categorie_klaarverklaring' "
+                "SELECT count(*) FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
                 "AND entiteit_id=:i"), {"i": str(obj.id)})).scalar_one()
             assert n_na_create >= 1
 
@@ -168,11 +171,11 @@ def test_klaarverklaring_happy_statuswissel_audit_engine_live():
             assert o3.status.value == "klaar"
 
             n_na_wissel = (await s.execute(_text(
-                "SELECT count(*) FROM audit_log WHERE entiteit_type='categorie_klaarverklaring' "
+                "SELECT count(*) FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
                 "AND entiteit_id=:i"), {"i": str(obj.id)})).scalar_one()
             assert n_na_wissel > n_na_create
             laatste = (await s.execute(_text(
-                "SELECT wijziging::text FROM audit_log WHERE entiteit_type='categorie_klaarverklaring' "
+                "SELECT wijziging::text FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
                 "AND entiteit_id=:i ORDER BY tijdstip DESC LIMIT 1"), {"i": str(obj.id)})).scalar_one()
             assert "reden" in laatste and "status" in laatste
 
@@ -190,43 +193,15 @@ def test_klaarverklaring_happy_statuswissel_audit_engine_live():
 
 @integratie
 def test_klaarverklaring_404_onbekende_component_live():
-    from services import categorie_klaarverklaring_service as svc
+    from services import component_klaarverklaring_service as svc
     from services.errors import NietGevonden
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
 
     tid = uuid.UUID(_TID)
 
     async def _flow(s):
         with pytest.raises(NietGevonden):
-            await svc.maak_aan(s, tid, KlaarverklaringCreate(
-                component_id=uuid.uuid4(), categorie_nr=1, reden="x"))
-
-    asyncio.run(_run_rls(_flow))
-
-
-@integratie
-def test_klaarverklaring_422_ongeldige_categorie_live():
-    from sqlalchemy import text as _text
-
-    from services import categorie_klaarverklaring_service as svc
-    from services.errors import OngeldigeRegistratie
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate
-
-    tid = uuid.UUID(_TID)
-
-    async def _flow(s):
-        ids = []
-        try:
-            app_id, _cat = await _maak_app_en_categorie(s, tid)
-            ids.append(app_id)
-            with pytest.raises(OngeldigeRegistratie) as exc:
-                await svc.maak_aan(s, tid, KlaarverklaringCreate(
-                    component_id=app_id, categorie_nr=99999, reden="x"))
-            assert exc.value.code == "ONGELDIGE_CATEGORIE"
-        finally:
-            for eid in ids:
-                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
-            await s.commit()
+            await svc.maak_aan(s, tid, KlaarverklaringCreate(component_id=uuid.uuid4(), reden="x"))
 
     asyncio.run(_run_rls(_flow))
 
@@ -235,22 +210,20 @@ def test_klaarverklaring_422_ongeldige_categorie_live():
 def test_klaarverklaring_409_dubbel_live():
     from sqlalchemy import text as _text
 
-    from services import categorie_klaarverklaring_service as svc
+    from services import component_klaarverklaring_service as svc
     from services.errors import RegistratieConflict
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
 
     tid = uuid.UUID(_TID)
 
     async def _flow(s):
         ids = []
         try:
-            app_id, cat = await _maak_app_en_categorie(s, tid)
+            app_id = await _maak_app(s, tid)
             ids.append(app_id)
-            await svc.maak_aan(s, tid, KlaarverklaringCreate(
-                component_id=app_id, categorie_nr=cat, reden="afgehandeld"))
+            await svc.maak_aan(s, tid, KlaarverklaringCreate(component_id=app_id, reden="afgehandeld"))
             with pytest.raises(RegistratieConflict) as exc:
-                await svc.maak_aan(s, tid, KlaarverklaringCreate(
-                    component_id=app_id, categorie_nr=cat, reden="nogmaals"))
+                await svc.maak_aan(s, tid, KlaarverklaringCreate(component_id=app_id, reden="nogmaals"))
             assert exc.value.code == "KLAARVERKLARING_BESTAAT_AL"
         finally:
             for eid in ids:
@@ -265,23 +238,20 @@ def test_klaarverklaring_rls_isolatie_live():
     """Een andere tenant ziet de klaarverklaring niet (RLS + expliciet tenant-filter)."""
     from sqlalchemy import text as _text
 
-    from services import categorie_klaarverklaring_service as svc
-    from schemas.categorie_klaarverklaring import KlaarverklaringCreate
+    from services import component_klaarverklaring_service as svc
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
 
     tid = uuid.UUID(_TID)
 
     async def _maak(s):
-        app_id, cat = await _maak_app_en_categorie(s, tid)
-        obj = await svc.maak_aan(s, tid, KlaarverklaringCreate(
-            component_id=app_id, categorie_nr=cat, reden="afgehandeld"))
-        return app_id, obj.id
+        app_id = await _maak_app(s, tid)
+        await svc.maak_aan(s, tid, KlaarverklaringCreate(component_id=app_id, reden="afgehandeld"))
+        return app_id
 
-    app_id, kv_id = asyncio.run(_run_rls(_maak, tid=_TID))
+    app_id = asyncio.run(_run_rls(_maak, tid=_TID))
 
     async def _ander(s):
-        # Andere tenant: lijst moet leeg zijn voor dit component (RLS verbergt de rij).
-        rijen = await svc.lijst(s, uuid.UUID(_ANDER_TID), component_id=app_id)
-        return len(rijen)
+        return len(await svc.lijst(s, uuid.UUID(_ANDER_TID), component_id=app_id))
 
     try:
         assert asyncio.run(_run_rls(_ander, tid=_ANDER_TID)) == 0

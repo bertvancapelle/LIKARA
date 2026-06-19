@@ -861,36 +861,34 @@ class KlaarverklaringStatus(str, Enum):
 klaarverklaring_status_enum = sa.Enum(KlaarverklaringStatus, name="klaarverklaring_status_enum")
 
 
-class CategorieKlaarverklaring(Base, TenantMixin, TimestampMixin):
-    """ADR-027 slice 1 — niet-scorende categorie-klaarverklaring op (component, categorie_nr).
+class ComponentKlaarverklaring(Base, TenantMixin, TimestampMixin):
+    """ADR-027 — niet-scorende klaarverklaring op componentniveau.
 
-    Eigen tenant-scoped registratie-feit (GEEN element-subtype): "deze checklist-categorie is
-    beoordeeld en afgehandeld". Eén levende verklaring per (component, categorie_nr) —
-    `UNIQUE(tenant_id, component_id, categorie_nr)`. `status` klaar↔open (default `klaar`);
-    elke statushandeling vereist een `reden` (verplicht, niet leeg) en herstempelt
-    `verklaard_door`/`verklaard_op` server-side. Het klaar→open→klaar-verloop blijft terug te
-    lezen via de append-only audit-trail (geen aparte historie-tabel).
+    Eigen tenant-scoped registratie-feit (GEEN element-subtype): één coördinator verklaart een heel
+    component beoordeeld/migratieklaar. Eén levende verklaring per component —
+    `UNIQUE(tenant_id, component_id)`. `status` klaar↔open (default `klaar`); elke statushandeling
+    vereist een `reden` (verplicht, niet leeg) en herstempelt `verklaard_door`/`verklaard_op`
+    server-side. Het klaar→open→klaar-verloop blijft terug te lezen via de append-only audit-trail
+    (geen aparte historie-tabel). De per-categorie-dimensie is bewust vervallen — werkverdeling per
+    categorie coördineert de mens, het systeem dwingt niets af.
 
     `component_id` is een composiet-FK `(tenant_id, component_id) → element(tenant_id, id)`
-    ON DELETE CASCADE (zelfde vorm als roltoewijzing). `categorie_nr` verwijst naar de tenant-eigen
-    categorie op `checklistvraag` (per componenttype) — géén harde FK (categorie is geen entiteit);
-    de service valideert dat het nr bestaat voor het componenttype van de component.
+    ON DELETE CASCADE (zelfde vorm als roltoewijzing).
 
     Puur registratief — RAAKT DE ENGINE NOOIT: importeert géén `lifecycle_service`/
     `herbereken_lifecycle`/`bepaal_lifecycle`/`ComponentProfiel`/`Blokkade`/`Checklistscore`."""
 
-    __tablename__ = "categorie_klaarverklaring"
+    __tablename__ = "component_klaarverklaring"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "component_id", "categorie_nr", name="uq_categorie_klaarverklaring"),
+        UniqueConstraint("tenant_id", "component_id", name="uq_component_klaarverklaring"),
         ForeignKeyConstraint(
             ["tenant_id", "component_id"], ["element.tenant_id", "element.id"],
-            name="fk_categorie_klaarverklaring_component", ondelete="CASCADE",
+            name="fk_component_klaarverklaring_component", ondelete="CASCADE",
         ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
     component_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    categorie_nr: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[KlaarverklaringStatus] = mapped_column(
         klaarverklaring_status_enum, nullable=False, server_default=text("'klaar'")
     )
