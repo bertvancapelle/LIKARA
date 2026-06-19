@@ -128,7 +128,7 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
     />
 
     <p v-if="verklaring" data-testid="mg-door" class="mt-[var(--cd-space-sm)] text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
-      door {{ verklaring.verklaard_door || 'onbekend' }} · {{ _datum(verklaring.verklaard_op) }}
+      door {{ verklaring.verklaard_door_naam || verklaring.verklaard_door || 'onbekend' }} · {{ _datum(verklaring.verklaard_op) }}
     </p>
     <p v-if="verklaring" data-testid="mg-reden" class="mt-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)] whitespace-pre-wrap">
       <span class="font-semibold">Reden:</span> {{ verklaring.reden }}

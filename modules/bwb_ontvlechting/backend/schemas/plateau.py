@@ -117,7 +117,8 @@ class PlateauLidRead(BaseModel):
     dispositie_label: str
     contractueel_bevestigd: bool
     bevestigd_aantal_gebruikers: int | None
-    bevestigd_door: str | None    # server-side (actor) op moment van bevestigen
+    bevestigd_door: str | None    # ADR-029: e-mail-fallback van de actor (historisch: kale string)
+    bevestigd_door_naam: str | None = None  # ADR-029 Fase 3b — geresolveerde naam (sub → persoon)
     bevestigd_op: str | None      # server-side ISO-timestamp op moment van bevestigen
     created_at: datetime
     updated_at: datetime

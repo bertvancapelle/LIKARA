@@ -113,3 +113,17 @@ describe('MigratiegereedheidSectie — dialog', () => {
     expect(api.klaarverklaringen.wijzigStatus).toHaveBeenCalledWith(OPEN.id, { status: 'klaar', reden: 'nu wel af' })
   })
 })
+
+describe('MigratiegereedheidSectie — ADR-029 naam-resolutie', () => {
+  it('toont de geresolveerde naam i.p.v. de e-mail', async () => {
+    const w = await mountSectie({ verklaring: { ...KLAAR, verklaard_door_naam: 'Piet Paulusma' } })
+    const door = w.find('[data-testid="mg-door"]').text()
+    expect(door).toContain('Piet Paulusma')
+    expect(door).not.toContain('piet@bwb.nl')
+  })
+
+  it('valt terug op de e-mail als er geen naam is', async () => {
+    const w = await mountSectie({ verklaring: { ...KLAAR, verklaard_door_naam: null } })
+    expect(w.find('[data-testid="mg-door"]').text()).toContain('piet@bwb.nl')
+  })
+})

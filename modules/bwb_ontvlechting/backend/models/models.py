@@ -920,6 +920,9 @@ class ComponentKlaarverklaring(Base, TenantMixin, TimestampMixin):
         klaarverklaring_status_enum, nullable=False, server_default=text("'klaar'")
     )
     reden: Mapped[str] = mapped_column(Text, nullable=False)
+    # ADR-029 Fase 3b — stabiele actor-sleutel (Keycloak-sub) voor naam-resolutie; `verklaard_door`
+    # is voortaan de e-mail-fallback. Historische rijen: sub NULL, e-mail in `verklaard_door`.
+    verklaard_door_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
     verklaard_door: Mapped[str | None] = mapped_column(String(255), nullable=True)
     verklaard_op: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
 

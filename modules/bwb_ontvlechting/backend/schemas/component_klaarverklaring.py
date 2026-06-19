@@ -60,7 +60,9 @@ class KlaarverklaringRead(BaseModel):
     component_id: uuid.UUID
     status: str
     reden: str
-    verklaard_door: str | None
+    verklaard_door: str | None  # ADR-029: voortaan de e-mail-fallback (historisch: de oude string)
+    # ADR-029 Fase 3b — read-side geresolveerde naam (sub → persoon.naam) of e-mail-fallback (transient).
+    verklaard_door_naam: str | None = None
     verklaard_op: datetime
     created_at: datetime
     updated_at: datetime

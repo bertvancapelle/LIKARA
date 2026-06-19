@@ -35,6 +35,7 @@ from schemas.plateau import (
     PlateauLidUpdate,
     PlateauUpdate,
 )
+from services import actor_resolutie
 from services import relatiekenmerk_catalog as catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 from services.pagination import decode_sort_cursor, encode_sort_cursor
@@ -193,7 +194,9 @@ def _bevestiging_kenmerken(contractueel_bevestigd: bool, aantal: int | None) -> 
         kenmerken["bevestigd_aantal_gebruikers"] = aantal
     if contractueel_bevestigd:
         actor_sub, actor_email = huidige_actor()
-        kenmerken["bevestigd_door"] = actor_email or actor_sub or None
+        # ADR-029 Fase 3b — stempel {sub, email}: sub = stabiele sleutel (naam-resolutie),
+        # email = leesbare fallback. Historische kale strings worden read-side ook nog afgehandeld.
+        kenmerken["bevestigd_door"] = {"sub": actor_sub, "email": actor_email}
         kenmerken["bevestigd_op"] = datetime.now(timezone.utc).isoformat()
     return kenmerken
 
@@ -216,6 +219,9 @@ async def _lees_lid(session: AsyncSession, tid: uuid.UUID, obj: Relatie) -> dict
     rol_labels = await catalog.labels(session, RelatieKenmerkDimensie.dispositie)
     k = obj.kenmerken or {}
     dispositie = k.get("dispositie")
+    # ADR-029 Fase 3b — `bevestigd_door` is nu {sub,email} (nieuw) of een kale e-mailstring
+    # (historisch). Exposeer de e-mail als `bevestigd_door` (schema-compat) + de geresolveerde naam.
+    _sub, _email = actor_resolutie.pak_sub_email(k.get("bevestigd_door"))
     return {
         "id": obj.id,
         "plateau_id": obj.bron_id,
@@ -226,7 +232,8 @@ async def _lees_lid(session: AsyncSession, tid: uuid.UUID, obj: Relatie) -> dict
         "dispositie_label": catalog.resolveer_een(dispositie, rol_labels),
         "contractueel_bevestigd": bool(k.get("contractueel_bevestigd", False)),
         "bevestigd_aantal_gebruikers": k.get("bevestigd_aantal_gebruikers"),
-        "bevestigd_door": k.get("bevestigd_door"),
+        "bevestigd_door": _email,
+        "bevestigd_door_naam": await actor_resolutie.resolveer_naam(session, tid, sub=_sub, email=_email),
         "bevestigd_op": k.get("bevestigd_op"),
         "created_at": obj.created_at,
         "updated_at": obj.updated_at,

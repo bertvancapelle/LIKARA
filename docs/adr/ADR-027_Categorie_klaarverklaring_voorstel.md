@@ -11,6 +11,10 @@ mee in de scoring, voedt de engine niet, en leidt niets af.
 **Wijzigingshistorie:**
 - *DC014 — verschoven van categorie- naar componentniveau; onderdeel 4 (werkverdeling per categorie)
   vervallen. Eenheid van registratie is nu (component); één levende klaarverklaring per component.*
+- *DC015 (ADR-029 Fase 3b) — `verklaard_door` stempelt voortaan de Keycloak-`sub` als stabiele
+  sleutel (nieuwe kolom `verklaard_door_sub`, migratie 0038); de e-mail blijft als fallback-waarde
+  in `verklaard_door`. De naam wordt read-side geresolveerd via de gebruiker-persoon-koppeling
+  (ADR-029) → `verklaard_door_naam`. Historische rijen houden hun e-mailstring (geen backfill).*
 
 ---
 

@@ -313,3 +313,56 @@ def test_slice3_dashboard_en_lijstfilter_live():
             await s.commit()
 
     asyncio.run(_run_rls(_flow))
+
+
+@integratie
+def test_klaarverklaring_naam_resolutie_live():
+    """ADR-029 Fase 3b: klaar verklaren stempelt sub+email; read resolveert sub→persoon.naam.
+    Plus ongekoppelde (beheerder→email) en historische (sub=None→email) fallback. Engine ongemoeid."""
+    from sqlalchemy import text as _text
+
+    from models.models import GebruikerPersoon, PartijAard
+    from schemas.partij import PartijCreate
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
+    from services import actor_resolutie, partij_service
+    from services import component_klaarverklaring_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            org = await partij_service.maak_aan(s, tid, PartijCreate(aard=PartijAard.organisatie, naam="ADR029-Org"))
+            afd = await partij_service.maak_aan(s, tid, PartijCreate(
+                aard=PartijAard.organisatie_eenheid, naam="ADR029-Afd", organisatie_id=org.id))
+            persoon = await partij_service.maak_aan(s, tid, PartijCreate(
+                aard=PartijAard.persoon, naam="Jan Resolutie", email="jan.res@org.test",
+                organisatie_id=org.id, afdeling_id=afd.id))
+            ids += [org.id, afd.id, persoon.id]
+            # Koppel de harness-actor ("test:adr027") aan deze persoon.
+            s.add(GebruikerPersoon(tenant_id=tid, keycloak_sub="test:adr027", persoon_id=persoon.id))
+            await s.flush()
+
+            app_id = await _maak_app(s, tid)
+            ids.append(app_id)
+            lc_voor = (await s.execute(
+                _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app_id)})).scalar_one()
+
+            kv = await svc.maak_aan(s, tid, KlaarverklaringCreate(component_id=app_id, reden="afgehandeld"))
+            assert kv.verklaard_door_sub == "test:adr027"
+            assert kv.verklaard_door == "adr027@test"            # e-mail-fallback bewaard
+            assert kv.verklaard_door_naam == "Jan Resolutie"     # sub → persoon.naam
+
+            # Ongekoppelde actor (beheerder) → e-mail; historische rij (geen sub) → e-mail.
+            assert await actor_resolutie.resolveer_naam(s, tid, sub="kc-onbekend", email="beheerder@x") == "beheerder@x"
+            assert await actor_resolutie.resolveer_naam(s, tid, sub=None, email="hist@x") == "hist@x"
+
+            lc_na = (await s.execute(
+                _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app_id)})).scalar_one()
+            assert lc_na == lc_voor  # engine onaangeroerd
+        finally:
+            for eid in reversed(ids):  # leaf-first: app → persoon → afd → org (RESTRICT-FK's)
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    asyncio.run(_run_rls(_flow))

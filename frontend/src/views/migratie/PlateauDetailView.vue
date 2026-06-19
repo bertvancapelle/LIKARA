@@ -280,7 +280,7 @@ onMounted(() => {
           </template>
         </Column>
         <Column header="Aantal gebruikers"><template #body="{ data }">{{ data.bevestigd_aantal_gebruikers ?? '—' }}</template></Column>
-        <Column header="Bevestigd door"><template #body="{ data }">{{ data.bevestigd_door || '—' }}</template></Column>
+        <Column header="Bevestigd door"><template #body="{ data }">{{ data.bevestigd_door_naam || data.bevestigd_door || '—' }}</template></Column>
         <Column header="Bevestigd op"><template #body="{ data }">{{ formatDatum(data.bevestigd_op) }}</template></Column>
         <Column header="">
           <template #body="{ data }">

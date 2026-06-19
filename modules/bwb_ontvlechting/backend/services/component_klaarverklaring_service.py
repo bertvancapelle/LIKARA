@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.tenant_context import huidige_actor
 from models.models import ComponentKlaarverklaring, Component, KlaarverklaringStatus
 from schemas.component_klaarverklaring import KlaarverklaringCreate, KlaarverklaringStatusWijzig
+from services import actor_resolutie
 from services.errors import NietGevonden, RegistratieConflict
 
 _ENTITEIT = "component_klaarverklaring"
@@ -31,10 +32,19 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
-def _stempel() -> tuple[str | None, datetime]:
-    """Server-side actor + tijdstip (registratie, niet door client aanleverbaar)."""
+def _stempel() -> tuple[str | None, str | None, datetime]:
+    """Server-side actor + tijdstip (registratie, niet door client aanleverbaar). ADR-029 Fase 3b:
+    `sub` = stabiele sleutel (naam-resolutie), `email` = leesbare fallback."""
     actor_sub, actor_email = huidige_actor()
-    return (actor_email or actor_sub or None, datetime.now(timezone.utc))
+    return (actor_sub, actor_email, datetime.now(timezone.utc))
+
+
+async def _zet_naam(session: AsyncSession, tid: uuid.UUID, obj: ComponentKlaarverklaring) -> ComponentKlaarverklaring:
+    """Transient `verklaard_door_naam` (ADR-029): sub → persoon.naam, anders e-mail-fallback."""
+    obj.verklaard_door_naam = await actor_resolutie.resolveer_naam(
+        session, tid, sub=obj.verklaard_door_sub, email=obj.verklaard_door
+    )
+    return obj
 
 
 async def _component_bestaat(session: AsyncSession, tid: uuid.UUID, component_id) -> None:
@@ -51,13 +61,14 @@ async def _component_bestaat(session: AsyncSession, tid: uuid.UUID, component_id
 async def maak_aan(session: AsyncSession, tenant_id, data: KlaarverklaringCreate) -> ComponentKlaarverklaring:
     tid = _tenant_uuid(tenant_id)
     await _component_bestaat(session, tid, data.component_id)
-    door, op = _stempel()
+    sub, email, op = _stempel()
     obj = ComponentKlaarverklaring(
         tenant_id=tid,
         component_id=data.component_id,
         status=KlaarverklaringStatus.klaar,
         reden=data.reden,
-        verklaard_door=door,
+        verklaard_door_sub=sub,
+        verklaard_door=email,
         verklaard_op=op,
     )
     session.add(obj)
@@ -70,7 +81,7 @@ async def maak_aan(session: AsyncSession, tenant_id, data: KlaarverklaringCreate
             "Er bestaat al een klaarverklaring voor dit component; gebruik de statuswijziging.",
         )
     await session.refresh(obj)
-    return obj
+    return await _zet_naam(session, tid, obj)
 
 
 async def haal_op(session: AsyncSession, tenant_id, klaarverklaring_id) -> ComponentKlaarverklaring:
@@ -85,7 +96,7 @@ async def haal_op(session: AsyncSession, tenant_id, klaarverklaring_id) -> Compo
     ).scalar_one_or_none()
     if obj is None:
         raise NietGevonden(_ENTITEIT, klaarverklaring_id)
-    return obj
+    return await _zet_naam(session, _tenant_uuid(tenant_id), obj)
 
 
 async def wijzig_status(
@@ -93,14 +104,15 @@ async def wijzig_status(
 ) -> ComponentKlaarverklaring:
     """Symmetrisch klaar↔open; nieuwe reden verplicht (schema), herstempelt wie/wanneer."""
     obj = await haal_op(session, tenant_id, klaarverklaring_id)
-    door, op = _stempel()
+    sub, email, op = _stempel()
     obj.status = KlaarverklaringStatus(data.status)
     obj.reden = data.reden
-    obj.verklaard_door = door
+    obj.verklaard_door_sub = sub
+    obj.verklaard_door = email
     obj.verklaard_op = op
     await session.commit()
     await session.refresh(obj)
-    return obj
+    return await _zet_naam(session, _tenant_uuid(tenant_id), obj)
 
 
 async def lijst(session: AsyncSession, tenant_id, *, component_id=None) -> list[ComponentKlaarverklaring]:
@@ -114,4 +126,9 @@ async def lijst(session: AsyncSession, tenant_id, *, component_id=None) -> list[
     if component_id is not None:
         stmt = stmt.where(ComponentKlaarverklaring.component_id == component_id)
     stmt = stmt.order_by(ComponentKlaarverklaring.component_id)
-    return list((await session.execute(stmt)).scalars().all())
+    rijen = list((await session.execute(stmt)).scalars().all())
+    # Batch naam-resolutie (één query) → transient `verklaard_door_naam` per rij; fallback e-mail.
+    naam_map = await actor_resolutie.resolveer_namen(session, tid, {r.verklaard_door_sub for r in rijen})
+    for r in rijen:
+        r.verklaard_door_naam = naam_map.get(r.verklaard_door_sub) or r.verklaard_door
+    return rijen

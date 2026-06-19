@@ -181,7 +181,8 @@ def test_bevestiging_kenmerken_stempelt_server_side():
         ja = _bevestiging_kenmerken(True, 250)
         assert ja["contractueel_bevestigd"] is True
         assert ja["bevestigd_aantal_gebruikers"] == 250
-        assert ja["bevestigd_door"] == "bert@vancapelle.com"
+        # ADR-029 Fase 3b: stempelt {sub, email} i.p.v. een kale e-mailstring (naam-resolutie).
+        assert ja["bevestigd_door"] == {"sub": "test:bert", "email": "bert@vancapelle.com"}
         assert ja["bevestigd_op"]  # ISO-timestamp aanwezig
         nee = _bevestiging_kenmerken(False, None)
         assert nee == {"contractueel_bevestigd": False}  # geen stempel, geen aantal
