@@ -41,6 +41,8 @@ const VOORBEELD = {
     { id: 'a1', naam: 'Zaaksysteem', lifecycle_status: 'geblokkeerd', gewijzigd_op: '2026-06-07T10:00:00Z' },
     { id: 'a2', naam: 'DMS', lifecycle_status: 'migratieklaar', gewijzigd_op: '2026-06-06T09:00:00Z' },
   ],
+  klaar_verklaard: 7,
+  klaar_met_afwijking: 2,
 }
 
 function maakRouter() {
@@ -204,5 +206,35 @@ describe('DashboardView — laad/leeg/fout', () => {
     expect(fout.exists()).toBe(true)
     expect(fout.attributes('role')).toBe('alert')
     expect(fout.text()).toContain('Boem')
+  })
+})
+
+describe('DashboardView — ADR-027 slice 3 klaarverklaring-voortgang', () => {
+  it('toont de twee tellingen met doorklik naar de gefilterde componentlijst', async () => {
+    const w = await mountDashboard()
+    const klaar = w.find('[data-testid="telling-klaar-verklaard"]')
+    const afw = w.find('[data-testid="telling-klaar-afwijking"]')
+    expect(klaar.text()).toContain('7')
+    expect(afw.text()).toContain('2')
+    // doorklik-queries
+    expect(klaar.attributes('href')).toContain('klaarverklaring=klaar')
+    expect(afw.attributes('href')).toContain('afwijking=1')
+  })
+
+  it('afwijkingstegel krijgt nadruk (warn) bij >0 en is niet alleen-kleur (label + icoon)', async () => {
+    const w = await mountDashboard()
+    const afw = w.find('[data-testid="telling-klaar-afwijking"]')
+    expect(afw.text()).toContain('checklist nog niet compleet') // tekstueel, niet alleen kleur
+    expect(afw.html()).toContain('var(--cd-color-warn)')
+  })
+
+  it('afwijkingstegel zonder afwijking: neutrale weergave (0)', async () => {
+    api.dashboard.mockResolvedValue({ ...VOORBEELD, klaar_met_afwijking: 0 })
+    const w = await mountDashboard()
+    const afw = w.find('[data-testid="telling-klaar-afwijking"]')
+    expect(afw.text()).toContain('0')
+    // bij 0: neutrale (muted) telling i.p.v. warn-nadruk
+    expect(afw.html()).toContain('var(--cd-color-text-muted)')
+    expect(afw.attributes('class')).toContain('var(--cd-color-surface)')
   })
 })

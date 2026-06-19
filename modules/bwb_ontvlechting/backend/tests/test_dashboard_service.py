@@ -76,6 +76,9 @@ def test_dashboard_vorm_en_telling():
             _FakeResult(rows=label_rows),
             _FakeResult(scalar=4),
             _FakeResult(rows=recent_rows),
+            # ADR-027 slice 3 — (5) klaar_verklaard, (6) klaar_met_afwijking.
+            _FakeResult(scalar=3),
+            _FakeResult(scalar=1),
         ]
     )
 
@@ -101,6 +104,10 @@ def test_dashboard_vorm_en_telling():
     # Open blokkades = de scalar.
     assert resultaat["open_blokkades"] == 4
 
+    # ADR-027 slice 3 — klaarverklaring-voortgang (read-only afgeleid).
+    assert resultaat["klaar_verklaard"] == 3
+    assert resultaat["klaar_met_afwijking"] == 1
+
     # Recent (type-generiek): mapping updated_at → gewijzigd_op, volgorde behouden.
     assert [r["naam"] for r in resultaat["recent_gewijzigd"]] == ["Zaaksysteem", "Oracle FIN-DB"]
     assert resultaat["recent_gewijzigd"][0]["gewijzigd_op"] == nu
@@ -114,6 +121,8 @@ def test_dashboard_leeg_geeft_lege_rollup_en_recent():
             _FakeResult(rows=[]),  # catalogus-labels
             _FakeResult(scalar=0),
             _FakeResult(rows=[]),
+            _FakeResult(scalar=0),  # klaar_verklaard
+            _FakeResult(scalar=0),  # klaar_met_afwijking
         ]
     )
 
@@ -122,6 +131,7 @@ def test_dashboard_leeg_geeft_lege_rollup_en_recent():
     assert resultaat["readiness_per_type"] == []  # geen type met profielen
     assert resultaat["open_blokkades"] == 0
     assert resultaat["recent_gewijzigd"] == []
+    assert resultaat["klaar_verklaard"] == 0 and resultaat["klaar_met_afwijking"] == 0
 
 
 def test_recent_limiet_is_vast_server_side():

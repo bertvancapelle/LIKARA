@@ -260,3 +260,56 @@ def test_klaarverklaring_rls_isolatie_live():
             await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(app_id)})
             await s.commit()
         asyncio.run(_run_rls(_op, tid=_TID))
+
+
+@integratie
+def test_slice3_dashboard_en_lijstfilter_live():
+    """ADR-027 slice 3 — dashboard-tellingen + lijstfilter. Bewijst dat `klaar_verklaard`
+    elke klaar-verklaring telt, terwijl `klaar_met_afwijking`/`afwijking=1` puur de
+    lifecycle-join is (concept = afwijking; migratieklaar = géén afwijking). Engine ongemoeid:
+    de lifecycle wordt test-only direct gezet om de READ-filter te toetsen (geen scoring)."""
+    from sqlalchemy import text as _text
+
+    from services import component_klaarverklaring_service as svc
+    from services import component_service, dashboard_service
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            base = await dashboard_service.haal_dashboard(s, tid)
+            app_id = await _maak_app(s, tid)  # start = concept (∉ {migratieklaar, geblokkeerd})
+            ids.append(app_id)
+            await svc.maak_aan(s, tid, KlaarverklaringCreate(component_id=app_id, reden="afgehandeld"))
+
+            # Concept + klaar → telt in BEIDE (klaar_verklaard én afwijking).
+            na = await dashboard_service.haal_dashboard(s, tid)
+            assert na["klaar_verklaard"] == base["klaar_verklaard"] + 1
+            assert na["klaar_met_afwijking"] == base["klaar_met_afwijking"] + 1
+
+            async def _ids(**filters):
+                items, _ = await component_service.lijst(s, tid, limit=100, **filters)
+                return {str(i["id"]) for i in items}
+
+            assert str(app_id) in await _ids(klaarverklaring="klaar")
+            assert str(app_id) in await _ids(afwijking=True)
+
+            # Lifecycle test-only op 'migratieklaar' (checklist compleet) → valt uit de afwijking,
+            # blijft wél klaar verklaard.
+            await s.execute(
+                _text("UPDATE component_profiel SET lifecycle_status='migratieklaar' WHERE id=:i"),
+                {"i": str(app_id)},
+            )
+            na2 = await dashboard_service.haal_dashboard(s, tid)
+            assert na2["klaar_verklaard"] == base["klaar_verklaard"] + 1   # nog steeds klaar verklaard
+            assert na2["klaar_met_afwijking"] == base["klaar_met_afwijking"]  # niet langer afwijking
+            assert str(app_id) in await _ids(klaarverklaring="klaar")
+            assert str(app_id) not in await _ids(afwijking=True)
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    asyncio.run(_run_rls(_flow))

@@ -187,9 +187,9 @@ export const api = {
     // naast componenttype + zoek. `status` is een array (herhaalde param).
     // ADR-023 Fase C: `laag` (application/technology) filtert op ArchiMate-laag
     // (read-only catalogus-typing) bovenop het type-filter.
-    lijst: ({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek } = {}) =>
+    lijst: ({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek, klaarverklaring, afwijking } = {}) =>
       request(
-        `/componenten${_query({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek })}`,
+        `/componenten${_query({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek, klaarverklaring, afwijking })}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),

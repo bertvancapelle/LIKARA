@@ -11,7 +11,7 @@ profiel-dragende componenten, niet langer alleen `applicatie`).
 """
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
@@ -19,13 +19,20 @@ from models.models import (
     Blokkade,
     Component,
     ComponentConfigDimensie,
+    ComponentKlaarverklaring,
     ComponentProfiel,
+    KlaarverklaringStatus,
     LifecycleStatus,
 )
 from services import componentconfig_catalog as catalog
 
 # Vast server-side limiet voor "recent gewijzigd" — geen client-input.
 _RECENT_LIMIT = 5
+
+# ADR-027 — lifecycle-statussen die "checklist compleet" betekenen (alle vragen gescoord).
+# Een klaar-verklaring op een component dáárbuiten = het afwijkingsgeval. Dit hergebruikt de
+# bestaande engine-status als vragen-volledigheid-signaal — GEEN tweede vragen-telling.
+_VRAGEN_COMPLEET_STATUSSEN = (LifecycleStatus.migratieklaar, LifecycleStatus.geblokkeerd)
 
 # De reële lifecycle-statussen die het dashboard telt. `checklist_compleet` is
 # transient (ADR-013 B4 — nooit opgeslagen) en valt hier bewust buiten.
@@ -126,8 +133,46 @@ async def haal_dashboard(session: AsyncSession, tenant_id) -> dict:
         for rij in recent_rijen
     ]
 
+    # 4. ADR-027 slice 3 — klaarverklaring-voortgang (read-only afgeleid; raakt de engine niet).
+    #    `klaar_verklaard` = componenten met een levende verklaring status=klaar.
+    klaar_verklaard = (
+        await session.execute(
+            select(func.count())
+            .select_from(ComponentKlaarverklaring)
+            .where(
+                ComponentKlaarverklaring.tenant_id == tid,
+                ComponentKlaarverklaring.status == KlaarverklaringStatus.klaar,
+            )
+        )
+    ).scalar_one()
+
+    #    `klaar_met_afwijking` = daarvan de componenten waarvan de checklist NOG NIET compleet is
+    #    (lifecycle ∉ {migratieklaar, geblokkeerd}). INNER join op het profiel → kale componenten
+    #    (geen checklist) tellen niet mee. Puur de join klaar-status × bestaande lifecycle: geen
+    #    tweede vragen-telling, geen herberekening.
+    klaar_met_afwijking = (
+        await session.execute(
+            select(func.count())
+            .select_from(ComponentKlaarverklaring)
+            .join(
+                ComponentProfiel,
+                and_(
+                    ComponentProfiel.id == ComponentKlaarverklaring.component_id,
+                    ComponentProfiel.tenant_id == tid,
+                ),
+            )
+            .where(
+                ComponentKlaarverklaring.tenant_id == tid,
+                ComponentKlaarverklaring.status == KlaarverklaringStatus.klaar,
+                ComponentProfiel.lifecycle_status.notin_(_VRAGEN_COMPLEET_STATUSSEN),
+            )
+        )
+    ).scalar_one()
+
     return {
         "readiness_per_type": readiness_per_type,
         "open_blokkades": open_blokkades,
         "recent_gewijzigd": recent,
+        "klaar_verklaard": klaar_verklaard,
+        "klaar_met_afwijking": klaar_met_afwijking,
     }

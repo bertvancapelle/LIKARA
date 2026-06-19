@@ -19,12 +19,14 @@ from models.models import (
     Checklistscore,
     Component,
     ComponentConfigDimensie,
+    ComponentKlaarverklaring,
     ComponentProfiel,
     Datatype,
     Element,
     ElementType,
     Gebruikersgroep,
     HostingModel,
+    KlaarverklaringStatus,
     LifecycleStatus,
     Migratiepad,
     NiveauEnum,
@@ -285,6 +287,7 @@ async def lijst(
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
     eigenaar_organisatie_id: uuid.UUID | None = None, zoek: str | None = None,
+    klaarverklaring: str | None = None, afwijking: bool = False,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
 
@@ -336,6 +339,24 @@ async def lijst(
         stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
     if zoek:
         stmt = stmt.where(Component.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+    # ADR-027 slice 3 — klaarverklaring-filters (doorklik vanaf het dashboard). `afwijking`
+    # impliceert de klaar-join + lifecycle ∉ {migratieklaar, geblokkeerd} (de vragen-stand uit
+    # de bestaande engine-status; geen tweede telling). Engine ongemoeid (read-only filter).
+    if klaarverklaring == KlaarverklaringStatus.klaar.value or afwijking:
+        stmt = stmt.join(
+            ComponentKlaarverklaring,
+            and_(
+                ComponentKlaarverklaring.component_id == Component.id,
+                ComponentKlaarverklaring.tenant_id == tid,
+                ComponentKlaarverklaring.status == KlaarverklaringStatus.klaar,
+            ),
+        )
+    if afwijking:
+        stmt = stmt.where(
+            ComponentProfiel.lifecycle_status.notin_(
+                [LifecycleStatus.migratieklaar, LifecycleStatus.geblokkeerd]
+            )
+        )
     if after:
         c_sort, c_order, c_isnull, c_waarde_str, c_id = decode_sort_cursor_nullable(after)
         if c_sort != sort or c_order != order:

@@ -233,6 +233,34 @@ describe('ComponentLijst', () => {
     expect(w.find('[data-testid="filter-status-trigger"]').text()).toContain('Geblokkeerd')
   })
 
+  it('ADR-027: ?klaarverklaring=klaar belandt als api-filter + toont de wisbare chip', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst({ pad: '/componenten?klaarverklaring=klaar' })
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ klaarverklaring: 'klaar' }),
+    )
+    expect(w.find('[data-testid="klaarverklaring-filter-chip"]').exists()).toBe(true)
+  })
+
+  it('ADR-027: ?afwijking=1 belandt als afwijking-filter (impliceert geen losse klaarverklaring-param)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst({ pad: '/componenten?afwijking=1' })
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.afwijking).toBe(1)
+    expect(call.klaarverklaring).toBeUndefined() // afwijking impliceert server-side de klaar-join
+    expect(w.find('[data-testid="klaarverklaring-filter-chip"]').text()).toContain('nog niet compleet')
+  })
+
+  it('ADR-027: chip wissen verwijdert de filter uit de volgende api-call', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst({ pad: '/componenten?afwijking=1' })
+    await w.find('[data-testid="klaarverklaring-filter-wis"]').trigger('click')
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.afwijking).toBeUndefined()
+    expect(call.klaarverklaring).toBeUndefined()
+    expect(w.find('[data-testid="klaarverklaring-filter-chip"]').exists()).toBe(false)
+  })
+
   it('?status= + ?type= samen zetten beide filters voor (exacte dashboard-tegel-match)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     await mountLijst({ pad: '/componenten?status=migratieklaar&type=applicatie' })

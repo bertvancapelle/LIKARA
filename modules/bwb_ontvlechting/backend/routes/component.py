@@ -53,6 +53,9 @@ async def lijst_componenten(
     hostingmodel: HostingModel | None = Query(None),
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
+    # ADR-027 slice 3 — dashboard-doorklik: klaarverklaring=klaar / afwijking=1 (allowlist).
+    klaarverklaring: str | None = Query(None, pattern="^klaar$"),
+    afwijking: bool = Query(False),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
@@ -62,6 +65,7 @@ async def lijst_componenten(
             componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
             hostingmodel=hostingmodel.value if hostingmodel else None,
             eigenaar_organisatie_id=eigenaar_organisatie_id, zoek=zoek,
+            klaarverklaring=klaarverklaring, afwijking=afwijking,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De sorteer-/paginatieparameters zijn ongeldig.")

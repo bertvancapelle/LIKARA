@@ -168,6 +168,40 @@ onMounted(laad)
         </router-link>
       </div>
 
+      <!-- (b2) ADR-027 slice 3 — klaarverklaring-voortgang (read-only afgeleid; engine ongemoeid) -->
+      <div aria-labelledby="dashboard-klaarverklaring-titel">
+        <h2
+          id="dashboard-klaarverklaring-titel"
+          class="text-[length:var(--cd-text-lg)] font-semibold mb-[var(--cd-space-sm)]"
+        >
+          Migratiegereedheid
+        </h2>
+        <div class="flex flex-wrap gap-[var(--cd-space-md)]">
+          <router-link
+            :to="{ name: 'component-lijst', query: { klaarverklaring: 'klaar' } }"
+            data-testid="telling-klaar-verklaard"
+            class="card inline-flex items-baseline gap-[var(--cd-space-sm)] bg-[var(--cd-color-surface)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)] px-[var(--cd-space-lg)] py-[var(--cd-space-md)] hover:shadow-[var(--cd-shadow-md)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          >
+            <span class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-success)]">{{ data.klaar_verklaard }}</span>
+            <span class="text-[var(--cd-color-text-muted)]">klaar verklaard</span>
+          </router-link>
+
+          <router-link
+            :to="{ name: 'component-lijst', query: { afwijking: 1 } }"
+            data-testid="telling-klaar-afwijking"
+            class="card inline-flex items-baseline gap-[var(--cd-space-sm)] rounded-[var(--cd-radius-card)] shadow-[var(--cd-shadow-sm)] px-[var(--cd-space-lg)] py-[var(--cd-space-md)] hover:shadow-[var(--cd-shadow-md)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+            :class="data.klaar_met_afwijking > 0 ? 'bg-[color-mix(in_srgb,var(--cd-color-warn)_12%,transparent)]' : 'bg-[var(--cd-color-surface)]'"
+          >
+            <span aria-hidden="true" class="text-[length:var(--cd-text-xl)]">⚠</span>
+            <span
+              class="text-[length:var(--cd-text-2xl)] font-semibold"
+              :class="data.klaar_met_afwijking > 0 ? 'text-[var(--cd-color-warn)]' : 'text-[var(--cd-color-text-muted)]'"
+            >{{ data.klaar_met_afwijking }}</span>
+            <span class="text-[var(--cd-color-text-muted)]">klaar verklaard, checklist nog niet compleet</span>
+          </router-link>
+        </div>
+      </div>
+
       <!-- (c) Recent gewijzigd -->
       <div aria-labelledby="dashboard-recent-titel">
         <h2

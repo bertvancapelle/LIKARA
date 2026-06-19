@@ -49,6 +49,15 @@ const filterHosting = ref('')
 // UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
 const filterEigenaarId = ref(null)
 const filterZoek = ref('')
+// ADR-027 slice 3 — dashboard-doorklik-filters (geen dropdown; uit de route-query). Een
+// indicator-chip laat ze zien + wissen. `afwijking` impliceert server-side `klaarverklaring=klaar`.
+const filterKlaarverklaring = ref('') // '' | 'klaar'
+const filterAfwijking = ref(false)
+function wisKlaarverklaringFilter() {
+  filterKlaarverklaring.value = ''
+  filterAfwijking.value = false
+  laad({ reset: true })
+}
 
 // Organisatie-keuze (filter): server-side zoeken, beperkt tot aard=organisatie.
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
@@ -89,6 +98,8 @@ async function laad({ reset = false } = {}) {
     if (filterHosting.value) params.hostingmodel = filterHosting.value
     if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
+    if (filterAfwijking.value) params.afwijking = 1
+    else if (filterKlaarverklaring.value) params.klaarverklaring = filterKlaarverklaring.value
     if (sortVeld.value) {
       params.sort = sortVeld.value
       params.order = sortRichting.value
@@ -153,6 +164,9 @@ onMounted(async () => {
     .map(String)
     .filter((s) => STATUS_OPTIES.includes(s))
   if (statussen.length) filterStatus.value = statussen
+  // ADR-027 slice 3 — klaarverklaring-doorklik vanaf het dashboard.
+  if (String(route.query.afwijking ?? '') === '1') filterAfwijking.value = true
+  else if (String(route.query.klaarverklaring ?? '') === 'klaar') filterKlaarverklaring.value = 'klaar'
   try {
     typeOpties.value = (await api.componenten.opties()).componenttype || []
   } catch {
@@ -287,6 +301,16 @@ onMounted(async () => {
     >
       {{ fout }}
     </p>
+
+    <!-- ADR-027 slice 3 — actieve klaarverklaring-doorklik (dashboard) als wisbare chip. -->
+    <div
+      v-if="filterKlaarverklaring || filterAfwijking"
+      data-testid="klaarverklaring-filter-chip"
+      class="mb-[var(--cd-space-md)] inline-flex items-center gap-[var(--cd-space-sm)] rounded-[var(--cd-radius-badge)] bg-[var(--cd-color-accent)] px-[var(--cd-space-md)] py-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]"
+    >
+      <span>{{ filterAfwijking ? 'Klaar verklaard, checklist nog niet compleet' : 'Klaar verklaard' }}</span>
+      <button type="button" data-testid="klaarverklaring-filter-wis" aria-label="Filter wissen" class="font-semibold hover:underline" @click="wisKlaarverklaringFilter">×</button>
+    </div>
 
     <!-- Server-side sortering (ADR-017): lazy + @sort → sort/order + cursor-reset.
          Laag is bewust NIET sorteerbaar (afgeleide ArchiMate-projectie, geen kolom). -->

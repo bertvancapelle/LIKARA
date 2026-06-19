@@ -43,8 +43,13 @@ class DashboardRead(BaseModel):
       (ADR-022 Fase F, Besluit 3). Kale typen (zonder profiel) verschijnen niet.
     - `open_blokkades`: aantal nog niet opgeloste blokkades (ADR-013-definitie).
     - `recent_gewijzigd`: de meest recent gewijzigde profiel-dragende componenten.
+    - `klaar_verklaard`: componenten met een levende klaar-verklaring (ADR-027 slice 3).
+    - `klaar_met_afwijking`: daarvan de gevallen met een nog niet complete checklist
+      (klaar verklaard terwijl de vragen-stand onvolledig is — read-only afgeleid).
     """
 
     readiness_per_type: list[DashboardReadinessType]
     open_blokkades: int
     recent_gewijzigd: list[DashboardRecentItem]
+    klaar_verklaard: int = 0
+    klaar_met_afwijking: int = 0
