@@ -13,7 +13,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
-import { useRoute } from '@/composables/router'
+import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
@@ -29,6 +29,7 @@ import {
 } from '../labels'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 const magAanmaken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
@@ -185,14 +186,13 @@ onMounted(async () => {
       >
         Componenten
       </h1>
-      <router-link
+      <Button
         v-if="magAanmaken"
-        :to="{ name: 'component-nieuw' }"
+        label="Nieuw component"
         data-testid="nieuw-component"
-        class="ml-auto inline-flex items-center rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-white text-[length:var(--cd-text-sm)] font-semibold hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
-      >
-        Nieuw component
-      </router-link>
+        class="ml-auto"
+        @click="router.push({ name: 'component-nieuw' })"
+      />
     </div>
 
     <!-- Filterbalk (CD017) — AND-gecombineerd; elke wijziging reset de cursor. -->

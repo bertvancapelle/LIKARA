@@ -40,6 +40,10 @@
   --cd-color-bg: #f7fafc;
   --cd-color-border: #e2e8f0;
   --cd-color-accent: #E8F0FB;
+  /* Lichtblauwe primary-schaal — gevulde secondary-knop (neventactie) */
+  --cd-color-primary-50:  #E6F1FB;  /* vul-tint */
+  --cd-color-primary-100: #D6E6F7;  /* hover, fractie donkerder */
+  --cd-color-primary-700: #185FA5;  /* tekst-tint (mid-blauw) */
   /* Aliassen voor achterwaartse compatibiliteit */
   --cd-text-primary: var(--cd-color-text);
   --cd-text-secondary: var(--cd-color-text-muted);

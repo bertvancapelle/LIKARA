@@ -272,7 +272,7 @@ const RIJEN = [
           <template #empty><span data-testid="partij-leden-leeg">Nog geen onderliggende partijen.</span></template>
         </DataTable>
         <div v-if="ledenCursor" class="mt-[var(--cd-space-sm)]">
-          <Button label="Meer laden" text data-testid="leden-meer-laden" :loading="ledenLaden" @click="laadLeden()" />
+          <Button label="Meer laden" severity="secondary" size="small" data-testid="leden-meer-laden" :loading="ledenLaden" @click="laadLeden()" />
         </div>
       </section>
 

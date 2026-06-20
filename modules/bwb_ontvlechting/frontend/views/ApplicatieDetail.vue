@@ -319,9 +319,8 @@ onMounted(async () => {
 
         <div class="mt-[var(--cd-space-lg)] flex flex-wrap gap-[var(--cd-space-md)]">
           <Button
-            label="🗺 Open in Landschapskaart →"
+            label="Open in Landschapskaart"
             severity="secondary"
-            outlined
             data-testid="open-landschapskaart-knop"
             @click="openInLandschapskaart"
           />
