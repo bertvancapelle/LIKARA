@@ -1,4 +1,8 @@
 @import "tailwindcss";
+/* Tailwind v4 scant standaard alleen de Vite-root (frontend/). Module-views staan
+   buiten die root (modules/<module>/frontend); zonder deze @source worden klassen
+   die alléén in module-views voorkomen niet gecompileerd (bv. tab-hover in AppTabs). */
+@source "../../../modules/bwb_ontvlechting/frontend";
 @import "../themes/base.css";
 
 /* Globale resets + element-defaults — gemigreerd uit App.vue <style> (ADR-047) */
