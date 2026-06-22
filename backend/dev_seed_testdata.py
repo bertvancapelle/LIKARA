@@ -55,6 +55,7 @@ from models.models import (  # noqa: E402
     Contract,
     Element,
     ElementType,
+    Gebruikersgroep,
     HostingModel,
     Partij,
     PartijAard,
@@ -68,6 +69,7 @@ from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate  #
 from schemas.contract import ContractCreate  # noqa: E402
 from schemas.relatie import RelatieCreate  # noqa: E402
 from schemas.partij import PartijCreate  # noqa: E402
+from schemas.gebruikersgroep import GebruikersgroepCreate  # noqa: E402
 from services import (  # noqa: E402
     component_contract_service,
     component_service,
@@ -75,6 +77,7 @@ from services import (  # noqa: E402
     blokkade_service,
     checklistscore_service,
     contract_service,
+    gebruikersgroep_service,
     partij_service,
     relatie_service,
     roltoewijzing_service,
@@ -962,21 +965,28 @@ async def seed_landschapskaart_demo(session, tenant_id) -> dict:
     return lifecycles
 
 
-async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
-    """Eén coherent scenario 'Gemeente Veldendam ICT-landschap' (de ENIGE dev-scenario-seed).
-
-    Volgorde: organisaties → afdelingen → personen → applicaties (+scoring) → contracten →
-    component↔contract → flows → roltoewijzingen. Alle entiteiten idempotent (skip op naam).
-    Catalogus-/enum-mappings (afgestemd): contract-aard → ContractType (mantel/deel/los),
-    flow-richting naar_doel/naar_bron → eenrichting · bidirectioneel → tweerichting,
-    protocol REST/SOAP → api · StUF → middleware. `soort` alleen 'leverancier' (catalogus);
-    'overheid'/'afdeling' bestaan niet als partijsoort → None."""
+async def _seed_bvowb_scenario(session, tenant_id) -> dict:
+    """BvoWB shared-services scenario (de ENIGE dev-scenario-seed): één dienstenprovider die
+    een gedeeld ICT-landschap beheert voor 3 gemeenten, met leveranciers, ketenpartners, DVO's
+    en een volledig rollenmodel. Volgorde: organisaties → leveranciers → afdelingen → personen →
+    applicaties (+scoring) → contracten → component↔contract → flows → roltoewijzingen →
+    gebruikersgroepen. Alles idempotent (skip op naam). Afgestemde keuzes:
+    - DVO-leverancier = BvoWB (aard=organisatie) — toegestaan als contract-leverancier.
+    - `soort`: alleen 'leverancier'/'ketenpartner' bestaan in de catalogus; 'dienstenprovider'/
+      'samenwerkende gemeente' → None.
+    - flow-richting naar_doel/naar_bron → eenrichting · bidirectioneel → tweerichting;
+      protocol REST/SOAP → api · StUF → middleware.
+    - gebruikersgroep-organisatie MOET aard=organisatie → de Burgers-groep krijgt org=None +
+      afdeling='Burgers' (kan niet aan de burger-partij hangen).
+    - flow naar een ketenpartner-partij (Belastingdienst) wordt NIET aangemaakt — flows lopen
+      tussen componenten, niet naar een partij."""
     from datetime import date
 
     tid = tenant_id
     telling = {k: 0 for k in (
-        "organisaties", "burgers", "afdelingen", "personen_intern", "personen_extern",
-        "applicaties", "contracten", "associaties", "flows", "roltoewijzingen", "scores",
+        "organisaties", "leveranciers", "burgers", "afdelingen", "personen",
+        "applicaties", "contracten", "associaties", "flows", "roltoewijzingen",
+        "scores", "gebruikersgroepen",
     )}
 
     partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
@@ -991,88 +1001,137 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
         telling[cat] += 1
         return obj.id
 
-    # ── 5a. Organisaties (Gemeente + leveranciers) ──
-    GV = "Gemeente Veldendam"
+    # ── 1. Organisaties (aard=organisatie): dienstenprovider + gemeenten + ketenpartners ──
     organisaties = [
-        (GV, None, "Raadhuisplein 1", "4123 AA", "Veldendam", "0345-678900", "info@veldendam.nl"),
-        ("GemSoft B.V.", "leverancier", "Softwareweg 12", "3821 BB", "Amersfoort", "033-4567890", "info@gemsoft.nl"),
-        ("CivData Solutions", "leverancier", "Dataplein 5", "2521 CC", "Den Haag", "070-3456789", "contact@civdata.nl"),
-        ("GeoWorks B.V.", "leverancier", "Geostraat 8", "1234 DD", "Amsterdam", "020-5678901", "info@geoworks.nl"),
-        ("BurgX B.V.", "leverancier", "Burgemeesterslaan 44", "5611 EE", "Eindhoven", "040-2345678", "support@burgx.nl"),
-        ("FinSys N.V.", "leverancier", "Financiënweg 99", "3011 FF", "Rotterdam", "010-3456789", "info@finsys.nl"),
-        ("SocioSuite GmbH", "leverancier", "Sozialstraße 7", "6221 GG", "Maastricht", "043-3456789", "info@sociosuite.nl"),
-        ("DataBridge B.V.", "leverancier", "Databrug 3", "6827 HH", "Arnhem", "026-4567890", "hello@databridge.nl"),
+        ("BvoWB", None, "Markt 1", "4001 AA", "Tiel", "0344-678900", "info@bvowb.nl"),
+        ("Gemeente Tiel", None, "Achterweg 2", "4001 BB", "Tiel", "0344-678910", "info@gemeentetiel.nl"),
+        ("Gemeente Culemborg", None, "Herenstraat 3", "4101 CC", "Culemborg", "0345-678920", "info@culemborg.nl"),
+        ("Gemeente West Betuwe", None, "Dorpsstraat 4", "4021 DD", "West Betuwe", "0344-678930", "info@westbetuwe.nl"),
+        ("Provincie Gelderland", "ketenpartner", "Markt 11", "6811 CG", "Arnhem", "026-3599111", "info@gelderland.nl"),
+        ("RVIG", "ketenpartner", "Turfmarkt 147", "2511 DP", "Den Haag", "070-3614614", "info@rvig.nl"),
+        ("RDW", "ketenpartner", "Europaweg 205", "9723 AS", "Groningen", "0900-0739", "info@rdw.nl"),
+        ("Belastingdienst", "ketenpartner", "Parnassusweg 5", "1077 DC", "Amsterdam", "0800-0543", "info@belastingdienst.nl"),
     ]
     for naam, soort, straat, pc, plaats, tel, mail in organisaties:
         await _partij(PartijAard.organisatie, naam, "organisaties", soort=soort,
                       straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
-    gv_id = partij_id[GV]
+    bvowb_id = partij_id["BvoWB"]
 
-    # ── 5b. Burger-partij ──
-    await _partij(PartijAard.burger, "Burgers", "burgers", omschrijving="Inwoners van de gemeente")
-
-    # ── 5c. Afdelingen (onder Gemeente Veldendam) ──
-    afdelingen = [
-        ("Informatievoorziening", "Raadhuisplein 1", "4123 AA", "Veldendam", "0345-678910", "iv@veldendam.nl"),
-        ("Informatisering", "Raadhuisplein 1", "4123 AA", "Veldendam", "0345-678911", "it@veldendam.nl"),
-        ("Burgerzaken", "Raadhuisplein 2", "4123 AA", "Veldendam", "0345-678920", "burgerzaken@veldendam.nl"),
-        ("Sociaal Domein", "Raadhuisplein 3", "4123 AA", "Veldendam", "0345-678930", "sociaaldomein@veldendam.nl"),
-        ("Financiën", "Raadhuisplein 4", "4123 AA", "Veldendam", "0345-678940", "financien@veldendam.nl"),
+    # ── 2. Leveranciers (aard=externe_partij, soort=leverancier) ──
+    leveranciers = [
+        ("GemSoft B.V.", "Softwareweg 12", "3821 BB", "Amersfoort", "033-4567890", "info@gemsoft.nl"),
+        ("CivData Solutions", "Dataplein 5", "2521 CC", "Den Haag", "070-3456789", "contact@civdata.nl"),
+        ("GeoWorks B.V.", "Geostraat 8", "1234 DD", "Amsterdam", "020-5678901", "info@geoworks.nl"),
+        ("DataBridge B.V.", "Databrug 3", "6827 HH", "Arnhem", "026-4567890", "hello@databridge.nl"),
+        ("FinSys N.V.", "Financiënweg 99", "3011 FF", "Rotterdam", "010-3456789", "info@finsys.nl"),
+        ("SocioSuite GmbH", "Sozialstraße 7", "6221 GG", "Maastricht", "043-3456789", "info@sociosuite.nl"),
+        ("BurgX B.V.", "Burgemeesterslaan 44", "5611 EE", "Eindhoven", "040-2345678", "support@burgx.nl"),
+        ("PermitPro B.V.", "Vergunningenweg 8", "5223 AA", "'s-Hertogenbosch", "073-6789012", "info@permitpro.nl"),
+        ("HRWorks B.V.", "Personeelsplein 22", "3511 AB", "Utrecht", "030-2345678", "info@hrworks.nl"),
+        ("OmgevingsSoft B.V.", "Omgevingslaan 15", "6811 JK", "Arnhem", "026-5678901", "info@omgevingssoft.nl"),
     ]
-    for naam, straat, pc, plaats, tel, mail in afdelingen:
-        await _partij(PartijAard.organisatie_eenheid, naam, "afdelingen", organisatie_id=gv_id,
+    for naam, straat, pc, plaats, tel, mail in leveranciers:
+        await _partij(PartijAard.externe_partij, naam, "leveranciers", soort="leverancier",
                       straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
 
-    # ── 5d. Interne personen (org=Gemeente, afdeling=…) ──
-    interne = [
-        ("J. de Vries", "Informatievoorziening", "06-12345678", "j.devries@veldendam.nl"),
-        ("P. van Dijk", "Informatisering", "06-23456789", "p.vandijk@veldendam.nl"),
-        ("S. de Boer", "Informatievoorziening", "06-34567890", "s.deboer@veldendam.nl"),
-        ("R. Visser", "Burgerzaken", "06-45678901", "r.visser@veldendam.nl"),
-        ("M. Bakker", "Financiën", "06-56789012", "m.bakker@veldendam.nl"),
+    # ── 3. Burger-partij ──
+    await _partij(PartijAard.burger, "Burgers", "burgers", omschrijving="Inwoners van de regio")
+
+    # ── 4. Afdelingen BvoWB (onder BvoWB) ──
+    afdelingen = [
+        ("Beheer & Exploitatie", "Markt 1", "4001 AA", "Tiel", "0344-678901", "beheer@bvowb.nl"),
+        ("Informatievoorziening", "Markt 1", "4001 AA", "Tiel", "0344-678902", "iv@bvowb.nl"),
+        ("Klantbeheer & Relatiebeheer", "Markt 1", "4001 AA", "Tiel", "0344-678903", "klantbeheer@bvowb.nl"),
     ]
-    for naam, afd, tel, mail in interne:
-        await _partij(PartijAard.persoon, naam, "personen_intern", organisatie_id=gv_id,
+    for naam, straat, pc, plaats, tel, mail in afdelingen:
+        await _partij(PartijAard.organisatie_eenheid, naam, "afdelingen", organisatie_id=bvowb_id,
+                      straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
+
+    # ── 5. BvoWB-medewerkers (org=BvoWB, afdeling=…) ──
+    bvowb_medewerkers = [
+        ("P. van Dijk", "Beheer & Exploitatie", "06-23456789", "p.vandijk@bvowb.nl"),
+        ("T. Klaassen", "Beheer & Exploitatie", "06-34567890", "t.klaassen@bvowb.nl"),
+        ("J. de Vries", "Informatievoorziening", "06-12345678", "j.devries@bvowb.nl"),
+        ("S. de Boer", "Informatievoorziening", "06-45678901", "s.deboer@bvowb.nl"),
+        ("R. Visser", "Klantbeheer & Relatiebeheer", "06-56789012", "r.visser@bvowb.nl"),
+        ("M. Bakker", "Klantbeheer & Relatiebeheer", "06-67890123", "m.bakker@bvowb.nl"),
+    ]
+    for naam, afd, tel, mail in bvowb_medewerkers:
+        await _partij(PartijAard.persoon, naam, "personen", organisatie_id=bvowb_id,
                       afdeling_id=partij_id[afd], telefoon=tel, email=mail)
 
-    # ── 5e. Externe personen (2 per leverancier) ──
-    externe = [
+    # ── 6. Gemeente-contactpersonen (org=gemeente) ──
+    gemeente_personen = [
+        ("A. Janssen", "Gemeente Tiel", "06-11223344", "a.janssen@gemeentetiel.nl"),
+        ("W. de Groot", "Gemeente Tiel", "06-22334455", "w.degroot@gemeentetiel.nl"),
+        ("B. van Essen", "Gemeente Culemborg", "06-33445566", "b.vanessen@culemborg.nl"),
+        ("C. Lievaart", "Gemeente Culemborg", "06-44556677", "c.lievaart@culemborg.nl"),
+        ("D. Lammers", "Gemeente West Betuwe", "06-55667788", "d.lammers@westbetuwe.nl"),
+        ("E. van Dijk", "Gemeente West Betuwe", "06-66778899", "e.vandijk@westbetuwe.nl"),
+    ]
+    for naam, org, tel, mail in gemeente_personen:
+        await _partij(PartijAard.persoon, naam, "personen", organisatie_id=partij_id[org],
+                      telefoon=tel, email=mail)
+
+    # ── 7. Leverancier-contactpersonen (2 per leverancier; rol → roltoewijzing hieronder) ──
+    leverancier_personen = [
         ("L. Smeets", "GemSoft B.V.", "06-11223344", "l.smeets@gemsoft.nl"),
         ("K. Peters", "GemSoft B.V.", "06-22334455", "k.peters@gemsoft.nl"),
         ("T. van den Berg", "CivData Solutions", "06-33445566", "t.vandenberg@civdata.nl"),
         ("F. Hendriks", "CivData Solutions", "06-44556677", "f.hendriks@civdata.nl"),
         ("W. Jansen", "GeoWorks B.V.", "06-55667788", "w.jansen@geoworks.nl"),
         ("C. Mulder", "GeoWorks B.V.", "06-66778899", "c.mulder@geoworks.nl"),
-        ("H. de Wit", "BurgX B.V.", "06-77889900", "h.dewit@burgx.nl"),
-        ("N. Groothuis", "BurgX B.V.", "06-88990011", "n.groothuis@burgx.nl"),
+        ("A. Dijkstra", "DataBridge B.V.", "06-77889900", "a.dijkstra@databridge.nl"),
+        ("I. van der Laan", "DataBridge B.V.", "06-88990011", "i.vanderlaan@databridge.nl"),
         ("B. Vermeer", "FinSys N.V.", "06-99001122", "b.vermeer@finsys.nl"),
         ("D. Koster", "FinSys N.V.", "06-00112233", "d.koster@finsys.nl"),
         ("E. van Leeuwen", "SocioSuite GmbH", "06-11223355", "e.vanleeuwen@sociosuite.nl"),
         ("G. Bosman", "SocioSuite GmbH", "06-22334466", "g.bosman@sociosuite.nl"),
-        ("A. Dijkstra", "DataBridge B.V.", "06-33445577", "a.dijkstra@databridge.nl"),
-        ("I. van der Laan", "DataBridge B.V.", "06-44556688", "i.vanderlaan@databridge.nl"),
+        ("H. de Wit", "BurgX B.V.", "06-33445577", "h.dewit@burgx.nl"),
+        ("N. Groothuis", "BurgX B.V.", "06-44556688", "n.groothuis@burgx.nl"),
+        ("O. Ploeg", "PermitPro B.V.", "06-55667799", "o.ploeg@permitpro.nl"),
+        ("V. Brouwer", "PermitPro B.V.", "06-66778800", "v.brouwer@permitpro.nl"),
+        ("Q. van Houten", "HRWorks B.V.", "06-77889911", "q.vanhouten@hrworks.nl"),
+        ("X. Pietersen", "HRWorks B.V.", "06-88990022", "x.pietersen@hrworks.nl"),
+        ("Y. Hendriksen", "OmgevingsSoft B.V.", "06-99001133", "y.hendriksen@omgevingssoft.nl"),
+        ("Z. van Beek", "OmgevingsSoft B.V.", "06-00112244", "z.vanbeek@omgevingssoft.nl"),
     ]
-    for naam, lev, tel, mail in externe:
-        await _partij(PartijAard.persoon, naam, "personen_extern", organisatie_id=partij_id[lev],
+    for naam, lev, tel, mail in leverancier_personen:
+        await _partij(PartijAard.persoon, naam, "personen", organisatie_id=partij_id[lev],
                       telefoon=tel, email=mail)
 
-    # ── 5f. Applicaties (+ scoringsplan) ── (naam, omschrijving, host, gescoord, blokkerend)
-    applicaties = [
-        ("Zaaksysteem", "Centraal systeem voor zaakgericht werken en zaakregistratie", "on_premise", 89, 1),
-        ("BRP", "Basisregistratie Personen — bron voor burgergegevens", "saas", 89, 0),
-        ("DMS", "Documentmanagementsysteem voor archivering en beheer", "saas", 45, 0),
-        ("Klantportaal", "Digitaal loket voor burgers en ondernemers", "saas", 22, 0),
-        ("Burgerzaken-suite", "Geïntegreerde suite voor burgerzaken en persoonsdocumenten", "on_premise", 22, 0),
-        ("Zaakafhandelcomponent", "Workflowcomponent voor de afhandeling van zaken", "on_premise", 0, 0),
-        ("Financieel systeem", "Financiële administratie, begroting en betalingsverkeer", "private_cloud", 0, 0),
-        ("Sociaal domein suite", "Casemanagement voor WMO, Jeugd en Participatie", "saas", 0, 0),
-        ("Gegevensmakelaar", "Koppelplatform voor gegevensuitwisseling tussen applicaties", "on_premise", 0, 0),
+    # ── 8. Ketenpartner-contactpersonen (1 per ketenpartner) ──
+    ketenpartner_personen = [
+        ("F. de Jong", "Provincie Gelderland", "06-11223366", "f.dejong@gelderland.nl"),
+        ("G. Willems", "RVIG", "06-22334477", "g.willems@rvig.nl"),
+        ("H. van Dam", "RDW", "06-33445588", "h.vandam@rdw.nl"),
+        ("I. Fontijn", "Belastingdienst", "06-44556699", "i.fontijn@belastingdienst.nl"),
     ]
-    for naam, oms, host, gescoord, blokkerend in applicaties:
+    for naam, org, tel, mail in ketenpartner_personen:
+        await _partij(PartijAard.persoon, naam, "personen", organisatie_id=partij_id[org],
+                      telefoon=tel, email=mail)
+
+    # ── 9. Applicaties (+ scoringsplan) ── (naam, omschrijving, host, gescoord, blokkerend, eigenaar)
+    applicaties = [
+        ("Zaaksysteem", "Centraal systeem voor zaakgericht werken — gedeeld alle gemeenten", "on_premise", 89, 1, "BvoWB"),
+        ("Zaakafhandelcomponent", "Workflowcomponent voor zaakafhandeling — gedeeld alle gemeenten", "on_premise", 0, 0, "BvoWB"),
+        ("DMS", "Documentmanagementsysteem — gedeeld alle gemeenten", "saas", 45, 0, "BvoWB"),
+        ("Klantportaal", "Digitaal loket voor burgers — gedeeld alle gemeenten", "saas", 22, 0, "BvoWB"),
+        ("BRP", "Basisregistratie Personen — gedeeld alle gemeenten", "saas", 89, 0, "BvoWB"),
+        ("Gegevensmakelaar", "Koppelplatform voor gegevensuitwisseling — BvoWB infrastructuur", "on_premise", 0, 0, "BvoWB"),
+        ("Financieel systeem", "Financiële administratie BvoWB en gemeenten", "private_cloud", 0, 0, "BvoWB"),
+        ("Sociaal domein suite", "Casemanagement WMO/Jeugd/Participatie — gedeeld", "saas", 0, 0, "BvoWB"),
+        ("Burgerzaken-suite", "Suite voor burgerzaken en persoonsdocumenten — gedeeld", "on_premise", 22, 0, "BvoWB"),
+        ("Vergunningensysteem", "Vergunningverlening en -beheer Tiel", "saas", 0, 0, "Gemeente Tiel"),
+        ("HR-systeem", "Personeels- en salarisadministratie Culemborg", "saas", 0, 0, "Gemeente Culemborg"),
+        ("Omgevingsloket", "Omgevingsvergunningen en -plannen West Betuwe", "saas", 0, 0, "Gemeente West Betuwe"),
+    ]
+    for naam, oms, host, gescoord, blokkerend, eigenaar in applicaties:
         if naam in app_id:
             continue
         obj = await applicatie_service.maak_aan(session, tid, ApplicatieCreate(
-            naam=naam, beschrijving=oms, hostingmodel=host, eigenaar_organisatie_id=gv_id, **APP_DEFAULTS))
+            naam=naam, beschrijving=oms, hostingmodel=host,
+            eigenaar_organisatie_id=partij_id[eigenaar], **APP_DEFAULTS))
         app_id[naam] = obj.id
         telling["applicaties"] += 1
         if gescoord > 0:
@@ -1083,17 +1142,25 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
                     component_id=obj.id, checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
                 telling["scores"] += 1
 
-    # ── 5g. Contracten (mantel vóór deelcontract; aard → ContractType) ──
+    # ── 10. Contracten (mantel vóór deelcontract) ── (naam, type, leverancier, van, tot, mantel, oms)
     contracten = [
-        ("Raamovereenkomst ICT 2023–2028", "mantelcontract", "GemSoft B.V.", "2023-01-01", "2028-12-31", None, "Raamcontract — overkoepelend GemSoft portfolio"),
-        ("Deelcontract Zaaksysteem 2023–2026", "deelcontract", "GemSoft B.V.", "2023-01-01", "2026-12-31", "Raamovereenkomst ICT 2023–2028", "Licentie en onderhoud Zaaksysteem"),
-        ("Deelcontract ZAC 2023–2026", "deelcontract", "GemSoft B.V.", "2023-01-01", "2026-12-31", "Raamovereenkomst ICT 2023–2028", "Licentie en onderhoud ZAC"),
-        ("SaaS DMS & Klantportaal 2024–2027", "los_contract", "CivData Solutions", "2024-01-01", "2027-12-31", None, "SaaS — DMS en Klantportaal"),
+        ("Raamovereenkomst ICT BvoWB 2023–2028", "mantelcontract", "GemSoft B.V.", "2023-01-01", "2028-12-31", None, "Raamcontract GemSoft voor Zaaksysteem en ZAC"),
+        ("Deelcontract Zaaksysteem 2023–2026", "deelcontract", "GemSoft B.V.", "2023-01-01", "2026-12-31", "Raamovereenkomst ICT BvoWB 2023–2028", "Licentie en onderhoud Zaaksysteem"),
+        ("Deelcontract ZAC 2023–2026", "deelcontract", "GemSoft B.V.", "2023-01-01", "2026-12-31", "Raamovereenkomst ICT BvoWB 2023–2028", "Licentie en onderhoud ZAC"),
+        ("SaaS DMS & Klantportaal 2024–2027", "los_contract", "CivData Solutions", "2024-01-01", "2027-12-31", None, "SaaS-overeenkomst DMS en Klantportaal"),
         ("Licentiecontract BRP 2022–2026", "los_contract", "GeoWorks B.V.", "2022-01-01", "2026-12-31", None, "Licentie BRP-toegang en updates"),
+        ("DataBridge koppelplatform 2024–2027", "los_contract", "DataBridge B.V.", "2024-01-01", "2027-12-31", None, "Beheer en doorontwikkeling Gegevensmakelaar"),
+        ("FinSys onderhoudscontract 2024–2028", "los_contract", "FinSys N.V.", "2024-01-01", "2028-12-31", None, "Beheer en onderhoud Financieel systeem"),
+        ("SocioSuite SaaS 2023–2026", "los_contract", "SocioSuite GmbH", "2023-03-01", "2026-02-28", None, "SaaS-licentie Sociaal domein suite"),
         ("Burgerzaken-suite licentie 2023–2026", "los_contract", "BurgX B.V.", "2023-06-01", "2026-05-31", None, "Licentie Burgerzaken-suite incl. support"),
-        ("FinSys onderhoudscontract 2024–2028", "los_contract", "FinSys N.V.", "2024-01-01", "2028-12-31", None, "Onderhoud — Financieel systeem"),
-        ("SocioSuite SaaS 2023–2026", "los_contract", "SocioSuite GmbH", "2023-03-01", "2026-02-28", None, "SaaS — Sociaal domein suite"),
-        ("DataBridge koppelplatform 2024–2027", "los_contract", "DataBridge B.V.", "2024-01-01", "2027-12-31", None, "Dienstverlening — beheer/doorontwikkeling Gegevensmakelaar"),
+        # DVO's — leverancier = BvoWB (interne dienstenprovider; organisatie is toegestaan)
+        ("DVO BvoWB – Gemeente Tiel", "los_contract", "BvoWB", "2023-01-01", "2027-12-31", None, "Dienstverleningsovereenkomst gedeelde ICT-diensten Tiel"),
+        ("DVO BvoWB – Gemeente Culemborg", "los_contract", "BvoWB", "2023-01-01", "2027-12-31", None, "Dienstverleningsovereenkomst gedeelde ICT-diensten Culemborg"),
+        ("DVO BvoWB – Gemeente West Betuwe", "los_contract", "BvoWB", "2023-01-01", "2027-12-31", None, "Dienstverleningsovereenkomst gedeelde ICT-diensten West Betuwe"),
+        # Gemeente-specifieke contracten
+        ("Vergunningensysteem contract 2023–2026", "los_contract", "PermitPro B.V.", "2023-01-01", "2026-12-31", None, "Licentie vergunningensysteem Gemeente Tiel"),
+        ("HR-systeem contract 2024–2027", "los_contract", "HRWorks B.V.", "2024-01-01", "2027-12-31", None, "HR-licentie Gemeente Culemborg"),
+        ("Omgevingsloket contract 2023–2026", "los_contract", "OmgevingsSoft B.V.", "2023-01-01", "2026-12-31", None, "Licentie omgevingsloket Gemeente West Betuwe"),
     ]
     for naam, ctype, lev, van, tot, mantel, oms in contracten:
         if naam in contract_id:
@@ -1106,17 +1173,20 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
         contract_id[naam] = res["id"]
         telling["contracten"] += 1
 
-    # ── 5g (vervolg). Component ↔ contract (association, relatie_rol=valt_onder) ──
+    # ── Component ↔ contract (association, relatie_rol=valt_onder) ──
     associaties = [
         ("Zaaksysteem", "Deelcontract Zaaksysteem 2023–2026"),
         ("Zaakafhandelcomponent", "Deelcontract ZAC 2023–2026"),
         ("DMS", "SaaS DMS & Klantportaal 2024–2027"),
         ("Klantportaal", "SaaS DMS & Klantportaal 2024–2027"),
         ("BRP", "Licentiecontract BRP 2022–2026"),
-        ("Burgerzaken-suite", "Burgerzaken-suite licentie 2023–2026"),
+        ("Gegevensmakelaar", "DataBridge koppelplatform 2024–2027"),
         ("Financieel systeem", "FinSys onderhoudscontract 2024–2028"),
         ("Sociaal domein suite", "SocioSuite SaaS 2023–2026"),
-        ("Gegevensmakelaar", "DataBridge koppelplatform 2024–2027"),
+        ("Burgerzaken-suite", "Burgerzaken-suite licentie 2023–2026"),
+        ("Vergunningensysteem", "Vergunningensysteem contract 2023–2026"),
+        ("HR-systeem", "HR-systeem contract 2024–2027"),
+        ("Omgevingsloket", "Omgevingsloket contract 2023–2026"),
     ]
     for app_naam, c_naam in associaties:
         try:
@@ -1126,9 +1196,9 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
         except RegistratieConflict:
             pass
 
-    # ── 5h. Flows (naam verplicht; meervoud per paar = kaartgroepering) ──
+    # ── 12. Flows (naam verplicht; meervoud per paar = kaartgroepering) ── (bron, doel, naam, richting, protocol, impact)
     _RICHTING = {"naar_doel": "eenrichting", "naar_bron": "eenrichting", "bidirectioneel": "tweerichting"}
-    _PROTOCOL = {"REST": "api", "SOAP": "api", "StUF": "middleware"}
+    _PROTOCOL = {"REST": "api", "SOAP": "api", "StUF": "middleware", "api": "api", "middleware": "middleware"}
     flows = [
         ("Zaaksysteem", "Gegevensmakelaar", "Zaakinformatie push", "naar_doel", "REST", "hoog"),
         ("Zaaksysteem", "Gegevensmakelaar", "Documenten ophalen", "naar_bron", "REST", "midden"),
@@ -1156,6 +1226,11 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
         ("Sociaal domein suite", "Financieel systeem", "Uitbetalingen doorzetten", "naar_doel", "REST", "hoog"),
         ("Sociaal domein suite", "Klantportaal", "Aanvraagstatus tonen", "naar_doel", "REST", "laag"),
         ("BRP", "Burgerzaken-suite", "Basisregistratie updaten", "naar_doel", "StUF", "hoog"),
+        # Ketenpartner-gerelateerde flows (app↔app; de Belastingdienst-flow is bewust weggelaten
+        # — Belastingdienst is een ketenpartner-PARTIJ, geen component, dus geen flow-endpoint).
+        ("Gegevensmakelaar", "BRP", "Persoonsgegevens RVIG ophalen", "naar_doel", "middleware", "hoog"),
+        ("BRP", "Burgerzaken-suite", "BRP-mutaties verwerken", "naar_doel", "middleware", "hoog"),
+        ("Klantportaal", "Gegevensmakelaar", "Burger-identificatie", "naar_doel", "api", "hoog"),
     ]
     bestaande_flows = {
         r.naam for r in (
@@ -1171,7 +1246,7 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
                        "impact_bij_verbreking": impact}))
         telling["flows"] += 1
 
-    # ── 5i. Roltoewijzingen ──
+    # ── 11. Roltoewijzingen ──
     async def _rol(partij_naam, object_id, rol):
         try:
             await roltoewijzing_service.maak_aan(session, tid, partij_id[partij_naam], object_id, rol)
@@ -1180,47 +1255,90 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
             pass
 
     rt_comp = [
-        ("J. de Vries", "Zaaksysteem", "functioneel_beheer"),
-        ("J. de Vries", "Zaaksysteem", "product_owner"),
-        ("J. de Vries", "Gegevensmakelaar", "technisch_beheer"),
+        # BvoWB technisch beheer (P. van Dijk primair, T. Klaassen secundair)
         ("P. van Dijk", "Zaaksysteem", "technisch_beheer"),
         ("P. van Dijk", "Zaakafhandelcomponent", "technisch_beheer"),
         ("P. van Dijk", "DMS", "technisch_beheer"),
-        ("S. de Boer", "Klantportaal", "product_owner"),
+        ("P. van Dijk", "BRP", "technisch_beheer"),
+        ("P. van Dijk", "Gegevensmakelaar", "technisch_beheer"),
+        ("T. Klaassen", "Klantportaal", "technisch_beheer"),
+        ("T. Klaassen", "Financieel systeem", "technisch_beheer"),
+        ("T. Klaassen", "Sociaal domein suite", "technisch_beheer"),
+        ("T. Klaassen", "Burgerzaken-suite", "technisch_beheer"),
+        # BvoWB functioneel beheer + product owner
+        ("J. de Vries", "Zaaksysteem", "functioneel_beheer"),
+        ("J. de Vries", "Zaakafhandelcomponent", "functioneel_beheer"),
+        ("J. de Vries", "Gegevensmakelaar", "functioneel_beheer"),
+        ("J. de Vries", "Zaaksysteem", "product_owner"),
         ("S. de Boer", "DMS", "functioneel_beheer"),
-        ("R. Visser", "BRP", "eigenaar"),
-        ("R. Visser", "Burgerzaken-suite", "functioneel_beheer"),
-        ("M. Bakker", "Financieel systeem", "functioneel_beheer"),
-        ("M. Bakker", "Sociaal domein suite", "product_owner"),
+        ("S. de Boer", "Klantportaal", "functioneel_beheer"),
+        ("S. de Boer", "Burgerzaken-suite", "functioneel_beheer"),
+        ("S. de Boer", "DMS", "product_owner"),
+        # Gemeente product owners op gedeelde apps
+        ("A. Janssen", "Zaaksysteem", "product_owner"),
+        ("A. Janssen", "DMS", "product_owner"),
+        ("A. Janssen", "Klantportaal", "product_owner"),
+        ("A. Janssen", "Burgerzaken-suite", "product_owner"),
+        ("B. van Essen", "Zaaksysteem", "product_owner"),
+        ("B. van Essen", "DMS", "product_owner"),
+        ("B. van Essen", "Klantportaal", "product_owner"),
+        ("D. Lammers", "Zaaksysteem", "product_owner"),
+        ("D. Lammers", "Klantportaal", "product_owner"),
+        ("D. Lammers", "Burgerzaken-suite", "product_owner"),
+        # Gemeente-specifieke apps
+        ("A. Janssen", "Vergunningensysteem", "product_owner"),
+        ("A. Janssen", "Vergunningensysteem", "functioneel_beheer"),
+        ("P. van Dijk", "Vergunningensysteem", "technisch_beheer"),
+        ("B. van Essen", "HR-systeem", "product_owner"),
+        ("B. van Essen", "HR-systeem", "functioneel_beheer"),
+        ("T. Klaassen", "HR-systeem", "technisch_beheer"),
+        ("D. Lammers", "Omgevingsloket", "product_owner"),
+        ("D. Lammers", "Omgevingsloket", "functioneel_beheer"),
+        ("P. van Dijk", "Omgevingsloket", "technisch_beheer"),
     ]
     rt_contract = [
-        ("J. de Vries", "Raamovereenkomst ICT 2023–2028", "contractbeheer"),
-        ("J. de Vries", "Deelcontract Zaaksysteem 2023–2026", "contractbeheer"),
-        ("J. de Vries", "DataBridge koppelplatform 2024–2027", "contractbeheer"),
-        ("P. van Dijk", "Deelcontract ZAC 2023–2026", "contractbeheer"),
-        ("S. de Boer", "SaaS DMS & Klantportaal 2024–2027", "contractbeheer"),
-        ("R. Visser", "Licentiecontract BRP 2022–2026", "contractbeheer"),
-        ("R. Visser", "Burgerzaken-suite licentie 2023–2026", "contractbeheer"),
+        ("R. Visser", "Raamovereenkomst ICT BvoWB 2023–2028", "contractbeheer"),
+        ("R. Visser", "Deelcontract Zaaksysteem 2023–2026", "contractbeheer"),
+        ("R. Visser", "Deelcontract ZAC 2023–2026", "contractbeheer"),
+        ("R. Visser", "SaaS DMS & Klantportaal 2024–2027", "contractbeheer"),
+        ("R. Visser", "DataBridge koppelplatform 2024–2027", "contractbeheer"),
+        ("M. Bakker", "Licentiecontract BRP 2022–2026", "contractbeheer"),
         ("M. Bakker", "FinSys onderhoudscontract 2024–2028", "contractbeheer"),
         ("M. Bakker", "SocioSuite SaaS 2023–2026", "contractbeheer"),
+        ("M. Bakker", "Burgerzaken-suite licentie 2023–2026", "contractbeheer"),
+        ("R. Visser", "DVO BvoWB – Gemeente Tiel", "contractbeheer"),
+        ("R. Visser", "DVO BvoWB – Gemeente Culemborg", "contractbeheer"),
+        ("R. Visser", "DVO BvoWB – Gemeente West Betuwe", "contractbeheer"),
+        ("A. Janssen", "Vergunningensysteem contract 2023–2026", "contractbeheer"),
+        ("B. van Essen", "HR-systeem contract 2024–2027", "contractbeheer"),
+        ("D. Lammers", "Omgevingsloket contract 2023–2026", "contractbeheer"),
     ]
+    # Leverancier Account Managers + Service Delivery Managers op contracten
     rt_extern = [
-        ("L. Smeets", "Raamovereenkomst ICT 2023–2028", "account_manager"),
-        ("K. Peters", "Raamovereenkomst ICT 2023–2028", "service_delivery_manager"),
+        ("L. Smeets", "Raamovereenkomst ICT BvoWB 2023–2028", "account_manager"),
         ("L. Smeets", "Deelcontract Zaaksysteem 2023–2026", "account_manager"),
+        ("L. Smeets", "Deelcontract ZAC 2023–2026", "account_manager"),
+        ("K. Peters", "Raamovereenkomst ICT BvoWB 2023–2028", "service_delivery_manager"),
+        ("K. Peters", "Deelcontract Zaaksysteem 2023–2026", "service_delivery_manager"),
         ("K. Peters", "Deelcontract ZAC 2023–2026", "service_delivery_manager"),
         ("T. van den Berg", "SaaS DMS & Klantportaal 2024–2027", "account_manager"),
         ("F. Hendriks", "SaaS DMS & Klantportaal 2024–2027", "service_delivery_manager"),
         ("W. Jansen", "Licentiecontract BRP 2022–2026", "account_manager"),
         ("C. Mulder", "Licentiecontract BRP 2022–2026", "service_delivery_manager"),
-        ("H. de Wit", "Burgerzaken-suite licentie 2023–2026", "account_manager"),
-        ("N. Groothuis", "Burgerzaken-suite licentie 2023–2026", "service_delivery_manager"),
+        ("A. Dijkstra", "DataBridge koppelplatform 2024–2027", "account_manager"),
+        ("I. van der Laan", "DataBridge koppelplatform 2024–2027", "service_delivery_manager"),
         ("B. Vermeer", "FinSys onderhoudscontract 2024–2028", "account_manager"),
         ("D. Koster", "FinSys onderhoudscontract 2024–2028", "service_delivery_manager"),
         ("E. van Leeuwen", "SocioSuite SaaS 2023–2026", "account_manager"),
         ("G. Bosman", "SocioSuite SaaS 2023–2026", "service_delivery_manager"),
-        ("A. Dijkstra", "DataBridge koppelplatform 2024–2027", "account_manager"),
-        ("I. van der Laan", "DataBridge koppelplatform 2024–2027", "service_delivery_manager"),
+        ("H. de Wit", "Burgerzaken-suite licentie 2023–2026", "account_manager"),
+        ("N. Groothuis", "Burgerzaken-suite licentie 2023–2026", "service_delivery_manager"),
+        ("O. Ploeg", "Vergunningensysteem contract 2023–2026", "account_manager"),
+        ("V. Brouwer", "Vergunningensysteem contract 2023–2026", "service_delivery_manager"),
+        ("Q. van Houten", "HR-systeem contract 2024–2027", "account_manager"),
+        ("X. Pietersen", "HR-systeem contract 2024–2027", "service_delivery_manager"),
+        ("Y. Hendriksen", "Omgevingsloket contract 2023–2026", "account_manager"),
+        ("Z. van Beek", "Omgevingsloket contract 2023–2026", "service_delivery_manager"),
     ]
     for p, a, r in rt_comp:
         await _rol(p, app_id[a], r)
@@ -1228,6 +1346,34 @@ async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
         await _rol(p, contract_id[c], r)
     for p, c, r in rt_extern:
         await _rol(p, contract_id[c], r)
+
+    # ── 13. Gebruikersgroepen (org MOET aard=organisatie; Burgers → org=None + afdeling='Burgers') ──
+    serving_rows = (
+        await session.execute(
+            select(Relatie.bron_id, Gebruikersgroep.organisatie_id, Gebruikersgroep.afdeling)
+            .join(Gebruikersgroep, Gebruikersgroep.id == Relatie.doel_id)
+            .where(Relatie.relatietype == "serving", Relatie.tenant_id == tid)
+        )
+    ).all()
+    bestaande_gg = {(r.bron_id, r.organisatie_id, r.afdeling) for r in serving_rows}
+
+    async def _gg(app_naam, org_id, afdeling, aantal):
+        key = (app_id[app_naam], org_id, afdeling)
+        if key in bestaande_gg:
+            return
+        await gebruikersgroep_service.maak_aan(session, tid, GebruikersgroepCreate(
+            applicatie_id=app_id[app_naam], organisatie_id=org_id, afdeling=afdeling, aantal_gebruikers=aantal))
+        bestaande_gg.add(key)
+        telling["gebruikersgroepen"] += 1
+
+    gg_orgs = [("BvoWB", 45), ("Gemeente Tiel", 180), ("Gemeente Culemborg", 120), ("Gemeente West Betuwe", 95)]
+    org_apps = ["Zaaksysteem", "Zaakafhandelcomponent", "DMS", "Klantportaal", "Burgerzaken-suite",
+                "BRP", "Gegevensmakelaar", "Sociaal domein suite"]
+    for app_naam in org_apps:
+        for org_naam, aantal in gg_orgs:
+            await _gg(app_naam, partij_id[org_naam], None, aantal)
+    for app_naam in ["Klantportaal", "Burgerzaken-suite", "Zaaksysteem"]:
+        await _gg(app_naam, None, "Burgers", 35000)
 
     return telling
 
@@ -1253,8 +1399,8 @@ async def main() -> None:
             _CODE_TO_ID[code] = vid
             _ID_TO_CODE[vid] = code
 
-        print("Gemeente Veldendam ICT-landschap:")
-        t = await _seed_gemeente_veldendam(session, DEV_TENANT)
+        print("BvoWB shared-services ICT-landschap:")
+        t = await _seed_bvowb_scenario(session, DEV_TENANT)
         print("  " + " · ".join(f"{k}={v}" for k, v in t.items()))
     print("dev-seed: klaar")
 
