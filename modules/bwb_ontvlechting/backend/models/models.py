@@ -295,6 +295,11 @@ class Relatie(Base, TenantMixin, TimestampMixin):
     naam: Mapped[str | None] = mapped_column(String(150), nullable=True)
     kenmerken: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ADR-023a — markering dat een KOPPELING_DUBBEL-waarschuwing bij aanmaak bewust is overruled
+    # (alleen flow). Audit-native: de diff-capture neemt deze mapped column automatisch mee.
+    dubbel_waarschuwing_genegeerd: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("false")
+    )
 
 
 class Component(Base, TenantMixin, TimestampMixin):

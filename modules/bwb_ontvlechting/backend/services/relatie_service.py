@@ -115,6 +115,28 @@ async def haal_op(session: AsyncSession, tenant_id, relatie_id) -> Relatie:
     return obj
 
 
+# ADR-023a — dubbel-signalering: een flow is "dubbel" als bron, doel, naam ÉN deze drie
+# kenmerken gelijk zijn aan een bestaande flow; de vrije `omschrijving` telt NIET mee.
+_DUBBEL_KENMERKEN = ("protocol", "richting", "impact_bij_verbreking")
+
+
+async def _dubbele_flow(session, tid, bron_id, doel_id, naam, kenmerken, exclude_id=None) -> bool:
+    """True als er al een flow bestaat met gelijke (bron, doel, naam, protocol, richting, impact).
+    Signalering, GEEN engine-poort: leest alleen relatie-rijen, muteert niets."""
+    stmt = select(Relatie).where(
+        Relatie.tenant_id == tid, Relatie.relatietype == "flow",
+        Relatie.bron_id == bron_id, Relatie.doel_id == doel_id, Relatie.naam == naam,
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Relatie.id != exclude_id)
+    nieuw = kenmerken or {}
+    for r in (await session.execute(stmt)).scalars():
+        bestaand = r.kenmerken or {}
+        if all(bestaand.get(v) == nieuw.get(v) for v in _DUBBEL_KENMERKEN):
+            return True
+    return False
+
+
 async def maak_aan(session: AsyncSession, tenant_id, data: RelatieCreate) -> Relatie:
     tid = _tenant_uuid(tenant_id)
     if data.bron_id == data.doel_id:
@@ -126,14 +148,32 @@ async def maak_aan(session: AsyncSession, tenant_id, data: RelatieCreate) -> Rel
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.archimate_relatie, data.relatietype)
     await _valideer_kenmerken(session, data.relatietype, data.kenmerken)
 
+    # Dubbel-signalering (overrulebaar) — alleen voor flow; geen harde blokkade. De markering
+    # `dubbel_waarschuwing_genegeerd` is alléén waar als er DAADWERKELIJK een dubbel was én die
+    # bewust is overruled (niet bij elke aanmaak met de vlag aan).
+    dubbel = data.relatietype == "flow" and await _dubbele_flow(
+        session, tid, data.bron_id, data.doel_id, data.naam, data.kenmerken
+    )
+    if dubbel and not data.negeer_waarschuwing:
+        raise RegistratieConflict(
+            "KOPPELING_DUBBEL",
+            "Er bestaat al een identieke koppeling (zelfde naam, protocol, richting en impact). "
+            "Bevestig om er tóch een tweede toe te voegen.",
+        )
+
     obj = Relatie(
         tenant_id=tid, bron_id=data.bron_id, doel_id=data.doel_id,
-        relatietype=data.relatietype, kenmerken=data.kenmerken, omschrijving=data.omschrijving,
+        relatietype=data.relatietype, naam=data.naam,
+        kenmerken=data.kenmerken, omschrijving=data.omschrijving,
+        dubbel_waarschuwing_genegeerd=bool(dubbel and data.negeer_waarschuwing),
     )
     session.add(obj)
     try:
         await session.flush()
     except IntegrityError as exc:
+        # Flow mag meervoud (partiële index) → deze backstop geldt nu nog ALLEEN voor de
+        # niet-flow-typen (association/assignment/aggregation/realization), die uniek blijven
+        # per (bron, doel, type). ADR-023a.
         await session.rollback()
         raise RegistratieConflict(
             "RELATIE_BESTAAT", "Deze relatie (bron, doel, type) bestaat al."
@@ -144,12 +184,16 @@ async def maak_aan(session: AsyncSession, tenant_id, data: RelatieCreate) -> Rel
 
 
 async def werk_bij(session: AsyncSession, tenant_id, relatie_id, data: RelatieUpdate) -> Relatie:
-    """Partieel: alleen `kenmerken`/`omschrijving` zijn muteerbaar. Endpoints + relatietype
-    zijn immutabel (een andere relatie = een nieuwe relatie)."""
+    """Partieel: alleen `naam`/`kenmerken`/`omschrijving` zijn muteerbaar. Endpoints +
+    relatietype zijn immutabel (een andere relatie = een nieuwe relatie)."""
     obj = await haal_op(session, tenant_id, relatie_id)
     velden = data.model_dump(exclude_unset=True)
     if "kenmerken" in velden:
         await _valideer_kenmerken(session, obj.relatietype, velden["kenmerken"] or {})
+    # ADR-023a — naam blijft verplicht voor flow (de Create-validator kent relatietype; bij
+    # update zit dat hier, want RelatieUpdate draagt geen relatietype).
+    if "naam" in velden and obj.relatietype == "flow" and not (velden["naam"] and velden["naam"].strip()):
+        raise OngeldigeRegistratie("NAAM_VERPLICHT", "naam is verplicht voor een flow-koppeling.")
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     await session.commit()

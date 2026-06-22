@@ -24,12 +24,28 @@ def test_relatie_create_extra_forbid_en_type_verplicht():
 
     from schemas.relatie import RelatieCreate
 
-    ok = RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="flow")
-    assert ok.kenmerken == {} and ok.relatietype == "flow"
+    ok = RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="flow", naam="StUF")
+    assert ok.kenmerken == {} and ok.relatietype == "flow" and ok.naam == "StUF"
+    assert ok.negeer_waarschuwing is False
     with pytest.raises(ValidationError):
-        RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="flow", onbekend=1)
+        RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="flow", naam="x", onbekend=1)
     with pytest.raises(ValidationError):
-        RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="  ")
+        RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="  ", naam="x")
+
+
+def test_naam_verplicht_voor_flow_optioneel_voor_andere_typen():
+    """ADR-023a — (d) naam ontbreekt bij flow → validatiefout; (e) naam optioneel bij niet-flow."""
+    from pydantic import ValidationError
+
+    from schemas.relatie import RelatieCreate
+
+    with pytest.raises(ValidationError):  # (d) flow zonder naam
+        RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="flow")
+    with pytest.raises(ValidationError):  # flow met lege naam
+        RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="flow", naam="   ")
+    # (e) niet-flow zonder naam → toegestaan
+    ok = RelatieCreate(bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL), relatietype="association")
+    assert ok.naam is None
 
 
 # ── Route + RBAC (offline, gemockte service) ─────────────────────────────────────
@@ -38,7 +54,8 @@ def _fake_relatie():
     from datetime import datetime, timezone
     return SimpleNamespace(
         id=uuid.UUID(_REL), bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL),
-        relatietype="flow", kenmerken={"protocol": "api"}, omschrijving=None,
+        relatietype="flow", naam="StUF-berichtenverkeer", kenmerken={"protocol": "api"}, omschrijving=None,
+        dubbel_waarschuwing_genegeerd=False,
         created_at=datetime(2026, 6, 14, tzinfo=timezone.utc),
         updated_at=datetime(2026, 6, 14, tzinfo=timezone.utc),
     )
@@ -93,7 +110,7 @@ def _payload(rol):
 _ROL_RECHTEN = {"viewer": set("L"), "medewerker": set("LAW"), "beheerder": set("LAWV"), "auditor": set("L")}
 _ENDPOINTS = [
     ("L", "GET", "/api/v1/relaties", None, 200),
-    ("A", "POST", "/api/v1/relaties", {"bron_id": _BRON, "doel_id": _DOEL, "relatietype": "flow"}, 201),
+    ("A", "POST", "/api/v1/relaties", {"bron_id": _BRON, "doel_id": _DOEL, "relatietype": "flow", "naam": "StUF"}, 201),
     ("L", "GET", f"/api/v1/relaties/{_REL}", None, 200),
     ("W", "PATCH", f"/api/v1/relaties/{_REL}", {"omschrijving": "x"}, 200),
     ("V", "DELETE", f"/api/v1/relaties/{_REL}", None, 204),
@@ -147,7 +164,7 @@ def test_relatie_crud_en_integriteit_live():
     from models.models import Component, Element, ElementType
     from schemas.relatie import RelatieCreate
     from services import relatie_service
-    from services.errors import NietGevonden, OngeldigeRegistratie
+    from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 
     async def _comp(s, tid, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component)
@@ -169,21 +186,21 @@ def test_relatie_crud_en_integriteit_live():
                     a = await _comp(s, tid, f"REL-A-{uuid.uuid4().hex[:6]}")
                     b = await _comp(s, tid, f"REL-B-{uuid.uuid4().hex[:6]}")
                     await s.commit()
-                    # geldige flow-relatie met kenmerk protocol
+                    # geldige flow-relatie met kenmerk protocol (naam verplicht voor flow, ADR-023a)
                     rel = await relatie_service.maak_aan(
                         s, TENANT_A,
-                        RelatieCreate(bron_id=a, doel_id=b, relatietype="flow",
+                        RelatieCreate(bron_id=a, doel_id=b, relatietype="flow", naam="StUF",
                                       kenmerken={"protocol": "api"}),
                     )
                     resultaten = {"created": rel.id, "bron": rel.bron_id, "doel": rel.doel_id}
                     # bron≠doel
                     try:
                         await relatie_service.maak_aan(
-                            s, TENANT_A, RelatieCreate(bron_id=a, doel_id=a, relatietype="flow"))
+                            s, TENANT_A, RelatieCreate(bron_id=a, doel_id=a, relatietype="flow", naam="X"))
                         resultaten["zelf"] = "GEEN_FOUT"
                     except OngeldigeRegistratie as e:
                         resultaten["zelf"] = e.code
-                    # onbekend relatietype
+                    # onbekend relatietype (niet-flow → naam niet vereist)
                     try:
                         await relatie_service.maak_aan(
                             s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="bestaat_niet"))
@@ -193,7 +210,7 @@ def test_relatie_crud_en_integriteit_live():
                     # ongeldig kenmerk (protocol-waarde fout)
                     try:
                         await relatie_service.maak_aan(
-                            s, TENANT_A, RelatieCreate(bron_id=b, doel_id=a, relatietype="flow",
+                            s, TENANT_A, RelatieCreate(bron_id=b, doel_id=a, relatietype="flow", naam="X",
                                                        kenmerken={"protocol": "telepathie"}))
                         resultaten["kenmerk"] = "GEEN_FOUT"
                     except OngeldigeRegistratie as e:
@@ -201,11 +218,51 @@ def test_relatie_crud_en_integriteit_live():
                     # niet-bestaand endpoint
                     try:
                         await relatie_service.maak_aan(
-                            s, TENANT_A, RelatieCreate(bron_id=a, doel_id=uuid.uuid4(), relatietype="flow"))
+                            s, TENANT_A, RelatieCreate(bron_id=a, doel_id=uuid.uuid4(), relatietype="flow", naam="X"))
                         resultaten["endpoint"] = "GEEN_FOUT"
                     except NietGevonden:
                         resultaten["endpoint"] = "NIET_GEVONDEN"
-                    # opruimen (element-delete cascadeert de relatie)
+
+                    # ADR-023a (a) — tweede flow a→b met ANDERE naam → toegestaan (meervoud).
+                    rel_a = await relatie_service.maak_aan(
+                        s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="flow",
+                                                   naam="Andere koppeling", kenmerken={"protocol": "api"}))
+                    resultaten["tweede_naam"] = "OK" if rel_a.id != rel.id else "ZELFDE"
+                    # (b) — flow identiek op alles BEHALVE omschrijving → KOPPELING_DUBBEL.
+                    try:
+                        await relatie_service.maak_aan(
+                            s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="flow", naam="StUF",
+                                                       kenmerken={"protocol": "api"}, omschrijving="andere toelichting"))
+                        resultaten["dubbel"] = "GEEN_FOUT"
+                    except RegistratieConflict as e:
+                        resultaten["dubbel"] = e.code
+                    # (c) — zelfde dubbel mét negeer_waarschuwing=True → tóch aangemaakt + markering.
+                    rel_c = await relatie_service.maak_aan(
+                        s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="flow", naam="StUF",
+                                                   kenmerken={"protocol": "api"}, negeer_waarschuwing=True))
+                    resultaten["overrule"] = "OK" if rel_c.id else "FAAL"
+                    resultaten["overrule_markering"] = rel_c.dubbel_waarschuwing_genegeerd
+                    # negeer_waarschuwing=True ZONDER bestaande dubbel → markering blijft false.
+                    rel_d = await relatie_service.maak_aan(
+                        s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="flow",
+                                                   naam="Geen-dubbel", kenmerken={"protocol": "api"},
+                                                   negeer_waarschuwing=True))
+                    resultaten["geen_dubbel_markering"] = rel_d.dubbel_waarschuwing_genegeerd
+                    # non-flow blijft uniek: tweede association a→b → RELATIE_BESTAAT.
+                    await relatie_service.maak_aan(
+                        s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="association"))
+                    try:
+                        await relatie_service.maak_aan(
+                            s, TENANT_A, RelatieCreate(bron_id=a, doel_id=b, relatietype="association"))
+                        resultaten["assoc_dubbel"] = "GEEN_FOUT"
+                    except RegistratieConflict as e:
+                        resultaten["assoc_dubbel"] = e.code
+                    # Engine onaangeroerd: het aanmaken van flows liet GEEN component_profiel ontstaan.
+                    resultaten["profielen"] = (
+                        await s.execute(text("SELECT count(*) FROM component_profiel WHERE id IN (:a,:b)"),
+                                        {"a": str(a), "b": str(b)})
+                    ).scalar()
+                    # opruimen (element-delete cascadeert de relaties)
                     await s.execute(text("DELETE FROM element WHERE id IN (:a,:b)"),
                                     {"a": str(a), "b": str(b)})
                     await s.commit()
@@ -221,3 +278,36 @@ def test_relatie_crud_en_integriteit_live():
     assert r["type"] == "ONGELDIGE_OPTIE"
     assert r["kenmerk"] == "ONGELDIG_KENMERK"
     assert r["endpoint"] == "NIET_GEVONDEN"
+    # ADR-023a
+    assert r["tweede_naam"] == "OK"          # (a) tweede flow met andere naam toegestaan
+    assert r["dubbel"] == "KOPPELING_DUBBEL"  # (b) identiek (omschrijving uitgezonderd) → signalering
+    assert r["overrule"] == "OK"             # (c) negeer_waarschuwing=True → tóch aangemaakt
+    assert r["assoc_dubbel"] == "RELATIE_BESTAAT"  # non-flow blijft uniek
+    assert r["profielen"] == 0               # engine onaangeroerd (geen component_profiel)
+    assert r["overrule_markering"] is True   # echte override → markering gezet
+    assert r["geen_dubbel_markering"] is False  # geen dubbel → geen markering
+
+
+def test_audit_capture_dubbel_markering():
+    """ADR-023a — de override-markering is een mapped column → de audit-diff (bouw_wijziging)
+    capture't hem automatisch, dus de override verschijnt in de objecthistorie van de koppeling."""
+    from app.core.audit import AUDIT_TENANT_ENTITEITEN, AuditActie, bouw_wijziging
+    from models.models import Relatie
+
+    obj = Relatie(
+        tenant_id=uuid.UUID(TENANT_A), bron_id=uuid.UUID(_BRON), doel_id=uuid.UUID(_DOEL),
+        relatietype="flow", naam="StUF", kenmerken={}, dubbel_waarschuwing_genegeerd=True,
+    )
+    w = bouw_wijziging(obj, AuditActie.create)
+    assert "dubbel_waarschuwing_genegeerd" in w
+    assert w["dubbel_waarschuwing_genegeerd"]["nieuw"] is True
+    assert "relatie" in AUDIT_TENANT_ENTITEITEN
+
+
+def test_relatie_service_engine_vrij():
+    """Engine-borging (offline): relatie_service importeert geen lifecycle/score/blokkade-symbolen."""
+    from services import relatie_service as m
+
+    for naam in ("lifecycle_service", "herbereken_lifecycle", "bepaal_lifecycle",
+                 "ComponentProfiel", "Blokkade", "Checklistscore"):
+        assert not hasattr(m, naam), f"relatie_service mag {naam} niet importeren"

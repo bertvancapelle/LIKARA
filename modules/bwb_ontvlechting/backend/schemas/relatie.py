@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class RelatieCreate(BaseModel):
@@ -11,8 +11,13 @@ class RelatieCreate(BaseModel):
     bron_id: uuid.UUID
     doel_id: uuid.UUID
     relatietype: str = Field(min_length=1, max_length=40)
+    # ADR-023a — identificerende koppeling-naam: VERPLICHT voor flow, optioneel voor andere typen.
+    naam: str | None = Field(default=None, max_length=150)
     kenmerken: dict = Field(default_factory=dict)
     omschrijving: str | None = Field(default=None, max_length=2000)
+    # Overrule-vlag voor de dubbel-signalering (KOPPELING_DUBBEL). Geen persistent veld:
+    # de service leest dit alleen om de waarschuwing al-dan-niet over te slaan.
+    negeer_waarschuwing: bool = False
 
     @field_validator("relatietype")
     @classmethod
@@ -22,10 +27,19 @@ class RelatieCreate(BaseModel):
             raise ValueError("relatietype mag niet leeg zijn")
         return v
 
+    @model_validator(mode="after")
+    def _naam_verplicht_voor_flow(self):
+        if self.relatietype == "flow" and not (self.naam and self.naam.strip()):
+            raise ValueError("naam is verplicht voor een flow-koppeling")
+        return self
+
 
 class RelatieUpdate(BaseModel):
     model_config = {"extra": "forbid"}
 
+    # ADR-023a — `naam` muteerbaar (endpoints/relatietype blijven immutabel). De
+    # naam-verplicht-voor-flow-regel bij bewerken zit in de servicelaag (kent `relatietype`).
+    naam: str | None = Field(default=None, max_length=150)
     kenmerken: dict | None = None
     omschrijving: str | None = Field(default=None, max_length=2000)
 
@@ -37,8 +51,10 @@ class RelatieRead(BaseModel):
     bron_id: uuid.UUID
     doel_id: uuid.UUID
     relatietype: str
+    naam: str | None = None
     kenmerken: dict
     omschrijving: str | None = None
+    dubbel_waarschuwing_genegeerd: bool = False
     created_at: datetime
     updated_at: datetime
 
