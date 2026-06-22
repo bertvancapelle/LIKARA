@@ -30,6 +30,7 @@ function maakRouter() {
     routes: [
       { path: '/migratie/gaps', name: 'gap-lijst', component: { template: '<div/>' } },
       { path: '/migratie/gaps/:id', name: 'gap-detail', component: GapDetailView, props: true },
+      { path: '/migratie/plateaus/:id', name: 'plateau-detail', component: { template: '<div/>' } },
     ],
   })
 }
@@ -83,6 +84,9 @@ describe('GapDetailView — render + readiness', () => {
     const { w } = await mountDetail()
     expect(w.find('[data-testid="gap-overgang"]').text()).toContain('Baseline')
     expect(w.find('[data-testid="gap-overgang"]').text()).toContain('Doel')
+    // Beide plateaus als klikbare router-link in de header-subtitel.
+    expect(w.find('[data-testid="gap-baseline-link"]').text()).toContain('Baseline')
+    expect(w.find('[data-testid="gap-doel-link"]').text()).toContain('Doel')
     expect(w.find('[data-testid="readiness-technisch"]').text()).toContain('3 van 5 (60%)')
     expect(w.find('[data-testid="readiness-contractueel"]').text()).toContain('Nog geen leden')
     expect(w.find('[data-testid="readiness-uitleg"]').text()).toContain('automatisch afgeleid')

@@ -36,6 +36,7 @@ const verwijderDialog = ref(false)
 // Read-only register-overzichten (CD044 §1/§2).
 const deelcontracten = ref([])
 const gekoppeldeApps = ref([])
+const mantelNaam = ref(null) // naam van het mantelcontract (parent-context in de header)
 const isMantel = computed(() => contract.value?.contracttype === 'mantelcontract')
 
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
@@ -67,6 +68,10 @@ async function laad() {
       contract.value.contracttype === 'mantelcontract'
         ? await api.contracten.deelcontracten(props.id)
         : []
+    // Parent-context: naam van het mantelcontract (deelcontract → mantel).
+    mantelNaam.value = contract.value.mantelcontract_id
+      ? (await api.contracten.haal(contract.value.mantelcontract_id).catch(() => null))?.contractnaam || null
+      : null
   } catch {
     /* overzichten optioneel */
   }
@@ -96,11 +101,18 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
     <p v-if="fout" role="alert" data-testid="detail-fout" class="text-[var(--cd-color-danger)]">{{ fout }}</p>
 
     <template v-if="contract">
-      <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-md)]">
-        <h1 id="contract-detail-titel" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
-          {{ contract.contractnaam }}
-        </h1>
-        <Tag data-testid="detail-type" :value="typeLabel(contract.contracttype)" :severity="CONTRACTTYPE_SEVERITY[contract.contracttype] || 'info'" />
+      <div class="mb-[var(--cd-space-md)]">
+        <div class="flex items-center gap-[var(--cd-space-md)]">
+          <h1 id="contract-detail-titel" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
+            {{ contract.contractnaam }}
+          </h1>
+          <Tag data-testid="detail-type" :value="typeLabel(contract.contracttype)" :severity="CONTRACTTYPE_SEVERITY[contract.contracttype] || 'info'" />
+        </div>
+        <!-- Parent-context: deelcontract → mantelcontract (alleen indien aanwezig). -->
+        <p v-if="contract.mantelcontract_id" data-testid="contract-valt-onder" class="mt-1 text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
+          Valt onder
+          <router-link :to="{ name: 'contract-detail', params: { id: contract.mantelcontract_id } }" data-testid="valt-onder-link" class="rounded px-1 text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)] hover:underline">{{ mantelNaam || 'mantelcontract' }}</router-link>
+        </p>
       </div>
 
       <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--cd-space-lg)] gap-y-[var(--cd-space-sm)]">

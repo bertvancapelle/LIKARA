@@ -150,6 +150,24 @@ describe('PartijDetail', () => {
     expect(afdLink.text()).toContain('Afdeling I&A')
   })
 
+  it('persoon met organisatie maar zonder afdeling: alleen de org-link in de subtitel', async () => {
+    api.partijen.haal.mockImplementation((id) =>
+      id === 'p1'
+        ? Promise.resolve(_partij({ aard: 'persoon', naam: 'J. de Vries', soort: null, organisatie_id: 'org9', afdeling_id: null }))
+        : Promise.resolve(_partij({ id: 'org9', aard: 'organisatie', naam: 'Gemeente X' })),
+    )
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="hoortbij-org-link"]').exists()).toBe(true)
+    expect(w.find('[data-testid="hoortbij-afd-link"]').exists()).toBe(false)
+  })
+
+  it('organisatie (geen ouder): "hoort bij"-subtitel is verborgen', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', naam: 'Gemeente X', soort: null }))
+    mockLeden({})
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="partij-hoortbij"]').exists()).toBe(false)
+  })
+
   it('UX-A2/A3: organisatie toont "+ Afdeling" en "+ Persoon"; klik prefilt de organisatie', async () => {
     api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', naam: 'Gemeente X', soort: null }))
     api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })

@@ -56,6 +56,29 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
+describe('WorkPackageDetailView — parent-context in header', () => {
+  it('toont "Onderdeel van" met link bij een sub-werkpakket', async () => {
+    api.workPackages.haal.mockImplementation((id) =>
+      Promise.resolve(
+        id === ID
+          ? { id: ID, naam: 'Oracle-DB overzetten', toelichting: null, bovenliggend_id: 'parent9' }
+          : { id: 'parent9', naam: 'Financieel domein', toelichting: null, bovenliggend_id: null },
+      ),
+    )
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="wp-ouder"]').exists()).toBe(true)
+    const link = w.find('[data-testid="wp-ouder-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toContain('Financieel domein')
+  })
+
+  it('verbergt "Onderdeel van" bij een top-niveau werkpakket', async () => {
+    // default-mock: bovenliggend_id: null
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="wp-ouder"]').exists()).toBe(false)
+  })
+})
+
 describe('WorkPackageDetailView — render + rol-gating', () => {
   it('toont naam, subpakketten en beheer-knoppen', async () => {
     const { w } = await mountDetail()

@@ -164,28 +164,22 @@ onMounted(laad)
     <p v-else-if="laden" data-testid="wp-detail-laden" class="my-[var(--cd-space-md)] text-[var(--cd-color-text-muted)]">Laden…</p>
 
     <template v-else-if="wp">
-      <div class="mt-[var(--cd-space-sm)] mb-[var(--cd-space-sm)] flex items-center gap-[var(--cd-space-md)]">
-        <h1 id="wp-detail-titel" data-testid="wp-naam" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
-          {{ wp.naam }}
-        </h1>
-        <ObjectHistoriePaneel entiteit-type="work_package" :entiteit-id="props.id" class="ml-auto" />
-        <Button v-if="magBeheren" label="Bewerken" data-testid="wp-bewerken" @click="openBewerken" />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="wp-verwijderen" @click="verwijderOpen = true" />
+      <div class="mt-[var(--cd-space-sm)] mb-[var(--cd-space-sm)]">
+        <div class="flex items-center gap-[var(--cd-space-md)]">
+          <h1 id="wp-detail-titel" data-testid="wp-naam" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
+            {{ wp.naam }}
+          </h1>
+          <ObjectHistoriePaneel entiteit-type="work_package" :entiteit-id="props.id" class="ml-auto" />
+          <Button v-if="magBeheren" label="Bewerken" data-testid="wp-bewerken" @click="openBewerken" />
+          <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="wp-verwijderen" @click="verwijderOpen = true" />
+        </div>
+        <!-- Parent-context: bovenliggend werkpakket als subtitel (alleen als niet top-niveau). -->
+        <p v-if="wp.bovenliggend_id" data-testid="wp-ouder" class="mt-1 text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
+          Onderdeel van
+          <router-link :to="{ name: 'work-package-detail', params: { id: wp.bovenliggend_id } }" data-testid="wp-ouder-link" class="rounded px-1 text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)] hover:underline">{{ ouder?.naam || 'bovenliggend pakket' }}</router-link>
+        </p>
       </div>
       <p v-if="wp.toelichting" class="mb-[var(--cd-space-md)] text-[var(--cd-color-text)]">{{ wp.toelichting }}</p>
-
-      <p data-testid="wp-ouder" class="mb-[var(--cd-space-lg)] text-[var(--cd-color-text)]">
-        <span class="font-medium">Onderdeel van:</span>
-        <router-link
-          v-if="wp.bovenliggend_id"
-          :to="{ name: 'work-package-detail', params: { id: wp.bovenliggend_id } }"
-          data-testid="wp-ouder-link"
-          class="text-[var(--cd-color-primary)] hover:underline"
-        >
-          {{ ouder?.naam || 'bovenliggend pakket' }}
-        </router-link>
-        <span v-else> top-niveau (geen bovenliggend pakket)</span>
-      </p>
 
       <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-sm)]">
         <h2 class="text-[length:var(--cd-text-lg)] font-semibold">Subpakketten ({{ directeSubpakketten.length }} direct)</h2>

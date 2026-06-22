@@ -204,20 +204,24 @@ onMounted(laad)
     <p v-else-if="laden" data-testid="gap-detail-laden" class="my-[var(--cd-space-md)] text-[var(--cd-color-text-muted)]">Laden…</p>
 
     <template v-else-if="gap">
-      <div class="mt-[var(--cd-space-sm)] mb-[var(--cd-space-sm)] flex items-center gap-[var(--cd-space-md)]">
-        <h1 id="gap-detail-titel" data-testid="gap-naam" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
-          {{ gap.naam }}
-        </h1>
-        <ObjectHistoriePaneel entiteit-type="gap" :entiteit-id="props.id" class="ml-auto" />
-        <Button v-if="magBeheren" label="Bewerken" data-testid="gap-bewerken" @click="openBewerken" />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="gap-verwijderen" @click="verwijderOpen = true" />
+      <div class="mt-[var(--cd-space-sm)] mb-[var(--cd-space-sm)]">
+        <div class="flex items-center gap-[var(--cd-space-md)]">
+          <h1 id="gap-detail-titel" data-testid="gap-naam" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
+            {{ gap.naam }}
+          </h1>
+          <ObjectHistoriePaneel entiteit-type="gap" :entiteit-id="props.id" class="ml-auto" />
+          <Button v-if="magBeheren" label="Bewerken" data-testid="gap-bewerken" @click="openBewerken" />
+          <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="gap-verwijderen" @click="verwijderOpen = true" />
+        </div>
+        <!-- Parent-context: baseline → doel-plateau als subtitel in de header. -->
+        <p data-testid="gap-overgang" class="mt-1 text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
+          Overgang:
+          <router-link :to="{ name: 'plateau-detail', params: { id: gap.baseline_plateau_id } }" data-testid="gap-baseline-link" class="rounded px-1 text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)] hover:underline">{{ baselineNaam || 'baseline-plateau' }}</router-link>
+          →
+          <router-link :to="{ name: 'plateau-detail', params: { id: gap.doel_plateau_id } }" data-testid="gap-doel-link" class="rounded px-1 text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)] hover:underline">{{ doelNaam || 'doel-plateau' }}</router-link>
+        </p>
       </div>
       <p v-if="gap.toelichting" class="mb-[var(--cd-space-md)] text-[var(--cd-color-text)]">{{ gap.toelichting }}</p>
-
-      <p data-testid="gap-overgang" class="mb-[var(--cd-space-lg)] text-[var(--cd-color-text)]">
-        <span class="font-medium">Overgang:</span>
-        {{ baselineNaam || 'baseline-plateau' }} → {{ doelNaam || 'doel-plateau' }}
-      </p>
 
       <div class="mb-[var(--cd-space-sm)] grid gap-[var(--cd-space-md)] sm:grid-cols-2">
         <div data-testid="readiness-technisch" class="rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]">

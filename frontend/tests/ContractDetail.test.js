@@ -65,6 +65,29 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
+describe('ContractDetail — parent-context in header (valt onder)', () => {
+  it('toont de "Valt onder"-subtitel met mantelcontract-link bij een deelcontract', async () => {
+    api.contracten.haal.mockImplementation((id) =>
+      Promise.resolve(
+        id === 'c1'
+          ? _contract({ id: 'c1', contractnaam: 'Deel A', contracttype: 'los_contract', mantelcontract_id: 'm9' })
+          : _contract({ id: 'm9', contractnaam: 'Mantel Groot', mantelcontract_id: null }),
+      ),
+    )
+    const w = await mountDetail()
+    expect(w.find('[data-testid="contract-valt-onder"]').exists()).toBe(true)
+    const link = w.find('[data-testid="valt-onder-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toContain('Mantel Groot')
+  })
+
+  it('verbergt de "Valt onder"-subtitel zonder mantelcontract', async () => {
+    api.contracten.haal.mockResolvedValue(_contract())  // mantelcontract_id: null
+    const w = await mountDetail()
+    expect(w.find('[data-testid="contract-valt-onder"]').exists()).toBe(false)
+  })
+})
+
 describe('ContractDetail — §1 deelcontracten', () => {
   it('toont de deelcontracten-sectie met dekking-Tags en rij-navigatie (mantel)', async () => {
     api.contracten.haal.mockResolvedValue(_contract())

@@ -205,11 +205,18 @@ const RIJEN = [
     <p v-if="fout" role="alert" data-testid="detail-fout" class="text-[var(--cd-color-danger)]">{{ fout }}</p>
 
     <template v-if="partij">
-      <div class="flex items-center gap-[var(--cd-space-md)] mb-[var(--cd-space-md)]">
-        <h1 id="partij-detail-titel" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
-          {{ partij.naam }}
-        </h1>
-        <Tag data-testid="detail-aard" :value="aardLabel(partij.aard)" severity="info" />
+      <div class="mb-[var(--cd-space-md)]">
+        <div class="flex items-center gap-[var(--cd-space-md)]">
+          <h1 id="partij-detail-titel" class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)]">
+            {{ partij.naam }}
+          </h1>
+          <Tag data-testid="detail-aard" :value="aardLabel(partij.aard)" severity="info" />
+        </div>
+        <!-- Parent-context als subtitelregel in de header (ADR-024) -->
+        <p v-if="ouderOrgNaam" data-testid="partij-hoortbij" class="mt-1 text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">
+          Hoort bij:
+          <router-link :to="{ name: 'partij-detail', params: { id: partij.organisatie_id } }" data-testid="hoortbij-org-link" class="rounded px-1 text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)] hover:underline">{{ ouderOrgNaam }}</router-link><span v-if="ouderAfdelingNaam"> › <router-link :to="{ name: 'partij-detail', params: { id: partij.afdeling_id } }" data-testid="hoortbij-afd-link" class="rounded px-1 text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)] hover:underline">{{ ouderAfdelingNaam }}</router-link></span>
+        </p>
       </div>
 
       <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--cd-space-lg)] gap-y-[var(--cd-space-sm)]">
@@ -223,12 +230,6 @@ const RIJEN = [
           <dd data-testid="detail-functietitel">{{ partij.functietitel }}</dd>
         </template>
       </dl>
-
-      <!-- Hoort bij (afdeling/persoon) — klikbare router-links naar de ouder-partij -->
-      <p v-if="ouderOrgNaam" data-testid="partij-hoortbij" class="mt-[var(--cd-space-md)] text-[var(--cd-color-text-muted)]">
-        Hoort bij:
-        <router-link :to="{ name: 'partij-detail', params: { id: partij.organisatie_id } }" data-testid="hoortbij-org-link" class="text-[var(--cd-color-primary)] hover:underline">{{ ouderOrgNaam }}</router-link><span v-if="ouderAfdelingNaam"> — afdeling <router-link :to="{ name: 'partij-detail', params: { id: partij.afdeling_id } }" data-testid="hoortbij-afd-link" class="text-[var(--cd-color-primary)] hover:underline">{{ ouderAfdelingNaam }}</router-link></span>
-      </p>
 
       <div class="mt-[var(--cd-space-lg)] flex flex-wrap gap-[var(--cd-space-md)]">
         <ObjectHistoriePaneel :key="props.id" entiteit-type="partij" :entiteit-id="props.id" />
