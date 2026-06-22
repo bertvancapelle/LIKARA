@@ -52,7 +52,7 @@ function _toastFout(e) {
 
 async function laad() {
   try {
-    const rijen = await api.klaarverklaringen.lijst({ componentId: props.componentId })
+    const rijen = await api.klaarverklaringen.lijst({ component_id: props.componentId })
     verklaring.value = rijen[0] ?? null
   } catch (e) {
     verklaring.value = null

@@ -56,7 +56,7 @@ describe('DatatypeSectie', () => {
   it('rendert de geladen datatypes (gescoopt op de applicatie)', async () => {
     api.datatypes.lijst.mockResolvedValueOnce({ items: [_dt('Zaakdocumenten', 'd1')], volgende_cursor: null })
     const w = await mountSectie()
-    expect(api.datatypes.lijst).toHaveBeenCalledWith({ applicatieId: APP, limit: 25, after: undefined })
+    expect(api.datatypes.lijst).toHaveBeenCalledWith({ applicatie_id: APP, limit: 25, after: undefined })
     expect(w.text()).toContain('Zaakdocumenten')
   })
 
@@ -67,7 +67,7 @@ describe('DatatypeSectie', () => {
     const w = await mountSectie()
     await w.find('[data-testid="dt-meer"]').trigger('click')
     await flushPromises()
-    expect(api.datatypes.lijst).toHaveBeenLastCalledWith({ applicatieId: APP, limit: 25, after: 'c1' })
+    expect(api.datatypes.lijst).toHaveBeenLastCalledWith({ applicatie_id: APP, limit: 25, after: 'c1' })
     expect(w.find('[data-testid="dt-meer"]').exists()).toBe(false)
   })
 
@@ -127,7 +127,7 @@ describe('DatatypeSectie', () => {
 describe('DatatypeSectie — sortering (CD020)', () => {
   it('default-laad stuurt géén sort/order mee (backwards-compatible)', async () => {
     await mountSectie()
-    expect(api.datatypes.lijst).toHaveBeenLastCalledWith({ applicatieId: APP, limit: 25, after: undefined })
+    expect(api.datatypes.lijst).toHaveBeenLastCalledWith({ applicatie_id: APP, limit: 25, after: undefined })
   })
 
   it('sorteerklik → refetch met sort/order + cursor-reset', async () => {
@@ -136,7 +136,7 @@ describe('DatatypeSectie — sortering (CD020)', () => {
     w.findComponent(DataTable).vm.$emit('sort', { sortField: 'omschrijving', sortOrder: -1 })
     await flushPromises()
     expect(api.datatypes.lijst).toHaveBeenLastCalledWith({
-      applicatieId: APP,
+      applicatie_id: APP,
       limit: 25,
       after: undefined, // cursor-reset ondanks de eerdere volgende_cursor 'c1'
       sort: 'omschrijving',

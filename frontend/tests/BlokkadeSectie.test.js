@@ -47,7 +47,7 @@ afterEach(() => vi.restoreAllMocks())
 describe('BlokkadeSectie', () => {
   it('rendert de blokkades en de open-teller', async () => {
     const w = await mountSectie({ items: [_blok('b1', 'open'), _blok('b2', 'opgelost')] })
-    expect(api.blokkades.lijst).toHaveBeenCalledWith({ applicatieId: APP, limit: 25, after: undefined })
+    expect(api.blokkades.lijst).toHaveBeenCalledWith({ component_id: APP, limit: 25, after: undefined })
     expect(w.find('[data-testid="bk-open-teller"]').text()).toContain('1 open')
   })
 

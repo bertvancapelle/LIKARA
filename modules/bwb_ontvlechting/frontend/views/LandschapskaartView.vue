@@ -368,7 +368,7 @@ async function openEdgePopup(edge) {
   popupOpen.value = true
   popupLaden.value = true
   try {
-    const p = await api.relaties.lijst({ bronId: edge.bron_id, doelId: edge.doel_id, relatietype: 'flow' })
+    const p = await api.relaties.lijst({ bron_id: edge.bron_id, doel_id: edge.doel_id, relatietype: 'flow' })
     const rel = (p.items || [])[0]
     if (popupKind.value !== 'edge') return
     popupVelden.value = _edgeVelden(edge, rel || {}, tegenNaam)

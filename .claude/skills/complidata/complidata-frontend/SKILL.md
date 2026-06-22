@@ -93,6 +93,25 @@ api.applicaties.{lijst({limit,after}), haal(id), maak(data), werkBij(id,data),
 Voeg per entiteit platte methodes toe via de interne `request()`-helper (geen
 generieke get/post).
 
+### API-client-filterconventie (niet-onderhandelbaar)
+
+**Eén conventie: filternamen zijn SNAKE_CASE, exact gelijk aan de backend-query-params**
+(`bron_id`, `doel_id`, `component_id`, `leverancier_id`, `applicatie_id`, …). Er is **geen**
+camel/snake-vertaalgrens in de client — schermen geven de keys door zoals de backend ze kent.
+
+**Elke filter-dragende `lijst`/lees-methode valideert via `_filterQuery(naam, params, allowlist)`**:
+een doorgegeven key die NIET in de allowlist staat → **LUIDE fout** (`onbekende filter-parameter
+'X' voor <naam>`), nooit stil weglaten. `_query` laat bewust-lege waarden (`undefined`/`null`/`''`)
+wél weg — het onderscheid is "bewust niet gezet" (ok) versus "gezet onder een onbekende naam"
+(fout). Zo kan een filter **niet** meer geruisloos wegvallen en een scherm ongefilterd "alles"
+laten ophalen.
+
+**Achtergrond (waarom dit niet-onderhandelbaar is):** het Koppelingen-tabblad toonde alle 17 flows
+van het hele landschap i.p.v. de 5 van Zaaksysteem, doordat `KoppelingSectie` `bron_id/doel_id`
+(snake) doorgaf terwijl de client `bronId/doelId` (camel) verwachtte → filter stil weg → ongefilterd.
+Dit is exact de eerder vastgelegde V012-les, die zonder structurele borging tóch terugkwam.
+Geborgd door `tests/api.filter.test.js` (filter zit in de URL **én** onbekende key = luide fout).
+
 ## Data-view-patroon (lijst)
 
 - PrimeVue `DataTable` + `Column`; **keyset-cursor-paginering** met "Meer laden"

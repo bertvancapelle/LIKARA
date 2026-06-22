@@ -59,7 +59,7 @@ const zoekMantels = (params) => api.contracten.lijst(params)
 // Mantel client-side gespiegeld op type+leverancier (I1/I2); de backend blijft de waarheid.
 const mantelFilters = computed(() => ({
   contracttype: 'mantelcontract',
-  leverancierId: form.leverancier_id || undefined,
+  leverancier_id: form.leverancier_id || undefined,
 }))
 
 async function laadBronnen() {

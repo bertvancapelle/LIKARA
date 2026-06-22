@@ -1,0 +1,65 @@
+/**
+ * Borging — api-client filterconventie (snake_case + allowlist).
+ *
+ * WAAROM DEZE TEST BESTAAT (niet schrappen):
+ * Het Koppelingen-tabblad toonde alle 17 flows van het hele landschap i.p.v. de 5 van
+ * Zaaksysteem, doordat `KoppelingSectie` `bron_id/doel_id` (snake_case) doorgaf terwijl de
+ * client `bronId/doelId` (camelCase) verwachtte → het filter viel stil als `undefined` weg →
+ * ongefilterde "haal alles op"-call. Dit is exact de V012-les die tóch opnieuw optrad.
+ *
+ * Borging: (1) een meegegeven filter MOET in de uitgaande query-string staan; (2) een
+ * ONBEKENDE filter-key MOET een LUIDE fout geven (nooit stil weglaten). Zo wordt een
+ * toekomstige naam-mismatch onmiddellijk rood i.p.v. een ongefilterde call.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+let laatsteUrl = null
+beforeEach(() => {
+  laatsteUrl = null
+  vi.stubGlobal('fetch', vi.fn(async (url) => {
+    laatsteUrl = String(url)
+    return { ok: true, status: 200, json: async () => ({ items: [], volgende_cursor: null }) }
+  }))
+})
+afterEach(() => vi.unstubAllGlobals())
+
+// Import ná de fetch-stub (de module gebruikt de global fetch via request()).
+const { api } = await import('@/api')
+
+describe('api-client — filter belandt in de query-string', () => {
+  it('relaties.lijst zet bron_id/relatietype in de URL (de Koppelingen-bug)', async () => {
+    await api.relaties.lijst({ bron_id: 'abc', relatietype: 'flow' })
+    expect(laatsteUrl).toContain('bron_id=abc')
+    expect(laatsteUrl).toContain('relatietype=flow')
+  })
+
+  it('blokkades.lijst zet component_id in de URL', async () => {
+    await api.blokkades.lijst({ component_id: 'xyz', limit: 25 })
+    expect(laatsteUrl).toContain('component_id=xyz')
+  })
+
+  it('contracten.lijst zet leverancier_id in de URL', async () => {
+    await api.contracten.lijst({ leverancier_id: 'lev1' })
+    expect(laatsteUrl).toContain('leverancier_id=lev1')
+  })
+
+  it('bewust-leeg filter wordt weggelaten (geen lege param in de URL)', async () => {
+    await api.relaties.lijst({ bron_id: undefined, relatietype: 'flow' })
+    expect(laatsteUrl).not.toContain('bron_id')
+    expect(laatsteUrl).toContain('relatietype=flow')
+  })
+})
+
+describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', () => {
+  it('relaties.lijst met camelCase bronId gooit een duidelijke fout', () => {
+    expect(() => api.relaties.lijst({ bronId: 'abc' })).toThrow(/onbekende filter-parameter 'bronId' voor relaties\.lijst/)
+  })
+
+  it('blokkades.lijst met applicatieId (oude camelCase) gooit', () => {
+    expect(() => api.blokkades.lijst({ applicatieId: 'x' })).toThrow(/onbekende filter-parameter/)
+  })
+
+  it('een willekeurige typo-key gooit i.p.v. stil te negeren', () => {
+    expect(() => api.componenten.lijst({ statuss: 'concept' })).toThrow(/onbekende filter-parameter 'statuss'/)
+  })
+})

@@ -215,7 +215,7 @@ describe('ComponentDetail', () => {
     const { w } = await mountDetail({ rollen: ['medewerker'] })
     expect(w.find('[data-testid="mg-leesblok"]').exists()).toBe(true)
     expect(w.find('[data-testid="klaarverklaar-knop"]').exists()).toBe(true)
-    expect(api.klaarverklaringen.lijst).toHaveBeenCalledWith({ componentId: ID })
+    expect(api.klaarverklaringen.lijst).toHaveBeenCalledWith({ component_id: ID })
   })
 
   it('toont het migratiegereedheid-blok NIET voor een kaal type zonder profiel', async () => {

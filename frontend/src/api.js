@@ -68,6 +68,26 @@ function _query(params = {}) {
   return s ? `?${s}` : ''
 }
 
+// Filter-query mét allowlist (borging — zie complidata-frontend "API-client-filterconventie").
+// Eén conventie: filternamen zijn SNAKE_CASE, exact gelijk aan de backend-query-params, zodat
+// er geen camel/snake-vertaalgrens is waar een filter stil kan verdwijnen. Een doorgegeven
+// key die NIET in de allowlist staat → LUIDE fout (geen stille drop → nooit ongefilterd "alles").
+// `_query` blijft bewust-lege waarden (undefined/null/'') weglaten: "bewust niet gezet" ≠
+// "gezet onder een onbekende naam". Achtergrond: de Koppelingen-bug (KoppelingSectie gaf
+// bron_id/doel_id terwijl de client bronId/doelId verwachtte → filter weg → alle 17 flows) en
+// de V012-les.
+function _filterQuery(naam, params, toegestaan) {
+  const ok = new Set(toegestaan)
+  for (const sleutel of Object.keys(params || {})) {
+    if (!ok.has(sleutel)) {
+      throw new Error(
+        `onbekende filter-parameter '${sleutel}' voor ${naam} — toegestaan: ${toegestaan.join(', ')}`,
+      )
+    }
+  }
+  return _query(params || {})
+}
+
 export const api = {
   me: () => request('/auth/me'),
   logout: () => request('/auth/logout', { method: 'POST' }),
@@ -78,31 +98,31 @@ export const api = {
   // ADR-029 — gebruikersbeheer (GEBRUIKERSBEHEER, beheerder-only; backend handhaaft).
   // `maak` retourneert { gebruiker, tijdelijk_wachtwoord } (eenmalig).
   gebruikers: {
-    lijst: ({ limit, after } = {}) => request(`/gebruikers${_query({ limit, after })}`),
+    lijst: (params = {}) => request(`/gebruikers${_filterQuery('gebruikers.lijst', params, ['limit', 'after'])}`),
     maak: (data) => request('/gebruikers', { method: 'POST', body: JSON.stringify(data) }),
   },
 
   // ADR-029 Fase 3a — audit-spoor lezen (AUDITLOG, beheerder/auditor; backend handhaaft).
   // Lege filterparams worden door _query weggelaten. Levert {items, volgende_cursor}.
   auditlog: {
-    lijst: ({ limit, after, actor_naam, component_id, actie, van, tot } = {}) =>
-      request(`/auditlog${_query({ limit, after, actor_naam, component_id, actie, van, tot })}`),
+    lijst: (params = {}) =>
+      request(`/auditlog${_filterQuery('auditlog.lijst', params, ['limit', 'after', 'actor_naam', 'component_id', 'actie', 'van', 'tot'])}`),
   },
 
   // ADR-029 — objecthistorie ('i'-knop). Toegang volgt het object; backend handhaaft de
   // object-leespermissie + tenant-resolutie. Levert {items, volgende_cursor}.
   objecthistorie: {
-    lijst: ({ entiteitType, entiteitId, limit, after } = {}) =>
-      request(`/objecthistorie/${entiteitType}/${entiteitId}${_query({ limit, after })}`),
+    lijst: ({ entiteitType, entiteitId, ...rest } = {}) =>
+      request(`/objecthistorie/${entiteitType}/${entiteitId}${_filterQuery('objecthistorie.lijst', rest, ['limit', 'after'])}`),
   },
 
   applicaties: {
     // sort/order/filters optioneel — alles weggelaten → server-default
     // (created_at asc, geen filters), exact backwards-compatible (ADR-017/CD017).
     // `status` is een array (herhaalde param); lege array → geen statusfilter.
-    lijst: ({ limit, after, sort, order, status, hostingmodel, eigenaar_organisatie_id, zoek } = {}) =>
+    lijst: (params = {}) =>
       request(
-        `/applicaties${_query({ limit, after, sort, order, status, hostingmodel, eigenaar_organisatie_id, zoek })}`,
+        `/applicaties${_filterQuery('applicaties.lijst', params, ['limit', 'after', 'sort', 'order', 'status', 'hostingmodel', 'eigenaar_organisatie_id', 'zoek'])}`,
       ),
     haal: (id) => request(`/applicaties/${id}`),
     maak: (data) => request('/applicaties', { method: 'POST', body: JSON.stringify(data) }),
@@ -116,8 +136,8 @@ export const api = {
 
   datatypes: {
     // sort/order optioneel (CD020) — weglaten = server-default (created_at asc).
-    lijst: ({ applicatieId, limit, after, sort, order } = {}) =>
-      request(`/datatypes${_query({ applicatie_id: applicatieId, limit, after, sort, order })}`),
+    lijst: (params = {}) =>
+      request(`/datatypes${_filterQuery('datatypes.lijst', params, ['applicatie_id', 'limit', 'after', 'sort', 'order'])}`),
     haal: (id) => request(`/datatypes/${id}`),
     maak: (data) => request('/datatypes', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
@@ -128,9 +148,9 @@ export const api = {
 
   gebruikersgroepen: {
     // sort/order optioneel (CD020) — weglaten = server-default (created_at asc).
-    lijst: ({ applicatieId, limit, after, sort, order } = {}) =>
+    lijst: (params = {}) =>
       request(
-        `/gebruikersgroepen${_query({ applicatie_id: applicatieId, limit, after, sort, order })}`,
+        `/gebruikersgroepen${_filterQuery('gebruikersgroepen.lijst', params, ['applicatie_id', 'limit', 'after', 'sort', 'order'])}`,
       ),
     haal: (id) => request(`/gebruikersgroepen/${id}`),
     maak: (data) =>
@@ -144,8 +164,8 @@ export const api = {
   // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.
   // Het contract-domein hergebruikt deze client voor de leverancier-picker (aard externe_partij).
   partijen: {
-    lijst: ({ aard, organisatie_id, afdeling_id, limit, after, sort, order, zoek } = {}) =>
-      request(`/partijen${_query({ aard, organisatie_id, afdeling_id, limit, after, sort, order, zoek })}`),
+    lijst: (params = {}) =>
+      request(`/partijen${_filterQuery('partijen.lijst', params, ['aard', 'organisatie_id', 'afdeling_id', 'limit', 'after', 'sort', 'order', 'zoek'])}`),
     haal: (id) => request(`/partijen/${id}`),
     maak: (data) => request('/partijen', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
@@ -158,8 +178,8 @@ export const api = {
   // (geen relatie-model). Lezen filtert op precies één van object_id/partij_id; rollen = de
   // beheerbare beheerrol-catalogus voor het rol-dropdown.
   roltoewijzingen: {
-    lijst: ({ object_id, partij_id } = {}) =>
-      request(`/roltoewijzingen${_query({ object_id, partij_id })}`),
+    lijst: (params = {}) =>
+      request(`/roltoewijzingen${_filterQuery('roltoewijzingen.lijst', params, ['object_id', 'partij_id'])}`),
     rollen: () => request('/roltoewijzingen/rollen'),
     maak: (data) => request('/roltoewijzingen', { method: 'POST', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/roltoewijzingen/${id}`, { method: 'DELETE' }),
@@ -169,7 +189,7 @@ export const api = {
   klaarverklaringen: {
     // component_id MOET zowel in de destructuring als in de query (V012-les: anders dropt
     // de client de filter stil).
-    lijst: ({ componentId } = {}) => request(`/klaarverklaringen${_query({ component_id: componentId })}`),
+    lijst: (params = {}) => request(`/klaarverklaringen${_filterQuery('klaarverklaringen.lijst', params, ['component_id'])}`),
     maak: (data) => request('/klaarverklaringen', { method: 'POST', body: JSON.stringify(data) }),
     wijzigStatus: (id, data) =>
       request(`/klaarverklaringen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -177,19 +197,9 @@ export const api = {
 
   // ADR-020 contractregister — contract (tenant-CRUD) + sub-overzichten.
   contracten: {
-    lijst: ({ limit, after, sort, order, leverancierId, contracttype, dekking, kostenmodel, zoek } = {}) =>
+    lijst: (params = {}) =>
       request(
-        `/contracten${_query({
-          limit,
-          after,
-          sort,
-          order,
-          leverancier_id: leverancierId,
-          contracttype,
-          dekking,
-          kostenmodel,
-          zoek,
-        })}`,
+        `/contracten${_filterQuery('contracten.lijst', params, ['limit', 'after', 'sort', 'order', 'leverancier_id', 'contracttype', 'dekking', 'kostenmodel', 'zoek'])}`,
       ),
     haal: (id) => request(`/contracten/${id}`),
     maak: (data) => request('/contracten', { method: 'POST', body: JSON.stringify(data) }),
@@ -208,9 +218,9 @@ export const api = {
     // naast componenttype + zoek. `status` is een array (herhaalde param).
     // ADR-023 Fase C: `laag` (application/technology) filtert op ArchiMate-laag
     // (read-only catalogus-typing) bovenop het type-filter.
-    lijst: ({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek, klaarverklaring, afwijking } = {}) =>
+    lijst: (params = {}) =>
       request(
-        `/componenten${_query({ limit, after, sort, order, componenttype, laag, status, hostingmodel, eigenaar_organisatie_id, zoek, klaarverklaring, afwijking })}`,
+        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'eigenaar_organisatie_id', 'zoek', 'klaarverklaring', 'afwijking'])}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),
@@ -233,8 +243,8 @@ export const api = {
   // worden hier gelegd. Endpoints/relatietype zijn immutabel → werkBij wijzigt alleen
   // `omschrijving`/`kenmerken`.
   relaties: {
-    lijst: ({ limit, after, bronId, doelId, relatietype } = {}) =>
-      request(`/relaties${_query({ limit, after, bron_id: bronId, doel_id: doelId, relatietype })}`),
+    lijst: (params = {}) =>
+      request(`/relaties${_filterQuery('relaties.lijst', params, ['limit', 'after', 'bron_id', 'doel_id', 'relatietype'])}`),
     haal: (id) => request(`/relaties/${id}`),
     maak: (data) => request('/relaties', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/relaties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -244,13 +254,13 @@ export const api = {
   // ADR-023 Fase F (F-2) — cross-element laagprojectie (read-only architectuuroverzicht).
   architectuur: {
     // sort/order optioneel (ADR-017) — weglaten = server-default (created_at asc).
-    elementen: ({ limit, after, laag, aspect, type, sort, order } = {}) =>
-      request(`/architectuur/elementen${_query({ limit, after, laag, aspect, type, sort, order })}`),
+    elementen: (params = {}) =>
+      request(`/architectuur/elementen${_filterQuery('architectuur.elementen', params, ['limit', 'after', 'laag', 'aspect', 'type', 'sort', 'order'])}`),
   },
 
   // ADR-025 — Landschapskaart: volledige graaf (nodes + edges) in één read-only call.
   landschapskaart: {
-    haalGrafdata: ({ diepte } = {}) => request(`/landschapskaart${_query({ diepte })}`),
+    haalGrafdata: (params = {}) => request(`/landschapskaart${_filterQuery('landschapskaart.haalGrafdata', params, ['diepte'])}`),
   },
 
   // ADR-023 Fase F (F-3 stap 2) — consistentie-signalering technische plaatsing (read-only).
@@ -262,7 +272,7 @@ export const api = {
   // bestaande lees-endpoints; geen nieuwe backend-semantiek.
   plateaus: {
     // `zoek` (ILIKE op naam) bedient het plateau-koppelveld in de deliverable-keten (UX-A4-3).
-    lijst: ({ limit, after, zoek } = {}) => request(`/plateaus${_query({ limit, after, zoek })}`),
+    lijst: (params = {}) => request(`/plateaus${_filterQuery('plateaus.lijst', params, ['limit', 'after', 'zoek'])}`),
     haal: (id) => request(`/plateaus/${id}`),
     maak: (data) => request('/plateaus', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/plateaus/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -276,7 +286,7 @@ export const api = {
     verwijderLid: (id, lidId) => request(`/plateaus/${id}/leden/${lidId}`, { method: 'DELETE' }),
   },
   gaps: {
-    lijst: ({ limit, after } = {}) => request(`/gaps${_query({ limit, after })}`),
+    lijst: (params = {}) => request(`/gaps${_filterQuery('gaps.lijst', params, ['limit', 'after'])}`),
     haal: (id) => request(`/gaps/${id}`), // GapDetail incl. de twee readiness-cijfers
     maak: (data) => request('/gaps', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/gaps/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -287,7 +297,7 @@ export const api = {
   },
   workPackages: {
     // `zoek` (CD017 ILIKE op naam) bedient het "bovenliggend werkpakket"-keuzeveld (UX-A4-2).
-    lijst: ({ limit, after, zoek } = {}) => request(`/work-packages${_query({ limit, after, zoek })}`),
+    lijst: (params = {}) => request(`/work-packages${_filterQuery('workPackages.lijst', params, ['limit', 'after', 'zoek'])}`),
     haal: (id) => request(`/work-packages/${id}`),
     maak: (data) => request('/work-packages', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/work-packages/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -295,7 +305,7 @@ export const api = {
     subboom: (id) => request(`/work-packages/${id}/subboom`),
   },
   deliverables: {
-    lijst: ({ limit, after } = {}) => request(`/deliverables${_query({ limit, after })}`),
+    lijst: (params = {}) => request(`/deliverables${_filterQuery('deliverables.lijst', params, ['limit', 'after'])}`),
     haal: (id) => request(`/deliverables/${id}`),
     maak: (data) => request('/deliverables', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/deliverables/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -327,8 +337,8 @@ export const api = {
 
   checklistscores: {
     // ADR-022 Fase A: scores ankeren op component_id (== applicatie-id, shared-PK).
-    lijst: ({ applicatieId, limit, after } = {}) =>
-      request(`/checklistscores${_query({ component_id: applicatieId, limit, after })}`),
+    lijst: (params = {}) =>
+      request(`/checklistscores${_filterQuery('checklistscores.lijst', params, ['component_id', 'limit', 'after'])}`),
     maak: (data) => request('/checklistscores', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
       request(`/checklistscores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -339,13 +349,13 @@ export const api = {
   // Blokkade is systeem-afgeleid: geen maak/verwijder (backend kent ze niet).
   blokkades: {
     // sort/order optioneel (CD020, per-app lijst) — weglaten = server-default.
-    lijst: ({ applicatieId, status, limit, after, sort, order } = {}) =>
+    lijst: (params = {}) =>
       request(
-        `/blokkades${_query({ component_id: applicatieId, status, limit, after, sort, order })}`,
+        `/blokkades${_filterQuery('blokkades.lijst', params, ['component_id', 'status', 'limit', 'after', 'sort', 'order'])}`,
       ),
     // Tenant-breed sorteerbaar overzicht (CD016, consument ADR-017).
-    overzicht: ({ limit, after, status, sort, order } = {}) =>
-      request(`/blokkades/overzicht${_query({ limit, after, status, sort, order })}`),
+    overzicht: (params = {}) =>
+      request(`/blokkades/overzicht${_filterQuery('blokkades.overzicht', params, ['limit', 'after', 'status', 'sort', 'order'])}`),
     haal: (id) => request(`/blokkades/${id}`),
     werkBij: (id, data) =>
       request(`/blokkades/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -402,7 +412,7 @@ export const api = {
   // (ADR-012 Addendum B). GÉÉN verwijder: er is geen DELETE-endpoint (soft-deactivate
   // via werkBij `actief`). Zelfde platform-auth-pad als het checklistconfig-beheer.
   platformContractconfig: {
-    lijst: ({ dimensie } = {}) => request(`/platform/contractconfig${_query({ dimensie })}`),
+    lijst: (params = {}) => request(`/platform/contractconfig${_filterQuery('platformContractconfig.lijst', params, ['dimensie'])}`),
     maak: (data) => request('/platform/contractconfig', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
       request(`/platform/contractconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -411,7 +421,7 @@ export const api = {
   // ADR-021 Besluit 8 / ADR-012 Addendum C — platform-beheer van de componentcatalogus.
   // GÉÉN verwijder (geen DELETE-endpoint; soft-deactivate via werkBij `actief`).
   platformComponentconfig: {
-    lijst: ({ dimensie } = {}) => request(`/platform/componentconfig${_query({ dimensie })}`),
+    lijst: (params = {}) => request(`/platform/componentconfig${_filterQuery('platformComponentconfig.lijst', params, ['dimensie'])}`),
     // ADR-026 — gesloten keuzelijsten (element/laag/aspect) uit de backend-bron.
     typeringOpties: () => request('/platform/componentconfig/typering-opties'),
     maak: (data) => request('/platform/componentconfig', { method: 'POST', body: JSON.stringify(data) }),
@@ -422,7 +432,7 @@ export const api = {
   // ADR-023 Fase F / F-4 — platform-beheer van de relatie-kenmerk-catalogus.
   // GÉÉN verwijder (geen DELETE-endpoint; soft-deactivate via werkBij `actief`).
   platformRelatiekenmerkconfig: {
-    lijst: ({ dimensie } = {}) => request(`/platform/relatiekenmerkconfig${_query({ dimensie })}`),
+    lijst: (params = {}) => request(`/platform/relatiekenmerkconfig${_filterQuery('platformRelatiekenmerkconfig.lijst', params, ['dimensie'])}`),
     maak: (data) => request('/platform/relatiekenmerkconfig', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
       request(`/platform/relatiekenmerkconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

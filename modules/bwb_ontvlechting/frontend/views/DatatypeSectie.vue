@@ -50,7 +50,7 @@ async function laad({ reset = false } = {}) {
   laden.value = true
   fout.value = null
   try {
-    const params = { applicatieId: props.applicatieId, limit: 25, after: reset ? undefined : cursor.value }
+    const params = { applicatie_id: props.applicatieId, limit: 25, after: reset ? undefined : cursor.value }
     if (sortVeld.value) {
       params.sort = sortVeld.value
       params.order = sortRichting.value

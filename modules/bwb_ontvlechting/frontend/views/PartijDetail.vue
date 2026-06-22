@@ -56,7 +56,7 @@ async function laadContracten({ reset = false } = {}) {
   contractenLaden.value = true
   try {
     const p = await api.contracten.lijst({
-      leverancierId: props.id,
+      leverancier_id: props.id,
       limit: 25,
       after: reset ? undefined : contractenCursor.value,
     })

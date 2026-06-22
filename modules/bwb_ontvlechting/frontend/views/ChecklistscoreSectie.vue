@@ -154,7 +154,7 @@ function _vulScoreMap(scores) {
 
 async function _laadScores() {
   // Vereist dat `vragen` al geladen is (id → code-resolutie); zie `laad()`.
-  const p = await api.checklistscores.lijst({ applicatieId: props.applicatieId, limit: 100 })
+  const p = await api.checklistscores.lijst({ component_id: props.applicatieId, limit: 100 })
   _vulScoreMap(p.items)
 }
 
@@ -166,7 +166,7 @@ async function laad() {
     // `vragen` (id → code-join vereist de vragenlijst).
     const [vragenResp, scoresPagina] = await Promise.all([
       api.checklistvragen.lijst(props.componenttype),
-      api.checklistscores.lijst({ applicatieId: props.applicatieId, limit: 100 }),
+      api.checklistscores.lijst({ component_id: props.applicatieId, limit: 100 }),
       (async () => {
         if (!opties.value.score.length) opties.value = await api.checklistscores.opties()
       })(),

@@ -91,7 +91,7 @@ describe('PartijDetail', () => {
     api.partijen.haal.mockResolvedValue(_partij())
     const { w } = await mountDetail()
     expect(w.find('[data-testid="partij-contracten-sectie"]').exists()).toBe(true)
-    expect(api.contracten.lijst).toHaveBeenCalledWith(expect.objectContaining({ leverancierId: 'p1' }))
+    expect(api.contracten.lijst).toHaveBeenCalledWith(expect.objectContaining({ leverancier_id: 'p1' }))
   })
 
   it('organisatie: onderdelen-sectie toont afdelingen + personen ("hoort bij", andere kant)', async () => {

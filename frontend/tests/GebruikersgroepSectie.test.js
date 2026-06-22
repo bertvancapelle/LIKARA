@@ -63,7 +63,7 @@ describe('GebruikersgroepSectie', () => {
       volgende_cursor: null,
     })
     const w = await mountSectie()
-    expect(api.gebruikersgroepen.lijst).toHaveBeenCalledWith({ applicatieId: APP, limit: 25, after: undefined })
+    expect(api.gebruikersgroepen.lijst).toHaveBeenCalledWith({ applicatie_id: APP, limit: 25, after: undefined })
     expect(w.text()).toContain('Gemeente Tiel')
     const link = w.find('[data-testid="gg-org-link-g1"]')
     expect(link.exists()).toBe(true)

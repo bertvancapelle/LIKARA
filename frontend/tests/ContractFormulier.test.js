@@ -83,7 +83,7 @@ describe('ContractFormulier', () => {
     await w.find('[data-testid="veld-mantelcontract-input"]').trigger('focus')
     await flushPromises()
     expect(api.contracten.lijst).toHaveBeenCalledWith(
-      expect.objectContaining({ contracttype: 'mantelcontract', leverancierId: 'l1', limit: 11 }),
+      expect.objectContaining({ contracttype: 'mantelcontract', leverancier_id: 'l1', limit: 11 }),
     )
     // terug naar los_contract → mantel-veld verdwijnt
     await w.find('[data-testid="veld-contracttype"]').setValue('los_contract')
