@@ -67,7 +67,7 @@ Tenant-eigen BIV-schaal: configureerbare opties per tenant
 Zelfde patroon als checklistvraag-catalogus (tenant-scoped,
 beheerbaar via beheerscherm).
 
-Toepassingen in KILARA:
+Toepassingen in LIKARA:
 - Filteren op BIV in de Landschapskaart
 - Migratieset-risicobeoordeling ("set bevat X componenten
   met hoge vertrouwelijkheid")

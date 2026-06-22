@@ -72,7 +72,7 @@ async function uitloggen() {
       >
         ☰
       </button>
-      <span class="font-semibold text-[length:var(--cd-text-lg)]">KILARA</span>
+      <span class="font-semibold text-[length:var(--cd-text-lg)]">LIKARA</span>
 
       <div class="ml-auto flex items-center gap-[var(--cd-space-md)]">
         <span data-testid="gebruiker-email" class="text-[length:var(--cd-text-sm)]">

@@ -54,7 +54,7 @@ function inloggen() {
         id="login-titel"
         class="text-[length:var(--cd-text-2xl)] font-semibold text-[var(--cd-color-primary)] mb-[var(--cd-space-sm)]"
       >
-        KILARA
+        LIKARA
       </h1>
       <p class="text-[var(--cd-color-text-muted)] mb-[var(--cd-space-lg)]">
         Gecontroleerd databeheer en migratie-analyse voor de Nederlandse overheid.

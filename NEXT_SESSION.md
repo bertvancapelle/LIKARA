@@ -44,12 +44,12 @@ import-afwezigheid + live geen `component_profiel`).
    vanaf 2; popup → **universeel master-detail** (links sorteerbare interface-lijst naam/richting,
    pijl-buiten-groen=uitgaand / pijl-binnen-rood=inkomend met **pijlrichting als hoofdsignaal**; rechts
    detail; eerste regel geselecteerd; ook bij n=1). Vervangt de enkelvoudige popup uit `8de3451`.
-3. **Nieuw seed-traject** (groot) — volledige testdataset die het hele KILARA-landschap representeert,
+3. **Nieuw seed-traject** (groot) — volledige testdataset die het hele LIKARA-landschap representeert,
    **mét flow-namen + meervoudige benoemde koppelingen**. Volgt ná de ADR-023a-koppeling-keten.
 4. **Resterende DC016-prioriteiten** (niet aangeraakt): **ADR-029 Fase 5** (`gereedmeld_recht`,
    per-type persoon × componenttype); **ADR-023 Fase F-rest** (E-8 checklist-consistentiecheck +
    resterende RBAC/audit); **Landschapskaart server-side ego-subgraaf** (`?center=&diepte=`);
-   **KILARA codebase-rename** (geparkeerd).
+   **LIKARA codebase-rename** (geparkeerd).
 5. **ADR-030 contract-dekking per band** (design-checkpoint → bouw) — **ná** de koppeling-keten
    (de koppeling-uitbreiding als blauwdruk; open subknoop: contract-brede dekking behouden NAAST of
    vervangen).

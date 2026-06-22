@@ -18,7 +18,7 @@ andere secties verwijzen hiernaar en herhalen het niet.
 
 ### Kern: gebruikerservaring is altijd het startpunt
 Elk gesprek, elke vraag, elk advies en elke afweging vertrekt vanuit
-**het continu optimaliseren van de gebruikerservaring van KILARA**.
+**het continu optimaliseren van de gebruikerservaring van LIKARA**.
 Techniek, schema-keuzes, gates en commit-discipline zijn vangrails —
 nooit het uitgangspunt of de toon van een antwoord. Conflicteert gebruikerslogica
 of procesvoorkeur met een technische voorkeur, dan wint de gebruikerservaring.

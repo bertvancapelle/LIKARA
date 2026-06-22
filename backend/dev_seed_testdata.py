@@ -55,6 +55,7 @@ from models.models import (  # noqa: E402
     Contract,
     Element,
     ElementType,
+    GebruikerPersoon,
     Gebruikersgroep,
     HostingModel,
     Partij,
@@ -1378,6 +1379,39 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     return telling
 
 
+async def _seed_dev_gebruikers(session, tenant_id) -> dict:
+    """ADR-029 — koppel 3 dev-loginaccounts (Keycloak) aan hun persoon in het register.
+    De `keycloak_sub`'s zijn de VASTE Keycloak user-id's uit `complidata-realm.json`
+    (hardcoded — robuust, geen runtime-KC-afhankelijkheid in de seed). Idempotent op sub."""
+    tid = tenant_id
+    koppelingen = [
+        ("aaaaaaaa-0001-0001-0001-000000000001", "J. de Vries"),
+        ("aaaaaaaa-0001-0001-0001-000000000002", "P. van Dijk"),
+        ("aaaaaaaa-0001-0001-0001-000000000003", "M. Bakker"),
+    ]
+    persoon_id = {
+        r.naam: r.id
+        for r in (
+            await session.execute(select(Partij).where(Partij.aard == PartijAard.persoon))
+        ).scalars().all()
+    }
+    bestaande = {
+        r.keycloak_sub for r in (await session.execute(select(GebruikerPersoon))).scalars().all()
+    }
+    aangemaakt = 0
+    for sub, naam in koppelingen:
+        if sub in bestaande:
+            continue
+        pid = persoon_id.get(naam)
+        if pid is None:
+            print(f"  ! persoon '{naam}' niet gevonden — koppeling overgeslagen")
+            continue
+        session.add(GebruikerPersoon(tenant_id=tid, keycloak_sub=sub, persoon_id=pid))
+        aangemaakt += 1
+    await session.commit()
+    return {"gebruiker_persoon": aangemaakt}
+
+
 async def main() -> None:
     print(f"dev-seed: tenant {DEV_TENANT}")
     # ADR-006: vaste systeem-actor voor het audit-spoor van de dev-seed.
@@ -1402,6 +1436,10 @@ async def main() -> None:
         print("BvoWB shared-services ICT-landschap:")
         t = await _seed_bvowb_scenario(session, DEV_TENANT)
         print("  " + " · ".join(f"{k}={v}" for k, v in t.items()))
+
+        print("Dev-gebruikers (gebruiker_persoon-koppelingen):")
+        g = await _seed_dev_gebruikers(session, DEV_TENANT)
+        print(f"  {g}")
     print("dev-seed: klaar")
 
 

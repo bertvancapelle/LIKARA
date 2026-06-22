@@ -25,7 +25,7 @@ async function uitloggen() {
     <header
       class="flex items-center gap-[var(--cd-space-md)] px-[var(--cd-space-lg)] py-[var(--cd-space-sm)] bg-[var(--cd-color-primary)] text-white shadow-[var(--cd-shadow-md)]"
     >
-      <span class="font-semibold text-[length:var(--cd-text-lg)]">KILARA</span>
+      <span class="font-semibold text-[length:var(--cd-text-lg)]">LIKARA</span>
       <span
         data-testid="beheer-badge"
         class="rounded-[var(--cd-radius-nav)] bg-white/20 px-[var(--cd-space-sm)] py-0.5 text-[length:var(--cd-text-xs)] font-semibold uppercase tracking-wide"

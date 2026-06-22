@@ -132,7 +132,7 @@ Geborgd door `tests/api.filter.test.js` (filter zit in de URL **én** onbekende 
   409→conflict, 422→veldfouten, 401→bestaande sessie-flow.
 - Toegankelijk: `label/for`, `aria-invalid`, `aria-describedby`, focusbeheer.
 
-## Knopstandaard KILARA (niet-onderhandelbaar)
+## Knopstandaard LIKARA (niet-onderhandelbaar)
 
 De knop is **één herbruikbaar standaardobject met één vaste hoogte** (`h-10`), volledig
 gestuurd door `frontend/src/presets/Button.js`. Er is **GEEN** size-variatie — `size="small"`

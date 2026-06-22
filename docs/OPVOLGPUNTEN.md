@@ -24,7 +24,7 @@ flow-koppelingen Fase 1+2.
   pijl-buiten-groen=uitgaand / pijl-binnen-rood=inkomend met **pijlrichting als hoofdsignaal**; rechts
   detail; eerste regel geselecteerd; ook bij n=1). Vervangt de enkelvoudige popup uit `8de3451`.
 - **NIEUW SEED-TRAJECT (groot)** — volledige testdataset opnieuw opzetten zodat hij het **hele
-  KILARA-landschap** representeert en alle functionaliteit raakt (besloten DC016). Moet **flow-namen**
+  LIKARA-landschap** representeert en alle functionaliteit raakt (besloten DC016). Moet **flow-namen**
   + **meervoudige benoemde koppelingen** bevatten. Volgt ná de ADR-023a-koppeling-keten.
 - **Reseed gebroken op flow-namen** — `dev_seed_testdata._seed_koppelingen` maakt flows **zonder naam**
   → faalt onder de naam-eis (ADR-023a Fase 2). Wordt opgelost in het nieuwe seed-traject; tot dan is
@@ -46,7 +46,7 @@ grotendeels gerealiseerd + objecthistorie ('i'-knop).
 - Drie kleine opvolgpunten (DC014): dode `<dl>`-rijen op ApplicatieDetail + ComponentDetail
   opgeruimd; `MigratiegereedheidSectie` ook op ComponentDetail; CLAUDE.md interactie-secties
   geconsolideerd.
-- **ADR-029 herschreven** (gebruikersbeheer als primaire ingang; KILARA als bron van waarheid).
+- **ADR-029 herschreven** (gebruikersbeheer als primaire ingang; LIKARA als bron van waarheid).
 - **ADR-029 Fase 2** — backend gebruikersaanmaak: `gebruiker_persoon`-koppeltabel (migratie 0037),
   Keycloak Admin API-provisioning via dedicated service-account `kilara-user-provisioning`
   (least-privilege manage-users/view-users), server-gegenereerd eenmalig wachtwoord,
@@ -70,7 +70,7 @@ grotendeels gerealiseerd + objecthistorie ('i'-knop).
 2. **ADR-023 Fase F-rest** — checklist-consistentiecheck technische plaatsing (E-8) + resterende
    RBAC/audit nieuwe entiteiten.
 3. **Landschapskaart server-side ego-subgraaf** (`?center=<id>&diepte=1|2`).
-4. **KILARA codebase-rename** (geparkeerd, DC013).
+4. **LIKARA codebase-rename** (geparkeerd, DC013).
 
 **Nieuwe opvolgpunten (DC015)**:
 - **Dode backend-proxy-properties** `Applicatie.eigenaar_naam` / `.leverancier` (`models.py:382/386`)
@@ -103,7 +103,7 @@ Tests: **810** backend + **440** frontend groen (52 files).
   diepte-toggle; Koppelingenkaart vervangen; ADR-025-document bijgewerkt
 - ZoekSelect-standaard vastgelegd in complidata-frontend skill
 - PartijFormulier organisatie-/afdelingskiezer naar ZoekSelect
-- KILARA productnaam besloten (Kaart ICT Landschap Afhankelijkheden Relaties Analyse)
+- LIKARA productnaam besloten (Logische ICT Kaart Afhankelijkheden Relaties Analyse)
 - ADR-028 voorstel geland (componentrol + BIV-classificatie, geparkeerd na ADR-027)
 - complidata-domeinmodel/-frontend/-ux skills bijgewerkt (DC013-patronen)
 
@@ -383,9 +383,9 @@ Zie docs/adr/ADR-028_componentclassificatie_voorstel.md.
 
 ---
 
-### KILARA — naamswijziging codebase (geparkeerd, DC013)
+### LIKARA — naamswijziging codebase (geparkeerd, DC013)
 
-Besloten productnaam: KILARA (Kaart ICT Landschap Afhankelijkheden
+Besloten productnaam: LIKARA (Kaart ICT Landschap Afhankelijkheden
 Relaties Analyse). Vervangt CompliData/CompliMan overal in de
 codebase: bestandsnamen, variabelen, README, CLAUDE.md,
 seed-namen, Keycloak-realm, Docker-images. Uitvoeren als

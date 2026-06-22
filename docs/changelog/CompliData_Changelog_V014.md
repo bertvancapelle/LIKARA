@@ -12,7 +12,7 @@
   functietitel (persoon-only)
 - ZoekSelect-standaard in complidata-frontend skill
 - ADR-028 voorstel (componentrol + BIV, geparkeerd)
-- KILARA productnaam besloten
+- LIKARA productnaam besloten
 
 ### Gewijzigd
 - eigenaar_naam/leverancier vrije tekst verwijderd (migratie 0033/0034)

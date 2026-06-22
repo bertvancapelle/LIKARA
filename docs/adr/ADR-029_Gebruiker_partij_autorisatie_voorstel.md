@@ -10,12 +10,12 @@
 
 ## Context / aanleiding
 
-KILARA kent inloggers nu alleen als email-adres. Er is geen brug tussen de login en de persoon
+LIKARA kent inloggers nu alleen als email-adres. Er is geen brug tussen de login en de persoon
 in het partijenregister. Daardoor toont de audit-trail een email in plaats van een naam; is
 niet per naam herleidbaar wie een checklist-antwoord heeft aangepast of een component gereed
 heeft verklaard; en heeft het systeem geen fundament voor gerichte autorisatie per persoon.
 
-De kern van dit ADR is één vraag: **weet KILARA wie jij bent?** Zodra de koppeling er is,
+De kern van dit ADR is één vraag: **weet LIKARA wie jij bent?** Zodra de koppeling er is,
 werken attributie (naam in registraties), verantwoording (wie deed wat) en autorisatie (wie
 mag wat) allemaal tegelijk — dat zijn drie uitingen van hetzelfde fundament, niet drie losse
 features.
@@ -24,22 +24,22 @@ features.
 
 ## Besluit (kern)
 
-1. **KILARA is de primaire ingang voor gebruikersbeheer.** Nieuwe gebruikers (medewerker /
-   viewer) worden aangemaakt via KILARA — niet via Keycloak. KILARA maakt tegelijk het
+1. **LIKARA is de primaire ingang voor gebruikersbeheer.** Nieuwe gebruikers (medewerker /
+   viewer) worden aangemaakt via LIKARA — niet via Keycloak. LIKARA maakt tegelijk het
    persoon-record in het partijenregister én het Keycloak-account aan via de Keycloak Admin
    REST API. De koppeling login ↔ persoon ontstaat bij aanmaak, niet als aparte handmatige
    stap achteraf.
 
-2. **Keycloak is een provisioning-detail van KILARA.** De beheerder opent nooit Keycloak.
-   Keycloak blijft de technische IAM-laag; KILARA is de beheersinterface. Rol-toewijzing
-   in Keycloak (medewerker / viewer) loopt via KILARA.
+2. **Keycloak is een provisioning-detail van LIKARA.** De beheerder opent nooit Keycloak.
+   Keycloak blijft de technische IAM-laag; LIKARA is de beheersinterface. Rol-toewijzing
+   in Keycloak (medewerker / viewer) loopt via LIKARA.
 
 3. **Beheerders zijn buiten het register.** Bootstrap-accounts met de beheerder-rol worden
-   direct in Keycloak aangemaakt — buiten KILARA. Beheerders hebben geen persoon-record in
+   direct in Keycloak aangemaakt — buiten LIKARA. Beheerders hebben geen persoon-record in
    het partijenregister. De audit-trail toont hun email als fallback. Dit is bewust: een
    beheerder is een technisch account, geen organisatorische actor.
 
-4. **Naam-attributie als primair doel.** Overal waar KILARA nu email toont (audit-trail,
+4. **Naam-attributie als primair doel.** Overal waar LIKARA nu email toont (audit-trail,
    checklist-wijzigingen, gereedmeldingen, roltoewijzingen) toont het straks de naam — via
    de koppeling sub → persoon.naam. Email blijft fallback voor accounts zonder koppeling
    (beheerders, historische accounts).
@@ -55,11 +55,11 @@ features.
 
 ## Model in detail
 
-### Gebruiker-aanmaak flow (beheerder via KILARA)
+### Gebruiker-aanmaak flow (beheerder via LIKARA)
 
-1. Beheerder opent "Gebruikersbeheer" in KILARA.
+1. Beheerder opent "Gebruikersbeheer" in LIKARA.
 2. Vult in: naam, afdeling, functie, email, rol (standaard: medewerker).
-3. KILARA maakt in één reeks:
+3. LIKARA maakt in één reeks:
    - Persoon-record in het partijenregister (aard=persoon, naam/afdeling/functie — ADR-024)
    - Keycloak-account (email, tijdelijk wachtwoord, rol) via de Keycloak Admin REST API
    - Koppelrij `keycloak_sub ↔ persoon_id` in de nieuwe koppeltabel
@@ -97,7 +97,7 @@ features.
   niet. Dubbele borging per slice (import-afwezigheid + live geen-mutatie).
 - **Backend blijft enige handhaver** — frontend verbergt affordances (`v-if`), backend
   handhaaft altijd.
-- **Keycloak als IAM-bron** — KILARA beheert gebruikers, Keycloak authenticeert; nooit
+- **Keycloak als IAM-bron** — LIKARA beheert gebruikers, Keycloak authenticeert; nooit
   omgekeerd.
 - **Beheerder buiten het register** — geen persoon-record, geen per-type rechten,
   email-fallback in de audit-trail.

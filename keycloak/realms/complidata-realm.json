@@ -1,8 +1,8 @@
 {
   "realm": "complidata",
   "enabled": true,
-  "displayName": "KILARA",
-  "loginTheme": "kilara",
+  "displayName": "LIKARA",
+  "loginTheme": "likara",
   "sslRequired": "external",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
@@ -138,11 +138,44 @@
       "username": "beheerder-test",
       "enabled": true,
       "emailVerified": true,
-      "email": "beheerder@complidata.test",
-      "firstName": "Beheerder", "lastName": "Test",
+      "email": "beheerder@likara.test",
+      "firstName": "Beheerder", "lastName": "LIKARA",
       "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
       "credentials": [{ "type": "password", "value": "changeme_dev", "temporary": false }],
       "realmRoles": ["beheerder"]
+    },
+    {
+      "id": "aaaaaaaa-0001-0001-0001-000000000001",
+      "username": "j.devries",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "j.devries@bvowb.test",
+      "firstName": "J.", "lastName": "de Vries",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "changeme_dev", "temporary": false }],
+      "realmRoles": ["medewerker"]
+    },
+    {
+      "id": "aaaaaaaa-0001-0001-0001-000000000002",
+      "username": "p.vandijk",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "p.vandijk@bvowb.test",
+      "firstName": "P.", "lastName": "van Dijk",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "changeme_dev", "temporary": false }],
+      "realmRoles": ["medewerker"]
+    },
+    {
+      "id": "aaaaaaaa-0001-0001-0001-000000000003",
+      "username": "m.bakker",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "m.bakker@bvowb.test",
+      "firstName": "M.", "lastName": "Bakker",
+      "attributes": { "tenant_id": ["11111111-1111-1111-1111-111111111111"] },
+      "credentials": [{ "type": "password", "value": "changeme_dev", "temporary": false }],
+      "realmRoles": ["auditor"]
     },
     {
       "username": "auditor-test",

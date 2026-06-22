@@ -75,7 +75,7 @@ afterEach(() => {
 describe('AppLayout', () => {
   it('rendert de topbar met app-naam en gebruiker-e-mail', async () => {
     const { wrapper } = await mountShell()
-    expect(wrapper.text()).toContain('KILARA')
+    expect(wrapper.text()).toContain('LIKARA')
     expect(wrapper.find('[data-testid="gebruiker-email"]').text()).toBe('jan@example.nl')
   })
 

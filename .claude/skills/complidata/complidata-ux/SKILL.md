@@ -10,7 +10,7 @@ bijgewerkt: V015
 
 **Gebruikerservaring is altijd het startpunt.**
 Elke ontwerpbeslissing, elke afweging en elk advies vertrekt vanuit de vraag:
-*wat is het beste voor de gebruiker van KILARA?*
+*wat is het beste voor de gebruiker van LIKARA?*
 Schema, migraties, RBAC en technische borging zijn vangrails die de UX-keuze
 ondersteunen — ze sturen hem niet.
 
@@ -19,7 +19,7 @@ Dit principe overschrijft technische voorkeur als de twee conflicteren.
 ### Functioneel beschrijven is de NORM, niet de uitzondering (DC014, niet-onderhandelbaar)
 
 Elke vraag, elk advies, elke afweging en elke analyse — door CC én claude.ai — vertrekt
-vanuit de gebruiker van KILARA: *wat betekent dit voor de gebruiker, wat ziet/doet hij?*
+vanuit de gebruiker van LIKARA: *wat betekent dit voor de gebruiker, wat ziet/doet hij?*
 Techniek (schema, endpoints, RLS, RBAC, migraties) komt **alleen** ter sprake als (a) de
 gebruiker er expliciet om vraagt, of (b) als vangrail bij een gate/borging — **nooit als
 opening of toon** van een antwoord. Een advies dat begint bij de tabel of het schema is
@@ -47,7 +47,7 @@ hier omdat het ontwerp-denken ermee begint.
 ### Eén tenant nu — géén tenant-onderscheid in deze fase (DC014, niet-onderhandelbaar)
 
 "Tenant-agnostisch" (hierboven: niet BWB/Tiel hardcoden) is **niet** hetzelfde als
-"ontwerp voor meerdere gelijktijdige tenants met per-tenant-verschillen". KILARA draait nu
+"ontwerp voor meerdere gelijktijdige tenants met per-tenant-verschillen". LIKARA draait nu
 als **één implementatie met één gebruikerswereld**; er is **geen functioneel
 tenant-onderscheid**. Dus:
 

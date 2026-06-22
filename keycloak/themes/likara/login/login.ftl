@@ -7,11 +7,11 @@
           <div id="kc-form-wrapper">
             <#-- KILARA-huisstijl (boven het formulier, binnen het witte kaartje) -->
             <div class="kilara-brand">
-              <div class="kilara-icon">K</div>
-              <span class="kilara-name">KILARA</span>
+              <div class="kilara-icon">L</div>
+              <span class="kilara-name">LIKARA</span>
             </div>
             <p class="kilara-tagline">
-              <b>K</b>aart <b>I</b>CT <b>L</b>andschap
+              <b>L</b>ogische <b>I</b>CT <b>K</b>aart
               <b>A</b>fhankelijkheden <b>R</b>elaties <b>A</b>nalyse
             </p>
             <#if realm.password>
