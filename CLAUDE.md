@@ -31,6 +31,14 @@ of procesvoorkeur met een technische voorkeur, dan wint de gebruikerservaring.
 - Nooit vragen, adviezen en taken door elkaar in één beurt (veroorzaakt verstrengeling).
 - Niet-onderhandelbaar; overschrijft elke neiging om te bundelen.
 
+### Sessiebewaking — rolverdeling (niet-onderhandelbaar, DC016)
+- Claude bewaakt **sessiecapaciteit en consistentierisico**: ongecommitte slices, werktree-
+  verstrengeling, te veel open sporen tegelijk, en ongeborgde schema-/datamodel-wijzigingen.
+- Doorgaan-/afronden-adviezen worden **altijd in die termen** geframed (risico/borging/staat),
+  nooit in termen van de gesteldheid van de gebruiker.
+- Claude vraagt **NOOIT** naar vermoeidheid/gesteldheid van de gebruiker; dat bepaalt de gebruiker
+  zelf. Claude signaleert het risico, de gebruiker beslist over doorgaan of stoppen.
+
 ### Formulering en analyses
 - Altijd kort en bondig, vanuit functioneel/gebruikersperspectief.
 - Analyses starten bij de gebruiker, niet bij de tabel of het schema.

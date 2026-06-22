@@ -81,6 +81,26 @@ Eén `relatie`-tabel: gericht `bron_id → doel_id`, composiet-FK's
 `(tenant_id, bron|doel) → element(tenant_id, id)`, `CHECK bron ≠ doel`,
 `UNIQUE(tenant_id, bron_id, doel_id, relatietype)`.
 
+### ADR-023a — meervoudige flow-koppelingen + naam (V016, migraties 0039/0040)
+
+De uniciteit is **partieel**: `UNIQUE(tenant_id, bron_id, doel_id, relatietype) WHERE
+relatietype <> 'flow'`. **Flow mag meervoud** per `(bron, doel)` — tussen twee systemen kunnen
+meerdere koppelingen in dezelfde richting bestaan (eigen protocol/functie). **Alle andere
+relatietypen blijven uniek** per `(bron, doel, type)`. De registratie-eenheid van een koppeling
+is de surrogaat-PK `relatie.id`.
+
+- **`naam` (kolom, `String(150)`)**: identificerend, sorteerbaar; **verplicht voor flow**
+  (servicelaag), optioneel/n.v.t. voor andere typen. DB-nullable (geen breuk op niet-flow-rijen).
+- **Wederkerigheid (gevalideerd):** een flow is **ÉÉN gedeelde gerichte rij** (geen heen/terug-
+  duplicaat). Dezelfde rij verschijnt bij de **bron als uitgaand** en bij het **doel als inkomend**
+  (afgeleid uit `bron_id`/`doel_id` t.o.v. het object); verbreken bij A verwijdert exact de rij
+  die B als inkomend zag. "Inkomend/uitgaand" (positie) ≠ het `richting`-kenmerk (een-/tweerichting).
+- **Cardinaliteit-historie:** vóór ADR-023a verbood de all-types-uniciteit legitieme meervoudige
+  koppelingen; meervoud-dezelfde-richting bestaat sindsdien, tegengestelde richting (`A→B`+`B→A`)
+  kon altijd al (ander geordend paar).
+
+De HOE (validatie, dubbel-signalering, override-audit) staat in complidata-backend.
+
 ### De acht ArchiMate-relatietypes
 
 | Type | Richting bron → doel | Primaire toepassing in CompliData |

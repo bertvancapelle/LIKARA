@@ -394,3 +394,30 @@ ongedefinieerde methodes → 405.
   geen tweede audit-mechanisme toe: het roept `auditlog_service.lijst` met `component_id` (rijk
   pad incl. afgeleide records via jsonb-diff) voor component/applicatie, of het generieke
   `entiteit_id`-filter voor de overige types (plateau/work_package/deliverable/gap/contract/partij).
+
+## V016-patronen (DC016 — ADR-023a meervoudige flow-koppelingen)
+
+- **Naam-verplicht-per-type via twee lagen.** Een type-afhankelijke verplichting (`naam` verplicht
+  voor flow, optioneel voor andere relatietypen) zit in een **Pydantic `model_validator(after)`** op
+  `RelatieCreate` (kent het `relatietype`) → 422-native. Bij **update** kent `RelatieUpdate` het
+  `relatietype` niet (immutabel, niet in het schema) → de regel staat dáár in de **servicelaag**
+  (`werk_bij`, leest `obj.relatietype`) → 422-envelope (`OngeldigeRegistratie`). Patroon: "verplicht
+  bij type X" → validator waar het type bekend is, anders servicelaag.
+- **Overrulebare dubbel-signalering (geen harde blokkade, geen engine-poort).** Een "dubbel" =
+  gelijk op `(bron, doel, naam, protocol, richting, impact_bij_verbreking)`; de vrije `omschrijving`
+  telt **niet** mee. In `maak_aan` wordt de treffer **apart** berekend (`_dubbele_flow`, puur lezend),
+  zodat hij twee dingen kan voeden: (1) treffer + `negeer_waarschuwing == False` → `409
+  KOPPELING_DUBBEL` (via `RegistratieConflict(code, …)` — geen nieuwe exceptieklasse/handler nodig,
+  de bestaande mapt generiek op 409 met de raise-site-code); (2) treffer + vlag → aanmaken. De FE
+  hersubmit met `negeer_waarschuwing=true` (REST, stateless).
+- **Override audit-naspeurbaar via een ECHTE kolom.** De audit-diff (`bouw_wijziging`) capture't
+  uitsluitend **mapped columns** → een markering moet een echte kolom zijn (geen jsonb, geen aparte
+  audit-gebeurtenis). `relatie.dubbel_waarschuwing_genegeerd boolean NOT NULL default false` (migratie
+  0040); alleen **true bij een echte override** (`dubbel and negeer_waarschuwing`), nooit bij elke
+  aanmaak-met-vlag. Verschijnt zo vanzelf in de objecthistorie van de koppeling.
+- **`RELATIE_BESTAAT` (409) nu alleen non-flow.** De `except IntegrityError`-backstop in `maak_aan`
+  vangt na de partiële index (0039) enkel nog de niet-flow-typen (association/assignment/aggregation/
+  realization), die uniek per `(bron,doel,type)` blijven. Flow mag meervoud → geen IntegrityError meer.
+- **Engine-borging gehandhaafd.** `relatie_service` importeert geen lifecycle/score/blokkade-symbolen
+  (offline `hasattr`-test) en flows (incl. override) laten **geen `component_profiel`** ontstaan
+  (live-test); de signalering/markering is registratief, geen engine-poort.

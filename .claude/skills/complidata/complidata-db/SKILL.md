@@ -268,6 +268,20 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
   (`dev_seed_testdata.py`) is een bewuste **handmatige** fixture (niet in de init-container,
   dev-only). Reset-procedure: zie `docs/LOKAAL-TESTEN.md`.
 
+## Testdata-regel — geen databehoud-migratie (niet-onderhandelbaar, DC016)
+
+Er is **uitsluitend testdata**, geen productiedata. Daaruit volgt:
+- **Een schemawijziging vergt NOOIT een databehoud-migratie.** "Migratie" = uitsluitend de
+  alembic-**schemastap** (kolom/index/constraint toevoegen, evt. `server_default` voor bestaande
+  rijen). Data behouden/omzetten is **nooit** een eis; nieuwe of aangepaste data = de testdata
+  bijwerken (reseed, desnoods een volledig nieuwe seed).
+- **CC/Claude meldt ALLEEN of een wijziging een testdata-aanpassing noodzakelijk maakt** (ja/nee +
+  wat) — en framet dit **NOOIT als datamigratievraagstuk**. Een door een schemawijziging gebroken
+  reseed is "testdata bijwerken", geen migratieprobleem.
+- Een `server_default` op een nieuwe kolom vult bestaande testrijen automatisch → meestal geen
+  testdata-aanpassing nodig; een nieuwe **verplichting** (bv. naam-verplicht-voor-flow, ADR-023a)
+  vergt wél dat de seed die waarden meegeeft.
+
 ## V009/V010-patronen (ADR-023 Fase A–E, geverifieerd)
 
 - **Element-supertype + getypeerd relatiemodel (ADR-023)**: één `element`-identiteitsruimte
