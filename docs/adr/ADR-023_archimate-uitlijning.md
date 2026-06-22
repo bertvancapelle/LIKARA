@@ -105,6 +105,27 @@ technology, implementation_migration}; `aspect` ∈ {active, passive, behavior}.
 `implementation_migration` wordt alléén door de migratie-elementen (plateau/gap/work_package/
 deliverable) gebruikt; `behavior` is in het huidige gecureerde model leeg (geen gedragselementen).
 
+## Verfijning ADR-023a — meervoudige flow-koppelingen + koppeling-naam
+
+Amendement op Besluit 1/6/12 (de invariant "`UNIQUE(tenant_id, bron_id, doel_id, relatietype)` —
+één relatie per (bron, doel, type)").
+
+- **Meervoud voor `flow`:** tussen twee systemen kunnen meerdere koppelingen (flows) in dezelfde
+  richting bestaan — elk met een eigen protocol/functie (bv. een API voor functie A en een aparte
+  API voor functie B). Dat zijn reële, los te beheren afhankelijkheden; de all-types-uniciteit
+  verbood die legitieme registratie. De uniciteit wordt daarom **partieel**:
+  `UNIQUE(tenant_id, bron_id, doel_id, relatietype) WHERE relatietype <> 'flow'` (migratie 0039).
+  Alle **andere** relatietypen (association, assignment, aggregation, realization, …) blijven
+  uniek per (bron, doel, type). De registratie-eenheid van een koppeling is de bestaande
+  surrogaat-PK `relatie.id`.
+- **Koppeling-naam:** `relatie.naam` (`String(150)`) — een identificerend, sorteerbaar veld,
+  DB-nullable maar **app-verplicht voor flow** (afgedwongen in de servicelaag, Fase 2). Onderscheidt
+  meerdere koppelingen tussen dezelfde twee systemen voor de gebruiker.
+- **Dubbel-signalering (Fase 2):** een flow die op alle velden gelijk is aan een bestaande (op de
+  vrije `omschrijving` na) levert een overrulebare waarschuwing — signalering, geen harde blokkade,
+  geen engine-poort.
+- Engine onaangeroerd: relatie is geen lifecycle-driver; deze verfijning is registratief.
+
 ## Gevolgen / invarianten
 
 - Relatie tenant-consistent via composiet-FK; `bron≠doel`; relatietype-catalogus-validatie;

@@ -52,9 +52,15 @@ def test_check_en_unieke_constraints():
             if isinstance(c, UniqueConstraint)
         }
 
-    assert uniques(m.Relatie)["uq_relatie"] == (
+    # ADR-023a — `uq_relatie` is geen all-types-UniqueConstraint meer, maar een PARTIËLE unieke
+    # index (WHERE relatietype <> 'flow'): flow mag meervoud, andere typen blijven uniek.
+    assert "uq_relatie" not in uniques(m.Relatie)
+    uq_idx = {idx.name: idx for idx in m.Relatie.__table__.indexes}["uq_relatie"]
+    assert uq_idx.unique is True
+    assert tuple(col.name for col in uq_idx.columns) == (
         "tenant_id", "bron_id", "doel_id", "relatietype"
     )
+    assert "flow" in str(uq_idx.dialect_options["postgresql"]["where"])
     # ADR-023: ComponentContract → association-relatie (UNIQUE op `Relatie`).
     assert uniques(m.ComponentConfigOptie)["uq_componentconfig_optie"] == (
         "dimensie", "optie_sleutel"

@@ -13,6 +13,7 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     Integer,
     String,
     Text,
@@ -268,7 +269,13 @@ class Relatie(Base, TenantMixin, TimestampMixin):
     __tablename__ = "relatie"
     __table_args__ = (
         CheckConstraint("bron_id <> doel_id", name="ck_relatie_bron_ne_doel"),
-        UniqueConstraint("tenant_id", "bron_id", "doel_id", "relatietype", name="uq_relatie"),
+        # ADR-023a — uniciteit per (bron,doel,type) blijft voor alle relatietypen BEHALVE flow:
+        # tussen twee systemen mogen meerdere flow-koppelingen bestaan (eigen protocol/functie).
+        # Partiële unieke index (WHERE relatietype <> 'flow'); zie migratie 0039.
+        Index(
+            "uq_relatie", "tenant_id", "bron_id", "doel_id", "relatietype",
+            unique=True, postgresql_where=text("relatietype <> 'flow'"),
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "bron_id"], ["element.tenant_id", "element.id"],
             name="fk_relatie_bron_element", ondelete="CASCADE",
@@ -283,6 +290,9 @@ class Relatie(Base, TenantMixin, TimestampMixin):
     bron_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     doel_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     relatietype: Mapped[str] = mapped_column(String(40), nullable=False)
+    # ADR-023a — identificerende, sorteerbare naam van een koppeling. DB-nullable; app-verplicht
+    # voor flow volgt in Fase 2 (hier nog geen validatie).
+    naam: Mapped[str | None] = mapped_column(String(150), nullable=True)
     kenmerken: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
     omschrijving: Mapped[str | None] = mapped_column(Text, nullable=True)
 
