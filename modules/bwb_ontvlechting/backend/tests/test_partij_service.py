@@ -37,6 +37,30 @@ def test_sorteer_allowlist_synchroon_met_schema():
     assert set(svc._SORTEERBARE_KOLOMMEN) == set(svc._WAARDE_PARSERS)
 
 
+def test_burger_aard_lidmaatschap():
+    """ADR-024 — burger: geen organisatie_id/afdeling_id; PartijRead draagt aard='burger'."""
+    from datetime import datetime
+
+    from pydantic import ValidationError
+
+    from models.models import PartijAard
+    from schemas.partij import PartijCreate, PartijRead
+
+    ok = PartijCreate(aard=PartijAard.burger, naam="Burgers")
+    assert ok.aard == PartijAard.burger and ok.organisatie_id is None and ok.afdeling_id is None
+    with pytest.raises(ValidationError):
+        PartijCreate(aard=PartijAard.burger, naam="X", organisatie_id=uuid.uuid4())
+    with pytest.raises(ValidationError):
+        PartijCreate(aard=PartijAard.burger, naam="X", afdeling_id=uuid.uuid4())
+    r = PartijRead(
+        id=uuid.uuid4(), aard="burger", naam="Burgers", straat_huisnummer=None, postcode=None,
+        plaats=None, contactpersoon=None, telefoon=None, mobiel=None, email=None,
+        functietitel=None, omschrijving=None, soort=None, organisatie_id=None, afdeling_id=None,
+        created_at=datetime(2026, 6, 22), updated_at=datetime(2026, 6, 22),
+    )
+    assert r.aard == "burger"
+
+
 def test_aard_is_server_side_sorteerbaar():
     """ADR-024 — `aard` sorteerbaar voor het leden-overzicht (enum + kolom + parser)."""
     from schemas.partij import PartijSorteerveld

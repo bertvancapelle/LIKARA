@@ -200,6 +200,9 @@ class PartijAard(str, Enum):
     organisatie = "organisatie"
     organisatie_eenheid = "organisatie_eenheid"
     persoon = "persoon"
+    # ADR-024 — burgers als partij-aard: geen organisatie_id/afdeling_id, geen leden
+    # (valt buiten _HEEFT_ORG_OUDER én _ORGANISATIE_ACHTIG in partij_service).
+    burger = "burger"
 
 
 # Gedeelde sa.Enum-typeobjecten (één type per naam; migratie beheert de DDL).

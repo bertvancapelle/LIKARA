@@ -165,7 +165,7 @@ export const api = {
   // Het contract-domein hergebruikt deze client voor de leverancier-picker (aard externe_partij).
   partijen: {
     lijst: (params = {}) =>
-      request(`/partijen${_filterQuery('partijen.lijst', params, ['aard', 'organisatie_id', 'afdeling_id', 'limit', 'after', 'sort', 'order', 'zoek'])}`),
+      request(`/partijen${_filterQuery('partijen.lijst', params, ['aard', 'aard_in', 'organisatie_id', 'afdeling_id', 'limit', 'after', 'sort', 'order', 'zoek'])}`),
     haal: (id) => request(`/partijen/${id}`),
     maak: (data) => request('/partijen', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>

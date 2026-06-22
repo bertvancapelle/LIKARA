@@ -49,6 +49,7 @@ async def lijst_soorten(
 @router.get("", response_model=PartijPagina)
 async def lijst_partijen(
     aard: PartijAard | None = Query(None),
+    aard_in: list[PartijAard] | None = Query(None),
     organisatie_id: uuid.UUID | None = Query(None),
     afdeling_id: uuid.UUID | None = Query(None),
     limit: int = Query(25, ge=1, le=100),
@@ -62,7 +63,7 @@ async def lijst_partijen(
     try:
         items, volgende = await svc.lijst(
             session, user.tenant_id,
-            aard=aard, organisatie_id=organisatie_id, afdeling_id=afdeling_id,
+            aard=aard, aard_in=aard_in, organisatie_id=organisatie_id, afdeling_id=afdeling_id,
             limit=limit, after=after, sort=sort.value, order=order.value, zoek=zoek,
         )
     except ValueError:

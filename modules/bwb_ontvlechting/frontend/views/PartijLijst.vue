@@ -21,6 +21,7 @@ const AARD_OPTIES = [
   { waarde: 'organisatie', tekst: 'Organisatie' },
   { waarde: 'organisatie_eenheid', tekst: 'Afdeling' },
   { waarde: 'persoon', tekst: 'Persoon' },
+  { waarde: 'burger', tekst: 'Burger' },
 ]
 const aardLabel = (a) => label(PARTIJ_AARD, a)
 

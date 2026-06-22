@@ -962,6 +962,276 @@ async def seed_landschapskaart_demo(session, tenant_id) -> dict:
     return lifecycles
 
 
+async def _seed_gemeente_veldendam(session, tenant_id) -> dict:
+    """Eén coherent scenario 'Gemeente Veldendam ICT-landschap' (de ENIGE dev-scenario-seed).
+
+    Volgorde: organisaties → afdelingen → personen → applicaties (+scoring) → contracten →
+    component↔contract → flows → roltoewijzingen. Alle entiteiten idempotent (skip op naam).
+    Catalogus-/enum-mappings (afgestemd): contract-aard → ContractType (mantel/deel/los),
+    flow-richting naar_doel/naar_bron → eenrichting · bidirectioneel → tweerichting,
+    protocol REST/SOAP → api · StUF → middleware. `soort` alleen 'leverancier' (catalogus);
+    'overheid'/'afdeling' bestaan niet als partijsoort → None."""
+    from datetime import date
+
+    tid = tenant_id
+    telling = {k: 0 for k in (
+        "organisaties", "burgers", "afdelingen", "personen_intern", "personen_extern",
+        "applicaties", "contracten", "associaties", "flows", "roltoewijzingen", "scores",
+    )}
+
+    partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
+    app_id = {r.naam: r.id for r in (await session.execute(select(Applicatie))).scalars().all()}
+    contract_id = {r.contractnaam: r.id for r in (await session.execute(select(Contract))).scalars().all()}
+
+    async def _partij(aard, naam, cat, **velden):
+        if naam in partij_id:
+            return partij_id[naam]
+        obj = await partij_service.maak_aan(session, tid, PartijCreate(aard=aard, naam=naam, **velden))
+        partij_id[naam] = obj.id
+        telling[cat] += 1
+        return obj.id
+
+    # ── 5a. Organisaties (Gemeente + leveranciers) ──
+    GV = "Gemeente Veldendam"
+    organisaties = [
+        (GV, None, "Raadhuisplein 1", "4123 AA", "Veldendam", "0345-678900", "info@veldendam.nl"),
+        ("GemSoft B.V.", "leverancier", "Softwareweg 12", "3821 BB", "Amersfoort", "033-4567890", "info@gemsoft.nl"),
+        ("CivData Solutions", "leverancier", "Dataplein 5", "2521 CC", "Den Haag", "070-3456789", "contact@civdata.nl"),
+        ("GeoWorks B.V.", "leverancier", "Geostraat 8", "1234 DD", "Amsterdam", "020-5678901", "info@geoworks.nl"),
+        ("BurgX B.V.", "leverancier", "Burgemeesterslaan 44", "5611 EE", "Eindhoven", "040-2345678", "support@burgx.nl"),
+        ("FinSys N.V.", "leverancier", "Financiënweg 99", "3011 FF", "Rotterdam", "010-3456789", "info@finsys.nl"),
+        ("SocioSuite GmbH", "leverancier", "Sozialstraße 7", "6221 GG", "Maastricht", "043-3456789", "info@sociosuite.nl"),
+        ("DataBridge B.V.", "leverancier", "Databrug 3", "6827 HH", "Arnhem", "026-4567890", "hello@databridge.nl"),
+    ]
+    for naam, soort, straat, pc, plaats, tel, mail in organisaties:
+        await _partij(PartijAard.organisatie, naam, "organisaties", soort=soort,
+                      straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
+    gv_id = partij_id[GV]
+
+    # ── 5b. Burger-partij ──
+    await _partij(PartijAard.burger, "Burgers", "burgers", omschrijving="Inwoners van de gemeente")
+
+    # ── 5c. Afdelingen (onder Gemeente Veldendam) ──
+    afdelingen = [
+        ("Informatievoorziening", "Raadhuisplein 1", "4123 AA", "Veldendam", "0345-678910", "iv@veldendam.nl"),
+        ("Informatisering", "Raadhuisplein 1", "4123 AA", "Veldendam", "0345-678911", "it@veldendam.nl"),
+        ("Burgerzaken", "Raadhuisplein 2", "4123 AA", "Veldendam", "0345-678920", "burgerzaken@veldendam.nl"),
+        ("Sociaal Domein", "Raadhuisplein 3", "4123 AA", "Veldendam", "0345-678930", "sociaaldomein@veldendam.nl"),
+        ("Financiën", "Raadhuisplein 4", "4123 AA", "Veldendam", "0345-678940", "financien@veldendam.nl"),
+    ]
+    for naam, straat, pc, plaats, tel, mail in afdelingen:
+        await _partij(PartijAard.organisatie_eenheid, naam, "afdelingen", organisatie_id=gv_id,
+                      straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
+
+    # ── 5d. Interne personen (org=Gemeente, afdeling=…) ──
+    interne = [
+        ("J. de Vries", "Informatievoorziening", "06-12345678", "j.devries@veldendam.nl"),
+        ("P. van Dijk", "Informatisering", "06-23456789", "p.vandijk@veldendam.nl"),
+        ("S. de Boer", "Informatievoorziening", "06-34567890", "s.deboer@veldendam.nl"),
+        ("R. Visser", "Burgerzaken", "06-45678901", "r.visser@veldendam.nl"),
+        ("M. Bakker", "Financiën", "06-56789012", "m.bakker@veldendam.nl"),
+    ]
+    for naam, afd, tel, mail in interne:
+        await _partij(PartijAard.persoon, naam, "personen_intern", organisatie_id=gv_id,
+                      afdeling_id=partij_id[afd], telefoon=tel, email=mail)
+
+    # ── 5e. Externe personen (2 per leverancier) ──
+    externe = [
+        ("L. Smeets", "GemSoft B.V.", "06-11223344", "l.smeets@gemsoft.nl"),
+        ("K. Peters", "GemSoft B.V.", "06-22334455", "k.peters@gemsoft.nl"),
+        ("T. van den Berg", "CivData Solutions", "06-33445566", "t.vandenberg@civdata.nl"),
+        ("F. Hendriks", "CivData Solutions", "06-44556677", "f.hendriks@civdata.nl"),
+        ("W. Jansen", "GeoWorks B.V.", "06-55667788", "w.jansen@geoworks.nl"),
+        ("C. Mulder", "GeoWorks B.V.", "06-66778899", "c.mulder@geoworks.nl"),
+        ("H. de Wit", "BurgX B.V.", "06-77889900", "h.dewit@burgx.nl"),
+        ("N. Groothuis", "BurgX B.V.", "06-88990011", "n.groothuis@burgx.nl"),
+        ("B. Vermeer", "FinSys N.V.", "06-99001122", "b.vermeer@finsys.nl"),
+        ("D. Koster", "FinSys N.V.", "06-00112233", "d.koster@finsys.nl"),
+        ("E. van Leeuwen", "SocioSuite GmbH", "06-11223355", "e.vanleeuwen@sociosuite.nl"),
+        ("G. Bosman", "SocioSuite GmbH", "06-22334466", "g.bosman@sociosuite.nl"),
+        ("A. Dijkstra", "DataBridge B.V.", "06-33445577", "a.dijkstra@databridge.nl"),
+        ("I. van der Laan", "DataBridge B.V.", "06-44556688", "i.vanderlaan@databridge.nl"),
+    ]
+    for naam, lev, tel, mail in externe:
+        await _partij(PartijAard.persoon, naam, "personen_extern", organisatie_id=partij_id[lev],
+                      telefoon=tel, email=mail)
+
+    # ── 5f. Applicaties (+ scoringsplan) ── (naam, omschrijving, host, gescoord, blokkerend)
+    applicaties = [
+        ("Zaaksysteem", "Centraal systeem voor zaakgericht werken en zaakregistratie", "on_premise", 89, 1),
+        ("BRP", "Basisregistratie Personen — bron voor burgergegevens", "saas", 89, 0),
+        ("DMS", "Documentmanagementsysteem voor archivering en beheer", "saas", 45, 0),
+        ("Klantportaal", "Digitaal loket voor burgers en ondernemers", "saas", 22, 0),
+        ("Burgerzaken-suite", "Geïntegreerde suite voor burgerzaken en persoonsdocumenten", "on_premise", 22, 0),
+        ("Zaakafhandelcomponent", "Workflowcomponent voor de afhandeling van zaken", "on_premise", 0, 0),
+        ("Financieel systeem", "Financiële administratie, begroting en betalingsverkeer", "private_cloud", 0, 0),
+        ("Sociaal domein suite", "Casemanagement voor WMO, Jeugd en Participatie", "saas", 0, 0),
+        ("Gegevensmakelaar", "Koppelplatform voor gegevensuitwisseling tussen applicaties", "on_premise", 0, 0),
+    ]
+    for naam, oms, host, gescoord, blokkerend in applicaties:
+        if naam in app_id:
+            continue
+        obj = await applicatie_service.maak_aan(session, tid, ApplicatieCreate(
+            naam=naam, beschrijving=oms, hostingmodel=host, eigenaar_organisatie_id=gv_id, **APP_DEFAULTS))
+        app_id[naam] = obj.id
+        telling["applicaties"] += 1
+        if gescoord > 0:
+            await applicatie_service.start_inventarisatie(session, tid, obj.id)
+            for i in range(gescoord):
+                score = "nee" if i < blokkerend else "ja"
+                await checklistscore_service.maak_aan(session, tid, ChecklistscoreCreate(
+                    component_id=obj.id, checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
+                telling["scores"] += 1
+
+    # ── 5g. Contracten (mantel vóór deelcontract; aard → ContractType) ──
+    contracten = [
+        ("Raamovereenkomst ICT 2023–2028", "mantelcontract", "GemSoft B.V.", "2023-01-01", "2028-12-31", None, "Raamcontract — overkoepelend GemSoft portfolio"),
+        ("Deelcontract Zaaksysteem 2023–2026", "deelcontract", "GemSoft B.V.", "2023-01-01", "2026-12-31", "Raamovereenkomst ICT 2023–2028", "Licentie en onderhoud Zaaksysteem"),
+        ("Deelcontract ZAC 2023–2026", "deelcontract", "GemSoft B.V.", "2023-01-01", "2026-12-31", "Raamovereenkomst ICT 2023–2028", "Licentie en onderhoud ZAC"),
+        ("SaaS DMS & Klantportaal 2024–2027", "los_contract", "CivData Solutions", "2024-01-01", "2027-12-31", None, "SaaS — DMS en Klantportaal"),
+        ("Licentiecontract BRP 2022–2026", "los_contract", "GeoWorks B.V.", "2022-01-01", "2026-12-31", None, "Licentie BRP-toegang en updates"),
+        ("Burgerzaken-suite licentie 2023–2026", "los_contract", "BurgX B.V.", "2023-06-01", "2026-05-31", None, "Licentie Burgerzaken-suite incl. support"),
+        ("FinSys onderhoudscontract 2024–2028", "los_contract", "FinSys N.V.", "2024-01-01", "2028-12-31", None, "Onderhoud — Financieel systeem"),
+        ("SocioSuite SaaS 2023–2026", "los_contract", "SocioSuite GmbH", "2023-03-01", "2026-02-28", None, "SaaS — Sociaal domein suite"),
+        ("DataBridge koppelplatform 2024–2027", "los_contract", "DataBridge B.V.", "2024-01-01", "2027-12-31", None, "Dienstverlening — beheer/doorontwikkeling Gegevensmakelaar"),
+    ]
+    for naam, ctype, lev, van, tot, mantel, oms in contracten:
+        if naam in contract_id:
+            continue
+        res = await contract_service.maak_aan(session, tid, ContractCreate(
+            leverancier_id=partij_id[lev], contracttype=ctype, contractnaam=naam,
+            mantelcontract_id=contract_id.get(mantel) if mantel else None,
+            begindatum=date.fromisoformat(van), einddatum=date.fromisoformat(tot),
+            omschrijving=oms, dekking=[], kostenmodel=[]))
+        contract_id[naam] = res["id"]
+        telling["contracten"] += 1
+
+    # ── 5g (vervolg). Component ↔ contract (association, relatie_rol=valt_onder) ──
+    associaties = [
+        ("Zaaksysteem", "Deelcontract Zaaksysteem 2023–2026"),
+        ("Zaakafhandelcomponent", "Deelcontract ZAC 2023–2026"),
+        ("DMS", "SaaS DMS & Klantportaal 2024–2027"),
+        ("Klantportaal", "SaaS DMS & Klantportaal 2024–2027"),
+        ("BRP", "Licentiecontract BRP 2022–2026"),
+        ("Burgerzaken-suite", "Burgerzaken-suite licentie 2023–2026"),
+        ("Financieel systeem", "FinSys onderhoudscontract 2024–2028"),
+        ("Sociaal domein suite", "SocioSuite SaaS 2023–2026"),
+        ("Gegevensmakelaar", "DataBridge koppelplatform 2024–2027"),
+    ]
+    for app_naam, c_naam in associaties:
+        try:
+            await component_contract_service.maak_aan(session, tid, ComponentContractCreate(
+                component_id=app_id[app_naam], contract_id=contract_id[c_naam], relatie_rol="valt_onder"))
+            telling["associaties"] += 1
+        except RegistratieConflict:
+            pass
+
+    # ── 5h. Flows (naam verplicht; meervoud per paar = kaartgroepering) ──
+    _RICHTING = {"naar_doel": "eenrichting", "naar_bron": "eenrichting", "bidirectioneel": "tweerichting"}
+    _PROTOCOL = {"REST": "api", "SOAP": "api", "StUF": "middleware"}
+    flows = [
+        ("Zaaksysteem", "Gegevensmakelaar", "Zaakinformatie push", "naar_doel", "REST", "hoog"),
+        ("Zaaksysteem", "Gegevensmakelaar", "Documenten ophalen", "naar_bron", "REST", "midden"),
+        ("Zaaksysteem", "Gegevensmakelaar", "Status terugkoppeling", "bidirectioneel", "REST", "midden"),
+        ("Klantportaal", "Zaaksysteem", "Zaak aanmaken", "naar_doel", "REST", "hoog"),
+        ("Klantportaal", "Zaaksysteem", "Zaakstatus opvragen", "naar_bron", "REST", "laag"),
+        ("Burgerzaken-suite", "BRP", "BSN verificatie", "naar_doel", "StUF", "hoog"),
+        ("Burgerzaken-suite", "BRP", "Adreswijziging verwerken", "bidirectioneel", "StUF", "midden"),
+        ("Zaaksysteem", "DMS", "Documenten archiveren", "naar_doel", "REST", "hoog"),
+        ("Zaaksysteem", "Burgerzaken-suite", "Burgerzaken-zaak aanmaken", "naar_doel", "StUF", "midden"),
+        ("Zaaksysteem", "Financieel systeem", "Betaalopdracht doorzetten", "naar_doel", "REST", "midden"),
+        ("Zaaksysteem", "Sociaal domein suite", "Sociaal dossier ophalen", "naar_bron", "REST", "midden"),
+        ("Zaakafhandelcomponent", "Zaaksysteem", "Zaakstatus bijwerken", "naar_doel", "REST", "hoog"),
+        ("Zaakafhandelcomponent", "DMS", "Besluit opslaan", "naar_doel", "REST", "midden"),
+        ("Zaakafhandelcomponent", "Gegevensmakelaar", "Zaakdata verrijken", "naar_doel", "REST", "midden"),
+        ("DMS", "Gegevensmakelaar", "Metadata exporteren", "naar_doel", "REST", "laag"),
+        ("Klantportaal", "DMS", "Document uploaden", "naar_doel", "REST", "midden"),
+        ("Klantportaal", "BRP", "Identiteit verifiëren", "naar_doel", "REST", "hoog"),
+        ("Gegevensmakelaar", "BRP", "Persoonsgegevens opvragen", "naar_doel", "StUF", "hoog"),
+        ("Gegevensmakelaar", "Financieel systeem", "Belastingdata synchroniseren", "naar_doel", "SOAP", "midden"),
+        ("Gegevensmakelaar", "Burgerzaken-suite", "Adresgegevens doorzetten", "naar_doel", "StUF", "midden"),
+        ("Gegevensmakelaar", "Sociaal domein suite", "Cliëntgegevens verrijken", "naar_doel", "REST", "midden"),
+        ("Burgerzaken-suite", "DMS", "Reisdocumenten archiveren", "naar_doel", "REST", "laag"),
+        ("Financieel systeem", "Klantportaal", "Betalingsstatus tonen", "naar_doel", "REST", "laag"),
+        ("Sociaal domein suite", "Financieel systeem", "Uitbetalingen doorzetten", "naar_doel", "REST", "hoog"),
+        ("Sociaal domein suite", "Klantportaal", "Aanvraagstatus tonen", "naar_doel", "REST", "laag"),
+        ("BRP", "Burgerzaken-suite", "Basisregistratie updaten", "naar_doel", "StUF", "hoog"),
+    ]
+    bestaande_flows = {
+        r.naam for r in (
+            await session.execute(select(Relatie).where(Relatie.relatietype == "flow"))
+        ).scalars().all()
+    }
+    for bron, doel, naam, richting, protocol, impact in flows:
+        if naam in bestaande_flows:
+            continue
+        await relatie_service.maak_aan(session, tid, RelatieCreate(
+            bron_id=app_id[bron], doel_id=app_id[doel], relatietype="flow", naam=naam,
+            kenmerken={"richting": _RICHTING[richting], "protocol": _PROTOCOL[protocol],
+                       "impact_bij_verbreking": impact}))
+        telling["flows"] += 1
+
+    # ── 5i. Roltoewijzingen ──
+    async def _rol(partij_naam, object_id, rol):
+        try:
+            await roltoewijzing_service.maak_aan(session, tid, partij_id[partij_naam], object_id, rol)
+            telling["roltoewijzingen"] += 1
+        except RegistratieConflict:
+            pass
+
+    rt_comp = [
+        ("J. de Vries", "Zaaksysteem", "functioneel_beheer"),
+        ("J. de Vries", "Zaaksysteem", "product_owner"),
+        ("J. de Vries", "Gegevensmakelaar", "technisch_beheer"),
+        ("P. van Dijk", "Zaaksysteem", "technisch_beheer"),
+        ("P. van Dijk", "Zaakafhandelcomponent", "technisch_beheer"),
+        ("P. van Dijk", "DMS", "technisch_beheer"),
+        ("S. de Boer", "Klantportaal", "product_owner"),
+        ("S. de Boer", "DMS", "functioneel_beheer"),
+        ("R. Visser", "BRP", "eigenaar"),
+        ("R. Visser", "Burgerzaken-suite", "functioneel_beheer"),
+        ("M. Bakker", "Financieel systeem", "functioneel_beheer"),
+        ("M. Bakker", "Sociaal domein suite", "product_owner"),
+    ]
+    rt_contract = [
+        ("J. de Vries", "Raamovereenkomst ICT 2023–2028", "contractbeheer"),
+        ("J. de Vries", "Deelcontract Zaaksysteem 2023–2026", "contractbeheer"),
+        ("J. de Vries", "DataBridge koppelplatform 2024–2027", "contractbeheer"),
+        ("P. van Dijk", "Deelcontract ZAC 2023–2026", "contractbeheer"),
+        ("S. de Boer", "SaaS DMS & Klantportaal 2024–2027", "contractbeheer"),
+        ("R. Visser", "Licentiecontract BRP 2022–2026", "contractbeheer"),
+        ("R. Visser", "Burgerzaken-suite licentie 2023–2026", "contractbeheer"),
+        ("M. Bakker", "FinSys onderhoudscontract 2024–2028", "contractbeheer"),
+        ("M. Bakker", "SocioSuite SaaS 2023–2026", "contractbeheer"),
+    ]
+    rt_extern = [
+        ("L. Smeets", "Raamovereenkomst ICT 2023–2028", "account_manager"),
+        ("K. Peters", "Raamovereenkomst ICT 2023–2028", "service_delivery_manager"),
+        ("L. Smeets", "Deelcontract Zaaksysteem 2023–2026", "account_manager"),
+        ("K. Peters", "Deelcontract ZAC 2023–2026", "service_delivery_manager"),
+        ("T. van den Berg", "SaaS DMS & Klantportaal 2024–2027", "account_manager"),
+        ("F. Hendriks", "SaaS DMS & Klantportaal 2024–2027", "service_delivery_manager"),
+        ("W. Jansen", "Licentiecontract BRP 2022–2026", "account_manager"),
+        ("C. Mulder", "Licentiecontract BRP 2022–2026", "service_delivery_manager"),
+        ("H. de Wit", "Burgerzaken-suite licentie 2023–2026", "account_manager"),
+        ("N. Groothuis", "Burgerzaken-suite licentie 2023–2026", "service_delivery_manager"),
+        ("B. Vermeer", "FinSys onderhoudscontract 2024–2028", "account_manager"),
+        ("D. Koster", "FinSys onderhoudscontract 2024–2028", "service_delivery_manager"),
+        ("E. van Leeuwen", "SocioSuite SaaS 2023–2026", "account_manager"),
+        ("G. Bosman", "SocioSuite SaaS 2023–2026", "service_delivery_manager"),
+        ("A. Dijkstra", "DataBridge koppelplatform 2024–2027", "account_manager"),
+        ("I. van der Laan", "DataBridge koppelplatform 2024–2027", "service_delivery_manager"),
+    ]
+    for p, a, r in rt_comp:
+        await _rol(p, app_id[a], r)
+    for p, c, r in rt_contract:
+        await _rol(p, contract_id[c], r)
+    for p, c, r in rt_extern:
+        await _rol(p, contract_id[c], r)
+
+    return telling
+
+
 async def main() -> None:
     print(f"dev-seed: tenant {DEV_TENANT}")
     # ADR-006: vaste systeem-actor voor het audit-spoor van de dev-seed.
@@ -972,7 +1242,7 @@ async def main() -> None:
         await seed_antwoordconfig(session, DEV_TENANT)
         print("  + baseline-vragenset (89) + antwoordconfig geseed voor de tenant")
 
-        # ADR-022 Fase A: laad de code ↔ checklistvraag.id-maps (applicatie-type).
+        # code ↔ checklistvraag.id-map (applicatie-type) voor het scoringsplan.
         for code, vid in (
             await session.execute(
                 select(ChecklistVraag.code, ChecklistVraag.id).where(
@@ -983,49 +1253,9 @@ async def main() -> None:
             _CODE_TO_ID[code] = vid
             _ID_TO_CODE[vid] = code
 
-        # Bestaande applicaties (idempotentie): naam → id binnen de tenant.
-        bestaande = {
-            r.naam: r.id
-            for r in (await session.execute(select(Applicatie))).scalars().all()
-        }
-        app_ids: dict[int, object] = {}
-        print("applicaties:")
-        for nr, app in enumerate(APPS, start=1):
-            app_ids[nr] = await _seed_applicatie(session, app, bestaande)
-
-        print("koppelingen:")
-        await _seed_koppelingen(session, app_ids)
-
-        print("checklist-velden (bevinding/eigenaar/actie):")
-        totaal = 0
-        for nr in sorted(app_ids):
-            totaal += await _seed_velden(session, nr, app_ids[nr])
-        print(f"  velden gevuld op {totaal} rij(en)")
-
-        print("antwoord_waarde (ADR-019):")
-        typed, opties_per_code = await _laad_catalogus(session)
-        totaal = 0
-        for nr in sorted(app_ids):
-            host = APPS[nr - 1]["host"]
-            totaal += await _seed_antwoord_waarden(
-                session, nr, host, app_ids[nr], typed, opties_per_code
-            )
-        print(f"  antwoord_waarde gevuld op {totaal} rij(en)")
-
-        print("Aanvulling D — contractlandschap (leveranciers/contracten/koppelingen):")
-        telling = await _seed_aanvulling_d(session, app_ids)
-        print(f"  leveranciers={telling['leveranciers']} contracten={telling['contracten']}")
-
-        print("Aanvulling E — technische laag (componenten + structuurrelaties):")
-        tl = await _seed_technische_laag(session, app_ids)
-        print(f"  extra componenten={tl['componenten_extra']} structuurrelaties={tl['structuurrelaties']}")
-
-        print("ADR-022 Fase E — tweede checklist-dragend type (client_software):")
-        e = await _seed_tweede_type(session)
-        print(f"  type={e['type']} vragen={e['vragen']}")
-
-        print("ADR-025 — Landschapskaart-demolandschap:")
-        await seed_landschapskaart_demo(session, DEV_TENANT)
+        print("Gemeente Veldendam ICT-landschap:")
+        t = await _seed_gemeente_veldendam(session, DEV_TENANT)
+        print("  " + " · ".join(f"{k}={v}" for k, v in t.items()))
     print("dev-seed: klaar")
 
 

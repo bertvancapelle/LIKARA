@@ -75,6 +75,18 @@ describe('PartijFormulier — aanmaken', () => {
     expect(w.find('[data-testid="veld-functietitel"]').exists()).toBe(false)
   })
 
+  it('verbergt organisatie- en afdeling-veld bij aard=burger', async () => {
+    const { w } = await mountForm()
+    // persoon: organisatie-veld zichtbaar (referentie)
+    await w.find('[data-testid="veld-aard"]').setValue('persoon')
+    expect(w.find('[data-testid="veld-organisatie-input"]').exists()).toBe(true)
+    // burger: geen organisatie, geen afdeling, geen functietitel
+    await w.find('[data-testid="veld-aard"]').setValue('burger')
+    expect(w.find('[data-testid="veld-organisatie-input"]').exists()).toBe(false)
+    expect(w.find('[data-testid="veld-afdeling-input"]').exists()).toBe(false)
+    expect(w.find('[data-testid="veld-functietitel"]').exists()).toBe(false)
+  })
+
   it('naam leeg ⇒ validatiefout, geen API-call', async () => {
     const { w } = await mountForm()
     await w.find('[data-testid="veld-aard"]').setValue('persoon')

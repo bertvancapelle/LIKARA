@@ -250,6 +250,7 @@ export const PARTIJ_AARD = {
   organisatie: 'Organisatie',
   organisatie_eenheid: 'Afdeling',
   persoon: 'Persoon',
+  burger: 'Burger',
 }
 
 export const CONTRACTTYPE_SEVERITY = {

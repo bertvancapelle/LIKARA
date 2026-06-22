@@ -10,8 +10,11 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import ZoekSelect from './ZoekSelect.vue'
 
-// Organisatie-keuze: server-side zoeken, beperkt tot partijen met aard=organisatie.
-const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
+// Organisatie-keuze: server-side zoeken, beperkt tot organisaties + burgers (aard_in).
+const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard_in: ['organisatie', 'burger'] })
+// Afdeling-keuze: alleen organisatie_eenheden binnen de gekozen organisatie.
+const zoekAfdelingen = (params) =>
+  api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: form.organisatie_id })
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
 const auth = useAuthStore()
@@ -38,6 +41,34 @@ const form = reactive({ organisatie_id: null, afdeling: '', aantal_gebruikers: '
 const fouten = reactive({})
 const eersteVeld = ref(null)
 let laatsteTrigger = null
+
+// Afdeling-picker (UX-fix): id voor de ZoekSelect; de afdeling-NAAM wordt in `form.afdeling`
+// (vrij tekstveld) opgeslagen. Alleen tonen bij een echte organisatie (geen burger).
+const afdelingId = ref(null)
+const orgAard = ref(null)
+const afdInitieel = ref('')
+const toonAfdeling = computed(() => !!form.organisatie_id && orgAard.value === 'organisatie')
+
+async function onOrgKies(id) {
+  form.organisatie_id = id || null
+  // Wisselen van organisatie → afdelingkeuze resetten.
+  afdelingId.value = null
+  form.afdeling = ''
+  afdInitieel.value = ''
+  orgAard.value = null
+  if (id) {
+    try { orgAard.value = (await api.partijen.haal(id)).aard } catch { /* aard niet kritisch */ }
+  }
+}
+
+async function onAfdelingKies(id) {
+  afdelingId.value = id || null
+  if (id) {
+    try { form.afdeling = (await api.partijen.haal(id)).naam } catch { /* naam niet kritisch */ }
+  } else {
+    form.afdeling = ''
+  }
+}
 
 function _toastFout(e) {
   const per = { 403: 'Geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Conflict.' }
@@ -72,6 +103,9 @@ function onSort(event) {
 
 function _reset() {
   Object.assign(form, { organisatie_id: null, afdeling: '', aantal_gebruikers: '' })
+  afdelingId.value = null
+  orgAard.value = null
+  afdInitieel.value = ''
   Object.keys(fouten).forEach((k) => delete fouten[k])
 }
 
@@ -82,7 +116,7 @@ function openNieuw(e) {
   dialogOpen.value = true
 }
 
-function openBewerken(e, rij) {
+async function openBewerken(e, rij) {
   laatsteTrigger = e?.currentTarget ?? null
   bewerkenId.value = rij.id
   _reset()
@@ -91,7 +125,11 @@ function openBewerken(e, rij) {
     afdeling: rij.afdeling || '',
     aantal_gebruikers: rij.aantal_gebruikers ?? '',
   })
+  afdInitieel.value = rij.afdeling || ''  // bestaande (vrije-tekst) afdeling tonen in de ZoekSelect
   dialogOpen.value = true
+  if (form.organisatie_id) {
+    try { orgAard.value = (await api.partijen.haal(form.organisatie_id)).aard } catch { /* idem */ }
+  }
 }
 
 function focusEerste() {
@@ -231,16 +269,27 @@ laad({ reset: true })
             id="gg-organisatie"
             ref="eersteVeld"
             testid="gg-veld-organisatie"
-            v-model="form.organisatie_id"
+            :model-value="form.organisatie_id"
             :zoek-functie="zoekOrganisaties"
             :invalid="!!fouten.organisatie_id"
             placeholder="Zoek een organisatie (optioneel)…"
+            @update:model-value="onOrgKies"
           />
           <span v-if="fouten.organisatie_id" id="gg-fout-organisatie" role="alert" data-testid="gg-fout-organisatie" class="text-[var(--cd-color-danger)] text-[length:var(--cd-text-sm)]">{{ fouten.organisatie_id }}</span>
         </div>
-        <div class="flex flex-col gap-[var(--cd-space-xs)]">
+        <!-- Afdeling: ZoekSelect binnen de gekozen organisatie; alleen bij een echte organisatie (niet burger). -->
+        <div v-if="toonAfdeling" class="flex flex-col gap-[var(--cd-space-xs)]">
           <label for="gg-afdeling" class="font-semibold">Afdeling</label>
-          <InputText id="gg-afdeling" v-model="form.afdeling" data-testid="gg-veld-afdeling" />
+          <ZoekSelect
+            id="gg-afdeling"
+            :key="form.organisatie_id"
+            testid="gg-veld-afdeling"
+            :model-value="afdelingId"
+            :zoek-functie="zoekAfdelingen"
+            :initieel-weergave="afdInitieel"
+            placeholder="Zoek een afdeling…"
+            @update:model-value="onAfdelingKies"
+          />
         </div>
         <div class="flex flex-col gap-[var(--cd-space-xs)]">
           <label for="gg-aantal" class="font-semibold">Aantal gebruikers</label>

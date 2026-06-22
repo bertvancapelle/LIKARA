@@ -124,6 +124,7 @@ async def lijst(
     tenant_id,
     *,
     aard: PartijAard | None = None,
+    aard_in: list[PartijAard] | None = None,
     organisatie_id=None,
     afdeling_id=None,
     limit: int = _STANDAARD_LIMIT,
@@ -147,6 +148,8 @@ async def lijst(
     stmt = select(Partij).where(Partij.tenant_id == tid)
     if aard is not None:
         stmt = stmt.where(Partij.aard == aard)
+    if aard_in:
+        stmt = stmt.where(Partij.aard.in_(aard_in))
     if organisatie_id is not None:
         stmt = stmt.where(Partij.organisatie_id == organisatie_id)
     if afdeling_id is not None:
