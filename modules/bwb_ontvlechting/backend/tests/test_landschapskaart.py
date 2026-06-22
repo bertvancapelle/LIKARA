@@ -203,6 +203,59 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
 
 
 @integratie
+def test_landschapskaart_flows_gegroepeerd_per_paar_live():
+    """ADR-023a Fase 3 — meerdere flows tussen hetzelfde gerichte paar worden tot één
+    LandschapsEdge samengetrokken met `aantal=N`; gemengde richting → 'bidirectioneel',
+    gemengd protocol → None; een enkele flow blijft `aantal=1` met eigen richting/protocol."""
+    from sqlalchemy import text as _text
+
+    from models.models import Component, Element, ElementType, Relatie
+    from services import landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _comp(s, naam):
+        elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+                        hostingmodel="on_premise")); await s.flush()
+        return elem.id
+
+    async def _flow(s):
+        ids = []
+        try:
+            a = await _comp(s, "WT-GRP-A"); b = await _comp(s, "WT-GRP-B")
+            ids += [a, b]
+            # 3 flows a→b: 2× (eenrichting, rest) + 1× (tweerichting, soap) → niet-uniform.
+            s.add(Relatie(tenant_id=tid, bron_id=a, doel_id=b, relatietype="flow", naam="g1",
+                          kenmerken={"richting": "eenrichting", "protocol": "rest"}))
+            s.add(Relatie(tenant_id=tid, bron_id=a, doel_id=b, relatietype="flow", naam="g2",
+                          kenmerken={"richting": "eenrichting", "protocol": "rest"}))
+            s.add(Relatie(tenant_id=tid, bron_id=a, doel_id=b, relatietype="flow", naam="g3",
+                          kenmerken={"richting": "tweerichting", "protocol": "soap"}))
+            # 1 flow b→a → eigen edge, aantal=1, uniforme waarden behouden.
+            s.add(Relatie(tenant_id=tid, bron_id=b, doel_id=a, relatietype="flow", naam="g4",
+                          kenmerken={"richting": "eenrichting", "protocol": "rest"}))
+            await s.commit()
+            graf = await svc.haal_grafdata_op(s, _TID)
+            return graf, a, b
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    graf, a, b = asyncio.run(_run_rls(_flow))
+    ab = [e for e in graf.edges if e.ring == "applicaties" and e.bron_id == a and e.doel_id == b]
+    ba = [e for e in graf.edges if e.ring == "applicaties" and e.bron_id == b and e.doel_id == a]
+    # Per gericht paar exact één samengetrokken edge.
+    assert len(ab) == 1 and len(ba) == 1
+    assert ab[0].aantal == 3                       # N flows → aantal=N
+    assert ab[0].richting == "bidirectioneel"      # gemengde richting → fallback
+    assert ab[0].protocol is None                  # gemengd protocol → None
+    assert ba[0].aantal == 1                       # enkele flow → aantal=1
+    assert ba[0].richting == "eenrichting" and ba[0].protocol == "rest"
+
+
+@integratie
 def test_landschapskaart_blokkades_open_telling_live():
     """Een via de engine ontstane open blokkade (score 'nee') telt mee in `blokkades_open`."""
     from sqlalchemy import select as _select, text as _text

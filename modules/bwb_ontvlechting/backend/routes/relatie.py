@@ -34,6 +34,8 @@ async def lijst_relaties(
     bron_id: uuid.UUID | None = Query(None),
     doel_id: uuid.UUID | None = Query(None),
     relatietype: str | None = Query(None, max_length=40),
+    paar_bron_id: uuid.UUID | None = Query(None),
+    paar_doel_id: uuid.UUID | None = Query(None),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.RELATIE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
@@ -41,6 +43,7 @@ async def lijst_relaties(
         items, volgende = await svc.lijst(
             session, user.tenant_id, limit=limit, after=after,
             bron_id=bron_id, doel_id=doel_id, relatietype=relatietype,
+            paar_bron_id=paar_bron_id, paar_doel_id=paar_doel_id,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")

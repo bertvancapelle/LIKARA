@@ -288,6 +288,66 @@ def test_relatie_crud_en_integriteit_live():
     assert r["geen_dubbel_markering"] is False  # geen dubbel → geen markering
 
 
+@live
+def test_relatie_paar_filter_symmetrie_live():
+    """ADR-023a Fase 3 — `paar_bron_id`+`paar_doel_id` filtert op het ONGEORDENDE paar:
+    (A,B) levert exact dezelfde flows als (B,A), inclusief beide richtingen; het gerichte
+    `bron_id`-filter levert daarentegen alleen één richting."""
+    from app.core import tenant_context as tc
+    from app.core.database import _markeer_rls
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    from models.models import Component, Element, ElementType, Relatie
+    from services import relatie_service
+
+    async def _comp(s, tid, naam):
+        elem = Element(tenant_id=tid, element_type=ElementType.component)
+        s.add(elem); await s.flush()
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+                        hostingmodel="on_premise"))
+        await s.flush()
+        return elem.id
+
+    async def _run():
+        eng = create_async_engine(_CD_APP_URL)
+        smf = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+        tid = uuid.UUID(TENANT_A)
+        try:
+            tok = tc.zet_tenant_context(TENANT_A); atok = tc.zet_audit_context("system:dev_seed")
+            try:
+                async with smf() as s:
+                    _markeer_rls(s)
+                    a = await _comp(s, tid, f"PAAR-A-{uuid.uuid4().hex[:6]}")
+                    b = await _comp(s, tid, f"PAAR-B-{uuid.uuid4().hex[:6]}")
+                    # twee flows a→b + één flow b→a (direct ORM; naam nullable in DB)
+                    s.add(Relatie(tenant_id=tid, bron_id=a, doel_id=b, relatietype="flow", naam="f1"))
+                    s.add(Relatie(tenant_id=tid, bron_id=a, doel_id=b, relatietype="flow", naam="f2"))
+                    s.add(Relatie(tenant_id=tid, bron_id=b, doel_id=a, relatietype="flow", naam="f3"))
+                    await s.commit()
+
+                    ab, _ = await relatie_service.lijst(s, TENANT_A, paar_bron_id=a, paar_doel_id=b, relatietype="flow")
+                    ba, _ = await relatie_service.lijst(s, TENANT_A, paar_bron_id=b, paar_doel_id=a, relatietype="flow")
+                    gericht, _ = await relatie_service.lijst(s, TENANT_A, bron_id=a, doel_id=b, relatietype="flow")
+                    r = {
+                        "paar_ab": sorted(str(x.id) for x in ab),
+                        "paar_ba": sorted(str(x.id) for x in ba),
+                        "paar_aantal": len(ab),
+                        "gericht_aantal": len(gericht),
+                    }
+                    await s.execute(text("DELETE FROM element WHERE id IN (:a,:b)"), {"a": str(a), "b": str(b)})
+                    await s.commit()
+                    return r
+            finally:
+                tc.reset_audit_context(atok); tc.reset_tenant_context(tok)
+        finally:
+            await eng.dispose()
+
+    r = asyncio.run(_run())
+    assert r["paar_ab"] == r["paar_ba"]   # ongeordend: (A,B) ≡ (B,A)
+    assert r["paar_aantal"] == 3          # beide richtingen samen
+    assert r["gericht_aantal"] == 2       # gericht bron=a,doel=b: alleen die richting
+
+
 def test_audit_capture_dubbel_markering():
     """ADR-023a — de override-markering is een mapped column → de audit-diff (bouw_wijziging)
     capture't hem automatisch, dus de override verschijnt in de objecthistorie van de koppeling."""

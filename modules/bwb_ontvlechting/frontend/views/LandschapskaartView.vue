@@ -222,7 +222,8 @@ const popupKind = ref(null) // 'node' | 'edge'
 const popupTitel = ref('')
 const popupBadge = ref(null) // 'Inkomend' | 'Uitgaand' (alleen koppeling t.o.v. ego)
 const popupLaden = ref(false)
-const popupVelden = ref([]) // [{ label, waarde }] — uitsluitend ingevulde velden
+const popupVelden = ref([]) // [{ label, waarde }] — uitsluitend ingevulde velden (knoop-popup)
+const popupGroepen = ref([]) // [{ testid, titel, rijen:[{naam, protocol}] }] — koppeling-popup (ADR-023a Fase 3)
 const popupMelding = ref(null) // RBAC-/terugval-melding (geen technische fout)
 const popupActie = ref(null) // { label, fn } | null
 const fullscreen = ref(false)
@@ -233,6 +234,7 @@ function sluitPopup() {
   popupTitel.value = ''
   popupBadge.value = null
   popupVelden.value = []
+  popupGroepen.value = []
   popupMelding.value = null
   popupActie.value = null
 }
@@ -312,6 +314,7 @@ async function openNodePopup(id) {
   popupActie.value = isApplicatie(n)
     ? { label: 'Open applicatie →', fn: () => router.push({ name: 'applicatie-detail', params: { id } }) }
     : null
+  popupGroepen.value = []
   popupVelden.value = _nodePrefill(n)
   popupOpen.value = true
   popupLaden.value = true
@@ -333,45 +336,39 @@ async function openNodePopup(id) {
   }
 }
 
-function _edgeVelden(edge, rel, tegenNaam) {
-  const k = rel.kenmerken || {}
-  const protocol = k.protocol ?? edge.protocol
-  const richting = k.richting ?? edge.richting
-  return _velden([
-    _veld('Tegenpartij', tegenNaam),
-    { label: 'Type', waarde: 'koppeling' },
-    _veld('Protocol', protocol ? typeLabel(protocol) : null),
-    _veld('Datastroom', richting ? typeLabel(richting) : null),
-    _veld('Impact bij verbreking', k.impact_bij_verbreking ? typeLabel(k.impact_bij_verbreking) : null),
-    _veld('Omschrijving', rel.omschrijving),
-  ])
+// Eén flow-relatie → een popup-rij: identificerende naam (of "–") + protocol.
+function _flowRij(r) {
+  const protocol = (r.kenmerken || {}).protocol
+  return { naam: r.naam || '–', protocol: protocol ? typeLabel(protocol) : '' }
 }
 
-// Koppeling-popup (flow-edge). "Inkomend/Uitgaand" = positie t.o.v. de gecentreerde
-// (ego) node; "Datastroom" = het richting-kenmerk (een-/tweerichting) — NIET hetzelfde.
+// Koppeling-popup (flow-edge) — ADR-023a Fase 3. Eén edge = een gericht applicatiepaar dat
+// meerdere flows kan bundelen. We halen ALLE flows van het ONGEORDENDE paar op en groeperen
+// ze naar richting t.o.v. de aangeklikte pijl: Uitgaand (bron→doel) en Inkomend (doel→bron).
+// (Fase 4 vervangt deze popup volledig — structuur hier bewust minimaal.)
 async function openEdgePopup(edge) {
   if (!edge || edge.ring !== 'applicaties') return
-  const ego = egoStartId.value
-  let badge = null
-  let tegenId = null
-  if (edge.bron_id === ego) { badge = 'Uitgaand'; tegenId = edge.doel_id }
-  else if (edge.doel_id === ego) { badge = 'Inkomend'; tegenId = edge.bron_id }
-  const tegenNaam = tegenId
-    ? nodePerId.value[tegenId]?.naam || ''
-    : `${nodePerId.value[edge.bron_id]?.naam || '?'} → ${nodePerId.value[edge.doel_id]?.naam || '?'}`
+  const bronNaam = nodePerId.value[edge.bron_id]?.naam || '?'
+  const doelNaam = nodePerId.value[edge.doel_id]?.naam || '?'
   popupKind.value = 'edge'
-  popupBadge.value = badge
-  popupTitel.value = 'Koppeling'
+  popupBadge.value = null
+  popupTitel.value = `Koppelingen: ${bronNaam} ↔ ${doelNaam}`
   popupActie.value = null
   popupMelding.value = null
-  popupVelden.value = _edgeVelden(edge, {}, tegenNaam) // pre-fill uit de edge (protocol/richting)
+  popupVelden.value = []
+  popupGroepen.value = []
   popupOpen.value = true
   popupLaden.value = true
   try {
-    const p = await api.relaties.lijst({ bron_id: edge.bron_id, doel_id: edge.doel_id, relatietype: 'flow' })
-    const rel = (p.items || [])[0]
+    const p = await api.relaties.lijst({ paar_bron_id: edge.bron_id, paar_doel_id: edge.doel_id, relatietype: 'flow' })
     if (popupKind.value !== 'edge') return
-    popupVelden.value = _edgeVelden(edge, rel || {}, tegenNaam)
+    const items = p.items || []
+    const uit = items.filter((r) => r.bron_id === edge.bron_id).map(_flowRij)
+    const inkomend = items.filter((r) => r.bron_id === edge.doel_id).map(_flowRij)
+    popupGroepen.value = [
+      { testid: 'uitgaand', titel: `Uitgaand (${bronNaam} →)`, rijen: uit },
+      { testid: 'inkomend', titel: `Inkomend (${doelNaam} →)`, rijen: inkomend },
+    ].filter((g) => g.rijen.length)
   } catch (e) {
     popupMelding.value = e?.status === 403
       ? 'Meer details niet beschikbaar (geen leesrecht).'
@@ -442,11 +439,12 @@ function _edgeData(e, i) {
     lc = grens ? '#ea580c' : beide ? '#2563eb' : '#cbd5e1'
     w = grens ? 3 : 2
   }
-  // Koppelingsdetails op flow-edges: "koppeling · REST · →" (→ eenrichting, ↔ tweerichting).
+  // Koppelingsdetails op flow-edges: "koppeling · REST · → · 3×" (→ eenrichting, ↔ twee-/
+  // bidirectioneel; "N×" alleen bij ≥2 samengetrokken koppelingen op dit paar — ADR-023a Fase 3).
   let label = ''
   if (e.ring === 'applicaties') {
-    const pijl = e.richting === 'tweerichting' ? '↔' : '→'
-    label = ['koppeling', e.protocol ? String(e.protocol).toUpperCase() : null, pijl].filter(Boolean).join(' · ')
+    const pijl = e.richting === 'tweerichting' || e.richting === 'bidirectioneel' ? '↔' : '→'
+    label = ['koppeling', e.protocol ? String(e.protocol).toUpperCase() : null, pijl, e.aantal >= 2 ? `${e.aantal}×` : null].filter(Boolean).join(' · ')
   }
   return { id: `e${i}-${e.bron_id}-${e.doel_id}-${e.relatietype}`, source: e.bron_id, target: e.doel_id, lc, w, ls, label }
 }
@@ -581,7 +579,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen })
+defineExpose({ openNodePopup, openEdgePopup, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -718,6 +716,19 @@ const typeLabel = (t) => humaniseer(t)
               <dd class="break-words">{{ v.waarde }}</dd>
             </template>
           </dl>
+          <!-- Koppeling-popup (flow-edge): alle flows van het paar, gegroepeerd naar richting (ADR-023a Fase 3). -->
+          <div v-if="popupGroepen.length" data-testid="lk-popup-groepen" class="mt-2 flex flex-col gap-[var(--cd-space-sm)]">
+            <div v-for="g in popupGroepen" :key="g.testid" :data-testid="`lk-popup-groep-${g.testid}`">
+              <p class="font-semibold text-[length:var(--cd-text-sm)]">{{ g.titel }} ({{ g.rijen.length }})</p>
+              <ul class="mt-0.5 flex flex-col gap-0.5 text-[length:var(--cd-text-sm)]">
+                <li v-for="(r, i) in g.rijen" :key="i" class="flex items-center justify-between gap-[var(--cd-space-sm)]">
+                  <span class="break-words">{{ r.naam }}</span>
+                  <span v-if="r.protocol" class="shrink-0 text-[var(--cd-color-text-muted)]">{{ r.protocol }}</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p v-else-if="popupKind === 'edge' && !popupLaden && !popupMelding" data-testid="lk-popup-groepen-leeg" class="mt-2 text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Geen koppelingen gevonden.</p>
           <p v-if="popupMelding" data-testid="lk-popup-melding" class="mt-2 text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">{{ popupMelding }}</p>
           <button v-if="popupActie" type="button" data-testid="lk-popup-actie" class="mt-2 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] text-white" @click="popupActie.fn">{{ popupActie.label }}</button>
         </div>

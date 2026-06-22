@@ -244,7 +244,7 @@ export const api = {
   // `omschrijving`/`kenmerken`.
   relaties: {
     lijst: (params = {}) =>
-      request(`/relaties${_filterQuery('relaties.lijst', params, ['limit', 'after', 'bron_id', 'doel_id', 'relatietype'])}`),
+      request(`/relaties${_filterQuery('relaties.lijst', params, ['limit', 'after', 'bron_id', 'doel_id', 'relatietype', 'paar_bron_id', 'paar_doel_id'])}`),
     haal: (id) => request(`/relaties/${id}`),
     maak: (data) => request('/relaties', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/relaties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

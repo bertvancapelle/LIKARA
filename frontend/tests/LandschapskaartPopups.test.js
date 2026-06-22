@@ -77,40 +77,57 @@ const veld = (w, label) => {
   return dt ? dt.element.nextElementSibling.textContent : null
 }
 
-describe('Landschapskaart — koppeling-popup', () => {
-  it('toont Uitgaand + tegenpartij + protocol/datastroom/impact/omschrijving', async () => {
-    api.relaties.lijst.mockResolvedValue({ items: [{ id: 'r1', kenmerken: { protocol: 'api', richting: 'eenrichting', impact_bij_verbreking: 'hoog' }, omschrijving: 'Zaak naar DMS' }] })
+describe('Landschapskaart — koppeling-popup (gegroepeerd, ADR-023a Fase 3)', () => {
+  it('haalt het ONGEORDENDE paar op en groepeert flows naar Uitgaand/Inkomend', async () => {
+    api.relaties.lijst.mockResolvedValue({ items: [
+      { id: 'r1', bron_id: 'a1', doel_id: 'a2', naam: 'REST sync', kenmerken: { protocol: 'rest', richting: 'eenrichting' } },
+      { id: 'r2', bron_id: 'a1', doel_id: 'a2', naam: null, kenmerken: { protocol: 'bestand' } },
+      { id: 'r3', bron_id: 'a2', doel_id: 'a1', naam: 'Terugkoppeling', kenmerken: { protocol: 'soap' } },
+    ] })
     const { w } = await mountView()
-    // ego-center = a1 (eerste applicatie) → a1→a2 is UITGAAND.
-    await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties', richting: 'eenrichting', protocol: 'api' })
+    await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties' })
     await flushPromises()
+    // Ongeordend-paar-filter (NIET gericht bron_id/doel_id).
+    expect(api.relaties.lijst).toHaveBeenCalledWith({ paar_bron_id: 'a1', paar_doel_id: 'a2', relatietype: 'flow' })
     expect(w.find('[data-testid="lk-popup"]').exists()).toBe(true)
-    expect(w.find('[data-testid="lk-popup-badge"]').text()).toBe('Uitgaand')
-    expect(veld(w, 'Tegenpartij')).toBe('Documentbeheer')
-    expect(veld(w, 'Type')).toBe('koppeling')
-    expect(veld(w, 'Protocol')).toBeTruthy()
-    expect(veld(w, 'Datastroom')).toBeTruthy()   // richting-kenmerk, NIET inkomend/uitgaand
-    expect(veld(w, 'Impact bij verbreking')).toBeTruthy()
-    expect(veld(w, 'Omschrijving')).toBe('Zaak naar DMS')
+    const uit = w.find('[data-testid="lk-popup-groep-uitgaand"]')
+    const ink = w.find('[data-testid="lk-popup-groep-inkomend"]')
+    expect(uit.exists()).toBe(true)
+    expect(ink.exists()).toBe(true)
+    // Uitgaand: 2 flows (a1→a2); naam getoond, naamloze als "–".
+    expect(uit.findAll('li')).toHaveLength(2)
+    expect(uit.text()).toContain('REST sync')
+    expect(uit.text()).toContain('–')
+    // Inkomend: 1 flow (a2→a1).
+    expect(ink.findAll('li')).toHaveLength(1)
+    expect(ink.text()).toContain('Terugkoppeling')
   })
 
-  it('inkomend/uitgaand wordt afgeleid t.o.v. de ego-node (doel == ego → Inkomend)', async () => {
-    api.relaties.lijst.mockResolvedValue({ items: [{ kenmerken: {}, omschrijving: null }] })
+  it('edge-klik gebruikt paar_bron_id + paar_doel_id (niet gericht bron_id/doel_id)', async () => {
+    api.relaties.lijst.mockResolvedValue({ items: [] })
     const { w } = await mountView()
-    // edge a2→a1 met ego=a1 → doel == ego → INKOMEND.
     await w.vm.openEdgePopup({ bron_id: 'a2', doel_id: 'a1', ring: 'applicaties' })
     await flushPromises()
-    expect(w.find('[data-testid="lk-popup-badge"]').text()).toBe('Inkomend')
-    expect(veld(w, 'Tegenpartij')).toBe('Documentbeheer')
+    const arg = api.relaties.lijst.mock.calls[0][0]
+    expect(arg).toMatchObject({ paar_bron_id: 'a2', paar_doel_id: 'a1', relatietype: 'flow' })
+    expect(arg.bron_id).toBeUndefined()
+    expect(arg.doel_id).toBeUndefined()
   })
 
   it('403 op de relatie-fetch toont een nette melding (geen technische fout)', async () => {
     api.relaties.lijst.mockRejectedValue({ status: 403 })
     const { w } = await mountView()
-    await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties', protocol: 'api', richting: 'eenrichting' })
+    await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties' })
     await flushPromises()
     expect(w.find('[data-testid="lk-popup-melding"]').exists()).toBe(true)
-    expect(veld(w, 'Protocol')).toBeTruthy() // pre-fill uit de edge blijft staan
+  })
+
+  it('edge-label toont een aantal-badge bij ≥2 koppelingen, niet bij 1', async () => {
+    const { w } = await mountView()
+    const meer = w.vm._edgeData({ ring: 'applicaties', aantal: 3, richting: 'eenrichting', protocol: 'rest', bron_id: 'a1', doel_id: 'a2' }, 0)
+    expect(meer.label).toContain('3×')
+    const een = w.vm._edgeData({ ring: 'applicaties', aantal: 1, richting: 'eenrichting', protocol: 'rest', bron_id: 'a1', doel_id: 'a2' }, 0)
+    expect(een.label).not.toContain('×')
   })
 })
 

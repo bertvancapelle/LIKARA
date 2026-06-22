@@ -10,7 +10,7 @@ GEEN kenmerk — ze zit in de bron→doel-oriëntatie + het relatietype.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -235,9 +235,12 @@ async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     bron_id: uuid.UUID | None = None, doel_id: uuid.UUID | None = None,
     relatietype: str | None = None,
+    paar_bron_id: uuid.UUID | None = None, paar_doel_id: uuid.UUID | None = None,
 ) -> tuple[list[Relatie], str | None]:
     """Keyset-lijst binnen de tenant (created_at oplopend), filterbaar op
-    bron/doel/relatietype. Cursor-mismatch ⇒ `ValueError` (route ⇒ 400)."""
+    bron/doel/relatietype. ADR-023a — `paar_bron_id`+`paar_doel_id` (beide vereist) filteren
+    op het ONGEORDENDE paar (A,B)≡(B,A); naast de bestaande gerichte bron/doel-filters.
+    Cursor-mismatch ⇒ `ValueError` (route ⇒ 400)."""
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
     stmt = select(Relatie).where(Relatie.tenant_id == tid)
@@ -245,12 +248,18 @@ async def lijst(
         stmt = stmt.where(Relatie.bron_id == bron_id)
     if doel_id is not None:
         stmt = stmt.where(Relatie.doel_id == doel_id)
+    if paar_bron_id is not None and paar_doel_id is not None:
+        stmt = stmt.where(
+            or_(
+                and_(Relatie.bron_id == paar_bron_id, Relatie.doel_id == paar_doel_id),
+                and_(Relatie.bron_id == paar_doel_id, Relatie.doel_id == paar_bron_id),
+            )
+        )
     if relatietype:
         stmt = stmt.where(Relatie.relatietype == relatietype)
     if after:
         _s, _o, waarde_str, c_id = decode_sort_cursor(after)
         c_waarde = datetime.fromisoformat(waarde_str)
-        from sqlalchemy import and_, or_, tuple_
         stmt = stmt.where(
             or_(
                 Relatie.created_at > c_waarde,

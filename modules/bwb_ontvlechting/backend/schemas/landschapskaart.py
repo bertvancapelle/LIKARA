@@ -34,8 +34,10 @@ class LandschapsEdge(BaseModel):
     label: str                              # leesbaar: koppeling / draait op / valt onder / <rol-naam>
     ring: str                               # applicaties / beheerorganisatie / contracten / infrastructuur
     # ADR-025 v4 — koppelingsdetails op flow-edges (uit relatie.kenmerken).
-    richting: str | None = None             # eenrichting / tweerichting
-    protocol: str | None = None             # bv. rest / soap / bestand / database
+    richting: str | None = None             # eenrichting / tweerichting / bidirectioneel (gemengde groep)
+    protocol: str | None = None             # bv. rest / soap / bestand / database (None bij gemengde groep)
+    # ADR-023a Fase 3 — aantal samengetrokken flows op dit gericht paar (1 = enkele koppeling).
+    aantal: int = 1
 
 
 class LandschapskaartResponse(BaseModel):

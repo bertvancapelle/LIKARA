@@ -172,13 +172,13 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
             )
         )
     ).all()
+    # ADR-023a Fase 3 — flows per gericht paar (bron,doel) samentrekken tot één edge met `aantal`.
+    # Volgorde-stabiel (eerste-gezien paar eerst); assignment/association blijven één-per-rij.
+    flow_groepen: dict[tuple, list[dict]] = {}
     for r in rel_rijen:
         rt = _val(r.relatietype)
         if rt == "flow" and r.bron_id in component_ids and r.doel_id in component_ids:
-            k = r.kenmerken or {}
-            edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
-                                        relatietype="flow", label="koppeling", ring="applicaties",
-                                        richting=k.get("richting"), protocol=k.get("protocol")))
+            flow_groepen.setdefault((r.bron_id, r.doel_id), []).append(r.kenmerken or {})
         elif rt == "assignment" and r.doel_id in component_ids:
             # assignment = host → gehoste component (oriëntatie bron=host, doel=component).
             edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
@@ -186,6 +186,17 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
         elif rt == "association" and r.doel_id in contract_ids:
             edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
                                         relatietype="association", label="valt onder", ring="contracten"))
+
+    for (bron_id, doel_id), groep in flow_groepen.items():
+        # Richting/protocol van de eerste flow; niet-uniform in de groep → fallback
+        # ("bidirectioneel" resp. None) zodat een gemengde groep geen misleidende waarde toont.
+        eerste = groep[0]
+        r_eerste, p_eerste = eerste.get("richting"), eerste.get("protocol")
+        richting = r_eerste if all(k.get("richting") == r_eerste for k in groep) else "bidirectioneel"
+        protocol = p_eerste if all(k.get("protocol") == p_eerste for k in groep) else None
+        edges.append(LandschapsEdge(bron_id=bron_id, doel_id=doel_id,
+                                    relatietype="flow", label="koppeling", ring="applicaties",
+                                    richting=richting, protocol=protocol, aantal=len(groep)))
 
     # ── Ring 4 — beheerorganisatie uit de roltoewijzingen (label = rol-naam) ──
     rol_labels = await rk_catalog.labels(session, _RK_BEHEERROL)
