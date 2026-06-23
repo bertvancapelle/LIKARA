@@ -7,7 +7,7 @@
  * Verwijderen via Dialog; een mantel met deelcontracten of een gekoppeld contract
  * levert 409 `IN_GEBRUIK` → nette Toast. (Overzichten mantel→deel = Fase D2.)
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
@@ -94,7 +94,9 @@ async function bevestigVerwijderen() {
   }
 }
 
-onMounted(laad)
+// Herlaad bij id-wissel — contract→contract-navigatie (deelcontract-/mantel-links) deelt de
+// route 'contract-detail', dus zonder watch herlaadt de pagina niet (spiegelt de andere detail-views).
+watch(() => props.id, () => laad(), { immediate: true })
 const typeLabel = (c) => label(CONTRACTTYPE, c)
 </script>
 
