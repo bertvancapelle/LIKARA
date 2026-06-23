@@ -2,7 +2,7 @@
 name: complidata-frontend
 description: Frontend-patronen voor LIKARA (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V016
+bijgewerkt: V019
 ---
 
 # LIKARA Frontend Skill
@@ -571,3 +571,66 @@ Voor ZoekSelect die alleen bepaalde aarden moet tonen:
 - Service: filter `WHERE aard = ANY(:aard_in)` indien meegegeven.
 - api.js allowlist: `aard_in` toevoegen.
 - Voorbeeld: GebruikersgroepSectie organisatie-picker → `aard_in: ['organisatie','burger']`.
+
+## Detail-view patroon — props.id watch (VERPLICHT, LI018)
+
+Elke detail-view die via een route-param geladen wordt MOET een watch gebruiken
+i.p.v. alleen onMounted. Dit voorkomt dat Vue Router de component hergebruikt
+zonder opnieuw te laden bij param-wissels (bv. contract → contract navigatie).
+
+```js
+// CORRECT — altijd zo in detail-views
+watch(() => props.id, (id) => { if (id) laad() }, { immediate: true })
+
+// FOUT — mist herladen bij param-wissel op dezelfde route
+onMounted(() => laad())
+```
+
+Van toepassing op: ApplicatieDetail, ComponentDetail, PartijDetail, ContractDetail,
+GapDetail, WorkPackageDetail, PlateauDetail, en alle toekomstige detail-views.
+
+## useTerugNavigatie composable (LI018)
+
+Contextgebonden terugknop op detail-pagina's.
+
+```js
+import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
+const { terugLabel, gaTerug } = useTerugNavigatie()
+// terugLabel: "← Terug naar Landschapskaart" / "← Terug naar Partijen" / etc.
+// gaTerug: router.back()
+```
+
+Herkomst wordt globaal bijgehouden via router.afterEach in router/index.js.
+Knop verborgen als er geen vorige route is (directe URL-toegang).
+
+## Landschapskaart — state en ringen (LI018)
+
+**Ringen (frontend):** `['applicaties', 'rollen', 'gebruikers', 'contracten', 'infrastructuur']`
+**Let op:** backend levert ring='beheerorganisatie' → frontend mapt dit bij laden naar 'rollen'.
+
+**State-preservatie:** sessionStorage key `lk-state`
+(modus / egoStartId / ringAan / groepeerPerOrg — bewaard bij onBeforeRouteLeave).
+
+**Layout:** dagre (cytoscape-dagre geïnstalleerd) voor Geheel model + Impact-view;
+cose/concentric (radiaal) voor Ego-view.
+
+**Edge-labels:** standaard verborgen (`text-opacity: 0`); zichtbaar op hover of
+bij geselecteerde edge (class `sel-edge`).
+
+**Gebruikersgroep-nodes:** groepeerPerOrg default true (client-side aggregatie per organisatie).
+
+**Actieve set (LI027):** zoekbalk in de resultatenlijst, "Wis alles"-knop, en
+"Focus op actieve set"-toggle (graph toont alleen set-nodes + directe buren).
+
+## ArchitectuurLagenView (LI018)
+
+Visuele ArchiMate-lagenweergave naast de bestaande DataTable.
+Toggle 'Tabel / Lagen' (default: Lagen), localStorage key `arch-weergave`.
+
+Kleurschema laagbands:
+- business: `#185FA5`
+- application: `#0F6E56`
+- technology: `#5F5E5A`
+- implementation_migration: `#993C1D`
+
+Pill-stijl per aspect: active=solid border, passive=dashed border, behavior=ronde pill (border-radius:99px).

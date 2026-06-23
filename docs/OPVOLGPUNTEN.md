@@ -452,3 +452,26 @@ gecontroleerde zoek-vervang-slice in een aparte sessie.
   voor platform-endpoints (ADR-012).
 - **OP-12** — rol-mapping/tweelaags rollenmodel → opgegaan in **ADR-012**
   (realm-rollen → `realm_access.roles`, platform- + tenant-domein).
+
+## LI018 — Openstaande punten
+
+### Besloten, nog niet gebouwd
+- **UI-hernoeming "Applicatie → Component"** — overal in de UI waar "Applicatie" de
+  generieke component-entiteit bedoelt: menu, lijstpagina, detailpagina, knoppen.
+  Pure frontend-hernoeming, geen datamodel-wijziging.
+- **Type-indicator op graph-nodes** — klein type-label of icoon op de node zelf
+  zodat het componenttype zichtbaar is zonder klikken.
+- **"Resultaten" → "Componenten"** hernoemen in de Landschapskaart-zijbalk.
+- **ADR-032 "Start vanuit..."-wijzer** — scope besloten (5 ingangen), open subknopen
+  nog te beslissen vóór de bouw.
+
+### Parkeer-items (geen actie tot opgepakt)
+- Dedicated vitest-tests voor edge-popup-per-ring + groepeer-toggle Landschapskaart.
+- Aardsortering "Afdeling" sorteert op enum-positie i.p.v. label-alfabetisch.
+- COMPLIDATA_TEST_MODE → LIKARA_TEST_MODE (optioneel, feature-flag geen identifier).
+- Pre-existing failing integratietest: `test_component_contract_op_niet_applicatie_component`
+  (DB-state afhankelijk, faalt op schone reseed — niet door LI018).
+- Skill-directorynamen `complidata-*` en `.claude/skills/complidata/` hernoeming
+  (Laag 2 Fase 3 — bewust uitgesteld).
+- Markdown-prose in session-docs (NEXT_SESSION/SESSIE_BRIEFING etc.) bevatten
+  nog cd_app/cd-* in tekst — doc-pass indien gewenst.

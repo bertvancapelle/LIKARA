@@ -1,6 +1,6 @@
-# SESSIESTART — LIKARA V018
+# SESSIESTART — LIKARA V019
 
-**Datum**: 2026-06-22
+**Datum**: 2026-06-23
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle complidata-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V018 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V019 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V018
+# SESSIE_BRIEFING.md — LIKARA V019
 
-**Gegenereerd**: 2026-06-22
+**Gegenereerd**: 2026-06-23
 
 ---
 
@@ -52,23 +52,23 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V018 |
+| Build | V019 |
 | Datum | June 2026 |
-| Commit | 9e42855 |
-| Tests | 860 backend passed + 555 frontend groen + build/css groen (9 backend env-DB-failures pre-existing, OP-30 e.a.) |
-| TST-rapport | TST-V018-Validatierapport.md |
-| Kritieke bevindingen | 0 kritiek |
+| Commit | a15acc3 |
+| Tests | zie TST-rapport |
+| TST-rapport | TST-V019-Validatierapport.md |
+| Kritieke bevindingen | 0 |
 
 ---
 
 ## Recente commits
 
 ```
-9e42855 chore(rename): Laag 1 cleanup — CompliData/KILARA -> LIKARA in user-visible/config/skills/docs
-c6df5fb feat(rename): platform KILARA -> LIKARA + 3 BvoWB dev-loginaccounts
-eb1fe21 fix(theme): KILARA login-kaart niet meer 100vh + donkerblauwe leegte weg
-52d3308 fix(theme): KILARA login-CSS — donkerblauw vol vlak, gecentreerde kaart, titel verborgen
-22a33b8 feat(theme): KILARA Keycloak login-theme + app-header/titel rename
+a15acc3 feat(landschapskaart): zoek in resultaten + wis-alles set + focus op actieve set
+e456c40 fix(contracten): deelcontract-links navigeren correct vanuit mantelcontract-detail
+c6b0b20 fix(contracten): mantelcontract-link toont de mantelnaam als linktekst
+9a38b11 feat(contracten): hiërarchie-navigatie — mantelcontract<->deelcontracten<->applicaties
+5aa9577 feat(architectuur): visuele ArchiMate-lagenweergave + partij-naam-fix
 ```
 
 ---
@@ -154,6 +154,6 @@ vraag/advies tegelijk; functioneel beschrijven vanuit de gebruiker is de norm. R
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V018"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V019"
 4. Wacht op START: [naam] van Bert
 

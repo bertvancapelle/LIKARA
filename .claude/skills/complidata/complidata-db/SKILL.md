@@ -109,7 +109,7 @@ zijn leeg in V001). Verificatie offline: `alembic heads`, `alembic history`,
 ```yaml
 # docker-compose.yml — lk-migrate draait als lk_admin, run-to-completion
 migrate:
-  image: complidata-api:local
+  image: likara-api:local
   command: ["sh","-c","python3 -m alembic upgrade head && python3 -m app.platform_init"]
   # DATABASE_URL(_SYNC) = lk_admin; ook ./modules gemount (seed-bron)
 api:
@@ -126,7 +126,7 @@ api:
 
 ## Naamgeving
 
-- Platform-prefix: `cd_` (database `complidata`, rollen, containers `cd-*`).
+- Platform-prefix: `lk_` (database `likara`, rollen, containers `lk-*`).
 - App-gebruiker: `lk_app` (non-superuser — omzeilt RLS NIET).
 - Platform-gebruiker: `lk_platform` (non-superuser — platform-endpoints, ADR-012).
 - Admin-gebruiker: `lk_admin` — superuser, UITSLUITEND in de init-container.
@@ -260,11 +260,11 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
   historisch — de transactie-lokale `true`-variant is de norm.
 - **Keycloak scheidt van de app-DB (norm sinds CD055)**: Keycloak draait op een **eigen
   database** `keycloak` met eigen rol `kc_user` (init-db/`02_keycloak.sql`: rol + DB +
-  `public`-schema-owner voor PG16) — **nooit** de app-DB `complidata` delen. Een gedeeld
+  `public`-schema-owner voor PG16) — **nooit** de app-DB `likara` delen. Een gedeeld
   `public`-schema gaf een naamruimte-collision (onze ADR-021-tabel `component` schaduwde
   Keycloak's interne `COMPONENT` → Keycloak startte niet) én lekte Keycloak-secrets in de
-  `complidata`-dump (OP-22, nu gesloten). Postgres-data op een **named volume**
-  (`cd_postgres_data`), zodat `down -v && up -d` echt reset; de dev-seed
+  `likara`-dump (OP-22, nu gesloten). Postgres-data op een **named volume**
+  (`lk_postgres_data`), zodat `down -v && up -d` echt reset; de dev-seed
   (`dev_seed_testdata.py`) is een bewuste **handmatige** fixture (niet in de init-container,
   dev-only). Reset-procedure: zie `docs/LOKAAL-TESTEN.md`.
 

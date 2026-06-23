@@ -2,7 +2,7 @@
 name: complidata-backend
 description: Backend-patronen voor LIKARA (FastAPI + SQLAlchemy + Alembic). Beschrijft de werkelijke V001-staat.
 stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy asyncio, Alembic, PostgreSQL 16
-bijgewerkt: V016
+bijgewerkt: V019
 ---
 
 # LIKARA Backend Skill
@@ -445,3 +445,21 @@ Scoringsplan: Zaaksysteem geblokkeerd (89+blokkade), BRP migratieklaar (89),
 DMS/Klantportaal/Burgerzaken-suite deels, overige 7 concept.
 Gebruiker_persoon: _seed_dev_gebruikers koppelt j.devries/p.vandijk/m.bakker
 aan hun BvoWB-persoon via hardcoded KC-subs (deterministisch, geen runtime-KC-dep).
+
+## architectuur_service — partij-naam-fix (LI018)
+
+Partijen joinen als element-zelf via `partij_self = aliased(Partij)`.
+De `naam_expr`-coalesce én `_naam()` hebben een partij-tak.
+Zonder deze join verschijnen partijen als fallback-naam "partij {uuid[:8]}".
+
+Patroon bij elke nieuwe cross-element projectie die partijen toont:
+zorg dat de `partij_self`-join aanwezig is in de query.
+
+## Contracthiërarchie-projecties (LI018)
+
+- `contract_service.deelcontracten` geeft per deelcontract leverancier + gekoppelde
+  applicaties terug (één extra association-query, geen N+1).
+- `component_contract_service.contracten_van_component` voegt `mantelcontract_id` +
+  `mantelcontract_naam` toe via een `mantel = aliased(Contract)` zelf-join (bottom-up
+  contractketen App → Contract → Mantelcontract).
+- Engine onaangeroerd; afgeleide read-only velden, geen schema/migratie.
