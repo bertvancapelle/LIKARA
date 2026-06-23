@@ -11,12 +11,13 @@ import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
 import { api } from '@/api'
 import { ARCHIMATE_ASPECT, ARCHIMATE_ELEMENT, ARCHIMATE_LAAG, humaniseer, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import ArchitectuurLagenView from './ArchitectuurLagenView.vue'
 
 // Filteropties: lagen + aspecten uit de label-maps; element-typen vast (de ElementType-enum).
 const LAAG_OPTIES = Object.keys(ARCHIMATE_LAAG)
 const ASPECT_OPTIES = Object.keys(ARCHIMATE_ASPECT)
 const TYPE_OPTIES = [
-  'component', 'datatype', 'gebruikersgroep', 'contract',
+  'component', 'datatype', 'gebruikersgroep', 'contract', 'partij',
   'plateau', 'gap', 'work_package', 'deliverable',
 ]
 
@@ -29,6 +30,13 @@ const eersteGeladen = ref(false)
 const filterLaag = ref('')
 const filterAspect = ref('')
 const filterType = ref('')
+
+// LI025 — weergave-toggle: 'lagen' (visuele bands, default) of 'tabel' (bestaande DataTable).
+// localStorage is in sommige (test-)omgevingen niet beschikbaar → guarded.
+function _leesWeergave() {
+  try { return localStorage.getItem('arch-weergave') || 'lagen' } catch { return 'lagen' }
+}
+const weergave = ref(_leesWeergave())
 
 // Server-side sortering (ADR-017): sort/order → param + cursor-reset + refetch (B2).
 const sortVeld = ref(null)
@@ -45,6 +53,7 @@ const typeLabel = (c) => humaniseer(c)
 const ROUTE_PER_TYPE = {
   component: 'component-detail',
   contract: 'contract-detail',
+  partij: 'partij-detail',
   plateau: 'plateau-detail',
   gap: 'gap-detail',
   work_package: 'work-package-detail',
@@ -89,7 +98,14 @@ function onSort(event) {
   laad({ reset: true })
 }
 
-onMounted(() => laad({ reset: true }))
+function setWeergave(m) {
+  weergave.value = m
+  try { localStorage?.setItem?.('arch-weergave', m) } catch { /* localStorage niet beschikbaar */ }
+  if (m === 'tabel' && !eersteGeladen.value) laad({ reset: true })
+}
+
+// De tabel laadt alleen wanneer die actief is; de lagenweergave laadt zijn eigen (volledige) set.
+onMounted(() => { if (weergave.value === 'tabel') laad({ reset: true }) })
 </script>
 
 <template>
@@ -101,6 +117,13 @@ onMounted(() => laad({ reset: true }))
       Architectuur — lagen
     </h1>
 
+    <!-- LI025 — weergave-toggle Lagen/Tabel (default Lagen). -->
+    <div class="mb-[var(--cd-space-md)] flex w-fit gap-1 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-accent)] p-1">
+      <button v-for="m in ['lagen', 'tabel']" :key="m" type="button" :data-testid="`arch-weergave-${m}`" :aria-pressed="weergave === m" :class="['rounded-[var(--cd-radius-btn)] px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)]', weergave === m ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setWeergave(m)">{{ m === 'lagen' ? 'Lagen' : 'Tabel' }}</button>
+    </div>
+
+    <ArchitectuurLagenView v-if="weergave === 'lagen'" />
+    <template v-else>
     <div
       data-testid="arch-filterbalk"
       class="mb-[var(--cd-space-md)] flex flex-wrap items-end gap-[var(--cd-space-md)] rounded-[var(--cd-radius-card)] bg-[var(--cd-color-surface)] p-[var(--cd-space-md)] shadow-[var(--cd-shadow-sm)]"
@@ -180,5 +203,6 @@ onMounted(() => laad({ reset: true }))
     <div class="mt-[var(--cd-space-md)]">
       <Button v-if="cursor" label="Meer laden" severity="secondary" data-testid="arch-meer-laden" :disabled="laden" @click="laad()" />
     </div>
+    </template>
   </section>
 </template>

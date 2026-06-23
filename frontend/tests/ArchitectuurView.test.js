@@ -24,6 +24,7 @@ function maakRouter() {
       { path: '/', name: 'home', component: STUB },
       { path: '/componenten/:id', name: 'component-detail', component: STUB },
       { path: '/contracten/:id', name: 'contract-detail', component: STUB },
+      { path: '/partijen/:id', name: 'partij-detail', component: STUB },
       { path: '/migratie/plateaus/:id', name: 'plateau-detail', component: STUB },
       { path: '/migratie/gaps/:id', name: 'gap-detail', component: STUB },
       { path: '/migratie/werkpakketten/:id', name: 'work-package-detail', component: STUB },
@@ -38,7 +39,7 @@ const _items = () => [
   { id: 'd1', element_type: 'datatype', naam: 'gestructureerd_db', naam_secundair: 'Klantgegevens', archimate_element: 'data_object', laag: 'application', aspect: 'passive' },
 ]
 
-async function mountView() {
+async function mountView({ tab = 'tabel' } = {}) {
   const pinia = createPinia()
   const router = maakRouter()
   await router.push('/')
@@ -47,6 +48,12 @@ async function mountView() {
     global: { plugins: [pinia, [PrimeVue, { unstyled: true }], router] },
   })
   await flushPromises()
+  // Component-default is 'lagen'; tabel-tests schakelen naar de Tabel-tab
+  // (localStorage werkt niet in deze test-env, dus via de toggle-knop).
+  if (tab === 'tabel') {
+    await w.find('[data-testid="arch-weergave-tabel"]').trigger('click')
+    await flushPromises()
+  }
   return w
 }
 
@@ -117,5 +124,31 @@ describe('ArchitectuurView', () => {
     await w.find('[data-testid="arch-filter-type"]').setValue('plateau')
     await flushPromises()
     expect(api.architectuur.elementen).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'plateau' }))
+  })
+})
+
+describe('ArchitectuurView — lagenweergave (LI025)', () => {
+  async function mountLagen() {
+    return mountView({ tab: 'lagen' })
+  }
+
+  it('toont de lagen-bands met klikbare element-pills (default Lagen)', async () => {
+    const w = await mountLagen()
+    expect(w.find('[data-testid="arch-weergave-lagen"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-testid="arch-lagen"]').exists()).toBe(true)
+    expect(w.find('[data-testid="arch-band-business"]').exists()).toBe(true)
+    expect(w.find('[data-testid="arch-band-application"]').exists()).toBe(true)
+    const pill = w.find('[data-testid="arch-pill-c1"]')
+    expect(pill.exists()).toBe(true)
+    expect(pill.text()).toContain('Zaaksysteem')
+    expect(w.find('[data-testid="arch-tabel"]').exists()).toBe(false) // tabel niet gerenderd in lagen-modus
+  })
+
+  it('migratie-toggle verbergt de migratie-band', async () => {
+    const w = await mountLagen()
+    expect(w.find('[data-testid="arch-band-implementation_migration"]').exists()).toBe(true)
+    await w.find('[data-testid="arch-lagen-migratie"]').setValue(false)
+    await flushPromises()
+    expect(w.find('[data-testid="arch-band-implementation_migration"]').exists()).toBe(false)
   })
 })

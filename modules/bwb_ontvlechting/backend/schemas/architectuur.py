@@ -29,6 +29,7 @@ class ArchitectuurElementRead(BaseModel):
     archimate_element: str | None = None
     laag: str | None = None
     aspect: str | None = None
+    partij_aard: str | None = None  # ADR-024 — alleen gevuld voor element_type='partij'
 
 
 class ArchitectuurPagina(BaseModel):

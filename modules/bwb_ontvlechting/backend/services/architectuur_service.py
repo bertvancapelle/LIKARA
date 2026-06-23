@@ -113,6 +113,8 @@ def _naam(r) -> str:
         naam = r.wp_naam
     elif et == "deliverable":
         naam = r.deliverable_naam
+    elif et == "partij":
+        naam = r.partij_naam
     return naam or f"{et} {str(r.id)[:8]}"
 
 
@@ -139,6 +141,9 @@ def _lees(r, catalog_typing: dict) -> dict:
         "archimate_element": t.get("archimate_element"),
         "laag": t.get("laag"),
         "aspect": t.get("aspect"),
+        # ADR-024 — alleen voor partij-elementen: de aard (organisatie/persoon/externe_partij/…).
+        "partij_aard": (_et_value(r.partij_aard)
+                        if _et_value(r.element_type) == "partij" and r.partij_aard is not None else None),
     }
 
 
@@ -171,9 +176,11 @@ async def lijst(
     cc = aliased(ComponentConfigOptie)
     # UX-B6-a — gebruikersgroep-organisatie is nu een partij-verwijzing; join voor de display-naam.
     gg_org = aliased(Partij)
+    partij_self = aliased(Partij)  # partij-element zelf (element.id == partij.id) — eigen naam/aard
     naam_expr = func.coalesce(
         Component.naam, Contract.contractnaam, cast(Datatype.categorie, String),
         gg_org.naam, Plateau.naam, Gap.naam, WorkPackage.naam, Deliverable.naam,
+        partij_self.naam,
     )
     laag_expr = func.coalesce(_static_typing_case("laag"), cc.laag)
     aspect_expr = func.coalesce(_static_typing_case("aspect"), cc.aspect)
@@ -200,6 +207,8 @@ async def lijst(
             Gap.naam.label("gap_naam"),
             WorkPackage.naam.label("wp_naam"),
             Deliverable.naam.label("deliverable_naam"),
+            partij_self.naam.label("partij_naam"),
+            partij_self.aard.label("partij_aard"),
             kolom.label("sorteerwaarde"),
         )
         .outerjoin(Component, and_(Component.id == Element.id, Component.tenant_id == tid))
@@ -211,6 +220,7 @@ async def lijst(
         .outerjoin(Gap, and_(Gap.id == Element.id, Gap.tenant_id == tid))
         .outerjoin(WorkPackage, and_(WorkPackage.id == Element.id, WorkPackage.tenant_id == tid))
         .outerjoin(Deliverable, and_(Deliverable.id == Element.id, Deliverable.tenant_id == tid))
+        .outerjoin(partij_self, and_(partij_self.id == Element.id, partij_self.tenant_id == tid))
         .outerjoin(cc, and_(cc.dimensie == ComponentConfigDimensie.componenttype, cc.optie_sleutel == Component.componenttype))
         .where(Element.tenant_id == tid)
     )
