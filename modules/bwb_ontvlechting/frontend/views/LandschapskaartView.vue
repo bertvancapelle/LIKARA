@@ -61,7 +61,6 @@ const egoStartId = ref(null)
 const detailId = ref(null)
 const opbouwModus = ref(true) // geheel-model: true=insluiten (begint leeg), false=afpellen (begint vol)
 const kleurOpDomein = ref(false)
-const verbergOnverbonden = ref(false)
 const diepte = ref(1) // 1 = directe buren (ego); 2 = ook indirecte applicatie-buren (één hop dieper)
 
 const containerRef = ref(null)
@@ -570,24 +569,19 @@ function _edgeData(e, i) {
   if (modus.value === 'geheel') label = ''
   return { id: `e${i}-${e.bron_id}-${e.doel_id}-${e.relatietype}`, source: e.bron_id, target: e.doel_id, ring: e.ring, lc, w, ls, label }
 }
-// LI019 — definitieve node-set voor het canvas. Een node is zichtbaar als:
+// LI020 — definitieve node-set voor het canvas. Een node is zichtbaar als:
 //  • het ego-centrum (ego-modus), OF
-//  • hij raakt minstens één ZICHTBARE (ring-aan) edge, OF
-//  • hij is volledig edge-loos én 'Verberg los' staat uit.
-// Gevolg: een node waarvan ALLE edges in uitgevinkte ringen zitten verdwijnt mét die edges
-// (ring-node-filter, altijd actief); 'Verberg los' verwijdert daarbovenop de écht geïsoleerde
-// nodes. Dedup op id (defensief — voorkomt dubbele Cytoscape-node-ids).
+//  • hij raakt minstens één ZICHTBARE (ring-aan) edge.
+// Losse nodes (geen zichtbare edge) worden ALTIJD verborgen — incl. nodes waarvan alle edges in
+// uitgevinkte ringen zitten. Dedup op id (defensief — voorkomt dubbele Cytoscape-node-ids).
 const getekendeNodes = computed(() => {
   const metZichtbareEdge = new Set()
   zichtbareEdges.value.forEach((e) => { metZichtbareEdge.add(e.bron_id); metZichtbareEdge.add(e.doel_id) })
-  const heeftEdge = new Set()
-  grafEdges.value.forEach((e) => { heeftEdge.add(e.bron_id); heeftEdge.add(e.doel_id) })
   const uniek = new Map()
   for (const n of zichtbareNodes.value) {
     if (uniek.has(n.id)) continue
     const egoCentrum = modus.value === 'ego' && n.id === egoStartId.value
-    const toon = egoCentrum || metZichtbareEdge.has(n.id) || (!heeftEdge.has(n.id) && !verbergOnverbonden.value)
-    if (toon) uniek.set(n.id, n)
+    if (egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
 })
@@ -726,7 +720,7 @@ defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopu
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
-  [modus, zichtbareNodes, zichtbareEdges, actieveSet, kleurOpDomein, verbergOnverbonden, groepeerPerOrg],
+  [modus, zichtbareNodes, zichtbareEdges, actieveSet, kleurOpDomein, groepeerPerOrg],
   () => tekenGraaf(),
   { deep: false },
 )
@@ -837,7 +831,6 @@ const typeLabel = (t) => humaniseer(t)
         <div class="absolute right-3 top-3 z-10 flex gap-1">
           <button type="button" data-testid="lk-centreer" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="centreer">⊡ Centreer</button>
           <button type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]', kleurOpDomein ? 'bg-[var(--cd-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
-          <button type="button" data-testid="lk-verberg-onverbonden" :aria-pressed="verbergOnverbonden" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]', verbergOnverbonden ? 'bg-[var(--cd-color-primary)] text-white' : 'bg-white/90']" @click="verbergOnverbonden = !verbergOnverbonden">Verberg los</button>
           <!-- Fullscreen-overlay (in-app): één toggle — vergroten ingebed, verkleinen in de overlay. -->
           <button type="button" :data-testid="fullscreen ? 'lk-fullscreen-sluit' : 'lk-fullscreen-open'" :aria-pressed="fullscreen" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="toggleFullscreen">{{ fullscreen ? '✕ Verkleinen' : '⛶ Vergroten' }}</button>
         </div>

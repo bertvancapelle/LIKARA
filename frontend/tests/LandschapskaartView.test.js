@@ -125,12 +125,13 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="impact-samenvatting"]').text()).toBe('1 in set · 1 raakvlakken · 1 grensoverschrijdende koppelingen')
   })
 
-  it('Geheel-model toont direct alle nodes en vult de set met alle applicaties (Fix 1)', async () => {
+  it('Geheel-model toont de verbonden nodes en vult de set met alle applicaties', async () => {
     const { w } = await mountView()
     await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
     await flushPromises()
-    // Volledig landschap meteen zichtbaar (alle 4 nodes), en de actieve set bevat de 2 applicaties.
-    expect(w.find('[data-testid="lk-zichtbaar-aantal"]').text()).toContain('4 nodes')
+    // LI020 — losse nodes (p1/k1 zonder edges) zijn altijd verborgen; de 2 via de flow verbonden
+    // applicaties blijven. De actieve set bevat alle applicaties.
+    expect(w.find('[data-testid="lk-zichtbaar-aantal"]').text()).toContain('2 nodes')
     expect(w.find('[data-testid="lk-rechts"]').text()).toContain('Actieve set (2)')
   })
 
