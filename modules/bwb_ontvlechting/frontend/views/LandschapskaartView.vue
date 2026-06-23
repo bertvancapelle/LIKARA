@@ -284,8 +284,25 @@ const popupSelId = ref(null) // geselecteerde flow (master); default = eerste ri
 const popupMelding = ref(null) // RBAC-/terugval-melding (geen technische fout)
 const popupGeselecteerd = computed(() => popupFlows.value.find((f) => f.id === popupSelId.value) || popupFlows.value[0] || null)
 function selecteerFlow(id) { popupSelId.value = id }
-const popupActie = ref(null) // { label, fn } | null
+const popupActies = ref([]) // [{ label, fn }] — doorklik-links naar detailschermen (node + edge)
+const geselecteerdeEdgeId = ref(null) // cy-id van de aangeklikte edge (highlight zolang popup open)
 const fullscreen = ref(false)
+
+// B2 — doorklik-link naar het detailscherm van een node (null als er geen eigen scherm is).
+function _detailLink(node) {
+  if (!node) return null
+  const id = node.id
+  switch (node.element_type) {
+    case 'applicatie': return { label: 'Open applicatie →', fn: () => router.push({ name: 'applicatie-detail', params: { id } }) }
+    case 'partij': return { label: 'Open partij →', fn: () => router.push({ name: 'partij-detail', params: { id } }) }
+    case 'contract': return { label: 'Open contract →', fn: () => router.push({ name: 'contract-detail', params: { id } }) }
+    case 'gebruikersgroep': return null
+  }
+  // Overige componenten: alleen de applicatielaag heeft een betekenisvol detailscherm; infra (technology) niet.
+  return node.laag === 'application'
+    ? { label: 'Open component →', fn: () => router.push({ name: 'component-detail', params: { id } }) }
+    : null
+}
 
 function sluitPopup() {
   popupOpen.value = false
@@ -296,7 +313,10 @@ function sluitPopup() {
   popupFlows.value = []
   popupSelId.value = null
   popupMelding.value = null
-  popupActie.value = null
+  popupActies.value = []
+  // B1 — highlight van de aangeklikte edge opheffen.
+  geselecteerdeEdgeId.value = null
+  cy?.edges?.()?.removeClass?.('sel-edge')
 }
 
 // Veld alleen opnemen als de waarde bestaat/ingevuld is (toon nooit lege regels).
@@ -371,9 +391,8 @@ async function openNodePopup(id) {
   popupBadge.value = null
   popupTitel.value = n.naam || ''
   popupMelding.value = null
-  popupActie.value = isApplicatie(n)
-    ? { label: 'Open applicatie →', fn: () => router.push({ name: 'applicatie-detail', params: { id } }) }
-    : null
+  const _nodeLink = _detailLink(n)
+  popupActies.value = _nodeLink ? [_nodeLink] : []
   popupFlows.value = []
   popupSelId.value = null
   popupVelden.value = _nodePrefill(n)
@@ -432,7 +451,14 @@ async function openEdgePopup(edge) {
   const doelNaam = nodePerId.value[edge.doel_id]?.naam || '?'
   popupKind.value = 'edge'
   popupBadge.value = null
-  popupActie.value = null
+  // B2 — doorklik naar bron/doel-entiteit waar die een eigen detailscherm heeft.
+  popupActies.value = [edge.bron_id, edge.doel_id]
+    .map((nid) => {
+      const node = nodePerId.value[nid]
+      const l = _detailLink(node)
+      return l ? { label: `Open ${node.naam} →`, fn: l.fn } : null
+    })
+    .filter(Boolean)
   popupMelding.value = null
   popupVelden.value = []
   popupFlows.value = []
@@ -666,6 +692,8 @@ const CY_STYLE = [
       'text-rotation': 'autorotate', 'text-background-color': '#fff', 'text-background-opacity': 0.8,
     },
   },
+  // B1 — aangeklikte edge gemarkeerd zolang de popup open is (accentkleur + dikker).
+  { selector: 'edge.sel-edge', style: { 'line-color': '#e67e22', 'target-arrow-color': '#e67e22', width: 4, 'z-index': 999, 'text-opacity': 1 } },
   // Fix 3: visuele markering van de geselecteerde node (klik op set-item / node).
   { selector: 'node:selected', style: { 'border-width': 4, 'border-color': '#f59e0b', 'border-style': 'solid' } },
 ]
@@ -695,7 +723,12 @@ onMounted(async () => {
       const tgt = evt.target.data('target')
       const ring = evt.target.data('ring')
       const edge = grafEdges.value.find((e) => e.bron_id === src && e.doel_id === tgt && e.ring === ring)
-      if (edge) openEdgePopup(edge)
+      if (!edge) return
+      // B1 — markeer de aangeklikte edge zolang de popup open is.
+      cy.edges().removeClass('sel-edge')
+      evt.target.addClass('sel-edge')
+      geselecteerdeEdgeId.value = evt.target.id()
+      openEdgePopup(edge)
     })
     // Tap op leeg canvas sluit een open popup.
     cy.on('tap', (evt) => { if (evt.target === cy) sluitPopup() })
@@ -890,7 +923,9 @@ const typeLabel = (t) => humaniseer(t)
           </div>
           <p v-else-if="popupKind === 'edge' && !popupLaden && !popupMelding" data-testid="lk-popup-md-leeg" class="mt-2 text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Geen koppelingen gevonden.</p>
           <p v-if="popupMelding" data-testid="lk-popup-melding" class="mt-2 text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">{{ popupMelding }}</p>
-          <button v-if="popupActie" type="button" data-testid="lk-popup-actie" class="mt-2 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] text-white" @click="popupActie.fn">{{ popupActie.label }}</button>
+          <div v-if="popupActies.length" class="mt-2 flex flex-col items-start gap-1">
+            <button v-for="(a, i) in popupActies" :key="i" type="button" :data-testid="i === 0 ? 'lk-popup-actie' : `lk-popup-actie-${i}`" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] text-white" @click="a.fn">{{ a.label }}</button>
+          </div>
         </div>
 
         <!-- Impact-samenvatting (overlay onderaan) -->

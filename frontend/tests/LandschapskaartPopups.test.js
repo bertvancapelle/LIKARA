@@ -49,6 +49,9 @@ async function mountView() {
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
+      { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
+      { path: '/partijen/:id', name: 'partij-detail', component: { template: '<div/>' } },
+      { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
     ],
   })
   await router.push('/landschapskaart')
@@ -193,6 +196,27 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
     expect(api.componenten.haal).toHaveBeenCalledWith('db1')
     expect(veld(w, 'Type')).toBe('Database')
     expect(w.find('[data-testid="lk-popup-actie"]').exists()).toBe(false) // geen applicatie-doorklik
+  })
+
+  it('partij-popup biedt doorklik naar het partij-detail (B2)', async () => {
+    api.partijen.haal.mockResolvedValue({ id: 'p1', naam: 'Gemeente X', aard: 'organisatie' })
+    const { w, pushSpy } = await mountView()
+    await w.vm.openNodePopup('p1')
+    await flushPromises()
+    const actie = w.find('[data-testid="lk-popup-actie"]')
+    expect(actie.exists()).toBe(true)
+    await actie.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'partij-detail', params: { id: 'p1' } })
+  })
+
+  it('edge-popup (rollen) biedt doorklik naar partij (bron) én component (doel) (B2)', async () => {
+    const { w, pushSpy } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'rollen', label: 'Contractbeheer', relatietype: 'roltoewijzing' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-actie"]').exists()).toBe(true) // partij (bron)
+    expect(w.find('[data-testid="lk-popup-actie-1"]').exists()).toBe(true) // component (doel)
+    await w.find('[data-testid="lk-popup-actie"]').trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'partij-detail', params: { id: 'p1' } })
   })
 
   it('pre-fill toont meteen node-data terwijl de fetch nog loopt; 403 valt netjes terug', async () => {
