@@ -8,9 +8,10 @@ catalogus-dimensie `relatie_rol`; dubbele `(component, contract)` ⇒ 409 `KOPPE
 """
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from models.models import Contract, Partij, Relatie, RelatieKenmerkDimensie
 from schemas.component_contract import ComponentContractCreate, ComponentContractUpdate
@@ -107,6 +108,7 @@ async def contracten_van_component(session: AsyncSession, tenant_id, component_i
     tid = _tenant_uuid(tenant_id)
     await component_service.haal_op(session, tenant_id, component_id)
     rol_labels = await catalog.labels(session, RelatieKenmerkDimensie.relatie_rol)
+    mantel = aliased(Contract)  # zelf-join: het mantelcontract van het gekoppelde contract (contractketen)
     rijen = (
         await session.execute(
             select(
@@ -118,10 +120,13 @@ async def contracten_van_component(session: AsyncSession, tenant_id, component_i
                 Partij.naam.label("leverancier_naam"),
                 Contract.begindatum.label("begindatum"),
                 Contract.einddatum.label("einddatum"),
+                Contract.mantelcontract_id.label("mantelcontract_id"),
+                mantel.contractnaam.label("mantelcontract_naam"),
                 Relatie.kenmerken.label("kenmerken"),
             )
             .join(Contract, Contract.id == Relatie.doel_id)
             .join(Partij, Partij.id == Contract.leverancier_id)
+            .outerjoin(mantel, and_(mantel.id == Contract.mantelcontract_id, mantel.tenant_id == tid))
             .where(
                 Relatie.tenant_id == tid, Relatie.bron_id == component_id,
                 Relatie.relatietype == _ASSOCIATION,
@@ -135,6 +140,7 @@ async def contracten_van_component(session: AsyncSession, tenant_id, component_i
             "contractnaam": r.contractnaam, "contracttype": r.contracttype,
             "leverancier_id": r.leverancier_id, "leverancier_naam": r.leverancier_naam,
             "begindatum": r.begindatum, "einddatum": r.einddatum,
+            "mantelcontract_id": r.mantelcontract_id, "mantelcontract_naam": r.mantelcontract_naam,
             "relatie_rol": (r.kenmerken or {}).get("relatie_rol"),
             "relatie_rol_label": catalog.resolveer_een((r.kenmerken or {}).get("relatie_rol"), rol_labels),
         }

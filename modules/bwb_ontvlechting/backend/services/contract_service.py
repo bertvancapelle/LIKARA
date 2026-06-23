@@ -459,7 +459,9 @@ async def deelcontracten(session: AsyncSession, tenant_id, contract_id) -> list[
                 Contract.begindatum.label("begindatum"),
                 Contract.einddatum.label("einddatum"),
                 Contract.vernieuwingsdatum.label("vernieuwingsdatum"),
+                Partij.naam.label("leverancier_naam"),
             )
+            .join(Partij, Partij.id == Contract.leverancier_id)
             .where(Contract.tenant_id == tid, Contract.mantelcontract_id == contract_id)
             .order_by(Contract.contractnaam, Contract.id)
         )
@@ -467,6 +469,7 @@ async def deelcontracten(session: AsyncSession, tenant_id, contract_id) -> list[
     # Dekking-tags voor álle deelcontracten in één query → groeperen → labelresolutie.
     ids = [r.id for r in rijen]
     dekking_per: dict = {}
+    apps_per: dict = {}
     if ids:
         tagrijen = (
             await session.execute(
@@ -477,6 +480,17 @@ async def deelcontracten(session: AsyncSession, tenant_id, contract_id) -> list[
         ).all()
         for t in tagrijen:
             dekking_per.setdefault(t.contract_id, []).append(t.optie_sleutel)
+        # Gekoppelde applicaties per deelcontract (association: bron=component, doel=deelcontract) — één query.
+        apprijen = (
+            await session.execute(
+                select(Relatie.doel_id, Relatie.bron_id, Component.naam)
+                .join(Component, Component.id == Relatie.bron_id)
+                .where(Relatie.tenant_id == tid, Relatie.doel_id.in_(ids), Relatie.relatietype == _ASSOCIATION)
+                .order_by(Component.naam)
+            )
+        ).all()
+        for a in apprijen:
+            apps_per.setdefault(a.doel_id, []).append({"id": a.bron_id, "naam": a.naam})
     dekking_labels = await catalog.labels(session, ContractConfigDimensie.dekking)
     return [
         {
@@ -486,7 +500,9 @@ async def deelcontracten(session: AsyncSession, tenant_id, contract_id) -> list[
             "begindatum": r.begindatum,
             "einddatum": r.einddatum,
             "vernieuwingsdatum": r.vernieuwingsdatum,
+            "leverancier_naam": r.leverancier_naam,
             "dekking": catalog.resolveer(dekking_per.get(r.id, []), dekking_labels),
+            "applicaties": apps_per.get(r.id, []),
         }
         for r in rijen
     ]

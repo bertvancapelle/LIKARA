@@ -237,7 +237,7 @@ watch(() => props.id, () => laad(), { immediate: true })
 
       <div class="mt-[var(--cd-space-lg)] flex flex-col gap-[var(--cd-space-lg)]">
         <StructuurSectie :component-id="props.id" />
-        <ContractSectie :applicatie-id="props.id" />
+        <ContractSectie :applicatie-id="props.id" :app-naam="component?.naam || ''" />
         <VerantwoordelijkheidSectie :object-id="props.id" />
         <ImpactSectie :component-id="props.id" />
         <!-- ADR-022 Fase E — checklist voor checklist-dragende typen; ADR-027 — óók read-only

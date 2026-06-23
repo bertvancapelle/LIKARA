@@ -205,9 +205,17 @@ class CatalogusOpties(BaseModel):
     relatie_rol: list[CatalogusKeuze] = []
 
 
+class ApplicatieKort(BaseModel):
+    """Compacte verwijzing naar een gekoppelde applicatie (id + naam) voor overzichten."""
+
+    id: uuid.UUID
+    naam: str
+
+
 class DeelcontractItem(BaseModel):
     """Eigen, rijkere deelcontracten-respons (CD044 §0c) — los van `ContractLijstItem`:
-    bevat gelabelde `dekking` (de gedeelde lijst blijft onaangeroerd)."""
+    bevat gelabelde `dekking` (de gedeelde lijst blijft onaangeroerd). LI026: + leverancier +
+    de gekoppelde applicaties per deelcontract (mantel→deel→applicaties navigatie)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -217,4 +225,6 @@ class DeelcontractItem(BaseModel):
     begindatum: date | None
     einddatum: date | None
     vernieuwingsdatum: date | None
+    leverancier_naam: str
     dekking: list[OptieRef]
+    applicaties: list[ApplicatieKort] = []

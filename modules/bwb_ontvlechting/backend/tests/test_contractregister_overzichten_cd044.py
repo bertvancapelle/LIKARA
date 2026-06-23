@@ -31,19 +31,24 @@ def test_deelcontracten_bevat_gelabelde_dekking_incl_inactief(monkeypatch):
     deel_id = uuid4()
     deel = SimpleNamespace(
         id=deel_id, contractnaam="Deel A", contracttype=ContractType.deelcontract,
-        begindatum=None, einddatum=None, vernieuwingsdatum=None,
+        begindatum=None, einddatum=None, vernieuwingsdatum=None, leverancier_naam="Lev BV",
     )
+    app_id = uuid4()
     session = AsyncMock()
     session.execute.side_effect = [
         _all([deel]),  # deelcontracten
         _all([SimpleNamespace(contract_id=deel_id, optie_sleutel="hosting"),
               SimpleNamespace(contract_id=deel_id, optie_sleutel="oud_model")]),  # dekking-tags
+        _all([SimpleNamespace(doel_id=deel_id, bron_id=app_id, naam="App X")]),  # LI026: gekoppelde applicaties
     ]
     out = asyncio.run(svc.deelcontracten(session, "11111111-1111-1111-1111-111111111111", "m1"))
     assert len(out) == 1
     dek = {o["optie_sleutel"]: o for o in out[0]["dekking"]}
     assert dek["hosting"]["label"] == "Hosting" and dek["hosting"]["actief"] is True
     assert dek["oud_model"]["label"] == "Oud model" and dek["oud_model"]["actief"] is False  # gedeactiveerd, resolvet
+    # LI026 — leverancier + gekoppelde applicaties in de deelcontracten-respons.
+    assert out[0]["leverancier_naam"] == "Lev BV"
+    assert out[0]["applicaties"] == [{"id": app_id, "naam": "App X"}]
 
 
 def test_deelcontractitem_heeft_dekking_maar_contractlijstitem_niet():
@@ -108,6 +113,7 @@ def test_component_contracten_bevat_datums(monkeypatch):
         koppeling_id=uuid4(), contract_id=uuid4(), contractnaam="C",
         contracttype=ContractType.los_contract, leverancier_id=uuid4(),
         leverancier_naam="Lev", begindatum=date(2026, 1, 1), einddatum=None,
+        mantelcontract_id=None, mantelcontract_naam=None,  # LI026: contractketen-velden
         kenmerken={"relatie_rol": "valt_onder"},  # ADR-023: rol als relatie-kenmerk
     )
     session = AsyncMock()

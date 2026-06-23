@@ -65,6 +65,9 @@ class ContractVoorApplicatie(BaseModel):
     einddatum: date | None
     relatie_rol: str
     relatie_rol_label: str
+    # LI026 — contractketen (bottom-up): het mantelcontract van dit gekoppelde contract.
+    mantelcontract_id: uuid.UUID | None = None
+    mantelcontract_naam: str | None = None
 
 
 class ApplicatieVoorContract(BaseModel):

@@ -14,7 +14,10 @@ import { api } from '@/api'
 import { CONTRACTTYPE, REGISTER_FOUT, label } from '../labels'
 import ZoekSelect from './ZoekSelect.vue'
 
-const props = defineProps({ applicatieId: { type: String, required: true } })
+const props = defineProps({
+  applicatieId: { type: String, required: true },
+  appNaam: { type: String, default: '' }, // LI026 — voor de contractketen-breadcrumb
+})
 const auth = useAuthStore()
 const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
@@ -22,6 +25,8 @@ const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const items = ref([])
 // §3 — 'valt onder'-conventie (model garandeert geen uniciteit: 0, 1 of meer).
 const valtOnder = computed(() => items.value.filter((r) => r.relatie_rol === 'valt_onder'))
+// LI026 — contractketen (bottom-up): contracten van deze app die onder een mantelcontract vallen.
+const ketens = computed(() => items.value.filter((r) => r.mantelcontract_id))
 const laden = ref(false)
 const fout = ref(null)
 
@@ -178,6 +183,16 @@ defineExpose({ items, laad })
       </template>
       <span v-else class="text-[var(--cd-color-text-muted)]">Geen valt-onder-contract geregistreerd.</span>
     </p>
+
+    <!-- LI026 — contractketen App → Contract → Mantelcontract (alleen contracten met een mantel). -->
+    <div v-if="ketens.length" data-testid="ct-ketens" class="mb-[var(--cd-space-sm)] flex flex-col gap-0.5 text-[length:var(--cd-text-sm)]">
+      <p v-for="r in ketens" :key="r.koppeling_id" :data-testid="`ct-keten-${r.koppeling_id}`" class="flex flex-wrap items-center gap-1">
+        <template v-if="appNaam"><span class="font-semibold">{{ appNaam }}</span><span class="text-[var(--cd-color-text-muted)]">→</span></template>
+        <router-link :to="{ name: 'contract-detail', params: { id: r.contract_id } }" class="text-[var(--cd-color-primary)] hover:underline">{{ r.contractnaam }}</router-link>
+        <span class="text-[var(--cd-color-text-muted)]">→</span>
+        <router-link :to="{ name: 'contract-detail', params: { id: r.mantelcontract_id } }" class="text-[var(--cd-color-primary)] hover:underline">{{ r.mantelcontract_naam || 'mantelcontract' }}</router-link>
+      </p>
+    </div>
 
     <table v-if="items.length" class="w-full text-[length:var(--cd-text-sm)]" data-testid="ct-tabel">
       <thead>

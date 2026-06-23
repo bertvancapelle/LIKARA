@@ -472,7 +472,7 @@ watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immedia
         role="tabpanel"
         aria-labelledby="detailtabs-tab-contracten"
       >
-        <ContractSectie ref="contractSectie" :applicatie-id="props.id" />
+        <ContractSectie ref="contractSectie" :applicatie-id="props.id" :app-naam="applicatie?.naam || ''" />
       </div>
       <div
         v-show="activeTop === 'verantwoordelijkheden'"

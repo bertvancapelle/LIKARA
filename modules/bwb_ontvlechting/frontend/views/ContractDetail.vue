@@ -181,6 +181,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
               <router-link :to="{ name: 'contract-detail', params: { id: data.id } }" data-testid="deel-link" class="text-[var(--cd-color-primary)] hover:underline">{{ data.contractnaam }}</router-link>
             </template>
           </Column>
+          <Column header="Leverancier"><template #body="{ data }">{{ data.leverancier_naam }}</template></Column>
           <Column header="Begindatum"><template #body="{ data }">{{ data.begindatum || '—' }}</template></Column>
           <Column header="Einddatum"><template #body="{ data }">{{ data.einddatum || '—' }}</template></Column>
           <Column header="Dekking">
@@ -188,6 +189,14 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
               <span class="flex flex-wrap gap-[var(--cd-space-xs)]">
                 <Tag v-for="o in data.dekking" :key="o.optie_sleutel" :value="o.label" :severity="o.actief ? 'info' : 'secondary'" />
                 <span v-if="!data.dekking?.length">—</span>
+              </span>
+            </template>
+          </Column>
+          <Column header="Applicaties">
+            <template #body="{ data }">
+              <span class="flex flex-wrap gap-x-[var(--cd-space-sm)]">
+                <router-link v-for="a in data.applicaties" :key="a.id" :to="{ name: 'applicatie-detail', params: { id: a.id } }" :data-testid="`deel-app-${a.id}`" class="text-[var(--cd-color-primary)] hover:underline">{{ a.naam }}</router-link>
+                <span v-if="!data.applicaties?.length">—</span>
               </span>
             </template>
           </Column>
