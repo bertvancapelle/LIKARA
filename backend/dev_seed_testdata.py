@@ -985,7 +985,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
 
     tid = tenant_id
     telling = {k: 0 for k in (
-        "organisaties", "leveranciers", "burgers", "afdelingen", "personen",
+        "organisaties", "leveranciers", "ketenpartners", "burgers", "afdelingen", "personen",
         "applicaties", "contracten", "associaties", "flows", "roltoewijzingen",
         "scores", "gebruikersgroepen",
     )}
@@ -1002,21 +1002,28 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         telling[cat] += 1
         return obj.id
 
-    # ── 1. Organisaties (aard=organisatie): dienstenprovider + gemeenten + ketenpartners ──
+    # ── 1. Organisaties (aard=organisatie): dienstenprovider + gemeenten ──
     organisaties = [
         ("BvoWB", None, "Markt 1", "4001 AA", "Tiel", "0344-678900", "info@bvowb.nl"),
         ("Gemeente Tiel", None, "Achterweg 2", "4001 BB", "Tiel", "0344-678910", "info@gemeentetiel.nl"),
         ("Gemeente Culemborg", None, "Herenstraat 3", "4101 CC", "Culemborg", "0345-678920", "info@culemborg.nl"),
         ("Gemeente West Betuwe", None, "Dorpsstraat 4", "4021 DD", "West Betuwe", "0344-678930", "info@westbetuwe.nl"),
-        ("Provincie Gelderland", "ketenpartner", "Markt 11", "6811 CG", "Arnhem", "026-3599111", "info@gelderland.nl"),
-        ("RVIG", "ketenpartner", "Turfmarkt 147", "2511 DP", "Den Haag", "070-3614614", "info@rvig.nl"),
-        ("RDW", "ketenpartner", "Europaweg 205", "9723 AS", "Groningen", "0900-0739", "info@rdw.nl"),
-        ("Belastingdienst", "ketenpartner", "Parnassusweg 5", "1077 DC", "Amsterdam", "0800-0543", "info@belastingdienst.nl"),
     ]
     for naam, soort, straat, pc, plaats, tel, mail in organisaties:
         await _partij(PartijAard.organisatie, naam, "organisaties", soort=soort,
                       straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
     bvowb_id = partij_id["BvoWB"]
+
+    # ── 1b. Ketenpartners (aard=externe_partij, soort=ketenpartner) — externe samenwerkingspartijen ──
+    ketenpartners = [
+        ("Provincie Gelderland", "Markt 11", "6811 CG", "Arnhem", "026-3599111", "info@gelderland.nl"),
+        ("RVIG", "Turfmarkt 147", "2511 DP", "Den Haag", "070-3614614", "info@rvig.nl"),
+        ("RDW", "Europaweg 205", "9723 AS", "Groningen", "0900-0739", "info@rdw.nl"),
+        ("Belastingdienst", "Parnassusweg 5", "1077 DC", "Amsterdam", "0800-0543", "info@belastingdienst.nl"),
+    ]
+    for naam, straat, pc, plaats, tel, mail in ketenpartners:
+        await _partij(PartijAard.externe_partij, naam, "ketenpartners", soort="ketenpartner",
+                      straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
 
     # ── 2. Leveranciers (aard=externe_partij, soort=leverancier) ──
     leveranciers = [

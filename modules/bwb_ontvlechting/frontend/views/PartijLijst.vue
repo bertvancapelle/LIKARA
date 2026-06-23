@@ -177,7 +177,7 @@ onMounted(() => laad({ reset: true }))
           </router-link>
         </template>
       </Column>
-      <Column header="Aard">
+      <Column field="aard" header="Aard" sortable>
         <template #body="{ data }">
           <span data-testid="rij-aard">{{ aardLabel(data.aard) }}</span>
         </template>
