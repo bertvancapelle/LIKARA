@@ -129,7 +129,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
               data-testid="mantel-link"
               class="text-[var(--cd-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
             >
-              Naar mantelcontract
+              {{ mantelNaam || 'Naar mantelcontract' }}
             </router-link>
           </dd>
         </template>
