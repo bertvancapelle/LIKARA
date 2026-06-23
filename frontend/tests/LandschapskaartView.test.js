@@ -135,6 +135,26 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-rechts"]').text()).toContain('Actieve set (2)')
   })
 
+  it('partij-node wordt ego-centrum bij dubbelklik vanuit geheel-model (LI021)', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [
+        { id: 'a1', naam: 'App', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'p1', naam: 'Provincie', element_type: 'partij', laag: 'business', soort: 'ketenpartner' },
+      ],
+      edges: [{ bron_id: 'p1', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Contractbeheer', ring: 'rollen' }],
+    })
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
+    await flushPromises()
+    // Dubbelklik op de partij-node (twee taps binnen de drempel) → ego met partij als centrum.
+    w.vm.onNodeTap('p1'); w.vm.onNodeTap('p1')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-modus-ego"]').attributes('aria-pressed')).toBe('true')
+    // Detailpaneel toont de partij + zijn aard.
+    expect(w.find('[data-testid="lk-detail-aard"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Provincie')
+  })
+
   it('node-klik (resultaatrij) toont het detail-paneel', async () => {
     const { w } = await mountView()
     expect(w.find('[data-testid="lk-detail-leeg"]').exists()).toBe(true)

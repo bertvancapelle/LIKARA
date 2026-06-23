@@ -254,8 +254,9 @@ const detailKoppelingen = computed(() => {
 })
 function selecteerNode(id) {
   detailId.value = id
-  // In ego-modus hercentreert een applicatie-klik.
-  if (modus.value === 'ego' && isApplicatie(nodePerId.value[id])) egoStartId.value = id
+  // LI021 — in ego-modus hercentreert een klik op ELKE node (applicatie, partij, gebruikersgroep, …),
+  // niet langer alleen applicaties.
+  if (modus.value === 'ego' && nodePerId.value[id]) egoStartId.value = id
   // Fix 3: highlight + centreer de node in de grafiek (voor o.a. klik op een actieve-set-item).
   if (!cy) return
   cy.elements?.().unselect?.()
@@ -487,7 +488,10 @@ const _DBLTAP_MS = 280
 function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
-    selecteerNode(id) // dubbelklik = hercentreren (ongewijzigd gedrag)
+    // LI021 — dubbelklik hercentreert; vanuit Geheel model / Impact-view schakelt dit naar ego
+    // met deze node (ook partij/gebruikersgroep) als centrum.
+    if (modus.value !== 'ego') modus.value = 'ego'
+    selecteerNode(id)
     return
   }
   if (_tapTimer) clearTimeout(_tapTimer)
@@ -916,11 +920,16 @@ const typeLabel = (t) => humaniseer(t)
           <p class="mb-1 font-semibold text-[length:var(--cd-text-sm)]">Detail</p>
           <div v-if="detailNode" data-testid="lk-detail" class="flex flex-col gap-1 text-[length:var(--cd-text-sm)]">
             <p class="font-semibold" data-testid="lk-detail-naam">{{ detailNode.naam }}</p>
-            <p><span class="text-[var(--cd-color-text-muted)]">Domein:</span> {{ detailNode.domein || '—' }}</p>
-            <p><span class="text-[var(--cd-color-text-muted)]">Leverancier:</span> {{ detailNode.leverancier_naam || '—' }}</p>
-            <p><span class="text-[var(--cd-color-text-muted)]">Hosting:</span> {{ detailNode.hosting_model ? typeLabel(detailNode.hosting_model) : '—' }}</p>
-            <p><span class="text-[var(--cd-color-text-muted)]">Lifecycle:</span> <span class="inline-block rounded px-1" :style="{ background: lcStyle(detailNode.lifecycle_status).bg }">{{ detailNode.lifecycle_status ? typeLabel(detailNode.lifecycle_status) : '—' }}</span></p>
-            <p><span class="text-[var(--cd-color-text-muted)]">Blokkades:</span> {{ detailNode.blokkades_open }}</p>
+            <!-- LI021 — partij: aard; gebruikersgroep: ledental; anders de component-velden. -->
+            <p v-if="detailNode.element_type === 'partij'" data-testid="lk-detail-aard"><span class="text-[var(--cd-color-text-muted)]">Aard:</span> {{ detailNode.soort ? typeLabel(detailNode.soort) : '—' }}</p>
+            <p v-else-if="detailNode.element_type === 'gebruikersgroep'"><span class="text-[var(--cd-color-text-muted)]">Leden:</span> {{ detailNode.aantal_leden ?? 0 }}</p>
+            <template v-else>
+              <p><span class="text-[var(--cd-color-text-muted)]">Domein:</span> {{ detailNode.domein || '—' }}</p>
+              <p><span class="text-[var(--cd-color-text-muted)]">Leverancier:</span> {{ detailNode.leverancier_naam || '—' }}</p>
+              <p><span class="text-[var(--cd-color-text-muted)]">Hosting:</span> {{ detailNode.hosting_model ? typeLabel(detailNode.hosting_model) : '—' }}</p>
+              <p><span class="text-[var(--cd-color-text-muted)]">Lifecycle:</span> <span class="inline-block rounded px-1" :style="{ background: lcStyle(detailNode.lifecycle_status).bg }">{{ detailNode.lifecycle_status ? typeLabel(detailNode.lifecycle_status) : '—' }}</span></p>
+              <p><span class="text-[var(--cd-color-text-muted)]">Blokkades:</span> {{ detailNode.blokkades_open }}</p>
+            </template>
             <p><span class="text-[var(--cd-color-text-muted)]">Koppelingen:</span> {{ detailKoppelingen }}</p>
             <!-- ADR-025 v4 — migratieplaatsing (alleen tonen indien gevuld). -->
             <p v-if="detailNode.plateau_naam" data-testid="lk-detail-plateau">
