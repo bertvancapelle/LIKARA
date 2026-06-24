@@ -331,6 +331,14 @@ const zichtbareNodes = computed(() => {
   // LI019 1c — de filterselects gelden in ALLE modi. LI019 1d-v4 — bij een actief filter komen de
   // context-buren (niet-flow ringen) van de gematchte componenten mee, zodat de ringen zichtbaar blijven.
   const alle = grafNodes.value
+  // LI019 1d-v7 — in SWIMLANE is de node-set ALTIJD het volledige landschap (per lane), onafhankelijk
+  // van de view-modus (ego/impact) én van de selectie (egoStartId/actieveSet). Alleen de filters
+  // verfijnen (met context-behoud). Zo verdwijnt een node niet bij een selectiewijziging.
+  if (layoutModus.value === 'swimlane') {
+    if (!filterActief.value) return alle
+    const matched = new Set(alle.filter(_matcht).map((n) => n.id))
+    return alle.filter((n) => _metContext(matched).has(n.id))
+  }
   if (modus.value === 'ego') {
     if (!filterActief.value) return alle.filter((n) => egoZichtbaarIds.value.has(n.id))
     const matched = new Set(alle.filter((n) => egoZichtbaarIds.value.has(n.id) && _filterMatch(n)).map((n) => n.id))
@@ -815,19 +823,20 @@ function _edgeData(e, i) {
 const getekendeNodes = computed(() => {
   const metZichtbareEdge = new Set()
   zichtbareEdges.value.forEach((e) => { metZichtbareEdge.add(e.bron_id); metZichtbareEdge.add(e.doel_id) })
-  // LI027 — focus op actieve set: beperk tot de set-nodes (altijd) + hun directe buren via een zichtbare edge.
+  // LI019 1d-v3 (bug 1) — in swimlane toont elke lane ÁL zijn objecten: de "losse nodes verbergen"-
+  // regel (alleen edge-rakende nodes) vervalt dan, zodat objecten zonder zichtbare relatie tóch in
+  // hun band verschijnen. In radiaal blijft de regel (losse nodes zwerven anders rond).
+  const swimlane = layoutModus.value === 'swimlane'
+  // LI027 — focus op actieve set: beperk tot de set-nodes (altijd) + hun directe buren via een zichtbare
+  // edge. LI019 1d-v7 — NIET in swimlane: daar mag de selectie de node-set niet wijzigen.
   let focusIds = null
-  if (focusOpSet.value && actieveSet.value.size > 0) {
+  if (!swimlane && focusOpSet.value && actieveSet.value.size > 0) {
     focusIds = new Set(actieveSet.value)
     zichtbareEdges.value.forEach((e) => {
       if (actieveSet.value.has(e.bron_id)) focusIds.add(e.doel_id)
       if (actieveSet.value.has(e.doel_id)) focusIds.add(e.bron_id)
     })
   }
-  // LI019 1d-v3 (bug 1) — in swimlane toont elke lane ÁL zijn objecten: de "losse nodes verbergen"-
-  // regel (alleen edge-rakende nodes) vervalt dan, zodat objecten zonder zichtbare relatie tóch in
-  // hun band verschijnen. In radiaal blijft de regel (losse nodes zwerven anders rond).
-  const swimlane = layoutModus.value === 'swimlane'
   const uniek = new Map()
   for (const n of zichtbareNodes.value) {
     if (uniek.has(n.id)) continue
@@ -868,6 +877,7 @@ function _naLayout() {
     const c = cy.getElementById?.(String(egoStartId.value))
     if (c && c.length) { cy.center?.(c); updateBands(); return }
   }
+  _recenterPending = false // recenter-verzoek geconsumeerd (bv. in swimlane waar niet gecentreerd wordt)
   cy.fit?.(undefined, 50)
   updateBands()
 }

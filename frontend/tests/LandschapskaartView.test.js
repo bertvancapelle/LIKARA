@@ -299,6 +299,26 @@ describe('LandschapskaartView v3', () => {
     expect(comp.height).toBeGreaterThan(150)
   })
 
+  it('LI019 1d-v7 — swimlane node-set is stabiel: onafhankelijk van modus/selectie', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [
+        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'p1', naam: 'Org', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      ],
+      edges: [{ bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' }],
+    })
+    const { w } = await mountView() // start in ego-modus (egoStartId = a1; ego-buurt = a1 + a2)
+    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    await flushPromises()
+    // In ego-modus zou de buurt slechts {a1,a2} zijn; in swimlane tóch het volledige landschap (incl. p1).
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
+    // Naar geheel-modus: de swimlane-set blijft identiek (modus-onafhankelijk → geen verdwijnende nodes).
+    await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
+    await flushPromises()
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
+  })
+
   it('LI019 1d-v4 — banden in twee lagen rond het canvas: achtergronden niet-interactief, header interactief', async () => {
     const w = await mountSwimlane()
     // Achtergrond-laag (onder het canvas) + losse header-laag (boven het canvas) bestaan beide.
