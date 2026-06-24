@@ -119,6 +119,32 @@ Rapport opslaan als `docs/TST-{build_label}-Validatierapport.md`.
 Eerst `python3 docs/_generators/sluit_acties.py` draaien (TST-rapport,
 skills gevuld, NEXT_SESSION ingevuld, git clean).
 
+## Afsluitprotocol — VOLLEDIG, geen lite-variant (niet-onderhandelbaar)
+
+Het sessie-afsluitprotocol (CLAUDE.md sectie "Sessie-afsluitingspatroon") wordt ALTIJD
+volledig doorlopen, in deze vaste volgorde:
+
+1. `sluit_acties.py` — lost alle ❌ op
+2. TST-validatiecyclus (CONTRIBUTING.md sectie 6) → `docs/TST-{build_label}-Validatierapport.md`
+3. Skill-review — relevante complidata-skills bijwerken (inhoudelijk stap 1: bepaal welke
+   patronen vastgelegd moeten worden)
+4. NEXT_SESSION.md invullen — top-5 + openstaande punten
+5. `gen_build.py` — verhoogt bouwnummer, genereert alle MD-bestanden, **MAAKT DE ZIP**,
+   draait de PostgreSQL-dump + iCloud-backup automatisch
+6. git commit + git push
+7. (backup loopt automatisch in stap 5)
+8. claude.ai memory bijwerken
+
+**VERBOD op een "lite-closeout":** een verkorte afsluiting (alleen OPVOLGPUNTEN + V-bump +
+changelog handmatig, ZONDER `sluit_acties.py` / TST / `gen_build.py`) is NIET toegestaan
+tenzij Bert daar EXPLICIET om vraagt. De ZIP en iCloud-backup zitten in stap 5
+(`gen_build.py`) — die stap overslaan betekent geen ZIP en geen backup, en mag dus nooit
+stilzwijgend gebeuren.
+
+**Claude bepaalt nooit zelf dat een afsluiting "licht" mag.** Bij twijfel of capaciteitsdruk:
+signaleer het aan Bert (conform de ROLVERDELING-bewaking) en laat Bert beslissen — maar draai
+standaard het volledige protocol.
+
 ## Frontend-poorten (V003)
 
 Naast de 4 backend-assen: **`vite build`** (0 fouten; >500 kB-waarschuwing is geen
