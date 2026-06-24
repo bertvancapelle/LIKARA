@@ -32,10 +32,11 @@ const LC_STYLE = {
 }
 const lcStyle = (s) => LC_STYLE[s] || LC_STYLE.null
 const LIFECYCLE_OPTIES = ['migratieklaar', 'in_inventarisatie', 'geblokkeerd', 'concept']
-const RINGEN = ['applicaties', 'rollen', 'gebruikers', 'contracten', 'infrastructuur']
+const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'gebruikers', 'contracten', 'infrastructuur']
 // ADR-031 — leesbare ring-namen. Backend levert ring='beheerorganisatie' → bij laden gemapt op 'rollen'.
 const RING_LABELS = {
   applicaties: 'Componenten',
+  samenstelling: 'Samenstelling', // ADR-033 1b — "onderdeel van" (component↔component aggregatie)
   rollen: 'Rollen & beheer',
   gebruikers: 'Gebruikers',
   contracten: 'Contracten',
@@ -706,6 +707,10 @@ async function openEdgePopup(edge) {
     } else if (edge.ring === 'infrastructuur') {
       popupTitel.value = 'Draait op'
       popupVelden.value = _velden([_veld('Component', doelNaam), _veld('Host', bronNaam)])
+    } else if (edge.ring === 'samenstelling') {
+      // ADR-033 1b — samenstelling: bron=geheel → doel=onderdeel ("bestaat uit").
+      popupTitel.value = 'Samenstelling'
+      popupVelden.value = _velden([_veld('Geheel', bronNaam), _veld('Onderdeel', doelNaam)])
     } else if (edge.ring === 'gebruikers') {
       popupTitel.value = 'Gebruikt door'
       const gg = nodePerId.value[edge.doel_id]
@@ -862,6 +867,9 @@ function _edgeData(e, i) {
   let lc = '#94a3b8' // LI019 1d-v5 — iets donkerder default zodat edges tussen lanes goed zichtbaar zijn
   let w = 1.5
   let ls = 'solid'
+  // ADR-033 1b — samenstelling ("onderdeel van") gestreept, om visueel te onderscheiden van de
+  // doorgetrokken koppelt-met/draait-op/gebruikt-door-relaties.
+  if (e.ring === 'samenstelling') ls = 'dashed'
   if (modus.value === 'impact' && e.ring === 'applicaties') {
     const grens = actieveSet.value.has(e.bron_id) !== actieveSet.value.has(e.doel_id)
     const beide = actieveSet.value.has(e.bron_id) && actieveSet.value.has(e.doel_id)
@@ -1189,7 +1197,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, topbalkNodes, impactNiveaus, impactGeraaktAantal })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, topbalkNodes, impactNiveaus, impactGeraaktAantal })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(

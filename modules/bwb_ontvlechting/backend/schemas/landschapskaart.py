@@ -35,9 +35,9 @@ class LandschapsNode(BaseModel):
 class LandschapsEdge(BaseModel):
     bron_id: UUID
     doel_id: UUID
-    relatietype: str                        # flow / assignment / association / roltoewijzing
-    label: str                              # leesbaar: koppeling / draait op / valt onder / <rol-naam>
-    ring: str                               # applicaties / beheerorganisatie / contracten / infrastructuur
+    relatietype: str                        # flow / assignment / association / serving / aggregation / roltoewijzing
+    label: str                              # leesbaar: koppeling / draait op / valt onder / bestaat uit / <rol-naam>
+    ring: str                               # applicaties / samenstelling / beheerorganisatie / contracten / infrastructuur / gebruikers
     # ADR-025 v4 — koppelingsdetails op flow-edges (uit relatie.kenmerken).
     richting: str | None = None             # eenrichting / tweerichting / bidirectioneel (gemengde groep)
     protocol: str | None = None             # bv. rest / soap / bestand / database (None bij gemengde groep)

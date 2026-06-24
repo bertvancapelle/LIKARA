@@ -462,6 +462,29 @@ describe('LandschapskaartView v3', () => {
     expect(ids).toContain('k1') // contract — type-loos, blijft
   })
 
+  it('ADR-033 1b — samenstelling-ring: checkbox aanwezig (standaard aan), edge rendert gestreept mee', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [
+        { id: 'a1', naam: 'Geheel', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'd1', naam: 'Onderdeel', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+      ],
+      edges: [{ bron_id: 'a1', doel_id: 'd1', relatietype: 'aggregation', label: 'bestaat uit', ring: 'samenstelling' }],
+    })
+    const { w } = await mountView() // lege set → geheel
+    expect(w.find('[data-testid="lk-ring-samenstelling"]').exists()).toBe(true)
+    // De samenstelling-edge is zichtbaar en verbindt beide nodes (beide getekend).
+    expect(w.vm.zichtbareEdges.some((e) => e.ring === 'samenstelling')).toBe(true)
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'd1'])
+    // _edgeData: gestreepte lijn + leesbaar label uit de backend.
+    const ed = w.vm._edgeData({ bron_id: 'a1', doel_id: 'd1', ring: 'samenstelling', label: 'bestaat uit' }, 0)
+    expect(ed.ls).toBe('dashed')
+    expect(ed.label).toBe('bestaat uit')
+    // Ring uitvinken verbergt de samenstelling-edge.
+    await w.find('[data-testid="lk-ring-samenstelling"]').trigger('change')
+    await flushPromises()
+    expect(w.vm.zichtbareEdges.some((e) => e.ring === 'samenstelling')).toBe(false)
+  })
+
   it('toont de ring-checkboxes in ALLE (afgeleide) modi (regressie LI018)', async () => {
     const RINGEN = ['lk-ring-applicaties', 'lk-ring-rollen', 'lk-ring-gebruikers', 'lk-ring-contracten', 'lk-ring-infrastructuur']
     const alleRingenZichtbaar = (w) => RINGEN.every((t) => w.find(`[data-testid="${t}"]`).exists())

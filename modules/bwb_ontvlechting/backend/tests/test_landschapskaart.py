@@ -69,6 +69,19 @@ def test_landschapskaart_serveert_gebruikers_ring():
     assert "gebruikt door" in bron
 
 
+def test_landschapskaart_serveert_samenstelling_ring():
+    """ADR-033 1b — de service projecteert component↔component aggregatie als 'samenstelling'-edge,
+    met een guard die plateau-lidmaatschap (bron=plateau) uitsluit (alleen-lezen, niets afgeleid)."""
+    import inspect
+
+    import services.landschapskaart_service as s
+
+    bron = inspect.getsource(s)
+    assert 'ring="samenstelling"' in bron and 'label="bestaat uit"' in bron
+    # Guard: uitsluitend wanneer bron én doel componenten zijn → plateau-lidmaatschap valt buiten.
+    assert 'rt == "aggregation" and r.bron_id in component_ids and r.doel_id in component_ids' in bron
+
+
 def test_landschapskaart_geen_schrijfpad_in_bron():
     """Read-only: de servicebron bevat geen schrijf-operaties op de sessie."""
     import inspect
@@ -283,6 +296,53 @@ def test_landschapskaart_flows_gegroepeerd_per_paar_live():
     assert ab[0].protocol is None                  # gemengd protocol → None
     assert ba[0].aantal == 1                       # enkele flow → aantal=1
     assert ba[0].richting == "eenrichting" and ba[0].protocol == "rest"
+
+
+@integratie
+def test_landschapskaart_samenstelling_edge_live():
+    """ADR-033 1b — component↔component aggregatie verschijnt als 'samenstelling'-edge
+    (bron=geheel → doel=onderdeel); plateau-lidmaatschap levert GEEN samenstelling-edge."""
+    from sqlalchemy import text as _text
+
+    from models.models import Component, Element, ElementType, Plateau, Relatie
+    from services import landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _comp(s, naam):
+        elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+                        hostingmodel="on_premise")); await s.flush()
+        return elem.id
+
+    async def _flow(s):
+        ids = []
+        try:
+            geheel = await _comp(s, "WT-SMS-Geheel")
+            deel = await _comp(s, "WT-SMS-Deel")
+            ids += [geheel, deel]
+            # Samenstelling: geheel → onderdeel (component↔component aggregatie).
+            s.add(Relatie(tenant_id=tid, bron_id=geheel, doel_id=deel, relatietype="aggregation"))
+            # Plateau-lidmaatschap (bron=plateau → doel=geheel): mag GEEN samenstelling-edge worden.
+            pe = Element(tenant_id=tid, element_type=ElementType.plateau); s.add(pe); await s.flush()
+            s.add(Plateau(id=pe.id, tenant_id=tid, naam="WT-SMS-Plateau")); await s.flush()
+            s.add(Relatie(tenant_id=tid, bron_id=pe.id, doel_id=geheel, relatietype="aggregation"))
+            await s.commit()
+            ids.append(pe.id)
+            graf = await svc.haal_grafdata_op(s, _TID)
+            return graf, geheel, deel, pe.id
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    graf, geheel, deel, plateau_id = asyncio.run(_run_rls(_flow))
+    sms = [e for e in graf.edges if e.ring == "samenstelling"]
+    # Exact één samenstelling-edge geheel → deel; leesbaar label, geregistreerd relatietype.
+    mijn = [e for e in sms if e.bron_id == geheel and e.doel_id == deel]
+    assert len(mijn) == 1 and mijn[0].relatietype == "aggregation" and mijn[0].label == "bestaat uit"
+    # Plateau-lidmaatschap leverde GEEN samenstelling-edge (bron=plateau is geen component).
+    assert not any(e.bron_id == plateau_id for e in sms)
 
 
 @integratie

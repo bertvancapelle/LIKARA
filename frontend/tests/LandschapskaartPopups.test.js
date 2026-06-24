@@ -220,6 +220,15 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
     expect(pushSpy).toHaveBeenCalledWith({ name: 'partij-detail', params: { id: 'p1' } })
   })
 
+  it('ADR-033 1b — edge-popup (samenstelling) toont Geheel (bron) en Onderdeel (doel)', async () => {
+    const { w } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'db1', ring: 'samenstelling', label: 'bestaat uit', relatietype: 'aggregation' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Samenstelling')
+    expect(veld(w, 'Geheel')).toBe('Zaaksysteem') // bron = geheel
+    expect(veld(w, 'Onderdeel')).toBe('Oracle DB') // doel = onderdeel
+  })
+
   it('pre-fill toont meteen node-data terwijl de fetch nog loopt; 403 valt netjes terug', async () => {
     let los
     api.applicaties.haal.mockReturnValue(new Promise((res) => { los = res }))

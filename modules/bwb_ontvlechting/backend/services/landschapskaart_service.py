@@ -231,6 +231,14 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
             # ADR-031 — applicatie → gebruikersgroep (wie gebruikt deze applicatie).
             edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
                                         relatietype="serving", label="gebruikt door", ring="gebruikers"))
+        elif rt == "aggregation" and r.bron_id in component_ids and r.doel_id in component_ids:
+            # ADR-033 1b — samenstelling: component↔component aggregatie (bron=geheel → doel=onderdeel).
+            # Bewust géén afleiding (ADR-023 besluit 7): exact de geregistreerde structuurrelatie, dezelfde
+            # bron die component_service.structuur_overzicht/impact_analyse leest. Plateau-lidmaatschap
+            # (bron=plateau) valt buiten deze guard (bron is geen component) en blijft uitsluitend de
+            # migratieplaatsing-verrijking (plateau_map) voeden.
+            edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
+                                        relatietype="aggregation", label="bestaat uit", ring="samenstelling"))
 
     for (bron_id, doel_id), groep in flow_groepen.items():
         # Richting/protocol van de eerste flow; niet-uniform in de groep → fallback
