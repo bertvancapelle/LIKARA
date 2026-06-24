@@ -10,7 +10,7 @@ import DataTable from 'primevue/datatable'
 
 vi.mock('@/api', () => ({
   api: {
-    partijen: { haal: vi.fn(), verwijder: vi.fn(), lijst: vi.fn() },
+    partijen: { haal: vi.fn(), verwijder: vi.fn(), lijst: vi.fn(), componentenViaContract: vi.fn() },
     contracten: { lijst: vi.fn() },
     // ADR-024 slice 2b — PartijRollenSectie (alleen-lezen) laadt bij mount.
     roltoewijzingen: { lijst: vi.fn(() => Promise.resolve([])) },
@@ -30,6 +30,7 @@ function maakRouter() {
       { path: '/partijen/:id', name: 'partij-detail', component: PartijDetail, props: true },
       { path: '/partijen/:id/bewerken', name: 'partij-bewerken', component: { template: '<div/>' } },
       { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
+      { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
     ],
   })
 }
@@ -69,6 +70,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
   api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })  // leden-overzicht (default leeg)
+  api.partijen.componentenViaContract.mockResolvedValue([]) // LI019 — leverancier-componenten (default leeg)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -101,6 +103,27 @@ describe('PartijDetail', () => {
     const { w } = await mountDetail()
     expect(w.find('[data-testid="partij-contracten-sectie"]').exists()).toBe(true)
     expect(api.contracten.lijst).toHaveBeenCalledWith(expect.objectContaining({ leverancier_id: 'p1' }))
+  })
+
+  it('LI019 — externe partij: Componenten-sectie toont "[component] (via [contract])" met link', async () => {
+    api.partijen.haal.mockResolvedValue(_partij())
+    api.partijen.componentenViaContract.mockResolvedValue([
+      { component_id: 'c1', component_naam: 'Zaaksysteem', contract_id: 'k1', contract_naam: 'Onderhoud 2026' },
+    ])
+    const { w } = await mountDetail()
+    expect(api.partijen.componentenViaContract).toHaveBeenCalledWith('p1')
+    const rij = w.find('[data-testid="partij-component-c1"]')
+    expect(rij.exists()).toBe(true)
+    expect(rij.text()).toContain('Zaaksysteem')
+    expect(rij.text()).toContain('via Onderhoud 2026')
+    expect(w.find('[data-testid="partij-component-link"]').attributes('href')).toContain('/componenten/c1')
+  })
+
+  it('LI019 — niet-externe partij: geen Componenten-sectie', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie' }))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="partij-componenten-sectie"]').exists()).toBe(false)
+    expect(api.partijen.componentenViaContract).not.toHaveBeenCalled()
   })
 
   it('organisatie: aparte secties Afdelingen + Personen (met e-mail/telefoon-kolommen)', async () => {

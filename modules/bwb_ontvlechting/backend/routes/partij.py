@@ -17,6 +17,7 @@ from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
 from models.models import PartijAard
 from schemas.partij import (
+    LeverancierComponentRead,
     PartijCreate,
     PartijPagina,
     PartijRead,
@@ -78,6 +79,16 @@ async def haal_partij(
     session: AsyncSession = Depends(get_tenant_session),
 ):
     return await svc.haal_op(session, user.tenant_id, partij_id)
+
+
+@router.get("/{partij_id}/componenten", response_model=list[LeverancierComponentRead])
+async def leverancier_componenten(
+    partij_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PARTIJ, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """LI019 — componenten van deze leverancier (partij) via de contract-keten."""
+    return await svc.componenten_via_contracten(session, user.tenant_id, partij_id)
 
 
 @router.post("", response_model=PartijRead, status_code=201)

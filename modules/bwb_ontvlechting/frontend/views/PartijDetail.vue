@@ -71,6 +71,16 @@ async function laadContracten({ reset = false } = {}) {
   }
 }
 
+// LI019 — componenten van deze leverancier via de contract-keten (alleen externe partij).
+const leverancierComponenten = ref([])
+async function laadLeverancierComponenten() {
+  try {
+    leverancierComponenten.value = await api.partijen.componentenViaContract(props.id)
+  } catch {
+    leverancierComponenten.value = [] // optioneel; de partij zelf is leidend
+  }
+}
+
 // ADR-024 slice 2a-bis — "hoort bij", van twee kanten. Organisatie(-achtig) → onderdelen
 // (afdelingen + personen); afdeling → personen + de organisatie; persoon → org (+ afdeling).
 const isOrganisatieAchtig = computed(() => ['organisatie', 'externe_partij'].includes(partij.value?.aard))
@@ -181,8 +191,12 @@ async function herlaad() {
   afdelingen.items = []; afdelingen.cursor = null; afdelingenFilter.value = null
   personen.items = []; personen.cursor = null; personenFilter.value = null
   contracten.value = []; contractenCursor.value = null
+  leverancierComponenten.value = []
   await laad()
-  if (isExternePartij.value) await laadContracten({ reset: true })
+  if (isExternePartij.value) {
+    await laadContracten({ reset: true })
+    await laadLeverancierComponenten()
+  }
   await laadSamenhang()
 }
 // Navigatie partij-detail → partij-detail hergebruikt de component-instance; een watch op
@@ -308,6 +322,18 @@ const RIJEN = [
           <template #empty><span data-testid="partij-contracten-leeg">Geen contracten van deze partij.</span></template>
         </DataTable>
         <Button v-if="contractenCursor" label="Meer laden" severity="secondary" data-testid="partij-contracten-meer" :disabled="contractenLaden" class="mt-[var(--cd-space-sm)]" @click="laadContracten()" />
+      </section>
+
+      <!-- LI019 — Componenten via de contract-keten — alleen voor een externe partij (leverancier) -->
+      <section v-if="isExternePartij" class="card mt-[var(--cd-space-lg)]" aria-labelledby="sectie-partij-componenten" data-testid="partij-componenten-sectie">
+        <h2 id="sectie-partij-componenten" class="text-[length:var(--cd-text-lg)] font-semibold mb-[var(--cd-space-sm)]">Componenten</h2>
+        <ul v-if="leverancierComponenten.length" class="flex flex-col gap-[var(--cd-space-xs)]">
+          <li v-for="r in leverancierComponenten" :key="`${r.component_id}-${r.contract_id}`" :data-testid="`partij-component-${r.component_id}`" class="text-[length:var(--cd-text-sm)]">
+            <router-link :to="{ name: 'component-detail', params: { id: r.component_id } }" data-testid="partij-component-link" class="text-[var(--cd-color-primary)] hover:underline">{{ r.component_naam }}</router-link>
+            <span class="text-[var(--cd-color-text-muted)]"> (via {{ r.contract_naam }})</span>
+          </li>
+        </ul>
+        <p v-else data-testid="partij-componenten-leeg" class="text-[var(--cd-color-text-muted)]">Geen componenten via een contract van deze leverancier.</p>
       </section>
     </template>
 

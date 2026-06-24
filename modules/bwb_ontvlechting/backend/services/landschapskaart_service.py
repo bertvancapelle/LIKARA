@@ -92,6 +92,21 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
     ).all():
         lev_map.setdefault(r.object_id, (r.partij_id, r.naam))  # eerste gevonden externe partij
 
+    # LI019 — leverancier óók afleiden via de contract-keten: component → association-relatie →
+    # contract → contract.leverancier_id. Vult de gaten waar geen directe roltoewijzing-leverancier
+    # bestaat (setdefault behoudt de roltoewijzing-leverancier waar die er wél is). Deterministisch
+    # op relatie-id (eerste contract wint) zodat een component met meerdere contracten stabiel is.
+    for r in (
+        await session.execute(
+            select(Relatie.bron_id, Contract.leverancier_id.label("partij_id"), Partij.naam)
+            .join(Contract, Contract.id == Relatie.doel_id)
+            .join(Partij, Partij.id == Contract.leverancier_id)
+            .where(Relatie.tenant_id == tid, Relatie.relatietype == "association")
+            .order_by(Relatie.id)
+        )
+    ).all():
+        lev_map.setdefault(r.bron_id, (r.partij_id, r.naam))
+
     # Migratieplaatsing: eerste plateau per component via aggregation-lidmaatschap (bron=plateau →
     # doel=component); dispositie uit de relatie-kenmerken. Read-only.
     dispositie_labels = await rk_catalog.labels(session, RelatieKenmerkDimensie.dispositie)

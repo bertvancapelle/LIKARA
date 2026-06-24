@@ -141,6 +141,7 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
     from schemas.applicatie import ApplicatieCreate
     from schemas.component import ComponentCreate
     from services import applicatie_service, component_service, landschapskaart_service as svc
+    from services import partij_service
     from services import relatiekenmerk_catalog as rk
 
     tid = uuid.UUID(_TID)
@@ -187,14 +188,16 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
             # diepte=2 levert dezelfde nodes als diepte=1.
             graf2 = await svc.haal_grafdata_op(s, _TID, diepte=2)
             assert len(graf2.nodes) == len(graf.nodes)
-            return graf, app_id, comp_id, oe.id, ce.id
+            # LI019 — componenten van de leverancier (oe) via de contract-keten (Taak 2).
+            lev_comp = await partij_service.componenten_via_contracten(s, _TID, oe.id)
+            return graf, app_id, comp_id, oe.id, ce.id, lev_comp
         finally:
             # Contract eerst (leverancier-RESTRICT), dan de rest.
             for eid in ids:
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 
-    graf, app_id, comp_id, org_id, contract_id = asyncio.run(_run_rls(_flow))
+    graf, app_id, comp_id, org_id, contract_id, lev_comp = asyncio.run(_run_rls(_flow))
 
     node_per_id = {n.id: n for n in graf.nodes}
     # Nodes: applicatie met lifecycle, partij met soort, contract.
@@ -204,6 +207,12 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
     assert node_per_id[app_id].hosting_model == "saas"
     assert node_per_id[app_id].domein  # componenttype-label gevuld
     assert node_per_id[app_id].blokkades_open == 0
+    # LI019 (Taak 3) — leverancier afgeleid via de contract-keten (geen directe roltoewijzing-
+    # leverancier: oe is aard=organisatie, geen externe_partij) → node draagt tóch de leverancier.
+    assert node_per_id[app_id].leverancier_id == org_id
+    assert node_per_id[app_id].leverancier_naam == "WT-LK-Org"
+    # LI019 (Taak 2) — componenten van de leverancier via contracten: de app via dit contract.
+    assert any(c["component_id"] == app_id and c["contract_id"] == contract_id for c in lev_comp)
     # v4 — migratieplaatsing op de applicatie-node (eerste plateau via aggregation + dispositie-label).
     assert node_per_id[app_id].plateau_naam == "WT-LK-Plateau"
     assert node_per_id[app_id].plateau_dispositie == "Migreren"

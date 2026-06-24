@@ -11,10 +11,10 @@ engine-koppeling. v2n-keyset-paginering (`plaats` nullable).
 import uuid
 from datetime import datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Contract, Element, ElementType, Partij, PartijAard
+from models.models import Component, Contract, Element, ElementType, Partij, PartijAard, Relatie
 from schemas.partij import PartijCreate, PartijUpdate
 from services import partijsoort_catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
@@ -187,6 +187,42 @@ async def haal_op(session: AsyncSession, tenant_id, partij_id) -> Partij:
     if obj is None:
         raise NietGevonden(_ENTITEIT, partij_id)
     return obj
+
+
+async def componenten_via_contracten(session: AsyncSession, tenant_id, partij_id) -> list[dict]:
+    """LI019 — componenten die via een contract aan deze leverancier (partij) hangen.
+
+    Keten: `contract.leverancier_id == partij` → association-relatie (bron=component → doel=contract)
+    → component. Read-only; één regel per (component, contract)-paar, alfabetisch. Onbekende partij
+    binnen de tenant ⇒ 404 (geen lek van cross-tenant bestaan)."""
+    tid = _tenant_uuid(tenant_id)
+    await haal_op(session, tenant_id, partij_id)
+    rijen = (
+        await session.execute(
+            select(
+                Component.id.label("component_id"),
+                Component.naam.label("component_naam"),
+                Contract.id.label("contract_id"),
+                Contract.contractnaam.label("contract_naam"),
+            )
+            .join(
+                Relatie,
+                and_(Relatie.doel_id == Contract.id, Relatie.relatietype == "association", Relatie.tenant_id == tid),
+            )
+            .join(Component, Component.id == Relatie.bron_id)
+            .where(Contract.tenant_id == tid, Contract.leverancier_id == partij_id)
+            .order_by(Component.naam, Contract.contractnaam)
+        )
+    ).all()
+    return [
+        {
+            "component_id": r.component_id,
+            "component_naam": r.component_naam,
+            "contract_id": r.contract_id,
+            "contract_naam": r.contract_naam,
+        }
+        for r in rijen
+    ]
 
 
 def _valideer_functietitel(aard: PartijAard, functietitel: str | None) -> None:

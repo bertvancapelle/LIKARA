@@ -187,3 +187,15 @@ class PartijRead(BaseModel):
 class PartijPagina(BaseModel):
     items: list[PartijRead]
     volgende_cursor: str | None = None
+
+
+class LeverancierComponentRead(BaseModel):
+    """LI019 — een component dat via een contract aan deze leverancier hangt (read-only).
+    Eén regel per (component, contract)-paar; een component met meerdere contracten verschijnt vaker."""
+
+    model_config = {"from_attributes": True}
+
+    component_id: uuid.UUID
+    component_naam: str
+    contract_id: uuid.UUID
+    contract_naam: str

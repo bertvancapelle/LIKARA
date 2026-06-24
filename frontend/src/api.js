@@ -172,6 +172,8 @@ export const api = {
       request(`/partijen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/partijen/${id}`, { method: 'DELETE' }),
     soorten: () => request('/partijen/soorten'),
+    // LI019 — componenten van een leverancier (partij) via de contract-keten.
+    componentenViaContract: (id) => request(`/partijen/${id}/componenten`),
   },
 
   // ADR-024 slice 2b — rol-toewijzing (partij vervult rol op component/contract). Eigen tabel
