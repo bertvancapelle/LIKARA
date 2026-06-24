@@ -73,7 +73,6 @@ const edges = ref([])
 const laden = ref(true)
 const fout = ref(null)
 
-const modus = ref('ego') // 'ego' | 'impact' | 'geheel'
 const layoutModus = ref('radiaal') // LI019 1d — 'radiaal' (concentric) | 'swimlane' (preset lanes)
 const laneVolgorde = ref([...DEFAULT_LANE_VOLGORDE]) // LI019 1d-v2 — gebruiker-herschikbare lanevolgorde
 const verbergLegeLanes = ref(false) // LI019 1d-v2 — lege lanes verbergen voor een compactere weergave
@@ -86,6 +85,12 @@ const filterHosting = ref([]) // LI019 1b-v2 — hostingmodel-multiselect (enum-
 const filterLifecycle = ref([]) // LI019 1b-v2 — lifecycle-multiselect (status-sleutels)
 const ringAan = ref(new Set(RINGEN))
 const actieveSet = ref(new Set())
+// ADR-033 — de weergavemodus is AFGELEID uit de actieve set (geen handmatige view-tabs meer):
+// lege set → Geheel model; 1 component → Ego-view; ≥2 componenten → Impact-verkenner.
+const modus = computed(() => {
+  const n = actieveSet.value.size
+  return n === 0 ? 'geheel' : n === 1 ? 'ego' : 'impact'
+})
 const egoStartId = ref(null)
 const detailId = ref(null)
 const opbouwModus = ref(true) // geheel-model: true=insluiten (begint leeg), false=afpellen (begint vol)
@@ -371,10 +376,6 @@ const raakvlakken = computed(() => {
   }
   return s
 })
-const impactSamenvatting = computed(
-  () => `${actieveSet.value.size} in set · ${raakvlakken.value.size} raakvlakken · ${grensEdges.value.length} grensoverschrijdende koppelingen`,
-)
-
 // ── Actieve set ─────────────────────────────────────────────────────────────────
 function inSet(id) {
   return actieveSet.value.has(id)
@@ -383,6 +384,12 @@ function toggleSet(id) {
   const s = new Set(actieveSet.value)
   s.has(id) ? s.delete(id) : s.add(id)
   actieveSet.value = s
+}
+// ADR-033 — in de componentenlijst is klikken = toevoegen/verwijderen uit de actieve set
+// (de aparte "+"-knop is vervallen). Het detailpaneel volgt de aangeklikte component.
+function kiesComponent(id) {
+  toggleSet(id)
+  detailId.value = id
 }
 function voegAlleGefilterdeToe() {
   const s = new Set(actieveSet.value)
@@ -398,6 +405,72 @@ function wisSet() {
   actieveSet.value = new Set()
 }
 watch(() => actieveSet.value.size, (n) => { if (n === 0) focusOpSet.value = false })
+
+// ── Impact-verkenner (ADR-033) — drill-down over de transitieve koppelingsketen ──────
+// De basis is de actieve set; elke drill-down legt één extra focus-stap bovenop (stack).
+// De verkenningsstaat wordt NIET bewaard (slice 2 bewaart later alleen de startselectie).
+const drillPad = ref([]) // node-ids waar achtereenvolgens in is ingezoomd
+// Een wijziging van de actieve set reset de verkenning naar de basis; bij precies 1 component
+// centreert de Ego-view op die component (afgeleide modus).
+watch(
+  () => [...actieveSet.value].sort().join('|'),
+  () => {
+    drillPad.value = []
+    if (actieveSet.value.size === 1) {
+      egoStartId.value = [...actieveSet.value][0]
+      _recenterPending = true
+    }
+  },
+)
+const huidigeFocus = computed(() =>
+  drillPad.value.length ? [drillPad.value[drillPad.value.length - 1]] : [...actieveSet.value],
+)
+const topbalkNodes = computed(() => huidigeFocus.value.map((id) => nodePerId.value[id]).filter(Boolean))
+// Directe flow-buren (koppelingen) van een component — ongericht, uitsluitend EXPLICIET
+// geregistreerde flow-relaties (ADR-023 besluit 7: niets afleiden).
+function _flowBuren(id) {
+  const s = new Set()
+  for (const e of flowEdges.value) {
+    if (e.bron_id === id) s.add(e.doel_id)
+    else if (e.doel_id === id) s.add(e.bron_id)
+  }
+  return s
+}
+// Transitieve keten vanaf de huidige focus, per afstand (BFS-niveaus). Cyclus-veilig via een
+// visited-set (de focus zelf valt buiten de niveaus); elk niveau op naam gesorteerd.
+const impactNiveaus = computed(() => {
+  const start = huidigeFocus.value.filter((id) => nodePerId.value[id])
+  const bezocht = new Set(start)
+  let rand = new Set(start)
+  const niveaus = []
+  while (rand.size) {
+    const volgende = new Set()
+    for (const id of rand) {
+      for (const buur of _flowBuren(id)) {
+        if (!bezocht.has(buur)) {
+          bezocht.add(buur)
+          volgende.add(buur)
+        }
+      }
+    }
+    const nodesNiv = [...volgende].map((id) => nodePerId.value[id]).filter(Boolean)
+    if (nodesNiv.length) {
+      nodesNiv.sort((a, b) => (a.naam || '').localeCompare(b.naam || '', 'nl'))
+      niveaus.push(nodesNiv)
+    }
+    rand = volgende
+  }
+  return niveaus
+})
+const impactGeraaktAantal = computed(() => impactNiveaus.value.reduce((s, n) => s + n.length, 0))
+function drillNaar(id) {
+  if (!nodePerId.value[id]) return
+  drillPad.value = [...drillPad.value, id]
+  detailId.value = id
+}
+function stapTerug() {
+  if (drillPad.value.length) drillPad.value = drillPad.value.slice(0, -1)
+}
 
 // ── Detail ────────────────────────────────────────────────────────────────────
 const detailNode = computed(() => (detailId.value ? nodePerId.value[detailId.value] : null))
@@ -671,9 +744,9 @@ const _DBLTAP_MS = 280
 function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
-    // LI021 — dubbelklik hercentreert; vanuit Geheel model / Impact-view schakelt dit naar ego
-    // met deze node (ook partij/gebruikersgroep) als centrum.
-    if (modus.value !== 'ego') modus.value = 'ego'
+    // ADR-033 — dubbelklik = focus op deze node alleen → actieve set = {node} → Ego-view
+    // (afgeleide modus). Werkt vanuit elke weergave en voor elk node-type (ook partij/groep).
+    actieveSet.value = new Set([id])
     selecteerNode(id)
     return
   }
@@ -1013,7 +1086,9 @@ const _LK_STATE_KEY = 'lk-state'
 function _bewaarKaartState() {
   try {
     sessionStorage.setItem(_LK_STATE_KEY, JSON.stringify({
-      modus: modus.value,
+      // ADR-033 — de modus is afgeleid; bewaar de ACTIEVE SET zodat het beeld (geheel/ego/impact)
+      // behouden blijft bij terugnavigatie. De oude `modus`-sleutel is vervallen (geen dode sleutel).
+      actieveSet: [...actieveSet.value],
       // LI019 swimlane-parkeren — layoutModus niet meer bewaard (altijd 'radiaal').
       laneVolgorde: laneVolgorde.value,
       verbergLegeLanes: verbergLegeLanes.value,
@@ -1028,7 +1103,11 @@ function _herstelKaartState() {
   let s = null
   try { s = JSON.parse(sessionStorage.getItem(_LK_STATE_KEY) || 'null') } catch { s = null }
   if (!s) return
-  if (['ego', 'impact', 'geheel'].includes(s.modus)) modus.value = s.modus
+  // ADR-033 — herstel de actieve set (de modus volgt eruit). Alleen nog bestaande nodes.
+  if (Array.isArray(s.actieveSet)) {
+    const geldig = s.actieveSet.filter((id) => nodes.value.some((n) => n.id === id))
+    if (geldig.length) actieveSet.value = new Set(geldig)
+  }
   // LI019 swimlane-parkeren — layoutModus NIET meer herstellen: altijd 'radiaal' (de enige actieve layout).
   // Lanevolgorde herstellen mits een geldige permutatie van de bekende lanes (anders default).
   if (Array.isArray(s.laneVolgorde)) {
@@ -1052,18 +1131,15 @@ onMounted(async () => {
   } catch {
     typeCatalogus.value = []
   }
-  // ADR-025 deep-link: ?center=<applicatie-id>&modus=<ego|impact|geheel> (vanuit het applicatie-detail).
-  // De center-applicatie wordt het ego-middelpunt + de actieve set, zodat de kaart erop centreert.
-  const qModus = route.query?.modus ? String(route.query.modus) : null
+  // ADR-033 — deep-link ?center=<applicatie-id> (vanuit het applicatie-detail): de component
+  // wordt als enige in de actieve set gezet → Ego-view (afgeleide modus), centraal op de kaart.
+  // De oude ?modus-param is vervallen (de modus volgt voortaan de actieve set) en wordt genegeerd.
   const qCenter = route.query?.center ? String(route.query.center) : null
-  if (qModus || qCenter) {
+  if (qCenter) {
     // Expliciete deep-link heeft voorrang op bewaarde state.
-    if (qModus && ['ego', 'impact', 'geheel'].includes(qModus)) modus.value = qModus
-    if (qCenter) {
-      actieveSet.value = new Set([qCenter])
-      egoStartId.value = qCenter
-      detailId.value = qCenter
-    }
+    actieveSet.value = new Set([qCenter])
+    egoStartId.value = qCenter
+    detailId.value = qCenter
   } else {
     _herstelKaartState()
   }
@@ -1113,7 +1189,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, topbalkNodes, impactNiveaus, impactGeraaktAantal })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1124,12 +1200,6 @@ watch(
 
 function setLayoutModus(m) {
   layoutModus.value = m // de teken-watch herpositioneert + centreert (Taak 4)
-}
-function setModus(m) {
-  modus.value = m
-  // Fix 1: Geheel model vult de actieve set met álle applicaties (de gebruiker ziet meteen
-  // het volledige landschap; daarna verwijderen/filteren kan). Afpel-modus begint dus óók "vol".
-  if (m === 'geheel') actieveSet.value = new Set(appNodes.value.map((n) => n.id))
 }
 function centreer() {
   cy?.fit?.()
@@ -1148,14 +1218,14 @@ const typeLabel = (t) => humaniseer(t)
     data-testid="lk-wrapper"
     :style="fullscreen ? 'height: 100vh' : 'height: calc(100vh - 9rem)'"
   >
-    <!-- Topbar: modus-toggle -->
+    <!-- ADR-033 — Topbar: de weergave is AFGELEID uit de actieve set (geen handmatige tabs).
+         Deze indicator toont alleen wélke weergave nu actief is; kiezen doe je via selecteren. -->
     <div class="flex items-center gap-[var(--cd-space-sm)] border-b border-[var(--cd-color-border)] bg-white p-[var(--cd-space-sm)]">
-      <div class="flex gap-1 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-accent)] p-1">
-        <button v-for="m in ['ego', 'impact', 'geheel']" :key="m" type="button" :data-testid="`lk-modus-${m}`" :aria-pressed="modus === m" :class="['rounded-[var(--cd-radius-btn)] px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)]', modus === m ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setModus(m)">
-          {{ m === 'ego' ? 'Ego-view' : m === 'impact' ? 'Impact-view' : 'Geheel model' }}
-        </button>
-      </div>
-      <span class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-zichtbaar-aantal">{{ zichtbaarAantal }} nodes zichtbaar</span>
+      <p data-testid="lk-weergave-indicator" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] font-semibold text-white">
+        {{ modus === 'geheel' ? 'Geheel model' : modus === 'ego' ? 'Ego-view' : 'Impact-verkenner' }}
+      </p>
+      <span class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Weergave volgt je selectie</span>
+      <span v-if="modus !== 'impact'" class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-zichtbaar-aantal">{{ zichtbaarAantal }} nodes zichtbaar</span>
     </div>
 
     <div class="flex min-h-0 flex-1">
@@ -1263,12 +1333,14 @@ const typeLabel = (t) => humaniseer(t)
           class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
         />
         <ul class="flex flex-col gap-1" data-testid="lk-resultaten">
+          <!-- ADR-033 — klikken = toevoegen/verwijderen uit de actieve set (de losse "+"-knop is
+               vervallen). De geselecteerde rij is gemarkeerd (✓ + accentkleur, aria-pressed). -->
           <li v-for="n in gefilterdeResultaten" :key="n.id" :data-testid="`lk-res-${n.id}`" :class="['flex items-center gap-1 rounded px-1 py-0.5 text-[length:var(--cd-text-sm)]', inSet(n.id) ? 'bg-[var(--cd-color-accent)]' : '']">
             <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: lcStyle(n.lifecycle_status).bg, border: `1px solid ${lcStyle(n.lifecycle_status).border}` }"></span>
-            <button type="button" class="grow truncate text-left hover:underline" :data-testid="`lk-res-naam-${n.id}`" @click="selecteerNode(n.id)">{{ n.naam }}</button>
+            <button type="button" :aria-pressed="inSet(n.id)" class="grow truncate text-left hover:underline" :data-testid="`lk-res-naam-${n.id}`" @click="kiesComponent(n.id)">{{ n.naam }}</button>
             <span v-if="n.blokkades_open > 0" :data-testid="`lk-res-blok-${n.id}`" title="Open blokkade(s)">⚠</span>
             <span v-if="n.hosting_model">{{ hostingIcoon(n.hosting_model) }}</span>
-            <button type="button" class="text-[var(--cd-color-primary)]" :data-testid="`lk-res-set-${n.id}`" @click="toggleSet(n.id)">{{ inSet(n.id) ? '×' : '+' }}</button>
+            <span v-if="inSet(n.id)" :data-testid="`lk-res-gekozen-${n.id}`" class="text-[var(--cd-color-primary)]" title="In de actieve set">✓</span>
           </li>
           <li v-if="!gefilterdeResultaten.length" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">Geen resultaten.</li>
         </ul>
@@ -1293,6 +1365,53 @@ const typeLabel = (t) => humaniseer(t)
         <!-- Inline min-height als harde vangrail: zelfs als de flex-hoogteketen faalt, krijgt
              Cytoscape een meetbare hoogte op het init-moment (anders blijft de graaf leeg). -->
         <div ref="containerRef" data-testid="lk-canvas" class="relative z-[1] h-full w-full" style="min-height: 500px"></div>
+
+        <!-- ADR-033 — Impact-verkenner (≥2 componenten in de actieve set): topbalk met de
+             focus-componenten + de transitieve koppelingsketen eronder, met stapsgewijze
+             drill-down. Vervangt de oude grafische Impact-view (read-only, afgeleid; toont
+             uitsluitend expliciet geregistreerde koppelingen — ADR-023 besluit 7). Ligt als
+             overlay boven het (verborgen) canvas; het canvas blijft gemount voor Cytoscape. -->
+        <div v-if="modus === 'impact'" data-testid="lk-impact-verkenner" class="absolute inset-0 z-[2] flex flex-col gap-[var(--cd-space-md)] overflow-auto bg-[var(--cd-color-surface)] p-[var(--cd-space-md)]">
+          <div class="flex items-center gap-[var(--cd-space-sm)]">
+            <button v-if="drillPad.length" type="button" data-testid="lk-impact-terug" class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]" @click="stapTerug">← Terug</button>
+            <p class="font-semibold text-[length:var(--cd-text-sm)]">{{ drillPad.length ? 'Ingezoomd op' : 'Geselecteerde componenten' }}</p>
+            <span class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-impact-samenvatting">{{ topbalkNodes.length }} in beeld · {{ impactGeraaktAantal }} geraakt</span>
+          </div>
+          <!-- Topbalk: horizontale rij van de focus-componenten (klik = detail rechts). -->
+          <div data-testid="lk-impact-topbalk" class="flex flex-wrap gap-[var(--cd-space-sm)] border-b border-[var(--cd-color-border)] pb-[var(--cd-space-md)]">
+            <button
+              v-for="n in topbalkNodes"
+              :key="n.id"
+              type="button"
+              :data-testid="`lk-impact-top-${n.id}`"
+              class="flex items-center gap-1 rounded-[var(--cd-radius-btn)] border px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] font-semibold"
+              :style="{ background: lcStyle(n.lifecycle_status).bg, borderColor: lcStyle(n.lifecycle_status).border }"
+              @click="selecteerNode(n.id)"
+            >{{ n.naam }}<span v-if="n.blokkades_open > 0" title="Open blokkade(s)">⚠</span></button>
+          </div>
+          <!-- Transitieve keten, gegroepeerd per afstand (BFS-niveaus). Klik = inzoomen. -->
+          <div v-if="impactNiveaus.length" class="flex flex-col gap-[var(--cd-space-md)]" data-testid="lk-impact-keten">
+            <div v-for="(niveau, i) in impactNiveaus" :key="i" class="flex flex-col gap-1">
+              <p class="text-[length:var(--cd-text-xs)] font-semibold uppercase text-[var(--cd-color-text-muted)]">Afstand {{ i + 1 }}</p>
+              <div class="flex flex-wrap gap-[var(--cd-space-sm)]">
+                <button
+                  v-for="n in niveau"
+                  :key="n.id"
+                  type="button"
+                  :data-testid="`lk-impact-node-${n.id}`"
+                  class="flex items-center gap-1 rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]"
+                  :style="{ background: lcStyle(n.lifecycle_status).bg }"
+                  title="Klik om verder in te zoomen"
+                  @click="drillNaar(n.id)"
+                >
+                  <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" :style="{ border: `1px solid ${lcStyle(n.lifecycle_status).border}` }"></span>
+                  {{ n.naam }}<span v-if="n.blokkades_open > 0" title="Open blokkade(s)">⚠</span>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p v-else data-testid="lk-impact-leeg" class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Geen geregistreerde koppelingen vanaf deze selectie.</p>
+        </div>
         <!-- (2) lane-HEADERS BOVEN het canvas (z-[5]). De container is pointer-events-none → node-
              clicks gaan ongehinderd naar het canvas; alleen de header-span vangt pointer-events af
              (versleepbaar). De lege-lane-tekst zit ook hier zodat ze leesbaar boven het canvas staat. -->
@@ -1324,8 +1443,9 @@ const typeLabel = (t) => humaniseer(t)
             <button type="button" data-testid="lk-layout-radiaal" :aria-pressed="layoutModus === 'radiaal'" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)]', layoutModus === 'radiaal' ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setLayoutModus('radiaal')">Radiaal</button>
             <button type="button" data-testid="lk-layout-swimlane" :aria-pressed="layoutModus === 'swimlane'" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)]', layoutModus === 'swimlane' ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setLayoutModus('swimlane')">Swimlanes</button>
           </div>
-          <button type="button" data-testid="lk-centreer" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="centreer">⊡ Centreer</button>
-          <button type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]', kleurOpDomein ? 'bg-[var(--cd-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
+          <!-- Canvas-only gereedschap: in de Impact-verkenner (geen canvas) verborgen. -->
+          <button v-if="modus !== 'impact'" type="button" data-testid="lk-centreer" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="centreer">⊡ Centreer</button>
+          <button v-if="modus !== 'impact'" type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]', kleurOpDomein ? 'bg-[var(--cd-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
           <!-- Fullscreen-overlay (in-app): één toggle — vergroten ingebed, verkleinen in de overlay. -->
           <button type="button" :data-testid="fullscreen ? 'lk-fullscreen-sluit' : 'lk-fullscreen-open'" :aria-pressed="fullscreen" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="toggleFullscreen">{{ fullscreen ? '✕ Verkleinen' : '⛶ Vergroten' }}</button>
         </div>
@@ -1385,9 +1505,6 @@ const typeLabel = (t) => humaniseer(t)
             <button v-for="(a, i) in popupActies" :key="i" type="button" :data-testid="i === 0 ? 'lk-popup-actie' : `lk-popup-actie-${i}`" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] text-white" @click="a.fn">{{ a.label }}</button>
           </div>
         </div>
-
-        <!-- Impact-samenvatting (overlay onderaan) -->
-        <p v-if="modus === 'impact'" data-testid="impact-samenvatting" class="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-white px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] font-semibold shadow-[var(--cd-shadow-md)]">{{ impactSamenvatting }}</p>
 
         <p v-if="laden" data-testid="lk-laden" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]">Landschap laden…</p>
         <p v-else-if="fout" role="alert" data-testid="lk-fout" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--cd-color-danger)]">{{ fout }}</p>
