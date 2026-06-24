@@ -264,17 +264,33 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.laneBanden.map((b) => b.key).sort()).toEqual(['componenten', 'infrastructuur'])
   })
 
-  it('LI019 1d-v2 — lanevolgorde herschikken via drag-drop + reset', async () => {
+  it('LI019 1d-v3 — lane verslepen herschikt de volgorde en persisteert in sessionStorage', async () => {
     const w = await mountSwimlane()
     expect(w.vm.laneVolgorde).toEqual(['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig', 'contracten'])
-    w.vm.onLaneDragStart('contracten')
-    w.vm.onLaneDrop('rollen') // contracten vóór rollen
+    w.vm._herschikLane('contracten', 'rollen') // contracten naar de positie van rollen (bovenaan)
     await flushPromises()
     expect(w.vm.laneVolgorde[0]).toBe('contracten')
     expect(w.vm.laneVolgorde[1]).toBe('rollen')
-    w.vm.resetLaneVolgorde()
+    // Direct opgeslagen (geen aparte bewaar-knop).
+    expect(JSON.parse(sessionStorage.getItem('lk-state')).laneVolgorde[0]).toBe('contracten')
+    // De zijbalk-lanevolgorde-lijst is verwijderd (bug 3).
+    expect(w.find('[data-testid="lk-lane-volgorde"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-lane-reset"]').exists()).toBe(false)
+  })
+
+  it('LI019 1d-v3 — swimlane toont óók objecten zonder zichtbare relatie (bug 1)', async () => {
+    // p1 (partij) en k1 (contract) hebben geen edges in de fixture → in radiaal verborgen,
+    // in swimlane zichtbaar in hun lane.
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
     await flushPromises()
-    expect(w.vm.laneVolgorde).toEqual(['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig', 'contracten'])
+    const radiaalIds = w.vm.getekendeNodes.map((n) => n.id)
+    expect(radiaalIds).not.toContain('p1') // losse node → verborgen in radiaal
+    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    await flushPromises()
+    const swimlaneIds = w.vm.getekendeNodes.map((n) => n.id)
+    expect(swimlaneIds).toContain('p1') // partij nu zichtbaar in de Rollen-lane
+    expect(swimlaneIds).toContain('k1') // contract nu zichtbaar in de Contracten-lane
   })
 
   it('LI019 1d-v2 — lanevolgorde + verberg-lege hersteld uit sessionStorage', async () => {

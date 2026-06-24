@@ -12,10 +12,14 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from '@/composables/router'
 import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
+import { useToast } from '@/primevue'
 import { humaniseer } from '../labels'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 
 const router = useRouter()
+// Toast voor de "Volgorde opgeslagen"-bevestiging; defensief: in tests zonder Toast-provider null.
+let toast = null
+try { toast = useToast() } catch { /* geen Toast-provider (bv. unit-test) */ }
 const route = useRoute()
 
 // Lifecycle → kleur (node-achtergrond + rand).
@@ -67,7 +71,6 @@ const layoutModus = ref('radiaal') // LI019 1d — 'radiaal' (concentric) | 'swi
 const laneVolgorde = ref([...DEFAULT_LANE_VOLGORDE]) // LI019 1d-v2 — gebruiker-herschikbare lanevolgorde
 const verbergLegeLanes = ref(false) // LI019 1d-v2 — lege lanes verbergen voor een compactere weergave
 const bandPx = ref([]) // schermposities van de lane-banden (top/height px), gesynct met cy pan/zoom
-let _dragLane = null // sleepbron tijdens lanevolgorde-drag
 const zoekterm = ref('')
 const filterTypes = ref([]) // LI019 1b — componenttype-multiselect (optie_sleutels)
 const filterLeveranciers = ref([]) // LI019 1b-v2 — leverancier-multiselect (partij-ids)
@@ -766,6 +769,10 @@ const getekendeNodes = computed(() => {
       if (actieveSet.value.has(e.doel_id)) focusIds.add(e.bron_id)
     })
   }
+  // LI019 1d-v3 (bug 1) — in swimlane toont elke lane ÁL zijn objecten: de "losse nodes verbergen"-
+  // regel (alleen edge-rakende nodes) vervalt dan, zodat objecten zonder zichtbare relatie tóch in
+  // hun band verschijnen. In radiaal blijft de regel (losse nodes zwerven anders rond).
+  const swimlane = layoutModus.value === 'swimlane'
   const uniek = new Map()
   for (const n of zichtbareNodes.value) {
     if (uniek.has(n.id)) continue
@@ -774,7 +781,7 @@ const getekendeNodes = computed(() => {
       continue
     }
     const egoCentrum = modus.value === 'ego' && n.id === egoStartId.value
-    if (egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    if (swimlane || egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
 })
@@ -835,17 +842,40 @@ function updateBands() {
   const pan = cy.pan?.() || { x: 0, y: 0 }
   bandPx.value = laneBanden.value.map((b) => ({ top: b.index * LANE_H * zoom + pan.y, height: LANE_H * zoom }))
 }
-// LI019 1d-v2 (Taak 5) — lanevolgorde herschikken via drag-drop op de lanenamen (zijbalk).
-function onLaneDragStart(key) { _dragLane = key }
-function onLaneDrop(doelKey) {
-  const bron = _dragLane
-  _dragLane = null
-  if (!bron || bron === doelKey) return
-  const order = laneVolgorde.value.filter((k) => k !== bron)
-  order.splice(order.indexOf(doelKey), 0, bron)
+// LI019 1d-v3 — lanevolgorde herschikken door de lane-header op het canvas te verslepen.
+// `_herschikLane` is de pure reorder: verplaats `bron` naar de positie van `doel`, persisteer
+// direct in sessionStorage en bevestig met een subtiele toast. Geen aparte bewaar-knop.
+function _herschikLane(bronKey, doelKey) {
+  if (!bronKey || !doelKey || bronKey === doelKey) return
+  if (!LANE_DEF[bronKey] || !LANE_DEF[doelKey]) return
+  const order = laneVolgorde.value.filter((k) => k !== bronKey)
+  order.splice(order.indexOf(doelKey), 0, bronKey)
   laneVolgorde.value = order
+  _bewaarKaartState()
+  toast?.add?.({ severity: 'success', summary: 'Volgorde opgeslagen', life: 2000 })
 }
-function resetLaneVolgorde() { laneVolgorde.value = [...DEFAULT_LANE_VOLGORDE] }
+// Welke lane ligt onder schermpositie clientY (voor drop-bepaling tijdens het slepen)?
+function _laneOpY(clientY) {
+  const rect = containerRef.value?.getBoundingClientRect?.()
+  if (!rect) return null
+  const y = clientY - rect.top
+  for (const b of laneBanden.value) {
+    const px = bandPx.value[b.index]
+    if (px && y >= px.top && y < px.top + px.height) return b.key
+  }
+  return null
+}
+const sleepLane = ref(null) // key van de lane die nu versleept wordt (voor de visuele hint)
+function onLaneSleepStart(e, key) {
+  sleepLane.value = key
+  e.currentTarget?.setPointerCapture?.(e.pointerId)
+}
+function onLaneSleepEinde(e) {
+  if (!sleepLane.value) return
+  const doel = _laneOpY(e.clientY)
+  if (doel) _herschikLane(sleepLane.value, doel)
+  sleepLane.value = null
+}
 function _layout() {
   // LI019 1d (Taak 2) — Swimlanes: custom preset-posities per lane (0 nieuwe dependencies).
   // `positions` als object-map {nodeId: {x,y}} (Cytoscape doet de id-lookup zelf) — géén callback
@@ -1022,7 +1052,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, onLaneDragStart, onLaneDrop, resetLaneVolgorde })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1149,30 +1179,11 @@ const typeLabel = (t) => humaniseer(t)
           </label>
         </template>
 
-        <!-- LI019 1d-v2 — swimlane-opties: lege lanes verbergen + lanevolgorde (drag-drop) + reset. -->
-        <template v-if="layoutModus === 'swimlane'">
-          <label class="mt-[var(--cd-space-sm)] flex items-center gap-2 text-[length:var(--cd-text-sm)]">
-            <input type="checkbox" v-model="verbergLegeLanes" data-testid="lk-verberg-lege" />Verberg lege lanes
-          </label>
-          <div class="flex items-center justify-between">
-            <p class="font-semibold text-[length:var(--cd-text-sm)]">Lanevolgorde</p>
-            <button type="button" data-testid="lk-lane-reset" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)] hover:underline" @click="resetLaneVolgorde">Reset</button>
-          </div>
-          <ul class="flex flex-col gap-0.5" data-testid="lk-lane-volgorde">
-            <li
-              v-for="key in laneVolgorde"
-              :key="key"
-              :data-testid="`lk-lane-order-${key}`"
-              draggable="true"
-              class="flex cursor-grab items-center gap-1 rounded border border-[var(--cd-color-border)] bg-white px-2 py-1 text-[length:var(--cd-text-sm)]"
-              @dragstart="onLaneDragStart(key)"
-              @dragover.prevent
-              @drop="onLaneDrop(key)"
-            >
-              <span aria-hidden="true" class="text-[var(--cd-color-text-muted)]">⠿</span>{{ LANE_DEF[key].label }}
-            </li>
-          </ul>
-        </template>
+        <!-- LI019 1d-v3 — swimlane-optie: lege lanes verbergen. De lanevolgorde wijzig je nu door de
+             lane-header op het canvas te verslepen (geen zijbalk-lijst meer). -->
+        <label v-if="layoutModus === 'swimlane'" class="mt-[var(--cd-space-sm)] flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+          <input type="checkbox" v-model="verbergLegeLanes" data-testid="lk-verberg-lege" />Verberg lege lanes
+        </label>
 
         <p class="mt-[var(--cd-space-sm)] font-semibold text-[length:var(--cd-text-sm)]">
           Componenten ({{ zoekResultaten.trim() ? `${gefilterdeResultaten.length} van ${gefilterdeNodes.length}` : gefilterdeNodes.length }})
@@ -1204,15 +1215,25 @@ const typeLabel = (t) => humaniseer(t)
         <!-- LI019 1d-v2 — swimlane lane-banden: HTML-overlay ACHTER het (transparante) cytoscape-
              canvas. Banden altijd volledige breedte; verticale positie/hoogte volgen pan/zoom.
              Niet-interactief (pointer-events-none) zodat alle muisacties naar het canvas gaan. -->
-        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-[1] overflow-hidden" data-testid="lk-lanes" aria-hidden="true">
+        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-[1] overflow-hidden" data-testid="lk-lanes">
           <div
             v-for="b in laneBanden"
             :key="b.key"
             :data-testid="`lk-lane-${b.key}`"
             class="absolute left-0 right-0 border-b border-[var(--cd-color-border)]"
-            :style="{ top: (bandPx[b.index]?.top ?? 0) + 'px', height: (bandPx[b.index]?.height ?? 0) + 'px', background: b.bg }"
+            :class="sleepLane === b.key ? 'ring-2 ring-[var(--cd-color-primary)] ring-inset' : ''"
+            :style="{ top: (bandPx[b.index]?.top ?? 0) + 'px', height: (bandPx[b.index]?.height ?? 0) + 'px' }"
           >
-            <span class="absolute left-2 top-1 text-[length:var(--cd-text-sm)] font-semibold text-[var(--cd-color-text-muted)]">{{ b.label }}</span>
+            <!-- Translucente achtergrondlaag: edges/nodes op het canvas blijven altijd zichtbaar. -->
+            <div class="absolute inset-0" :style="{ background: b.bg, opacity: 0.5 }"></div>
+            <!-- Sleepbare lane-header (pointer-events-auto): versleep om de lanevolgorde te wijzigen. -->
+            <span
+              :data-testid="`lk-lane-header-${b.key}`"
+              class="pointer-events-auto absolute left-2 top-1 flex cursor-grab touch-none select-none items-center gap-1 rounded bg-white/70 px-1 text-[length:var(--cd-text-sm)] font-semibold text-[var(--cd-color-text-muted)] active:cursor-grabbing"
+              :title="`Versleep om de lanevolgorde te wijzigen`"
+              @pointerdown="onLaneSleepStart($event, b.key)"
+              @pointerup="onLaneSleepEinde"
+            ><span aria-hidden="true" class="opacity-60">⠿</span>{{ b.label }}</span>
             <span v-if="b.leeg" :data-testid="`lk-lane-leeg-${b.key}`" class="absolute inset-0 flex items-center justify-center text-[length:var(--cd-text-xs)] italic text-[var(--cd-color-text-muted)]">Geen objecten geregistreerd</span>
           </div>
         </div>
