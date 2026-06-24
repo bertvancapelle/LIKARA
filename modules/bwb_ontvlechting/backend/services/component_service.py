@@ -585,8 +585,10 @@ async def structuur_overzicht(session: AsyncSession, tenant_id, component_id) ->
 async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict:
     """Read-only impactanalyse (ADR-021 Besluit 10 / Fase E).
 
-    Volgt de structuurgraaf in de richting `gebruikt_door` (wie steunt — direct of
-    transitief — op dít component), over álle relatietypen. Iteratieve BFS per niveau
+    Volgt de afhankelijkheidsgraaf in de richting `gebruikt_door` (wie steunt — direct of
+    transitief — op dít component). Getraverseerde relatietypen: `assignment` (host→gehoste),
+    `aggregation` (deel→geheel) en `flow` (koppeling — bidirectioneel: de afhankelijke is de
+    andere endpoint, ongeacht bron/doel; LI019). Iteratieve BFS per niveau
     (registratief leeswerk, geen prestatiekritiek pad): dat geeft van nature de
     **kortste afstand** (`niveau`, 1=direct) en is **cyclus-veilig** via een visited-set
     (B3 staat cycli toe; de traversal mag nooit hangen). Per geraakt component het pad
@@ -607,13 +609,26 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
     while frontier:
         niveau += 1
         ouder = {n: (pad, eerste) for (n, pad, eerste) in frontier}
-        # ADR-023: volg de structurele afhankelijkheid type-bewust. `assignment`
-        # (host→gehoste): wie hangt aan een host = doel waar bron in de frontier zit.
-        # `aggregation` (deel→geheel): de delen van een geheel = bron waar doel in de
-        # frontier zit. `dep` = de afhankelijke (volgende laag); `via` = de
-        # frontier-knoop (de ouder in het pad).
-        _dep = case((Relatie.relatietype == "assignment", Relatie.doel_id), else_=Relatie.bron_id)
-        _via = case((Relatie.relatietype == "assignment", Relatie.bron_id), else_=Relatie.doel_id)
+        front = list(ouder.keys())
+        # ADR-023: volg de afhankelijkheid type-bewust. `assignment` (host→gehoste): wie hangt
+        # aan een host = doel waar bron in de frontier zit. `aggregation` (deel→geheel): de delen
+        # van een geheel = bron waar doel in de frontier zit. `flow` (koppeling, LI019): geldt
+        # bidirectioneel — de afhankelijke is de andere endpoint, dus de kant die NIET in de
+        # frontier zit. `dep` = de afhankelijke (volgende laag); `via` = de frontier-knoop
+        # (de ouder in het pad). De relatietype-takken vóór de flow-takken: zo bepaalt bij flow
+        # uitsluitend de frontier-positie de richting.
+        _dep = case(
+            (Relatie.relatietype == "assignment", Relatie.doel_id),
+            (Relatie.relatietype == "aggregation", Relatie.bron_id),
+            (Relatie.bron_id.in_(front), Relatie.doel_id),  # flow met bron in frontier → dep = doel
+            else_=Relatie.bron_id,                          # flow met doel in frontier → dep = bron
+        )
+        _via = case(
+            (Relatie.relatietype == "assignment", Relatie.bron_id),
+            (Relatie.relatietype == "aggregation", Relatie.doel_id),
+            (Relatie.bron_id.in_(front), Relatie.bron_id),  # flow: de frontier-knoop is de bron
+            else_=Relatie.doel_id,                          # flow: de frontier-knoop is de doel
+        )
         rijen = (
             await session.execute(
                 select(
@@ -627,10 +642,10 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
                 .where(
                     Relatie.tenant_id == tid,
                     or_(
-                        and_(Relatie.relatietype == "assignment",
-                             Relatie.bron_id.in_(list(ouder.keys()))),
-                        and_(Relatie.relatietype == "aggregation",
-                             Relatie.doel_id.in_(list(ouder.keys()))),
+                        and_(Relatie.relatietype == "assignment", Relatie.bron_id.in_(front)),
+                        and_(Relatie.relatietype == "aggregation", Relatie.doel_id.in_(front)),
+                        and_(Relatie.relatietype == "flow",
+                             or_(Relatie.bron_id.in_(front), Relatie.doel_id.in_(front))),
                     ),
                 )
                 .order_by(Component.naam, Relatie.id)

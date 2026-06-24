@@ -79,6 +79,8 @@ def test_impact_directe_afhankelijkheid_seed():
 
     async def _flow(s):
         row = (await s.execute(text("select id from component where naam='Oracle FIN-DB'"))).first()
+        if row is None:
+            pytest.skip("dev-seed-component 'Oracle FIN-DB' niet in deze DB — seed-afhankelijke test overgeslagen")
         out = await svc.impact_analyse(s, _TID, row[0])
         namen = {g["naam"]: g for g in out["geraakt"]}
         # Belastingsysteem én Financieel draaien direct op de DB (niveau 1).
@@ -138,6 +140,76 @@ def test_impact_transitief_en_cyclus_termineren():
             assert leeg["samenvatting"]["aantal_geraakt"] == 0
         finally:
             # Opruimen: het element verwijderen cascadeert de relaties (Besluit 13).
+            await s.execute(text("delete from element where id = any(:ids)"), {"ids": ids})
+            await s.commit()
+
+    asyncio.run(_sessie_run(_flow))
+
+
+@integratie
+def test_impact_flow_bidirectioneel_en_transitief():
+    # LI019 — flow-koppelingen (ADR-023) tellen mee in de impact: bidirectioneel (de afhankelijke
+    # is de andere endpoint, ongeacht bron/doel) en transitief (A→B→C).
+    from sqlalchemy import text
+    from schemas.component import ComponentCreate
+    from schemas.relatie import RelatieCreate
+    from services import component_service as svc
+    from services import relatie_service
+
+    sfx = uuid.uuid4().hex[:8]
+
+    async def _flow(s):
+        a = await svc.maak_aan(s, _TID, ComponentCreate(naam=f"LI019-A-{sfx}", componenttype="database"))
+        b = await svc.maak_aan(s, _TID, ComponentCreate(naam=f"LI019-B-{sfx}", componenttype="database"))
+        c = await svc.maak_aan(s, _TID, ComponentCreate(naam=f"LI019-C-{sfx}", componenttype="database"))
+        ids = [a["id"], b["id"], c["id"]]
+        try:
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=a["id"], doel_id=b["id"], relatietype="flow", naam=f"A-B-{sfx}"))
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=b["id"], doel_id=c["id"], relatietype="flow", naam=f"B-C-{sfx}"))
+
+            # impact(A): B direct (niveau 1) via de flow, C transitief via B (niveau 2).
+            namenA = {g["naam"]: g for g in (await svc.impact_analyse(s, _TID, a["id"]))["geraakt"]}
+            assert set(namenA) == {f"LI019-B-{sfx}", f"LI019-C-{sfx}"}
+            assert namenA[f"LI019-B-{sfx}"]["niveau"] == 1
+            assert namenA[f"LI019-C-{sfx}"]["niveau"] == 2
+            assert namenA[f"LI019-C-{sfx}"]["pad"] == [f"LI019-A-{sfx}", f"LI019-B-{sfx}", f"LI019-C-{sfx}"]
+
+            # impact(B): bidirectioneel → A (inkomende flow) én C (uitgaande flow), beide niveau 1.
+            namenB = {g["naam"]: g for g in (await svc.impact_analyse(s, _TID, b["id"]))["geraakt"]}
+            assert set(namenB) == {f"LI019-A-{sfx}", f"LI019-C-{sfx}"}
+            assert namenB[f"LI019-A-{sfx}"]["niveau"] == 1
+            assert namenB[f"LI019-C-{sfx}"]["niveau"] == 1
+        finally:
+            await s.execute(text("delete from element where id = any(:ids)"), {"ids": ids})
+            await s.commit()
+
+    asyncio.run(_sessie_run(_flow))
+
+
+@integratie
+def test_impact_flow_cyclus_termineren():
+    # LI019 — een bidirectionele flow-cyclus (A↔B als twee flow-rijen) mag niet oneindig lussen.
+    from sqlalchemy import text
+    from schemas.component import ComponentCreate
+    from schemas.relatie import RelatieCreate
+    from services import component_service as svc
+    from services import relatie_service
+
+    sfx = uuid.uuid4().hex[:8]
+
+    async def _flow(s):
+        a = await svc.maak_aan(s, _TID, ComponentCreate(naam=f"LI019cyc-A-{sfx}", componenttype="database"))
+        b = await svc.maak_aan(s, _TID, ComponentCreate(naam=f"LI019cyc-B-{sfx}", componenttype="database"))
+        ids = [a["id"], b["id"]]
+        try:
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=a["id"], doel_id=b["id"], relatietype="flow", naam=f"AB-{sfx}"))
+            await relatie_service.maak_aan(s, _TID, RelatieCreate(bron_id=b["id"], doel_id=a["id"], relatietype="flow", naam=f"BA-{sfx}"))
+
+            # impact(A): alleen B (niveau 1); A blijft de bron en wordt nooit opnieuw bezocht.
+            namen = {g["naam"]: g for g in (await svc.impact_analyse(s, _TID, a["id"]))["geraakt"]}
+            assert set(namen) == {f"LI019cyc-B-{sfx}"}
+            assert namen[f"LI019cyc-B-{sfx}"]["niveau"] == 1
+        finally:
             await s.execute(text("delete from element where id = any(:ids)"), {"ids": ids})
             await s.commit()
 
