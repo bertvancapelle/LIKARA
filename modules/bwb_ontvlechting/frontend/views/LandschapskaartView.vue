@@ -307,19 +307,42 @@ const egoZichtbaarIds = computed(() => {
   }
   return ids
 })
-const zichtbareNodes = computed(() => {
-  // LI019 1c — de filterselects gelden in ALLE modi: ego/impact passen _filterMatch toe op hun
-  // eigen node-set (no-op zonder actieve selectie). De vrije zoekterm blijft modusgebonden
-  // (alleen de geheel-modus opbouw/afpel-verfijning, via _matcht).
-  if (modus.value === 'ego') {
-    return grafNodes.value.filter((n) => egoZichtbaarIds.value.has(n.id) && _filterMatch(n))
+// LI019 1d-v4 (bug 7) — context behouden bij een actief filter: voeg aan de gematchte (component-)
+// nodes hun context-buren toe via de NIET-flow-ringen (contracten/gebruikers/rollen/infrastructuur),
+// zodat die ringen zichtbaar blijven. Flow-buren (peer-componenten) worden NIET toegevoegd — die zijn
+// zelf onderworpen aan het filter.
+function _metContext(matchedIds) {
+  const ids = new Set(matchedIds)
+  for (const e of grafEdges.value) {
+    if (e.ring === 'applicaties') continue
+    if (matchedIds.has(e.bron_id)) ids.add(e.doel_id)
+    if (matchedIds.has(e.doel_id)) ids.add(e.bron_id)
   }
-  if (modus.value === 'impact') return grafNodes.value.filter((n) => isApplicatie(n) && _filterMatch(n))
-  // Geheel model toont standaard het VOLLEDIGE landschap (Fix 1: gebruiker verwacht alles te zien).
-  // Filters verfijnen de VOLLEDIGE node-set (alle ringen): opbouw = alleen de match; afpel = alles
-  // behalve de match. Context-nodes (zonder het gefilterde kenmerk) blijven (zie _filterMatch).
-  if (!filterActief.value) return grafNodes.value
-  return grafNodes.value.filter((n) => (opbouwModus.value ? _matcht(n) : !_matcht(n)))
+  return ids
+}
+const zichtbareNodes = computed(() => {
+  // LI019 1c — de filterselects gelden in ALLE modi. LI019 1d-v4 — bij een actief filter komen de
+  // context-buren (niet-flow ringen) van de gematchte componenten mee, zodat de ringen zichtbaar blijven.
+  const alle = grafNodes.value
+  if (modus.value === 'ego') {
+    if (!filterActief.value) return alle.filter((n) => egoZichtbaarIds.value.has(n.id))
+    const matched = new Set(alle.filter((n) => egoZichtbaarIds.value.has(n.id) && _filterMatch(n)).map((n) => n.id))
+    const zichtbaar = _metContext(matched)
+    return alle.filter((n) => zichtbaar.has(n.id))
+  }
+  if (modus.value === 'impact') {
+    if (!filterActief.value) return alle.filter(isApplicatie)
+    const matched = new Set(alle.filter((n) => isApplicatie(n) && _filterMatch(n)).map((n) => n.id))
+    const zichtbaar = _metContext(matched)
+    return alle.filter((n) => zichtbaar.has(n.id))
+  }
+  // Geheel model toont standaard het VOLLEDIGE landschap. Filters verfijnen: opbouw = de match (+
+  // context); afpel = alles behalve de match.
+  if (!filterActief.value) return alle
+  if (!opbouwModus.value) return alle.filter((n) => !_matcht(n))
+  const matched = new Set(alle.filter(_matcht).map((n) => n.id))
+  const zichtbaar = _metContext(matched)
+  return alle.filter((n) => zichtbaar.has(n.id))
 })
 const zichtbareNodeIds = computed(() => new Set(zichtbareNodes.value.map((n) => n.id)))
 const zichtbareEdges = computed(() =>
@@ -379,7 +402,10 @@ function selecteerNode(id) {
   detailId.value = id
   // LI021 — in ego-modus hercentreert een klik op ELKE node (applicatie, partij, gebruikersgroep, …),
   // niet langer alleen applicaties.
-  if (modus.value === 'ego' && nodePerId.value[id]) egoStartId.value = id
+  if (modus.value === 'ego' && nodePerId.value[id]) {
+    egoStartId.value = id
+    _recenterPending = true // LI019 1d-v4 (bug 5) — alléén ná een expliciete recenter op het ego-centrum
+  }
   // Fix 3: highlight + centreer de node in de grafiek (voor o.a. klik op een actieve-set-item).
   if (!cy) return
   cy.elements?.().unselect?.()
@@ -652,6 +678,7 @@ function onNodeTap(id) {
 // remount, dus alle state (centrum/selectie/popup/set/filters) blijft behouden. Zoom/pan
 // wordt expliciet bewaard (de ResizeObserver fit niet tijdens de toggle).
 let _behoudViewport = false
+let _recenterPending = false // LI019 1d-v4 (bug 5) — true ná een expliciete ego-recenter (dubbelklik/set-klik)
 function toggleFullscreen() {
   const z = cy?.zoom?.()
   const p = cy?.pan?.()
@@ -805,9 +832,13 @@ const zichtbaarAantal = computed(() => getekendeNodes.value.length)
 // reactieve state aan → geen layout-her-trigger-loop. Respecteert de fullscreen-viewport-behoud-vlag.
 function _naLayout() {
   if (!cy || _behoudViewport) return
-  if (layoutModus.value === 'radiaal' && modus.value === 'ego' && egoStartId.value) {
+  // LI019 1d-v4 (bug 5) — centreer alléén op het ego-centrum ná een expliciete recenter (dubbelklik/
+  // set-klik); bij elke andere wijziging (m.n. een filter die de node-set verandert) → fit op het
+  // geheel, zodat de zichtbare nodes altijd in beeld komen.
+  if (_recenterPending && layoutModus.value === 'radiaal' && modus.value === 'ego' && egoStartId.value) {
+    _recenterPending = false
     const c = cy.getElementById?.(String(egoStartId.value))
-    if (c && c.length) { cy.center?.(c); return }
+    if (c && c.length) { cy.center?.(c); updateBands(); return }
   }
   cy.fit?.(undefined, 50)
   updateBands()
@@ -1010,7 +1041,9 @@ onMounted(async () => {
   }
   await nextTick() // wacht tot de canvas-div in de DOM staat (en de flex-hoogte gezet is)
   if (containerRef.value) {
-    cy = cytoscape({ container: containerRef.value, elements: [], style: CY_STYLE })
+    // LI019 1d-v4 (bug 6) — maxZoom begrenst de fit-inzoom bij een kleine node-set, zodat 2 nodes
+    // niet schermvullend-groot worden; minZoom houdt een grote graaf zinvol.
+    cy = cytoscape({ container: containerRef.value, elements: [], style: CY_STYLE, minZoom: 0.1, maxZoom: 1.6 })
     // Enkele tap = popup (uitgesteld), dubbele tap = hercentreren — zie onNodeTap.
     cy.on('tap', 'node', (evt) => onNodeTap(evt.target.id()))
     // LI019 1d-v2 — houd de swimlane-band-overlay synchroon met pan/zoom/resize.

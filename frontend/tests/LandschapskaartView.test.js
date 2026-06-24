@@ -188,7 +188,27 @@ describe('LandschapskaartView v3', () => {
     await flushPromises()
     const ids = w.vm.zichtbareNodes.map((n) => n.id)
     expect(ids).toContain('a1') // migratieklaar
-    expect(ids).not.toContain('a2') // geblokkeerd — gefilterd, ook in impact-modus
+    expect(ids).not.toContain('a2') // geblokkeerd — gefilterd (flow-peer, geen context)
+  })
+
+  it('LI019 1d-v4 (bug 7) — actief filter behoudt context-nodes (contract) van zichtbare componenten', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [
+        { id: 'a1', naam: 'App', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
+        { id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business', blokkades_open: 0 },
+      ],
+      edges: [{ bron_id: 'a1', doel_id: 'k1', relatietype: 'association', label: 'valt onder', ring: 'contracten' }],
+    })
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="lk-filter-lifecycle-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="lk-filter-lifecycle-optie-migratieklaar"]').trigger('mousedown')
+    await flushPromises()
+    const ids = w.vm.zichtbareNodes.map((n) => n.id)
+    expect(ids).toContain('a1') // matcht het lifecycle-filter
+    expect(ids).toContain('k1') // contract (geen lifecycle) → context van a1 via de contracten-ring → blijft
   })
 
   it('LI019 1d — node→lane-toewijzing uit element_type/laag', async () => {
