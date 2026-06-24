@@ -1212,34 +1212,42 @@ const typeLabel = (t) => humaniseer(t)
       <!-- Canvas — min-h-0 is kritiek: zonder negeert een flex-child de height:100% van de parent,
            waardoor Cytoscape op hoogte 0 initialiseert en de graaf leeg/onzichtbaar blijft. -->
       <div class="relative min-h-0 min-w-0 flex-1 bg-[var(--cd-color-surface)]">
-        <!-- LI019 1d-v2 — swimlane lane-banden: HTML-overlay ACHTER het (transparante) cytoscape-
-             canvas. Banden altijd volledige breedte; verticale positie/hoogte volgen pan/zoom.
-             Niet-interactief (pointer-events-none) zodat alle muisacties naar het canvas gaan. -->
-        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-[1] overflow-hidden" data-testid="lk-lanes">
+        <!-- LI019 1d-v4 — swimlane-banden in TWEE HTML-lagen ROND het canvas (geen compound-nodes,
+             zodat Cytoscape uitsluitend gewone nodes + edges bevat — edges en node-clicks werken
+             normaal). (1) band-ACHTERGRONDEN onder het canvas (z-0, niet-interactief, translucent). -->
+        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-0 overflow-hidden" data-testid="lk-lanes" aria-hidden="true">
           <div
             v-for="b in laneBanden"
             :key="b.key"
             :data-testid="`lk-lane-${b.key}`"
             class="absolute left-0 right-0 border-b border-[var(--cd-color-border)]"
+            :style="{ top: (bandPx[b.index]?.top ?? 0) + 'px', height: (bandPx[b.index]?.height ?? 0) + 'px', background: b.bg, opacity: 0.5 }"
+          ></div>
+        </div>
+        <!-- Inline min-height als harde vangrail: zelfs als de flex-hoogteketen faalt, krijgt
+             Cytoscape een meetbare hoogte op het init-moment (anders blijft de graaf leeg). -->
+        <div ref="containerRef" data-testid="lk-canvas" class="relative z-[1] h-full w-full" style="min-height: 500px"></div>
+        <!-- (2) lane-HEADERS BOVEN het canvas (z-[5]). De container is pointer-events-none → node-
+             clicks gaan ongehinderd naar het canvas; alleen de header-span vangt pointer-events af
+             (versleepbaar). De lege-lane-tekst zit ook hier zodat ze leesbaar boven het canvas staat. -->
+        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-[5] overflow-hidden" data-testid="lk-lane-headers">
+          <div
+            v-for="b in laneBanden"
+            :key="b.key"
+            class="absolute left-0 right-0"
             :class="sleepLane === b.key ? 'ring-2 ring-[var(--cd-color-primary)] ring-inset' : ''"
             :style="{ top: (bandPx[b.index]?.top ?? 0) + 'px', height: (bandPx[b.index]?.height ?? 0) + 'px' }"
           >
-            <!-- Translucente achtergrondlaag: edges/nodes op het canvas blijven altijd zichtbaar. -->
-            <div class="absolute inset-0" :style="{ background: b.bg, opacity: 0.5 }"></div>
-            <!-- Sleepbare lane-header (pointer-events-auto): versleep om de lanevolgorde te wijzigen. -->
             <span
               :data-testid="`lk-lane-header-${b.key}`"
-              class="pointer-events-auto absolute left-2 top-1 flex cursor-grab touch-none select-none items-center gap-1 rounded bg-white/70 px-1 text-[length:var(--cd-text-sm)] font-semibold text-[var(--cd-color-text-muted)] active:cursor-grabbing"
-              :title="`Versleep om de lanevolgorde te wijzigen`"
+              class="pointer-events-auto absolute left-2 top-1 flex cursor-grab touch-none select-none items-center gap-1 rounded bg-white/80 px-1 text-[length:var(--cd-text-sm)] font-semibold text-[var(--cd-color-text-muted)] shadow-[var(--cd-shadow-sm)] active:cursor-grabbing"
+              title="Versleep om de lanevolgorde te wijzigen"
               @pointerdown="onLaneSleepStart($event, b.key)"
               @pointerup="onLaneSleepEinde"
             ><span aria-hidden="true" class="opacity-60">⠿</span>{{ b.label }}</span>
             <span v-if="b.leeg" :data-testid="`lk-lane-leeg-${b.key}`" class="absolute inset-0 flex items-center justify-center text-[length:var(--cd-text-xs)] italic text-[var(--cd-color-text-muted)]">Geen objecten geregistreerd</span>
           </div>
         </div>
-        <!-- Inline min-height als harde vangrail: zelfs als de flex-hoogteketen faalt, krijgt
-             Cytoscape een meetbare hoogte op het init-moment (anders blijft de graaf leeg). -->
-        <div ref="containerRef" data-testid="lk-canvas" class="relative z-[2] h-full w-full" style="min-height: 500px"></div>
 
         <!-- Tools (rechtsboven) -->
         <div class="absolute right-3 top-3 z-10 flex gap-1">

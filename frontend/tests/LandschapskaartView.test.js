@@ -252,6 +252,20 @@ describe('LandschapskaartView v3', () => {
     expect(cfg.fit).toBe(true)
   })
 
+  it('LI019 1d-v4 — banden in twee lagen rond het canvas: achtergronden niet-interactief, header interactief', async () => {
+    const w = await mountSwimlane()
+    // Achtergrond-laag (onder het canvas) + losse header-laag (boven het canvas) bestaan beide.
+    const achtergrond = w.find('[data-testid="lk-lanes"]')
+    const headers = w.find('[data-testid="lk-lane-headers"]')
+    expect(achtergrond.exists()).toBe(true)
+    expect(headers.exists()).toBe(true)
+    // Beide container-lagen laten node-clicks door (pointer-events-none); de header zelf is wél
+    // interactief (pointer-events-auto) → versleepbaar zonder node-clicks te blokkeren.
+    expect(achtergrond.classes()).toContain('pointer-events-none')
+    expect(headers.classes()).toContain('pointer-events-none')
+    expect(w.find('[data-testid="lk-lane-header-componenten"]').classes()).toContain('pointer-events-auto')
+  })
+
   it('LI019 1d-v2 — alle lanes tonen; "Verberg lege lanes" houdt alleen gevulde lanes', async () => {
     const w = await mountSwimlane()
     // Default: alle 6 lanes (incl. lege) zichtbaar; alleen componenten + infrastructuur gevuld.
