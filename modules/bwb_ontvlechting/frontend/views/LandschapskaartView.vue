@@ -1014,7 +1014,7 @@ function _bewaarKaartState() {
   try {
     sessionStorage.setItem(_LK_STATE_KEY, JSON.stringify({
       modus: modus.value,
-      layoutModus: layoutModus.value,
+      // LI019 swimlane-parkeren — layoutModus niet meer bewaard (altijd 'radiaal').
       laneVolgorde: laneVolgorde.value,
       verbergLegeLanes: verbergLegeLanes.value,
       toonRegistratiegaps: toonRegistratiegaps.value,
@@ -1029,7 +1029,7 @@ function _herstelKaartState() {
   try { s = JSON.parse(sessionStorage.getItem(_LK_STATE_KEY) || 'null') } catch { s = null }
   if (!s) return
   if (['ego', 'impact', 'geheel'].includes(s.modus)) modus.value = s.modus
-  if (['radiaal', 'swimlane'].includes(s.layoutModus)) layoutModus.value = s.layoutModus
+  // LI019 swimlane-parkeren — layoutModus NIET meer herstellen: altijd 'radiaal' (de enige actieve layout).
   // Lanevolgorde herstellen mits een geldige permutatie van de bekende lanes (anders default).
   if (Array.isArray(s.laneVolgorde)) {
     const geldig = s.laneVolgorde.filter((k) => LANE_DEF[k])
@@ -1113,7 +1113,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1317,8 +1317,10 @@ const typeLabel = (t) => humaniseer(t)
 
         <!-- Tools (rechtsboven) -->
         <div class="absolute right-3 top-3 z-10 flex gap-1">
-          <!-- LI019 1d — layout-wisselaar: Radiaal (concentric) ↔ Swimlanes (lane-banden). -->
-          <div class="flex gap-0.5 rounded-[var(--cd-radius-btn)] bg-white/90 p-0.5 shadow-[var(--cd-shadow-sm)]" data-testid="lk-layout-toggle">
+          <!-- LI019 1d — layout-wisselaar: Radiaal (concentric) ↔ Swimlanes (lane-banden).
+               LI019 swimlane-parkeren — UI verborgen (v-if="false"); Radiaal is de enige actieve layout.
+               De swimlane-logica blijft in de code voor een toekomstige herwrite. -->
+          <div v-if="false" class="flex gap-0.5 rounded-[var(--cd-radius-btn)] bg-white/90 p-0.5 shadow-[var(--cd-shadow-sm)]" data-testid="lk-layout-toggle">
             <button type="button" data-testid="lk-layout-radiaal" :aria-pressed="layoutModus === 'radiaal'" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)]', layoutModus === 'radiaal' ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setLayoutModus('radiaal')">Radiaal</button>
             <button type="button" data-testid="lk-layout-swimlane" :aria-pressed="layoutModus === 'swimlane'" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)]', layoutModus === 'swimlane' ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setLayoutModus('swimlane')">Swimlanes</button>
           </div>

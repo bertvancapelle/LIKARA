@@ -228,23 +228,22 @@ describe('LandschapskaartView v3', () => {
     expect(lane({})).toBe('overig')
   })
 
-  it('LI019 1d — layout-wisselaar schakelt tussen Radiaal en Swimlanes', async () => {
+  it('LI019 swimlane-parkeren — layout-toggle is verborgen uit de UI; Radiaal is de enige layout', async () => {
     const { w } = await mountView()
-    // Default = Radiaal.
     expect(w.vm.layoutModus).toBe('radiaal')
-    expect(w.find('[data-testid="lk-layout-radiaal"]').attributes('aria-pressed')).toBe('true')
-    expect(w.find('[data-testid="lk-layout-swimlane"]').attributes('aria-pressed')).toBe('false')
-    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    // De swimlane-knop én de hele toggle zijn geparkeerd → niet in de DOM.
+    expect(w.find('[data-testid="lk-layout-toggle"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-layout-swimlane"]').exists()).toBe(false)
+    // De swimlane-codepaden blijven programmatisch bereikbaar (toekomstige herwrite).
+    w.vm.setLayoutModus('swimlane')
     await flushPromises()
     expect(w.vm.layoutModus).toBe('swimlane')
-    expect(w.find('[data-testid="lk-layout-swimlane"]').attributes('aria-pressed')).toBe('true')
   })
 
-  it('LI019 1d — bewaarde layoutModus wordt hersteld uit sessionStorage', async () => {
+  it('LI019 swimlane-parkeren — layoutModus wordt niet uit sessionStorage hersteld (altijd radiaal)', async () => {
     sessionStorage.setItem('lk-state', JSON.stringify({ layoutModus: 'swimlane' }))
     const { w } = await mountView()
-    expect(w.vm.layoutModus).toBe('swimlane')
-    expect(w.find('[data-testid="lk-layout-swimlane"]').attributes('aria-pressed')).toBe('true')
+    expect(w.vm.layoutModus).toBe('radiaal')
   })
 
   const SWIM_GRAF = {
@@ -259,7 +258,7 @@ describe('LandschapskaartView v3', () => {
     const { w } = await mountView()
     await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
     await flushPromises()
-    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    w.vm.setLayoutModus('swimlane')
     await flushPromises()
     return w
   }
@@ -286,7 +285,7 @@ describe('LandschapskaartView v3', () => {
     const { w } = await mountView()
     await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
     await flushPromises()
-    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    w.vm.setLayoutModus('swimlane')
     await flushPromises()
     // De 8 componenten zijn los (geen edges) — swimlane toont ze sowieso (geen edge-eis).
     const pos = w.vm._swimlanePositions()
@@ -315,11 +314,11 @@ describe('LandschapskaartView v3', () => {
     // Radiaal (geheel): edge-rakende nodes — a1,a2 verbonden, p1 los → verborgen.
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
     // Swimlane: álle nodes uit zichtbareNodes (= radiaal-data), incl. de losse p1 — geen edge-eis.
-    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    w.vm.setLayoutModus('swimlane')
     await flushPromises()
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
     // Terug naar radiaal + "Toon registratiegaps" AAN → óók daar de losse p1.
-    await w.find('[data-testid="lk-layout-radiaal"]').trigger('click')
+    w.vm.setLayoutModus('radiaal')
     await flushPromises()
     await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
     await flushPromises()
@@ -380,7 +379,7 @@ describe('LandschapskaartView v3', () => {
     // Swimlane toont losse nodes sowieso (zonder toggle nodig).
     await w.find('[data-testid="lk-registratiegaps"]').setValue(false)
     await flushPromises()
-    await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
+    w.vm.setLayoutModus('swimlane')
     await flushPromises()
     const swimIds = w.vm.getekendeNodes.map((n) => n.id)
     expect(swimIds).toContain('p1') // in de Rollen-lane
@@ -389,7 +388,6 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v2 — lanevolgorde + verberg-lege hersteld uit sessionStorage', async () => {
     sessionStorage.setItem('lk-state', JSON.stringify({
-      layoutModus: 'swimlane',
       laneVolgorde: ['contracten', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
       verbergLegeLanes: true,
     }))
