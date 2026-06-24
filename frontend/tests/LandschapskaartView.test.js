@@ -288,6 +288,9 @@ describe('LandschapskaartView v3', () => {
     await flushPromises()
     await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
     await flushPromises()
+    // De 8 componenten zijn los (geen edges) → toon ze via de registratiegaps-toggle.
+    await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+    await flushPromises()
     const pos = w.vm._swimlanePositions()
     const xs = Object.values(pos).map((p) => p.x)
     const ys = new Set(Object.values(pos).map((p) => p.y))
@@ -299,22 +302,30 @@ describe('LandschapskaartView v3', () => {
     expect(comp.height).toBeGreaterThan(150)
   })
 
-  it('LI019 1d-v7 — swimlane node-set is stabiel: onafhankelijk van modus/selectie', async () => {
+  it('LI019 1d-v7 — swimlane = exact dezelfde node-set als radiaal; registratiegaps-toggle voegt losse nodes toe', async () => {
     api.landschapskaart.haalGrafdata.mockResolvedValue({
       nodes: [
         { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
         { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'p1', naam: 'Org', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+        { id: 'p1', naam: 'Org (los)', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
       ],
       edges: [{ bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' }],
     })
-    const { w } = await mountView() // start in ego-modus (egoStartId = a1; ego-buurt = a1 + a2)
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
+    await flushPromises()
+    // Radiaal (geheel): edge-rakende nodes — a1,a2 verbonden, p1 los → verborgen.
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
+    // Swimlane: EXACT dezelfde set (alleen andere layout).
     await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
     await flushPromises()
-    // In ego-modus zou de buurt slechts {a1,a2} zijn; in swimlane tóch het volledige landschap (incl. p1).
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
+    // "Toon registratiegaps" AAN → losse p1 erbij.
+    await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+    await flushPromises()
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
-    // Naar geheel-modus: de swimlane-set blijft identiek (modus-onafhankelijk → geen verdwijnende nodes).
-    await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
+    // Terug naar radiaal met de toggle AAN → óók daar de losse node (identieke set).
+    await w.find('[data-testid="lk-layout-radiaal"]').trigger('click')
     await flushPromises()
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
   })
@@ -359,19 +370,21 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-lane-reset"]').exists()).toBe(false)
   })
 
-  it('LI019 1d-v3 — swimlane toont óók objecten zonder zichtbare relatie (bug 1)', async () => {
-    // p1 (partij) en k1 (contract) hebben geen edges in de fixture → in radiaal verborgen,
-    // in swimlane zichtbaar in hun lane.
+  it('LI019 1d-v7 — losse nodes (registratiegaps) alleen mét toggle, in beide layouts', async () => {
+    // p1 (partij) en k1 (contract) hebben geen edges → standaard verborgen (radiaal én swimlane);
+    // pas met "Toon registratiegaps" verschijnen ze.
     const { w } = await mountView()
     await w.find('[data-testid="lk-modus-geheel"]').trigger('click')
     await flushPromises()
-    const radiaalIds = w.vm.getekendeNodes.map((n) => n.id)
-    expect(radiaalIds).not.toContain('p1') // losse node → verborgen in radiaal
+    expect(w.vm.getekendeNodes.map((n) => n.id)).not.toContain('p1') // los → verborgen (radiaal)
     await w.find('[data-testid="lk-layout-swimlane"]').trigger('click')
     await flushPromises()
-    const swimlaneIds = w.vm.getekendeNodes.map((n) => n.id)
-    expect(swimlaneIds).toContain('p1') // partij nu zichtbaar in de Rollen-lane
-    expect(swimlaneIds).toContain('k1') // contract nu zichtbaar in de Contracten-lane
+    expect(w.vm.getekendeNodes.map((n) => n.id)).not.toContain('p1') // swimlane = dezelfde set → óók verborgen
+    await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+    await flushPromises()
+    const metGaps = w.vm.getekendeNodes.map((n) => n.id)
+    expect(metGaps).toContain('p1') // nu zichtbaar in de Rollen-lane
+    expect(metGaps).toContain('k1') // nu zichtbaar in de Contracten-lane
   })
 
   it('LI019 1d-v2 — lanevolgorde + verberg-lege hersteld uit sessionStorage', async () => {

@@ -77,6 +77,7 @@ const modus = ref('ego') // 'ego' | 'impact' | 'geheel'
 const layoutModus = ref('radiaal') // LI019 1d — 'radiaal' (concentric) | 'swimlane' (preset lanes)
 const laneVolgorde = ref([...DEFAULT_LANE_VOLGORDE]) // LI019 1d-v2 — gebruiker-herschikbare lanevolgorde
 const verbergLegeLanes = ref(false) // LI019 1d-v2 — lege lanes verbergen voor een compactere weergave
+const toonRegistratiegaps = ref(false) // LI019 1d-v7 — losse nodes (registratiegaps) óók tonen (default UIT)
 const bandPx = ref([]) // schermposities van de lane-banden (top/height px), gesynct met cy pan/zoom
 const zoekterm = ref('')
 const filterTypes = ref([]) // LI019 1b — componenttype-multiselect (optie_sleutels)
@@ -331,14 +332,6 @@ const zichtbareNodes = computed(() => {
   // LI019 1c — de filterselects gelden in ALLE modi. LI019 1d-v4 — bij een actief filter komen de
   // context-buren (niet-flow ringen) van de gematchte componenten mee, zodat de ringen zichtbaar blijven.
   const alle = grafNodes.value
-  // LI019 1d-v7 — in SWIMLANE is de node-set ALTIJD het volledige landschap (per lane), onafhankelijk
-  // van de view-modus (ego/impact) én van de selectie (egoStartId/actieveSet). Alleen de filters
-  // verfijnen (met context-behoud). Zo verdwijnt een node niet bij een selectiewijziging.
-  if (layoutModus.value === 'swimlane') {
-    if (!filterActief.value) return alle
-    const matched = new Set(alle.filter(_matcht).map((n) => n.id))
-    return alle.filter((n) => _metContext(matched).has(n.id))
-  }
   if (modus.value === 'ego') {
     if (!filterActief.value) return alle.filter((n) => egoZichtbaarIds.value.has(n.id))
     const matched = new Set(alle.filter((n) => egoZichtbaarIds.value.has(n.id) && _filterMatch(n)).map((n) => n.id))
@@ -815,22 +808,16 @@ function _edgeData(e, i) {
   // LI023 — labels staan default verborgen (text-opacity:0) en verschijnen bij hover (alle modi).
   return { id: `e${i}-${e.bron_id}-${e.doel_id}-${e.relatietype}`, source: e.bron_id, target: e.doel_id, ring: e.ring, lc, w, ls, label }
 }
-// LI020 — definitieve node-set voor het canvas. Een node is zichtbaar als:
-//  • het ego-centrum (ego-modus), OF
-//  • hij raakt minstens één ZICHTBARE (ring-aan) edge.
-// Losse nodes (geen zichtbare edge) worden ALTIJD verborgen — incl. nodes waarvan alle edges in
-// uitgevinkte ringen zitten. Dedup op id (defensief — voorkomt dubbele Cytoscape-node-ids).
+// LI020 — definitieve node-set voor het canvas (IDENTIEK voor radiaal én swimlane — swimlane is
+// enkel een andere layout, geen andere set). Een node is zichtbaar als: het ego-centrum (ego-modus),
+// OF hij raakt minstens één ZICHTBARE (ring-aan) edge. Losse nodes (registratiegaps) zijn standaard
+// verborgen; de toggle "Toon registratiegaps" (LI019 1d-v7) neemt ze óók mee. Dedup op id.
 const getekendeNodes = computed(() => {
   const metZichtbareEdge = new Set()
   zichtbareEdges.value.forEach((e) => { metZichtbareEdge.add(e.bron_id); metZichtbareEdge.add(e.doel_id) })
-  // LI019 1d-v3 (bug 1) — in swimlane toont elke lane ÁL zijn objecten: de "losse nodes verbergen"-
-  // regel (alleen edge-rakende nodes) vervalt dan, zodat objecten zonder zichtbare relatie tóch in
-  // hun band verschijnen. In radiaal blijft de regel (losse nodes zwerven anders rond).
-  const swimlane = layoutModus.value === 'swimlane'
-  // LI027 — focus op actieve set: beperk tot de set-nodes (altijd) + hun directe buren via een zichtbare
-  // edge. LI019 1d-v7 — NIET in swimlane: daar mag de selectie de node-set niet wijzigen.
+  // LI027 — focus op actieve set: beperk tot de set-nodes (altijd) + hun directe buren via een zichtbare edge.
   let focusIds = null
-  if (!swimlane && focusOpSet.value && actieveSet.value.size > 0) {
+  if (focusOpSet.value && actieveSet.value.size > 0) {
     focusIds = new Set(actieveSet.value)
     zichtbareEdges.value.forEach((e) => {
       if (actieveSet.value.has(e.bron_id)) focusIds.add(e.doel_id)
@@ -845,7 +832,7 @@ const getekendeNodes = computed(() => {
       continue
     }
     const egoCentrum = modus.value === 'ego' && n.id === egoStartId.value
-    if (swimlane || egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    if (toonRegistratiegaps.value || egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
 })
@@ -1027,6 +1014,7 @@ function _bewaarKaartState() {
       layoutModus: layoutModus.value,
       laneVolgorde: laneVolgorde.value,
       verbergLegeLanes: verbergLegeLanes.value,
+      toonRegistratiegaps: toonRegistratiegaps.value,
       egoStartId: egoStartId.value,
       ringAan: [...ringAan.value],
       groepeerPerOrg: groepeerPerOrg.value,
@@ -1045,6 +1033,7 @@ function _herstelKaartState() {
     if (DEFAULT_LANE_VOLGORDE.every((k) => geldig.includes(k))) laneVolgorde.value = geldig
   }
   if (typeof s.verbergLegeLanes === 'boolean') verbergLegeLanes.value = s.verbergLegeLanes
+  if (typeof s.toonRegistratiegaps === 'boolean') toonRegistratiegaps.value = s.toonRegistratiegaps
   if (Array.isArray(s.ringAan)) ringAan.value = new Set(s.ringAan.filter((r) => RINGEN.includes(r)))
   if (typeof s.groepeerPerOrg === 'boolean') groepeerPerOrg.value = s.groepeerPerOrg
   // egoStartId alleen herstellen als die node nog bestaat (anders het default-centrum behouden).
@@ -1121,11 +1110,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
-  [modus, layoutModus, verbergLegeLanes, laneVolgorde, zichtbareNodes, zichtbareEdges, actieveSet, kleurOpDomein, groepeerPerOrg],
+  [modus, layoutModus, verbergLegeLanes, laneVolgorde, toonRegistratiegaps, zichtbareNodes, zichtbareEdges, actieveSet, kleurOpDomein, groepeerPerOrg],
   () => tekenGraaf(),
   { deep: false },
 )
@@ -1248,9 +1237,14 @@ const typeLabel = (t) => humaniseer(t)
           </label>
         </template>
 
+        <!-- LI019 1d-v7 — registratiegaps: standaard toont de kaart (radiaal én swimlane) dezelfde
+             node-set (edge-rakend). Aan = óók losse nodes zonder relatie (registratiegaps). -->
+        <label class="mt-[var(--cd-space-sm)] flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+          <input type="checkbox" v-model="toonRegistratiegaps" data-testid="lk-registratiegaps" />Toon registratiegaps
+        </label>
         <!-- LI019 1d-v3 — swimlane-optie: lege lanes verbergen. De lanevolgorde wijzig je nu door de
              lane-header op het canvas te verslepen (geen zijbalk-lijst meer). -->
-        <label v-if="layoutModus === 'swimlane'" class="mt-[var(--cd-space-sm)] flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+        <label v-if="layoutModus === 'swimlane'" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
           <input type="checkbox" v-model="verbergLegeLanes" data-testid="lk-verberg-lege" />Verberg lege lanes
         </label>
 
