@@ -57,3 +57,13 @@ class LandschapsEdge(BaseModel):
 class LandschapskaartResponse(BaseModel):
     nodes: list[LandschapsNode]
     edges: list[LandschapsEdge]
+
+
+class SubgraafRequest(BaseModel):
+    """Set-scoped graaf-request: levert de gegeven component-ids (S) + hun directe buren (1 hop).
+    POST i.p.v. GET met `?ids=` omdat de id-lijst lang wordt (URL-lengtelimiet)."""
+
+    model_config = {"extra": "forbid"}
+
+    component_ids: list[UUID]
+    diepte: int = 1

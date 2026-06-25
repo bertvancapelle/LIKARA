@@ -21,6 +21,7 @@ from models.models import (
     ComponentConfigDimensie,
     ComponentKlaarverklaring,
     ComponentProfiel,
+    Contract,
     Datatype,
     Element,
     ElementType,
@@ -32,7 +33,11 @@ from models.models import (
     NiveauEnum,
     Partij,
     Relatie,
+    Roltoewijzing,
 )
+
+# Rollen waaruit een externe partij als "leverancier" geldt (zelfde keten als landschapskaart-lev_map).
+_LEVERANCIER_ROLLEN = ("technisch_beheer", "contractbeheer")
 
 # ADR-023 — structurele relaties leven nu in `Relatie`: `assignment` (draait_op,
 # oriëntatie host→gehoste = bron→doel) en `aggregation` (maakt_deel_uit_van, deel→geheel).
@@ -286,7 +291,8 @@ async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
-    eigenaar_organisatie_id: uuid.UUID | None = None, zoek: str | None = None,
+    eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
+    zoek: str | None = None,
     klaarverklaring: str | None = None, afwijking: bool = False,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
@@ -337,6 +343,21 @@ async def lijst(
         stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
     if eigenaar_organisatie_id:
         stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
+    if leverancier_id:
+        # Leverancier is GEEN Component-kolom — afgeleid (zelfde keten als landschapskaart_service.lev_map):
+        # (a) roltoewijzing technisch_beheer/contractbeheer op dit component door deze externe partij, OF
+        # (b) association → contract met deze leverancier. EXISTS-subqueries → geen extra join, paginering intact.
+        _rt_lev = (
+            select(Roltoewijzing.id).where(
+                Roltoewijzing.tenant_id == tid, Roltoewijzing.object_id == Component.id,
+                Roltoewijzing.partij_id == leverancier_id, Roltoewijzing.rol.in_(_LEVERANCIER_ROLLEN))
+        ).exists()
+        _ct_lev = (
+            select(Relatie.id).join(Contract, Contract.id == Relatie.doel_id).where(
+                Relatie.tenant_id == tid, Relatie.bron_id == Component.id,
+                Relatie.relatietype == "association", Contract.leverancier_id == leverancier_id)
+        ).exists()
+        stmt = stmt.where(or_(_rt_lev, _ct_lev))
     if zoek:
         stmt = stmt.where(Component.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
     # ADR-027 slice 3 — klaarverklaring-filters (doorklik vanaf het dashboard). `afwijking`

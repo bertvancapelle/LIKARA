@@ -13,7 +13,7 @@ bewust zónder de ORM-klasse te importeren (zie het engine-invariant in complida
 """
 import uuid
 
-from sqlalchemy import String, and_, cast, column, func, select, table
+from sqlalchemy import String, and_, cast, column, func, or_, select, table, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
@@ -51,17 +51,69 @@ def _val(x):
     return getattr(x, "value", x)
 
 
-async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) -> LandschapskaartResponse:
-    """Volledige landschapsgraaf (nodes + edges) voor de tenant.
+async def haal_grafdata_op(
+    session: AsyncSession, tenant_id, *, component_ids=None, diepte: int = 1,
+) -> LandschapskaartResponse:
+    """Landschapsgraaf (nodes + edges) voor de tenant.
 
-    `diepte` is voorbereid voor een ego-gecentreerde sub-graaf (ADR-025 roadmap). Dit endpoint
-    levert bewust de **volledige** graaf (zie de route-docstring), dus `diepte` heeft hier nog géén
-    server-effect; de Landschapskaart past de stap-diepte client-side toe op de geladen graaf (de
-    ego-view kent al alle nodes/edges). De parameter is forward-compatibel meegenomen.
+    `component_ids=None` (default) → de **volledige** graaf (back-compat: de GET-route + bestaande
+    tests). Een lijst component-ids → **set-scoped**: alleen die set S + hun **directe buren** (1 hop)
+    + de edges daartussen. De classificatie is overal `bron/doel ∈ id-set` (geen transitieve
+    afleiding), dus set-scoping = de tenant-brede where-clausules een S-filter geven. Read-only;
+    engine onaangeroerd. `diepte` is forward-compatibel (de stap-diepte wordt client-side toegepast).
     """
     tid = _tenant_uuid(tenant_id)
     typing = await comp_catalog.archimate_typing(session)  # {componenttype: {archimate_element, laag, aspect}}
     type_labels = await comp_catalog.labels(session, ComponentConfigDimensie.componenttype)
+
+    # ── Set-scoping (alleen als component_ids gegeven): bouw `scope_ids` = S + alle 1-hop-buren +
+    # de org-hiërarchie (hoort-bij) + eigenaar-organisaties. Daarna filtert `_sc(col)` elke query
+    # op `col ∈ scope_ids`; bij `scope_ids=None` is `_sc` een no-op (volledige graaf). ──
+    scope_ids: set[uuid.UUID] | None = None
+    if component_ids is not None:
+        S = {c if isinstance(c, uuid.UUID) else uuid.UUID(str(c)) for c in component_ids}
+        scope_ids = set(S)
+        # Directe buren via élke incidente relatie (beide endpoints meenemen).
+        for r in (await session.execute(
+            select(Relatie.bron_id, Relatie.doel_id)
+            .where(Relatie.tenant_id == tid, or_(Relatie.bron_id.in_(S), Relatie.doel_id.in_(S)))
+        )).all():
+            scope_ids.add(r.bron_id); scope_ids.add(r.doel_id)
+        # Rol-vervullende partijen op S (object∈S) — buren + bron voor de organisatiestructuur-ring.
+        rol_holder_ids: set[uuid.UUID] = set()
+        for r in (await session.execute(
+            select(Roltoewijzing.partij_id).where(Roltoewijzing.tenant_id == tid, Roltoewijzing.object_id.in_(S))
+        )).all():
+            scope_ids.add(r.partij_id); rol_holder_ids.add(r.partij_id)
+        # Eigenaar-organisaties van S (A3: "is eigendom van"-edge als 1-hop-context).
+        for (oid,) in (await session.execute(
+            select(Component.eigenaar_organisatie_id)
+            .where(Component.tenant_id == tid, Component.id.in_(S), Component.eigenaar_organisatie_id.isnot(None))
+        )).all():
+            scope_ids.add(oid)
+        # Organisatiestructuur-hiërarchie: afdeling + organisatie van de rol-personen (+ de
+        # organisatie ván die afdeling), zodat de hoort-bij-keten persoon→afdeling→organisatie sluit.
+        if rol_holder_ids:
+            afd_ids: set[uuid.UUID] = set()
+            for p in (await session.execute(
+                select(Partij.id, Partij.aard, Partij.organisatie_id, Partij.afdeling_id)
+                .where(Partij.tenant_id == tid, Partij.id.in_(rol_holder_ids))
+            )).all():
+                if p.aard == PartijAard.persoon:
+                    if p.afdeling_id is not None:
+                        scope_ids.add(p.afdeling_id); afd_ids.add(p.afdeling_id)
+                    if p.organisatie_id is not None:
+                        scope_ids.add(p.organisatie_id)
+            if afd_ids:
+                for (oid,) in (await session.execute(
+                    select(Partij.organisatie_id)
+                    .where(Partij.tenant_id == tid, Partij.id.in_(afd_ids), Partij.organisatie_id.isnot(None))
+                )).all():
+                    scope_ids.add(oid)
+
+    def _sc(col):
+        """Scope-filter: `col ∈ scope_ids` bij set-scoping, anders altijd-waar (volledige graaf)."""
+        return col.in_(scope_ids) if scope_ids is not None else true()
 
     # Verrijkingsmaps (read-only): open-blokkade-telling + afgeleide leverancier per component.
     blok_map = {
@@ -71,7 +123,8 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
                 select(_blokkade.c.component_id, func.count().label("aantal"))
                 # `status` is een PG-enum; via de lichtgewicht (untyped) kolom expliciet naar tekst
                 # casten zodat de vergelijking met de string-literal een geldige operator heeft.
-                .where(_blokkade.c.tenant_id == tid, cast(_blokkade.c.status, String) != "opgelost")
+                .where(_blokkade.c.tenant_id == tid, cast(_blokkade.c.status, String) != "opgelost",
+                       _sc(_blokkade.c.component_id))
                 .group_by(_blokkade.c.component_id)
             )
         ).all()
@@ -87,6 +140,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
                 Roltoewijzing.tenant_id == tid,
                 Roltoewijzing.rol.in_(_LEVERANCIER_ROLLEN),
                 Partij.aard == PartijAard.externe_partij,
+                _sc(Roltoewijzing.object_id),
             )
         )
     ).all():
@@ -101,7 +155,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
             select(Relatie.bron_id, Contract.leverancier_id.label("partij_id"), Partij.naam)
             .join(Contract, Contract.id == Relatie.doel_id)
             .join(Partij, Partij.id == Contract.leverancier_id)
-            .where(Relatie.tenant_id == tid, Relatie.relatietype == "association")
+            .where(Relatie.tenant_id == tid, Relatie.relatietype == "association", _sc(Relatie.bron_id))
             .order_by(Relatie.id)
         )
     ).all():
@@ -115,7 +169,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
         await session.execute(
             select(Relatie.doel_id, Plateau.naam, Relatie.kenmerken)
             .join(Plateau, Plateau.id == Relatie.bron_id)
-            .where(Relatie.tenant_id == tid, Relatie.relatietype == "aggregation")
+            .where(Relatie.tenant_id == tid, Relatie.relatietype == "aggregation", _sc(Relatie.doel_id))
         )
     ).all():
         disp = (r.kenmerken or {}).get("dispositie")
@@ -137,7 +191,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
                 _profiel.c.lifecycle_status.label("lifecycle_status"),
             )
             .outerjoin(_profiel, and_(_profiel.c.id == Component.id, _profiel.c.tenant_id == tid))
-            .where(Component.tenant_id == tid)
+            .where(Component.tenant_id == tid, _sc(Component.id))
         )
     ).all()
     # ADR-024 organisatie-scope: per component de gebruik-afleiding na de relatie-pass invullen.
@@ -170,7 +224,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
         await session.execute(
             select(
                 Partij.id, Partij.naam, Partij.aard, Partij.organisatie_id, Partij.afdeling_id
-            ).where(Partij.tenant_id == tid)
+            ).where(Partij.tenant_id == tid, _sc(Partij.id))
         )
     ).all()
     partij_info = {r.id: r for r in partij_rijen}  # id → rij (aard + lidmaatschap-FK's)
@@ -183,7 +237,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
     # ── Contract-nodes — business-laag ──
     contract_rijen = (
         await session.execute(
-            select(Contract.id, Contract.contractnaam).where(Contract.tenant_id == tid)
+            select(Contract.id, Contract.contractnaam).where(Contract.tenant_id == tid, _sc(Contract.id))
         )
     ).all()
     for r in contract_rijen:
@@ -203,7 +257,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
             select(
                 Gebruikersgroep.id, Gebruikersgroep.organisatie_id,
                 Gebruikersgroep.afdeling, Gebruikersgroep.aantal_gebruikers,
-            ).where(Gebruikersgroep.tenant_id == tid)
+            ).where(Gebruikersgroep.tenant_id == tid, _sc(Gebruikersgroep.id))
         )
     ).all()
     gg_org: dict[uuid.UUID, uuid.UUID | None] = {}  # gebruikersgroep-id → organisatie-id (of None)
@@ -223,7 +277,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
     rel_rijen = (
         await session.execute(
             select(Relatie.bron_id, Relatie.doel_id, Relatie.relatietype, Relatie.kenmerken).where(
-                Relatie.tenant_id == tid
+                Relatie.tenant_id == tid, _sc(Relatie.bron_id), _sc(Relatie.doel_id)
             )
         )
     ).all()
@@ -287,7 +341,7 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
     rt_rijen = (
         await session.execute(
             select(Roltoewijzing.partij_id, Roltoewijzing.object_id, Roltoewijzing.rol).where(
-                Roltoewijzing.tenant_id == tid
+                Roltoewijzing.tenant_id == tid, _sc(Roltoewijzing.object_id), _sc(Roltoewijzing.partij_id)
             )
         )
     ).all()
@@ -333,5 +387,19 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
                 _os_edge(info.afdeling_id, afd.organisatie_id)  # afdeling → organisatie
         elif info.organisatie_id is not None:
             _os_edge(pid, info.organisatie_id)  # persoon → organisatie (afdeling onbekend)
+
+    # ── Ring 6 — Eigenaar ("is eigendom van") ──
+    # Read-only projectie van het bestaande `Component.eigenaar_organisatie_id`-veld als edge
+    # organisatie → component (géén nieuwe relatie-registratie). CONTEXT, geen impact: bewust NIET
+    # in IMPACT_RINGEN (frontend). Dit dekt tevens het geparkeerde "scopebalk-tekent-organisaties"-
+    # spoor af (zelfde "is eigendom van"-projectie). Alleen als de eigenaar-organisatie als knoop
+    # meekomt (in `partij_info` → emitted), zodat de edge geen dangling endpoint krijgt.
+    for cid, node in comp_node.items():
+        oid = node.eigenaar_organisatie_id
+        if oid is not None and oid in partij_info:
+            edges.append(LandschapsEdge(
+                bron_id=oid, doel_id=cid, relatietype="eigenaar",
+                label="is eigendom van", ring="eigenaar",
+            ))
 
     return LandschapskaartResponse(nodes=nodes, edges=edges)

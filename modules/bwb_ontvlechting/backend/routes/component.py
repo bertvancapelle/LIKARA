@@ -52,6 +52,7 @@ async def lijst_componenten(
     status: list[ApplicatieStatusFilter] = Query(default=[]),
     hostingmodel: HostingModel | None = Query(None),
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
+    leverancier_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
     # ADR-027 slice 3 — dashboard-doorklik: klaarverklaring=klaar / afwijking=1 (allowlist).
     klaarverklaring: str | None = Query(None, pattern="^klaar$"),
@@ -64,7 +65,7 @@ async def lijst_componenten(
             session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value,
             componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
             hostingmodel=hostingmodel.value if hostingmodel else None,
-            eigenaar_organisatie_id=eigenaar_organisatie_id, zoek=zoek,
+            eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id, zoek=zoek,
             klaarverklaring=klaarverklaring, afwijking=afwijking,
         )
     except ValueError:

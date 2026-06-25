@@ -553,3 +553,231 @@ def test_landschapskaart_blokkades_open_telling_live():
 
     node = asyncio.run(_run_rls(_flow))
     assert node.blokkades_open >= 1  # de open blokkade wordt geteld
+
+
+# ── LI021 Fase A — set-scoped subgraaf + leverancier-filter + eigenaar-edge ───────
+def test_subgraaf_signatuur_en_schema_en_route():
+    """A1 — service parametriseerbaar met `component_ids` (default None = volledige graaf,
+    back-compat); SubgraafRequest (extra=forbid); POST-route bedrade op de body."""
+    import inspect
+
+    import routes.landschapskaart as r
+    import services.landschapskaart_service as s
+    from schemas.landschapskaart import SubgraafRequest
+
+    sig = inspect.signature(s.haal_grafdata_op)
+    assert "component_ids" in sig.parameters
+    assert sig.parameters["component_ids"].default is None  # None = volledige graaf
+    assert SubgraafRequest.model_config.get("extra") == "forbid"
+    assert {"component_ids", "diepte"} <= set(SubgraafRequest.model_fields)
+    rbron = inspect.getsource(r)
+    assert '"/subgraaf"' in rbron and "component_ids=body.component_ids" in rbron
+
+
+def test_eigenaar_edge_is_context_geen_impact():
+    """A3 — de eigenaar-edge ('is eigendom van') zit in de bron als context-ring 'eigenaar' en
+    staat bewust NIET in de frontend IMPACT_RINGEN (geen impact-propagatie)."""
+    import inspect
+    import pathlib
+
+    import services.landschapskaart_service as s
+
+    bron = inspect.getsource(s)
+    assert 'ring="eigenaar"' in bron and 'label="is eigendom van"' in bron
+    vue = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "views" / "LandschapskaartView.vue"
+    impact_regel = next(l for l in vue.read_text().splitlines() if "IMPACT_RINGEN = new Set" in l)
+    assert "'eigenaar'" not in impact_regel  # context, geen impact
+
+
+def _ac(naam):
+    from schemas.applicatie import ApplicatieCreate
+    return ApplicatieCreate(naam=naam, hostingmodel="saas", migratiepad="onbekend",
+                            complexiteit="midden", prioriteit="midden")
+
+
+@integratie
+def test_subgraaf_set_scoped_s_plus_1hop_live():
+    """A1 — set-scoped: S + directe buren (1 hop) + edges daartussen; een losse node valt buiten;
+    `component_ids=None` levert nog de volledige graaf (back-compat)."""
+    from sqlalchemy import text as _text
+
+    from models.models import Relatie
+    from services import applicatie_service, landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            a1 = await applicatie_service.maak_aan(s, tid, _ac("WT-SUB-A1"))
+            a2 = await applicatie_service.maak_aan(s, tid, _ac("WT-SUB-A2"))
+            a3 = await applicatie_service.maak_aan(s, tid, _ac("WT-SUB-A3-ISOL"))
+            ids += [a1.id, a2.id, a3.id]
+            # a1 → a2 (flow): a2 is een 1-hop-buur van a1; a3 staat los.
+            s.add(Relatie(tenant_id=tid, bron_id=a1.id, doel_id=a2.id, relatietype="flow",
+                          kenmerken={"richting": "eenrichting", "protocol": "rest"}))
+            await s.commit()
+            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[a1.id])
+            vol = await svc.haal_grafdata_op(s, _TID)
+            return ({n.id for n in sub.nodes}, {n.id for n in vol.nodes},
+                    a1.id, a2.id, a3.id, sub.edges)
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    sub_ids, vol_ids, a1, a2, a3, sub_edges = asyncio.run(_run_rls(_flow))
+    assert a1 in sub_ids and a2 in sub_ids          # S + directe buur
+    assert a3 not in sub_ids                        # buiten S∪buren → niet in de subgraaf
+    assert {a1, a2, a3} <= vol_ids                  # back-compat: volledige graaf bevat alles
+    assert any(e.bron_id == a1 and e.doel_id == a2 and e.ring == "applicaties" for e in sub_edges)
+
+
+@integratie
+def test_subgraaf_organisatiestructuur_alleen_s_rol_personen_live():
+    """A1 — de organisatiestructuur-ring is set-scoped: alleen de rol-personen van S (+ hun
+    organisatie), niet die van een ander component."""
+    from sqlalchemy import text as _text
+
+    from models.models import (
+        Element, ElementType, Partij, PartijAard, RelatieKenmerkDimensie, Roltoewijzing,
+    )
+    from services import applicatie_service, landschapskaart_service as svc
+    from services import relatiekenmerk_catalog as rk
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            a1 = await applicatie_service.maak_aan(s, tid, _ac("WT-OS-A1"))
+            a2 = await applicatie_service.maak_aan(s, tid, _ac("WT-OS-A2"))
+            ids += [a1.id, a2.id]
+
+            async def _org(naam):
+                e = Element(tenant_id=tid, element_type=ElementType.partij); s.add(e); await s.flush()
+                s.add(Partij(id=e.id, tenant_id=tid, aard=PartijAard.organisatie, naam=naam)); await s.flush()
+                return e.id
+
+            async def _pers(naam, org_id):
+                e = Element(tenant_id=tid, element_type=ElementType.partij); s.add(e); await s.flush()
+                s.add(Partij(id=e.id, tenant_id=tid, aard=PartijAard.persoon, naam=naam,
+                             organisatie_id=org_id)); await s.flush()
+                return e.id
+
+            o1, o2 = await _org("WT-OS-Org1"), await _org("WT-OS-Org2")
+            p1 = await _pers("WT-OS-P1", o1)
+            p2 = await _pers("WT-OS-P2", o2)
+            rol = sorted(await rk.actieve_sleutels(s, RelatieKenmerkDimensie.beheerrol))[0]
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=p1, object_id=a1.id, rol=rol))
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=p2, object_id=a2.id, rol=rol))
+            await s.commit()
+            ids += [p1, p2, o1, o2]  # personen vóór organisaties (FK-volgorde bij opruim)
+            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[a1.id])
+            return ({n.id for n in sub.nodes},
+                    [e for e in sub.edges if e.ring == "organisatiestructuur"], p1, o1, p2, o2)
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    node_ids, os_edges, p1, o1, p2, o2 = asyncio.run(_run_rls(_flow))
+    assert p1 in node_ids and o1 in node_ids        # rol-persoon van S + zijn organisatie
+    assert p2 not in node_ids and o2 not in node_ids  # die van a2 vallen buiten S
+    assert any(e.bron_id == p1 and e.doel_id == o1 for e in os_edges)
+    assert all(e.bron_id != p2 for e in os_edges)
+
+
+@integratie
+def test_eigenaar_edge_live():
+    """A3 — een component MÉT eigenaar levert de edge organisatie→component 'is eigendom van';
+    een component ZONDER eigenaar niet. In de subgraaf komt de eigenaar-org als 1-hop-context mee."""
+    from sqlalchemy import text as _text
+
+    from models.models import Component, Element, ElementType, HostingModel, Partij, PartijAard
+    from services import landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            oe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(oe); await s.flush()
+            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-EIG-Org")); await s.flush()
+
+            async def _comp(naam, eig):
+                e = Element(tenant_id=tid, element_type=ElementType.component); s.add(e); await s.flush()
+                s.add(Component(id=e.id, tenant_id=tid, naam=naam, componenttype="database",
+                                hostingmodel=HostingModel.on_premise, eigenaar_organisatie_id=eig)); await s.flush()
+                return e.id
+
+            c1 = await _comp("WT-EIG-Met", oe.id)
+            c2 = await _comp("WT-EIG-Zonder", None)
+            await s.commit()
+            ids += [c1, c2, oe.id]  # componenten vóór de organisatie (eigenaar-FK)
+            vol = await svc.haal_grafdata_op(s, _TID)
+            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[c1])
+            return (vol.edges, sub.edges, {n.id for n in sub.nodes}, oe.id, c1, c2)
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    vol_edges, sub_edges, sub_nodes, org, c1, c2 = asyncio.run(_run_rls(_flow))
+    eig = [e for e in vol_edges if e.ring == "eigenaar"]
+    assert any(e.bron_id == org and e.doel_id == c1 and e.label == "is eigendom van" for e in eig)
+    assert not any(e.doel_id == c2 for e in eig)    # zonder eigenaar → geen edge
+    assert org in sub_nodes                          # eigenaar-org als 1-hop-context in de subgraaf
+    assert any(e.bron_id == org and e.doel_id == c1 for e in sub_edges if e.ring == "eigenaar")
+
+
+@integratie
+def test_component_leverancier_filter_beide_paden_live():
+    """A2 — leverancier-filter op /componenten via beide afleidingspaden (roltoewijzing-rol én
+    contract-keten); een component zonder die leverancier valt buiten; paginering-vorm intact."""
+    from sqlalchemy import text as _text
+
+    from models.models import (
+        Component, Contract, ContractType, Element, ElementType, HostingModel,
+        Partij, PartijAard, Relatie, Roltoewijzing,
+    )
+    from services import component_service
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            xe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(xe); await s.flush()
+            s.add(Partij(id=xe.id, tenant_id=tid, aard=PartijAard.externe_partij, naam="WT-LEV-X")); await s.flush()
+
+            async def _comp(naam):
+                e = Element(tenant_id=tid, element_type=ElementType.component); s.add(e); await s.flush()
+                s.add(Component(id=e.id, tenant_id=tid, naam=naam, componenttype="database",
+                                hostingmodel=HostingModel.on_premise)); await s.flush()
+                return e.id
+
+            c_rol = await _comp("WT-LEV-ViaRol")
+            c_contract = await _comp("WT-LEV-ViaContract")
+            c_other = await _comp("WT-LEV-Geen")
+            # Pad (a): roltoewijzing-leverancierrol op c_rol door X.
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=xe.id, object_id=c_rol, rol="technisch_beheer"))
+            # Pad (b): association → contract met leverancier X, op c_contract.
+            ce = Element(tenant_id=tid, element_type=ElementType.contract); s.add(ce); await s.flush()
+            s.add(Contract(id=ce.id, tenant_id=tid, leverancier_id=xe.id,
+                           contracttype=ContractType.los_contract, contractnaam="WT-LEV-Contract")); await s.flush()
+            s.add(Relatie(tenant_id=tid, bron_id=c_contract, doel_id=ce.id, relatietype="association"))
+            await s.commit()
+            ids += [c_rol, c_contract, c_other, ce.id, xe.id]  # contract vóór X (leverancier-RESTRICT)
+            items, cursor = await component_service.lijst(s, _TID, leverancier_id=xe.id, limit=50)
+            return ({i["id"] for i in items}, c_rol, c_contract, c_other, cursor)
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    gevonden, c_rol, c_contract, c_other, cursor = asyncio.run(_run_rls(_flow))
+    assert c_rol in gevonden and c_contract in gevonden   # beide afleidingspaden
+    assert c_other not in gevonden                        # geen leverancier-link → buiten
+    # paginering-vorm intact (tuple items+cursor; cursor None of een string).
+    assert cursor is None or isinstance(cursor, str)
