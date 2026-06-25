@@ -597,6 +597,37 @@ function openApplicatie() {
   if (detailNode.value) router.push({ name: 'applicatie-detail', params: { id: detailNode.value.id } })
 }
 
+// ── ADR-033 — selectie-highlight: enkelklik op een knoop kleurt ALLEEN z'n incidente lijnen ──
+// Oranje (`SELECTIE_RAND`, de ene gedeelde bron) markeert uitsluitend het aangeklikte component +
+// de lijnen van/naar dat component. Toegepast als runtime cytoscape-klassen (geen relayout per klik).
+const geselecteerdNodeId = ref(null)
+// Pure predicate (testbaar): is deze edge incident aan de huidige selectie?
+const _edgeGehighlight = (e) =>
+  !!geselecteerdNodeId.value && (e.bron_id === geselecteerdNodeId.value || e.doel_id === geselecteerdNodeId.value)
+
+function _pasSelectieHighlight() {
+  if (!cy) return
+  try {
+    cy.edges?.()?.removeClass?.('hl-edge')
+    cy.nodes?.()?.removeClass?.('hl-node')
+    const sel = geselecteerdNodeId.value
+    if (!sel) return
+    const node = cy.getElementById?.(String(sel))
+    if (node && node.length) {
+      node.addClass?.('hl-node')
+      node.connectedEdges?.()?.addClass?.('hl-edge')
+    }
+  } catch { /* gemockte cytoscape in tests → no-op */ }
+}
+watch(geselecteerdNodeId, _pasSelectieHighlight)
+
+// Enkelklik op een knoop: inspecteren = detail tonen + alléén z'n incidente lijnen highlighten.
+// Géén hercentreren/drill (dat is dubbelklik). Werkt consistent in elke weergave.
+function inspecteerNode(id) {
+  geselecteerdNodeId.value = id
+  openNodePopup(id) // zet detailId + toont het detail (zoals nu)
+}
+
 // ── Klik-detail-popups (koppeling + knoop) + fullscreen — read-only weergave ─────
 // Gedeelde popup-state: koppeling- én knoop-popup delen vorm + sluitgedrag. Een nieuwe
 // klik VERVANGT de open popup (zelfde refs). Engine onaangeroerd (alleen lezen via api).
@@ -645,6 +676,8 @@ function sluitPopup() {
   // B1 — highlight van de aangeklikte edge opheffen.
   geselecteerdeEdgeId.value = null
   cy?.edges?.()?.removeClass?.('sel-edge')
+  // ADR-033 — deselecteren: de node-selectie + z'n incidente-lijn-highlight vervallen → alles neutraal.
+  geselecteerdNodeId.value = null
 }
 
 // Veld alleen opnemen als de waarde bestaat/ingevuld is (toon nooit lege regels).
@@ -846,20 +879,24 @@ const _DBLTAP_MS = 280
 function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
-    // ADR-033 — dubbelklik = focus op deze node alleen → actieve set = {node} → Ego-view
-    // (afgeleide modus). Werkt vanuit elke weergave en voor elk node-type (ook partij/groep).
-    actieveSet.value = new Set([id])
-    selecteerNode(id)
+    // ADR-033 — DUBBELklik = dieper verkennen (uniform per nodetype):
+    //  - Impact-verkenner: inzoomen op een directe buur (drill-down; "← terug" blijft);
+    //  - ego/geheel: focus op deze knoop alleen → Ego-view, hercentreren (bestaand gedrag).
+    if (modus.value === 'impact' && !huidigeFocusSet.value.has(id)) {
+      drillNaar(id)
+    } else {
+      actieveSet.value = new Set([id])
+      selecteerNode(id)
+    }
     return
   }
   if (_tapTimer) clearTimeout(_tapTimer)
   _tapId = id
   _tapTimer = setTimeout(() => {
     _tapTimer = null; _tapId = null
-    // ADR-033 1c — in de Impact-verkenner is enkelklik op een DIRECT GERAAKTE buur = inzoomen
-    // (drill-down, uniform voor elk nodetype). Een klik op een focus-knoop opent z'n detail-popup.
-    if (modus.value === 'impact' && !huidigeFocusSet.value.has(id)) drillNaar(id)
-    else openNodePopup(id)
+    // ADR-033 — ENKELklik = inspecteren: detail tonen + ALLEEN de incidente lijnen highlighten
+    // (consistent in elke weergave; géén drill/hercentreren meer op enkelklik).
+    inspecteerNode(id)
   }, _DBLTAP_MS)
 }
 
@@ -954,10 +991,9 @@ function _nodeData(n) {
     : kleurOpDomein.value && n.domein
       ? domeinKleur.value[n.domein]
       : lcStyle(n.lifecycle_status).border
-  // ADR-033 1c — in de Impact-verkenner krijgt de FOCUS (de geselecteerde/ingezoomde componenten)
-  // de oranje geselecteerd-rand; de lifecycle-achtergrond + ⚠ blijven (zoals 1b). Directe buren
-  // houden hun gewone lifecycle-rand.
-  if (modus.value === 'impact' && huidigeFocusSet.value.has(n.id)) border = SELECTIE_RAND
+  // ADR-033 — geen automatische oranje rand meer; oranje betekent voortaan uitsluitend "het nu
+  // aangeklikte/geïnspecteerde component" (runtime `hl-node`-klasse, zie `_pasSelectieHighlight`).
+  // De knoop houdt z'n lifecycle-achtergrond + rand + ⚠.
   // ADR-031 — gebruikersgroep: ledental als tweede labelregel (alleen bij >0); anders blokkade-vlag.
   // LI019 Taak 3 — componenttype als tweede labelregel onder de naam (bij component-nodes).
   const typeRegel = _heeftTypeLabel(n) ? `\n${typeLabel(n.element_type)}` : ''
@@ -973,13 +1009,9 @@ function _edgeData(e, i) {
   // ADR-033 1b — samenstelling ("onderdeel van") gestreept, om visueel te onderscheiden van de
   // doorgetrokken koppelt-met/draait-op/gebruikt-door-relaties.
   if (e.ring === 'samenstelling') ls = 'dashed'
-  // ADR-033 1c — in de Impact-verkenner zijn álle zichtbare edges impact-relaties (de subgraaf bevat
-  // alleen focus + directe buren). Ze krijgen de oranje geselecteerd-rand-kleur, zodat ze als "de
-  // geraakte keten" leesbaar zijn; iets dikker voor nadruk.
-  if (modus.value === 'impact') {
-    lc = SELECTIE_RAND
-    w = 2.5
-  }
+  // ADR-033 — lijnen zijn standaard NEUTRAAL in álle weergaven (geen blanket-oranje meer). Oranje
+  // betekent voortaan uitsluitend "de incidente lijnen van het aangeklikte component" — toegepast
+  // als runtime `hl-edge`-klasse (zie `_pasSelectieHighlight`), zodat de kleur betekenis houdt.
   // Koppelingsdetails op flow-edges: "koppeling · REST · → · 3×" (→ eenrichting, ↔ twee-/
   // bidirectioneel; "N×" alleen bij ≥2 samengetrokken koppelingen op dit paar — ADR-023a Fase 3).
   let label = ''
@@ -1166,6 +1198,7 @@ async function tekenGraaf() {
     cy?.resize?.()
     cy?.fit?.(undefined, 50)
     updateBands()
+    _pasSelectieHighlight() // ADR-033 — na een (her)tekening de selectie-highlight opnieuw aanbrengen
   }, 100)
 }
 
@@ -1196,6 +1229,10 @@ const CY_STYLE = [
   },
   // B1 — aangeklikte edge gemarkeerd zolang de popup open is (accentkleur + dikker).
   { selector: 'edge.sel-edge', style: { 'line-color': '#e67e22', 'target-arrow-color': '#e67e22', width: 4, 'z-index': 999, 'text-opacity': 1 } },
+  // ADR-033 — selectie-highlight: alléén de incidente lijnen van het aangeklikte component +
+  // de knoop zelf krijgen de oranje SELECTIE_RAND (één gedeelde kleurbron).
+  { selector: 'edge.hl-edge', style: { 'line-color': SELECTIE_RAND, 'target-arrow-color': SELECTIE_RAND, width: 2.5, 'z-index': 900 } },
+  { selector: 'node.hl-node', style: { 'border-width': 3, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
   // Fix 3: visuele markering van de geselecteerde node (klik op set-item / node).
   { selector: 'node:selected', style: { 'border-width': 4, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
 ]
@@ -1317,7 +1354,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(

@@ -618,7 +618,7 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.huidigeFocus.sort()).toEqual(['a1', 'a3'])
   })
 
-  it('ADR-033 1c — in impact: enkelklik op een directe buur = drill-down (onNodeTap)', async () => {
+  it('ADR-033 — in impact: DUBBELklik op een directe buur = drill-down; enkelklik NIET', async () => {
     api.landschapskaart.haalGrafdata.mockResolvedValue({
       nodes: [
         { id: 'a1', naam: 'A1', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
@@ -634,10 +634,16 @@ describe('LandschapskaartView v3', () => {
     await kies(w, 'a1')
     await kies(w, 'a3') // focus {a1,a3}; a2 = directe buur
     vi.useFakeTimers()
-    w.vm.onNodeTap('a2') // enkelklik op de buur (na de dubbelklik-drempel)
+    // Enkelklik = inspecteren (highlight + detail), GEEN drill.
+    w.vm.onNodeTap('a2')
     vi.advanceTimersByTime(300)
     await flushPromises()
-    expect(w.vm.drillPad).toEqual(['a2']) // → drill, niet de popup
+    expect(w.vm.drillPad).toEqual([]) // enkelklik drilt niet meer
+    expect(w.vm.geselecteerdNodeId).toBe('a2') // wél geïnspecteerd/geselecteerd
+    // Dubbelklik (twee taps binnen de drempel) = drill-down.
+    w.vm.onNodeTap('a2'); w.vm.onNodeTap('a2')
+    await flushPromises()
+    expect(w.vm.drillPad).toEqual(['a2'])
     vi.useRealTimers()
   })
 
@@ -672,18 +678,74 @@ describe('LandschapskaartView v3', () => {
     // De gebruikersgroep is herkenbaar op de graaf-node (ledental op het label).
     const grpData = w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'grp'))
     expect(grpData.label).toContain('1200')
-    // De focus (a1) krijgt de oranje geselecteerd-rand; een directe buur niet.
-    expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'a1')).border).toBe('#f59e0b')
-    expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'peer')).border).not.toBe('#f59e0b')
+    // ADR-033 — géén automatische oranje rand meer: nodes houden hun lifecycle-rand (geen selectie).
+    expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'a1')).border).not.toBe('#f59e0b')
   })
 
-  it('ADR-033 1c — impact-edges dragen de oranje geselecteerd-rand-kleur', async () => {
+  it('ADR-033 — lijnen zijn standaard NEUTRAAL in elke weergave (geen blanket-oranje)', async () => {
+    const neutraal = (w) => w.vm._edgeData({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties', label: 'koppeling' }, 0).lc
+    const { w } = await mountView() // geheel
+    expect(neutraal(w)).toBe('#94a3b8')
+    await kies(w, 'a1') // ego
+    expect(neutraal(w)).toBe('#94a3b8')
+    await kies(w, 'a2') // impact (≥2) — vroeger blanket-oranje, nu neutraal
+    expect(w.vm.modus).toBe('impact')
+    expect(neutraal(w)).toBe('#94a3b8')
+    // Geen enkele edge gehighlight zolang er niets geselecteerd is.
+    expect(w.vm.geselecteerdNodeId).toBe(null)
+    expect(w.vm._edgeGehighlight({ bron_id: 'a1', doel_id: 'a2' })).toBe(false)
+  })
+
+  it('ADR-033 — enkelklik highlight ALLEEN de incidente lijnen; tweede klik verplaatst; deselectie = neutraal', async () => {
+    // a1↔a2 (flow) en a2↔a3 (flow): a2 raakt beide, a1/a3 elk één.
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [
+        { id: 'a1', naam: 'A1', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'a2', naam: 'A2', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'a3', naam: 'A3', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+      ],
+      edges: [
+        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+        { bron_id: 'a2', doel_id: 'a3', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+      ],
+    })
+    const e12 = { bron_id: 'a1', doel_id: 'a2' }
+    const e23 = { bron_id: 'a2', doel_id: 'a3' }
+    const { w } = await mountView() // geheel-model (lijnen neutraal, niets geselecteerd)
+    expect(w.vm._edgeGehighlight(e12)).toBe(false)
+    // Enkelklik a1 → alleen a1's lijn (a1↔a2) highlight; a2↔a3 niet. Detail gezet.
+    w.vm.inspecteerNode('a1')
+    await flushPromises()
+    expect(w.vm.geselecteerdNodeId).toBe('a1')
+    expect(w.vm._edgeGehighlight(e12)).toBe(true)
+    expect(w.vm._edgeGehighlight(e23)).toBe(false)
+    // Ander component klikken → highlight verspringt (a2 raakt beide lijnen).
+    w.vm.inspecteerNode('a2')
+    await flushPromises()
+    expect(w.vm._edgeGehighlight(e12)).toBe(true)
+    expect(w.vm._edgeGehighlight(e23)).toBe(true)
+    // Deselectie (sluit popup / leeg canvas) → alles weer neutraal.
+    w.vm.sluitPopup()
+    await flushPromises()
+    expect(w.vm.geselecteerdNodeId).toBe(null)
+    expect(w.vm._edgeGehighlight(e12)).toBe(false)
+  })
+
+  it('ADR-033 — ego-view: dubbelklik hercentreert (enkelklik niet)', async () => {
     const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'a2') // impact (default GRAF: a1→a2 flow)
-    const ed = w.vm._edgeData({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties', label: 'koppeling' }, 0)
-    expect(ed.lc).toBe('#f59e0b') // gelijk aan de node:selected-rand
-    expect(ed.w).toBeGreaterThan(1.5) // iets dikker voor nadruk
+    await kies(w, 'a1') // ego, centrum a1
+    expect(w.vm.modus).toBe('ego')
+    vi.useFakeTimers()
+    // Enkelklik a2 → inspecteren (geen hercentrering: egoStartId blijft a1).
+    w.vm.onNodeTap('a2')
+    vi.advanceTimersByTime(300)
+    await flushPromises()
+    expect(w.vm.geselecteerdNodeId).toBe('a2')
+    // Dubbelklik a2 → focus op a2 → ego hercentreert (a2 in de actieve set).
+    w.vm.onNodeTap('a2'); w.vm.onNodeTap('a2')
+    await flushPromises()
+    expect([...w.vm.actieveSet]).toEqual(['a2'])
+    vi.useRealTimers()
   })
 
   it('ADR-033 1c — de oude HTML-lijst-weergave van de verkenner is volledig weg', async () => {
