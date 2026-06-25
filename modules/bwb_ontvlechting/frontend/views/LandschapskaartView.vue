@@ -63,8 +63,9 @@ const LANE_MIN_H = 110 // min lane-hoogte — lege/kleine lane blijft zichtbaar 
 const LANE_COLS = Math.max(1, Math.floor(MAX_LANE_W / NODE_W)) // kolommen per lane (= 6)
 // ADR-031 — gebruikersgroep-node-stijl (distinctief t.o.v. applicaties).
 const GG_STYLE = { bg: '#e0f2fe', border: '#0ea5e9' }
-const INSET = { bg: '#1e3a8a', border: '#1e3a8a' }
-const RAAKVLAK = { bg: '#fed7aa', border: '#ea580c' }
+// Oranje van de geselecteerd-component-rand (node:selected). ADR-033 1c hergebruikt deze ene waarde
+// voor de focus-rand én de impact-edges in de Impact-verkenner (één bron — geen nieuwe hexwaarde).
+const SELECTIE_RAND = '#f59e0b'
 // Deterministische domeinkleuren (border in "kleur op domein"-modus).
 const DOMEIN_PALET = ['#2563eb', '#d97706', '#0891b2', '#7c3aed', '#16a34a', '#db2777', '#65a30d', '#dc2626']
 
@@ -345,10 +346,12 @@ const zichtbareNodes = computed(() => {
     return alle.filter((n) => zichtbaar.has(n.id))
   }
   if (modus.value === 'impact') {
-    if (!filterActief.value) return alle.filter(isApplicatie)
-    const matched = new Set(alle.filter((n) => isApplicatie(n) && _filterMatch(n)).map((n) => n.id))
-    const zichtbaar = _metContext(matched)
-    return alle.filter((n) => zichtbaar.has(n.id))
+    // ADR-033 1c — de Impact-verkenner is nu een graaf op het canvas: de focus + hun directe
+    // geraakte buren (één laag, vier relaties). De focus blijft altijd zichtbaar; een actief filter
+    // verfijnt alleen de buren.
+    const ids = impactZichtbaarIds.value
+    if (!filterActief.value) return alle.filter((n) => ids.has(n.id))
+    return alle.filter((n) => ids.has(n.id) && (huidigeFocusSet.value.has(n.id) || _filterMatch(n)))
   }
   // Geheel model toont standaard het VOLLEDIGE landschap. Filters verfijnen: opbouw = de match (+
   // context); afpel = alles behalve de match.
@@ -366,17 +369,6 @@ const zichtbareEdges = computed(() =>
   ),
 )
 
-// ── Impact-berekening ───────────────────────────────────────────────────────────
-const flowEdges = computed(() => grafEdges.value.filter((e) => e.ring === 'applicaties'))
-const grensEdges = computed(() => flowEdges.value.filter((e) => actieveSet.value.has(e.bron_id) !== actieveSet.value.has(e.doel_id)))
-const raakvlakken = computed(() => {
-  const s = new Set()
-  for (const e of grensEdges.value) {
-    if (!actieveSet.value.has(e.bron_id)) s.add(e.bron_id)
-    if (!actieveSet.value.has(e.doel_id)) s.add(e.doel_id)
-  }
-  return s
-})
 // ── Actieve set ─────────────────────────────────────────────────────────────────
 function inSet(id) {
   return actieveSet.value.has(id)
@@ -426,6 +418,7 @@ watch(
 const huidigeFocus = computed(() =>
   drillPad.value.length ? [drillPad.value[drillPad.value.length - 1]] : [...actieveSet.value],
 )
+const huidigeFocusSet = computed(() => new Set(huidigeFocus.value))
 const topbalkNodes = computed(() => huidigeFocus.value.map((id) => nodePerId.value[id]).filter(Boolean))
 // ADR-033 1b — impact volgt de VIER migratie-relaties (koppelt-met / draait-op / gebruikt-door /
 // onderdeel-van), uitsluitend uit de expliciet geregistreerde kaart-edges (ADR-023 besluit 7).
@@ -459,6 +452,10 @@ const impactDirect = computed(() => {
     .sort((a, b) => (a.naam || '').localeCompare(b.naam || '', 'nl'))
 })
 const impactGeraaktAantal = computed(() => impactDirect.value.length)
+// ADR-033 1c — de impact-subgraaf op het canvas = de focus + hun directe geraakte buren (één laag).
+const impactZichtbaarIds = computed(
+  () => new Set([...huidigeFocus.value, ...impactDirect.value.map((n) => n.id)]),
+)
 function drillNaar(id) {
   if (!nodePerId.value[id]) return
   drillPad.value = [...drillPad.value, id]
@@ -752,7 +749,13 @@ function onNodeTap(id) {
   }
   if (_tapTimer) clearTimeout(_tapTimer)
   _tapId = id
-  _tapTimer = setTimeout(() => { _tapTimer = null; _tapId = null; openNodePopup(id) }, _DBLTAP_MS)
+  _tapTimer = setTimeout(() => {
+    _tapTimer = null; _tapId = null
+    // ADR-033 1c — in de Impact-verkenner is enkelklik op een DIRECT GERAAKTE buur = inzoomen
+    // (drill-down, uniform voor elk nodetype). Een klik op een focus-knoop opent z'n detail-popup.
+    if (modus.value === 'impact' && !huidigeFocusSet.value.has(id)) drillNaar(id)
+    else openNodePopup(id)
+  }, _DBLTAP_MS)
 }
 
 // Fullscreen-overlay (in-app): de hele view vult het venster via een CSS-klasse — GEEN
@@ -846,10 +849,10 @@ function _nodeData(n) {
     : kleurOpDomein.value && n.domein
       ? domeinKleur.value[n.domein]
       : lcStyle(n.lifecycle_status).border
-  if (modus.value === 'impact' && !isGG) {
-    if (inSet(n.id)) ({ bg, border } = INSET)
-    else if (raakvlakken.value.has(n.id)) ({ bg, border } = RAAKVLAK)
-  }
+  // ADR-033 1c — in de Impact-verkenner krijgt de FOCUS (de geselecteerde/ingezoomde componenten)
+  // de oranje geselecteerd-rand; de lifecycle-achtergrond + ⚠ blijven (zoals 1b). Directe buren
+  // houden hun gewone lifecycle-rand.
+  if (modus.value === 'impact' && huidigeFocusSet.value.has(n.id)) border = SELECTIE_RAND
   // ADR-031 — gebruikersgroep: ledental als tweede labelregel (alleen bij >0); anders blokkade-vlag.
   // LI019 Taak 3 — componenttype als tweede labelregel onder de naam (bij component-nodes).
   const typeRegel = _heeftTypeLabel(n) ? `\n${typeLabel(n.element_type)}` : ''
@@ -865,11 +868,12 @@ function _edgeData(e, i) {
   // ADR-033 1b — samenstelling ("onderdeel van") gestreept, om visueel te onderscheiden van de
   // doorgetrokken koppelt-met/draait-op/gebruikt-door-relaties.
   if (e.ring === 'samenstelling') ls = 'dashed'
-  if (modus.value === 'impact' && e.ring === 'applicaties') {
-    const grens = actieveSet.value.has(e.bron_id) !== actieveSet.value.has(e.doel_id)
-    const beide = actieveSet.value.has(e.bron_id) && actieveSet.value.has(e.doel_id)
-    lc = grens ? '#ea580c' : beide ? '#2563eb' : '#cbd5e1'
-    w = grens ? 3 : 2
+  // ADR-033 1c — in de Impact-verkenner zijn álle zichtbare edges impact-relaties (de subgraaf bevat
+  // alleen focus + directe buren). Ze krijgen de oranje geselecteerd-rand-kleur, zodat ze als "de
+  // geraakte keten" leesbaar zijn; iets dikker voor nadruk.
+  if (modus.value === 'impact') {
+    lc = SELECTIE_RAND
+    w = 2.5
   }
   // Koppelingsdetails op flow-edges: "koppeling · REST · → · 3×" (→ eenrichting, ↔ twee-/
   // bidirectioneel; "N×" alleen bij ≥2 samengetrokken koppelingen op dit paar — ADR-023a Fase 3).
@@ -908,10 +912,12 @@ const getekendeNodes = computed(() => {
       continue
     }
     const egoCentrum = modus.value === 'ego' && n.id === egoStartId.value
+    // ADR-033 1c — de impact-focus is altijd zichtbaar (ook zonder zichtbare edge), zoals het ego-centrum.
+    const impactFocus = modus.value === 'impact' && huidigeFocusSet.value.has(n.id)
     // LI019 1d-v8 — in SWIMLANE valt de edge-aanwezigheidseis weg: elke node hoort in een lane, dus
     // toon álle nodes uit zichtbareNodes (de radiaal-data). De edge-filter is enkel voor radiaal
     // (losse nodes zweven daar rond). `toonRegistratiegaps` doet dit ook in radiaal.
-    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || impactFocus || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
 })
@@ -1024,6 +1030,13 @@ function _layout() {
       minNodeSpacing: 60, padding: 60, animate: true, animationDuration: 400, stop: _naLayout,
     }
   }
+  // ADR-033 1c — Impact-verkenner: concentric met de FOCUS centraal, de directe buren eromheen.
+  if (modus.value === 'impact') {
+    return {
+      name: 'concentric', concentric: (n) => (huidigeFocusSet.value.has(n.id()) ? 10 : 5), levelWidth: () => 1,
+      minNodeSpacing: 60, padding: 60, animate: true, animationDuration: 400, stop: _naLayout,
+    }
+  }
   // LI019 1d (Taak 3) — Radiaal/Geheel+Impact: concentric op koppelingsdichtheid (meer koppelingen
   // → dichter bij het centrum).
   return {
@@ -1079,7 +1092,7 @@ const CY_STYLE = [
   // B1 — aangeklikte edge gemarkeerd zolang de popup open is (accentkleur + dikker).
   { selector: 'edge.sel-edge', style: { 'line-color': '#e67e22', 'target-arrow-color': '#e67e22', width: 4, 'z-index': 999, 'text-opacity': 1 } },
   // Fix 3: visuele markering van de geselecteerde node (klik op set-item / node).
-  { selector: 'node:selected', style: { 'border-width': 4, 'border-color': '#f59e0b', 'border-style': 'solid' } },
+  { selector: 'node:selected', style: { 'border-width': 4, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
 ]
 
 let resizeObserver = null
@@ -1192,7 +1205,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, topbalkNodes, impactDirect, impactGeraaktAantal })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1228,7 +1241,7 @@ const typeLabel = (t) => humaniseer(t)
         {{ modus === 'geheel' ? 'Geheel model' : modus === 'ego' ? 'Ego-view' : 'Impact-verkenner' }}
       </p>
       <span class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Weergave volgt je selectie</span>
-      <span v-if="modus !== 'impact'" class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-zichtbaar-aantal">{{ zichtbaarAantal }} nodes zichtbaar</span>
+      <span class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-zichtbaar-aantal">{{ zichtbaarAantal }} nodes zichtbaar</span>
     </div>
 
     <div class="flex min-h-0 flex-1">
@@ -1368,55 +1381,13 @@ const typeLabel = (t) => humaniseer(t)
         <!-- Inline min-height als harde vangrail: zelfs als de flex-hoogteketen faalt, krijgt
              Cytoscape een meetbare hoogte op het init-moment (anders blijft de graaf leeg). -->
         <div ref="containerRef" data-testid="lk-canvas" class="relative z-[1] h-full w-full" style="min-height: 500px"></div>
-
-        <!-- ADR-033 — Impact-verkenner (≥2 componenten in de actieve set): topbalk met de
-             focus-componenten + de transitieve koppelingsketen eronder, met stapsgewijze
-             drill-down. Vervangt de oude grafische Impact-view (read-only, afgeleid; toont
-             uitsluitend expliciet geregistreerde koppelingen — ADR-023 besluit 7). Ligt als
-             overlay boven het (verborgen) canvas; het canvas blijft gemount voor Cytoscape. -->
-        <div v-if="modus === 'impact'" data-testid="lk-impact-verkenner" class="absolute inset-0 z-[2] flex flex-col gap-[var(--cd-space-md)] overflow-auto bg-[var(--cd-color-surface)] p-[var(--cd-space-md)]">
-          <div class="flex items-center gap-[var(--cd-space-sm)]">
-            <button v-if="drillPad.length" type="button" data-testid="lk-impact-terug" class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]" @click="stapTerug">← Terug</button>
-            <p class="font-semibold text-[length:var(--cd-text-sm)]">{{ drillPad.length ? 'Ingezoomd op' : 'Geselecteerde componenten' }}</p>
-            <span class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-impact-samenvatting">{{ topbalkNodes.length }} in beeld · {{ impactGeraaktAantal }} geraakt</span>
-          </div>
-          <!-- Topbalk: horizontale rij van de focus-componenten (klik = detail rechts). -->
-          <div data-testid="lk-impact-topbalk" class="flex flex-wrap gap-[var(--cd-space-sm)] border-b border-[var(--cd-color-border)] pb-[var(--cd-space-md)]">
-            <button
-              v-for="n in topbalkNodes"
-              :key="n.id"
-              type="button"
-              :data-testid="`lk-impact-top-${n.id}`"
-              class="flex items-center gap-1 rounded-[var(--cd-radius-btn)] border px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] font-semibold"
-              :style="{ background: lcStyle(n.lifecycle_status).bg, borderColor: lcStyle(n.lifecycle_status).border }"
-              @click="selecteerNode(n.id)"
-            >{{ n.naam }}<span v-if="n.blokkades_open > 0" title="Open blokkade(s)">⚠</span></button>
-          </div>
-          <!-- ADR-033 1b — DIRECTE impact (één laag) langs de vier migratie-relaties. Geen vooraf-
-               uitgerekende transitieve keten: dieper kijken = klikken op een node (drill-down,
-               uniform voor elk nodetype). Lifecycle-kleur + ⚠-blokkade + type-aanduiding per node. -->
-          <div v-if="impactDirect.length" class="flex flex-col gap-1" data-testid="lk-impact-keten">
-            <p class="text-[length:var(--cd-text-xs)] font-semibold uppercase text-[var(--cd-color-text-muted)]">Direct geraakt — klik om dieper te kijken</p>
-            <div class="flex flex-wrap gap-[var(--cd-space-sm)]">
-              <button
-                v-for="n in impactDirect"
-                :key="n.id"
-                type="button"
-                :data-testid="`lk-impact-node-${n.id}`"
-                class="flex items-center gap-1 rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-md)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]"
-                :style="{ background: lcStyle(n.lifecycle_status).bg }"
-                title="Klik om verder in te zoomen"
-                @click="drillNaar(n.id)"
-              >
-                <span class="inline-block h-2.5 w-2.5 shrink-0 rounded-full" :style="{ border: `1px solid ${lcStyle(n.lifecycle_status).border}` }"></span>
-                <span>{{ n.naam }}</span>
-                <span v-if="n.blokkades_open > 0" title="Open blokkade(s)">⚠</span>
-                <span class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]" :data-testid="`lk-impact-type-${n.id}`">· {{ typeLabel(n.element_type) }}<template v-if="n.element_type === 'gebruikersgroep' && n.aantal_leden"> ({{ n.aantal_leden }})</template></span>
-              </button>
-            </div>
-          </div>
-          <p v-else data-testid="lk-impact-leeg" class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Geen direct geraakte componenten vanaf deze selectie.</p>
+        <!-- ADR-033 1c — de Impact-verkenner is nu een graaf OP het canvas (geen HTML-lijst meer):
+             de focus + hun directe geraakte buren, met oranje impact-edges. Drill-down = klik op een
+             buur (onNodeTap), "← terug" hieronder. -->
+        <div v-if="modus === 'impact' && drillPad.length" class="absolute left-3 top-3 z-10">
+          <button type="button" data-testid="lk-impact-terug" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)] hover:bg-[var(--cd-color-accent)]" @click="stapTerug">← Terug</button>
         </div>
+
         <!-- (2) lane-HEADERS BOVEN het canvas (z-[5]). De container is pointer-events-none → node-
              clicks gaan ongehinderd naar het canvas; alleen de header-span vangt pointer-events af
              (versleepbaar). De lege-lane-tekst zit ook hier zodat ze leesbaar boven het canvas staat. -->
@@ -1448,9 +1419,8 @@ const typeLabel = (t) => humaniseer(t)
             <button type="button" data-testid="lk-layout-radiaal" :aria-pressed="layoutModus === 'radiaal'" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)]', layoutModus === 'radiaal' ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setLayoutModus('radiaal')">Radiaal</button>
             <button type="button" data-testid="lk-layout-swimlane" :aria-pressed="layoutModus === 'swimlane'" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)]', layoutModus === 'swimlane' ? 'bg-[var(--cd-color-primary)] text-white' : '']" @click="setLayoutModus('swimlane')">Swimlanes</button>
           </div>
-          <!-- Canvas-only gereedschap: in de Impact-verkenner (geen canvas) verborgen. -->
-          <button v-if="modus !== 'impact'" type="button" data-testid="lk-centreer" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="centreer">⊡ Centreer</button>
-          <button v-if="modus !== 'impact'" type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]', kleurOpDomein ? 'bg-[var(--cd-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
+          <button type="button" data-testid="lk-centreer" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="centreer">⊡ Centreer</button>
+          <button type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--cd-radius-btn)] px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]', kleurOpDomein ? 'bg-[var(--cd-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
           <!-- Fullscreen-overlay (in-app): één toggle — vergroten ingebed, verkleinen in de overlay. -->
           <button type="button" :data-testid="fullscreen ? 'lk-fullscreen-sluit' : 'lk-fullscreen-open'" :aria-pressed="fullscreen" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)]" @click="toggleFullscreen">{{ fullscreen ? '✕ Verkleinen' : '⛶ Vergroten' }}</button>
         </div>
