@@ -33,7 +33,10 @@ const LC_STYLE = {
 }
 const lcStyle = (s) => LC_STYLE[s] || LC_STYLE.null
 const LIFECYCLE_OPTIES = ['migratieklaar', 'in_inventarisatie', 'geblokkeerd', 'concept']
-const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'gebruikers', 'contracten', 'infrastructuur']
+const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
+// ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie); standaard
+// UIT (zie ringAan), want context, niet de hoofdvraag van de kaart.
+const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
 // ADR-031 — leesbare ring-namen. Backend levert ring='beheerorganisatie' → bij laden gemapt op 'rollen'.
 const RING_LABELS = {
   applicaties: 'Componenten',
@@ -42,6 +45,7 @@ const RING_LABELS = {
   gebruikers: 'Gebruikers',
   contracten: 'Contracten',
   infrastructuur: 'Infrastructuur',
+  organisatiestructuur: 'Organisatiestructuur', // ADR-024 — "hoort bij" (persoon → afdeling → organisatie)
 }
 // LI019 1d-v2 — swimlane-lanes: definitie (label + bandkleur) + default-volgorde (van boven naar
 // beneden). De volgorde is gebruiker-herschikbaar (drag-drop) en wordt in sessionStorage bewaard.
@@ -86,7 +90,8 @@ const filterTypes = ref([]) // LI019 1b — componenttype-multiselect (optie_sle
 const filterLeveranciers = ref([]) // LI019 1b-v2 — leverancier-multiselect (partij-ids)
 const filterHosting = ref([]) // LI019 1b-v2 — hostingmodel-multiselect (enum-sleutels)
 const filterLifecycle = ref([]) // LI019 1b-v2 — lifecycle-multiselect (status-sleutels)
-const ringAan = ref(new Set(RINGEN))
+// Standaard staan alle ringen aan, behalve de context-ringen in RING_DEFAULT_UIT (Organisatiestructuur).
+const ringAan = ref(new Set(RINGEN.filter((r) => !RING_DEFAULT_UIT.has(r))))
 const actieveSet = ref(new Set())
 // ADR-033 — de weergavemodus is AFGELEID uit de actieve set (geen handmatige view-tabs meer):
 // lege set → Geheel model; 1 component → Ego-view; ≥2 componenten → Impact-verkenner.
@@ -841,6 +846,10 @@ async function openEdgePopup(edge) {
       // ADR-033 1b — samenstelling: bron=geheel → doel=onderdeel ("bestaat uit").
       popupTitel.value = 'Samenstelling'
       popupVelden.value = _velden([_veld('Geheel', bronNaam), _veld('Onderdeel', doelNaam)])
+    } else if (edge.ring === 'organisatiestructuur') {
+      // ADR-024 — hoort bij: bron (persoon/afdeling) → doel (afdeling/organisatie).
+      popupTitel.value = 'Hoort bij'
+      popupVelden.value = _velden([_veld('Onderdeel', bronNaam), _veld('Hoort bij', doelNaam)])
     } else if (edge.ring === 'gebruikers') {
       popupTitel.value = 'Gebruikt door'
       const gg = nodePerId.value[edge.doel_id]
@@ -1009,6 +1018,9 @@ function _edgeData(e, i) {
   // ADR-033 1b — samenstelling ("onderdeel van") gestreept, om visueel te onderscheiden van de
   // doorgetrokken koppelt-met/draait-op/gebruikt-door-relaties.
   if (e.ring === 'samenstelling') ls = 'dashed'
+  // ADR-024 — organisatiestructuur ("hoort bij") gestippeld: visueel onderscheidbaar van de
+  // doorgetrokken ICT-relaties én van de gestreepte samenstelling; het is context, geen afhankelijkheid.
+  if (e.ring === 'organisatiestructuur') ls = 'dotted'
   // ADR-033 — lijnen zijn standaard NEUTRAAL in álle weergaven (geen blanket-oranje meer). Oranje
   // betekent voortaan uitsluitend "de incidente lijnen van het aangeklikte component" — toegepast
   // als runtime `hl-edge`-klasse (zie `_pasSelectieHighlight`), zodat de kleur betekenis houdt.

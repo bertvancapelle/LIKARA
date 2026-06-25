@@ -1060,4 +1060,51 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false) // expliciete ingang
     expect(w.vm.modus).toBe('ego')
   })
+
+  // ── ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie) ──
+  const _osGraf = () => ({
+    nodes: [
+      { id: 'org', naam: 'Org', element_type: 'partij', laag: 'business', soort: 'organisatie' },
+      { id: 'afd', naam: 'Afd', element_type: 'partij', laag: 'business', soort: 'organisatie_eenheid' },
+      { id: 'per', naam: 'Persoon', element_type: 'partij', laag: 'business', soort: 'persoon' },
+      { id: 'app', naam: 'App', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+    ],
+    edges: [
+      { bron_id: 'per', doel_id: 'afd', relatietype: 'hoort_bij', label: 'hoort bij', ring: 'organisatiestructuur' },
+      { bron_id: 'afd', doel_id: 'org', relatietype: 'hoort_bij', label: 'hoort bij', ring: 'organisatiestructuur' },
+    ],
+  })
+
+  it('ADR-024 — Organisatiestructuur-ring: eigen toggle, standaard UIT; edges verschijnen pas bij aan', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue(_osGraf())
+    const { w } = await mountView()
+    // Eigen ring-toggle aanwezig.
+    expect(w.find('[data-testid="lk-ring-organisatiestructuur"]').exists()).toBe(true)
+    // Standaard UIT → geen hoort-bij-edge zichtbaar.
+    expect(w.vm.zichtbareEdges.some((e) => e.ring === 'organisatiestructuur')).toBe(false)
+    // Aanzetten → beide hoort-bij-edges verschijnen.
+    await w.find('[data-testid="lk-ring-organisatiestructuur"]').trigger('change')
+    await flushPromises()
+    expect(w.vm.zichtbareEdges.filter((e) => e.ring === 'organisatiestructuur')).toHaveLength(2)
+  })
+
+  it('ADR-024 — hoort-bij-edge is bereikbaar via de bestaande edge-popup', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue(_osGraf())
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-ring-organisatiestructuur"]').trigger('change')
+    await flushPromises()
+    w.vm.openEdgePopup({ bron_id: 'per', doel_id: 'afd', ring: 'organisatiestructuur', label: 'hoort bij' })
+    await flushPromises()
+    expect(w.vm.popupOpen).toBe(true) // popup opent zonder API-call (niet-flow ring)
+  })
+
+  it('ADR-024 — hoort-bij telt NIET mee in de impact-keten', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue(_osGraf())
+    const { w } = await mountView()
+    w.vm.toggleSet('afd'); w.vm.toggleSet('app') // focus {afd, app} → impact
+    await flushPromises()
+    expect(w.vm.modus).toBe('impact')
+    // 'per' hangt alleen via hoort_bij aan 'afd' → géén impact-buur (ring buiten IMPACT_RINGEN).
+    expect(w.vm.impactDirect.map((n) => n.id)).not.toContain('per')
+  })
 })

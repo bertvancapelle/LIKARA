@@ -82,6 +82,20 @@ def test_landschapskaart_serveert_samenstelling_ring():
     assert 'rt == "aggregation" and r.bron_id in component_ids and r.doel_id in component_ids' in bron
 
 
+def test_landschapskaart_serveert_organisatiestructuur_ring():
+    """ADR-024 — de service projecteert de geregistreerde "hoort bij"-FK's (partij.organisatie_id/
+    afdeling_id) als 'organisatiestructuur'-edge; alleen personen-met-rol, van onderaf, geen afleiding."""
+    import inspect
+
+    import services.landschapskaart_service as s
+
+    bron = inspect.getsource(s)
+    assert 'ring="organisatiestructuur"' in bron and 'label="hoort bij"' in bron
+    # Afbakening: rol-vervulling = roltoewijzing-bron; alleen aard=persoon (van onderaf).
+    assert "rol_partij_ids = {r.partij_id for r in rt_rijen}" in bron
+    assert "info.aard != PartijAard.persoon" in bron
+
+
 def test_landschapskaart_geen_schrijfpad_in_bron():
     """Read-only: de servicebron bevat geen schrijf-operaties op de sessie."""
     import inspect
@@ -343,6 +357,80 @@ def test_landschapskaart_samenstelling_edge_live():
     assert len(mijn) == 1 and mijn[0].relatietype == "aggregation" and mijn[0].label == "bestaat uit"
     # Plateau-lidmaatschap leverde GEEN samenstelling-edge (bron=plateau is geen component).
     assert not any(e.bron_id == plateau_id for e in sms)
+
+
+@integratie
+def test_landschapskaart_organisatiestructuur_edges_live():
+    """ADR-024 — hoort-bij-projectie (read-only): persoon-MET-rol → afdeling → organisatie;
+    persoon direct onder de organisatie (afdeling NULL) → organisatie; persoon ZONDER rol levert
+    geen edge; een afdeling/organisatie zonder rol-persoon in de keten verschijnt niet."""
+    from sqlalchemy import text as _text
+
+    from models.models import (
+        Component, Element, ElementType, PartijAard, RelatieKenmerkDimensie, Roltoewijzing,
+    )
+    from schemas.partij import PartijCreate
+    from services import landschapskaart_service as svc, partij_service
+    from services import relatiekenmerk_catalog as rk
+
+    tid = uuid.UUID(_TID)
+
+    async def _comp(s, naam):
+        elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+                        hostingmodel="on_premise")); await s.flush()
+        return elem.id
+
+    async def _mk(s, aard, naam, **velden):
+        return await partij_service.maak_aan(s, tid, PartijCreate(aard=aard, naam=naam, **velden))
+
+    async def _flow(s):
+        ids = []
+        try:
+            # Keten MET rol-persoon: org → afd → persoon-met-rol + persoon-zonder-rol; en een
+            # persoon-met-rol direct onder de organisatie (afdeling NULL).
+            org = await _mk(s, PartijAard.organisatie, "WT-OS-Org")
+            afd = await _mk(s, PartijAard.organisatie_eenheid, "WT-OS-Afd", organisatie_id=org.id)
+            p_rol = await _mk(s, PartijAard.persoon, "WT-OS-PersRol", organisatie_id=org.id, afdeling_id=afd.id)
+            p_geen = await _mk(s, PartijAard.persoon, "WT-OS-PersGeen", organisatie_id=org.id, afdeling_id=afd.id)
+            p_direct = await _mk(s, PartijAard.persoon, "WT-OS-PersDirect", organisatie_id=org.id)  # afdeling NULL
+            # Keten ZONDER enige rol-persoon: org2 → afd2 → persoon-zonder-rol → mag NIET verschijnen.
+            org2 = await _mk(s, PartijAard.organisatie, "WT-OS-Org2")
+            afd2 = await _mk(s, PartijAard.organisatie_eenheid, "WT-OS-Afd2", organisatie_id=org2.id)
+            p_geen2 = await _mk(s, PartijAard.persoon, "WT-OS-PersGeen2", organisatie_id=org2.id, afdeling_id=afd2.id)
+            comp = await _comp(s, "WT-OS-Comp")
+            rol = sorted(await rk.actieve_sleutels(s, RelatieKenmerkDimensie.beheerrol))[0]
+            # Rol uitsluitend voor p_rol + p_direct (p_geen / p_geen2 krijgen er geen).
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=p_rol.id, object_id=comp, rol=rol))
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=p_direct.id, object_id=comp, rol=rol))
+            await s.commit()
+            # Cleanup-volgorde: personen → component → afdelingen → organisaties (lidmaatschap-RESTRICT).
+            ids += [p_rol.id, p_geen.id, p_direct.id, p_geen2.id, comp, afd.id, afd2.id, org.id, org2.id]
+            graf = await svc.haal_grafdata_op(s, _TID)
+            return graf, {
+                "org": org.id, "afd": afd.id, "p_rol": p_rol.id, "p_geen": p_geen.id,
+                "p_direct": p_direct.id, "org2": org2.id, "afd2": afd2.id, "p_geen2": p_geen2.id,
+            }
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    graf, X = asyncio.run(_run_rls(_flow))
+    os_edges = [e for e in graf.edges if e.ring == "organisatiestructuur"]
+    paren = {(e.bron_id, e.doel_id) for e in os_edges}
+    # Persoon-met-rol → afdeling → organisatie.
+    assert (X["p_rol"], X["afd"]) in paren
+    assert (X["afd"], X["org"]) in paren
+    # Persoon direct onder de organisatie (afdeling NULL) → organisatie (geen tussenstap).
+    assert (X["p_direct"], X["org"]) in paren
+    # Persoon ZONDER rol levert geen enkele hoort-bij-edge.
+    assert not any(e.bron_id == X["p_geen"] for e in os_edges)
+    # Keten zonder rol-persoon (org2/afd2/p_geen2) verschijnt NIET in deze ring (geen lege takken).
+    leeg = {X["org2"], X["afd2"], X["p_geen2"]}
+    assert not any(e.bron_id in leeg or e.doel_id in leeg for e in os_edges)
+    # Geregistreerd, niet afgeleid: relatietype/label exact.
+    assert all(e.relatietype == "hoort_bij" and e.label == "hoort bij" for e in os_edges)
 
 
 @integratie

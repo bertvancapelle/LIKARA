@@ -157,11 +157,16 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
         ))
 
     # ── Partij-nodes — business-laag, aard als `soort` ──
+    # `organisatie_id`/`afdeling_id` (ADR-024 "hoort bij") worden meegelezen voor de
+    # Organisatiestructuur-ring (read-only; gebruikt onder bij ring 5). Geen extra query.
     partij_rijen = (
         await session.execute(
-            select(Partij.id, Partij.naam, Partij.aard).where(Partij.tenant_id == tid)
+            select(
+                Partij.id, Partij.naam, Partij.aard, Partij.organisatie_id, Partij.afdeling_id
+            ).where(Partij.tenant_id == tid)
         )
     ).all()
+    partij_info = {r.id: r for r in partij_rijen}  # id → rij (aard + lidmaatschap-FK's)
     for r in partij_rijen:
         nodes.append(LandschapsNode(
             id=r.id, naam=r.naam, element_type="partij", laag="business",
@@ -265,5 +270,42 @@ async def haal_grafdata_op(session: AsyncSession, tenant_id, diepte: int = 1) ->
             bron_id=r.partij_id, doel_id=r.object_id, relatietype="roltoewijzing",
             label=rk_catalog.resolveer_een(r.rol, rol_labels), ring="beheerorganisatie",
         ))
+
+    # ── Ring 5 — Organisatiestructuur (ADR-024 "hoort bij") ──
+    # Read-only projectie van de geregistreerde lidmaatschap-FK's (partij.organisatie_id/
+    # afdeling_id) — géén afleiding (ADR-023 besluit 7), exact de geregistreerde keten.
+    # CONTEXT, geen impact: bewust NIET in de impact-relaties (zie IMPACT_RINGEN frontend).
+    # Afbakening: ALLEEN personen-die-een-rol-vervullen (een roltoewijzing als bron), van
+    # ONDERAF opgebouwd — een afdeling/organisatie verschijnt uitsluitend via zo'n persoon
+    # (geen lege takken). Het "persoon direct onder de organisatie"-geval (afdeling_id NULL)
+    # levert een directe lijn persoon → organisatie.
+    # ONTWERP-UITGANGSPUNT (ADR-024): "persoon" betreft hier de beheer-/verantwoordelijke-
+    # personen (rol-vervullers). Worden er ooit échte eindgebruikers toegevoegd (potentieel
+    # honderden), dan krijgen die een aparte, filterbare aard/soort (bv. "applicatiegebruiker")
+    # die STRUCTUREEL buiten deze ring valt — als onderscheid in de aard/soort, niet via een
+    # losse conventie. Die categorie bestaat nog niet en wordt hier NIET gebouwd.
+    rol_partij_ids = {r.partij_id for r in rt_rijen}
+    gezien_os: set[tuple] = set()
+
+    def _os_edge(bron, doel):
+        if bron is None or doel is None or (bron, doel) in gezien_os:
+            return
+        gezien_os.add((bron, doel))
+        edges.append(LandschapsEdge(
+            bron_id=bron, doel_id=doel, relatietype="hoort_bij",
+            label="hoort bij", ring="organisatiestructuur",
+        ))
+
+    for pid in rol_partij_ids:
+        info = partij_info.get(pid)
+        if info is None or info.aard != PartijAard.persoon:
+            continue  # uitsluitend personen-met-rol
+        if info.afdeling_id is not None:
+            _os_edge(pid, info.afdeling_id)  # persoon → afdeling
+            afd = partij_info.get(info.afdeling_id)
+            if afd is not None:
+                _os_edge(info.afdeling_id, afd.organisatie_id)  # afdeling → organisatie
+        elif info.organisatie_id is not None:
+            _os_edge(pid, info.organisatie_id)  # persoon → organisatie (afdeling onbekend)
 
     return LandschapskaartResponse(nodes=nodes, edges=edges)
