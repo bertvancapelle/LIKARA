@@ -264,17 +264,23 @@ def test_component_contract_op_niet_applicatie_component():
         comp = await component_service.maak_aan(
             s, _TID, ComponentCreate(naam=naam, componenttype="database")
         )
-        cid = (await s.execute(
-            text("select id from contract where contractnaam='GeoWorks Licentieovereenkomst'")
-        )).first()[0]
-        kop = await cc.maak_aan(
-            s, _TID, ComponentContractCreate(component_id=comp["id"], contract_id=cid, relatie_rol="valt_onder")
-        )
-        lijst = await cc.contracten_van_component(s, _TID, comp["id"])
-        assert any(r["contract_id"] == cid for r in lijst)
-        await cc.verwijder(s, _TID, kop["id"])          # opruimen: koppeling
-        await component_service.verwijder(s, _TID, comp["id"])  # dan component
-        return True
+        kop = None
+        try:
+            cid = (await s.execute(
+                text("select id from contract where contractnaam='GeoWorks Licentieovereenkomst'")
+            )).first()[0]
+            kop = await cc.maak_aan(
+                s, _TID, ComponentContractCreate(component_id=comp["id"], contract_id=cid, relatie_rol="valt_onder")
+            )
+            lijst = await cc.contracten_van_component(s, _TID, comp["id"])
+            assert any(r["contract_id"] == cid for r in lijst)
+            return True
+        finally:
+            # Opruimen draait ALTIJD (ook bij een falende assert/exception): koppeling vóór
+            # component (anders IN_GEBRUIK), zodat een gefaalde run geen wees-component achterlaat.
+            if kop is not None:
+                await cc.verwijder(s, _TID, kop["id"])          # opruimen: koppeling
+            await component_service.verwijder(s, _TID, comp["id"])  # dan component
 
     assert asyncio.run(_sessie_run(_flow))
 

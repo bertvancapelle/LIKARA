@@ -143,37 +143,44 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
     naam = f"AUDIT-SRV-{uuid.uuid4().hex[:8]}"
 
     async def _run():
-        async with _worker(DEV_TENANT) as s:
-            comp = await component_service.maak_aan(
-                s, DEV_TENANT,
-                ComponentCreate(naam=naam, componenttype="client_software",
-                                hostingmodel="on_premise"),
-            )
-            comp_id = comp["id"]
-            await lifecycle_service.start_beoordeling(s, DEV_TENANT, comp_id)
-            await s.commit()
-            vraag_ids = [
-                r for (r,) in (await s.execute(
-                    select(ChecklistVraag.id)
-                    .where(ChecklistVraag.componenttype == "client_software")
-                    .order_by(ChecklistVraag.code)
-                )).all()
-            ]
-        async with _worker(DEV_TENANT) as s:
-            corr = tc.huidige_correlatie_id()
-            for vid, score in zip(vraag_ids, ("ja", "ja", "nee")):
-                await checklistscore_service.maak_aan(
+        comp_id = None
+        try:
+            async with _worker(DEV_TENANT) as s:
+                comp = await component_service.maak_aan(
                     s, DEV_TENANT,
-                    ChecklistscoreCreate(component_id=comp_id, checklistvraag_id=vid, score=score),
+                    ComponentCreate(naam=naam, componenttype="client_software",
+                                    hostingmodel="on_premise"),
                 )
-            rows = (await s.execute(
-                select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
-                .order_by(AuditLog.tijdstip)
-            )).scalars().all()
-        async with _worker(DEV_TENANT) as s:
-            await s.execute(text("DELETE FROM element WHERE id = :i"), {"i": str(comp_id)})
-            await s.commit()
-        return rows
+                comp_id = comp["id"]
+                await lifecycle_service.start_beoordeling(s, DEV_TENANT, comp_id)
+                await s.commit()
+                vraag_ids = [
+                    r for (r,) in (await s.execute(
+                        select(ChecklistVraag.id)
+                        .where(ChecklistVraag.componenttype == "client_software")
+                        .order_by(ChecklistVraag.code)
+                    )).all()
+                ]
+            async with _worker(DEV_TENANT) as s:
+                corr = tc.huidige_correlatie_id()
+                for vid, score in zip(vraag_ids, ("ja", "ja", "nee")):
+                    await checklistscore_service.maak_aan(
+                        s, DEV_TENANT,
+                        ChecklistscoreCreate(component_id=comp_id, checklistvraag_id=vid, score=score),
+                    )
+                rows = (await s.execute(
+                    select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
+                    .order_by(AuditLog.tijdstip)
+                )).scalars().all()
+            return rows
+        finally:
+            # Opruimen draait ALTIJD (ook bij een exception vóór dit punt): element-delete
+            # cascadeert naar component + score/blokkade/profiel, zodat een gefaalde run geen
+            # wees-component achterlaat.
+            if comp_id is not None:
+                async with _worker(DEV_TENANT) as s:
+                    await s.execute(text("DELETE FROM element WHERE id = :i"), {"i": str(comp_id)})
+                    await s.commit()
 
     rows = asyncio.run(_run())
     per_type: dict = {}
