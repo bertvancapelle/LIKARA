@@ -80,22 +80,22 @@ def test_vraag_toevoegen_en_deactiveren_fan_out():
     code = f"W1{uuid.uuid4().hex[:6]}"  # <= varchar(10)
 
     async def _flow(s):
-        # DMS is volledig gescoord (89/89, geen blokkade) → migratieklaar.
-        dms = (await s.execute(text("select id from component where naam='DMS'"))).first()[0]
-        assert (await comp_svc.lees_detail(s, _TID, dms))  # bestaat
-        lc0 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": dms})).scalar_one()
+        # BRP is volledig gescoord (89/89, geen blokkade) → migratieklaar.
+        brp = (await s.execute(text("select id from component where naam='BRP'"))).first()[0]
+        assert (await comp_svc.lees_detail(s, _TID, brp))  # bestaat
+        lc0 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": brp})).scalar_one()
         assert lc0 == "migratieklaar"
 
         n = await svc.impact_telling(s, "applicatie")
         assert n >= 1  # raakt N applicaties
 
-        # Vraag toevoegen → fan-out: DMS heeft nu 89/90 → in_inventarisatie.
+        # Vraag toevoegen → fan-out: BRP heeft nu 89/90 → in_inventarisatie.
         vraag = await svc.maak_vraag(
             s, _TID,
             VraagCreate(componenttype="applicatie", code=code, vraag="W1 fan-out test",
                         categorie_nr=99, categorie_naam="Test"),
         )
-        lc1 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": dms})).scalar_one()
+        lc1 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": brp})).scalar_one()
         assert lc1 == "in_inventarisatie"
 
         # Duplicaat (zelfde componenttype+code) → CHECKLISTVRAAG_BESTAAT (409).
@@ -109,7 +109,7 @@ def test_vraag_toevoegen_en_deactiveren_fan_out():
 
         # Deactiveren → fan-out terug: inactieve vraag valt uit aantal_vragen → migratieklaar.
         await svc.zet_actief(s, _TID, vraag["id"], False)
-        lc2 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": dms})).scalar_one()
+        lc2 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": brp})).scalar_one()
         assert lc2 == "migratieklaar"
         return vraag["id"]
 

@@ -246,7 +246,11 @@ def test_architectuur_sortering_en_keyset_live():
             c = await _maak_component(s, tid, "WT-F2s-Charlie")  # technology
             await s.commit()
             ids += [a, b, c]
-            mijn = lambda lijst: [i for i in lijst if i["naam"].startswith("WT-F2s-")]
+            # Exact-3-filter (niet de prefix): `_maak_contract` maakt óók een leverancier-partij
+            # `WT-F2s-Alpha-lev`, en architectuur_service.lijst projecteert partijen mee — die hoort
+            # niet bij deze sorteer-over-drie-elementtypen-casus.
+            _drie = {"WT-F2s-Alpha", "WT-F2s-Bravo", "WT-F2s-Charlie"}
+            mijn = lambda lijst: [i for i in lijst if i["naam"] in _drie]
             asc = [i["naam"] for i in mijn(await _collect(s, sort="naam", order="asc"))]
             desc = [i["naam"] for i in mijn(await _collect(s, sort="naam", order="desc"))]
             laag = [i["laag"] for i in mijn(await _collect(s, sort="laag", order="asc"))]

@@ -131,43 +131,54 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
     (checklistscore=create) + afgeleide gevolgen (blokkade + component_profiel = derive),
     één gedeeld correlatie_id en dezelfde actor.
 
-    Gebruikt het `client_software`-type (3 tenant-vragen, geseed): ja/ja/nee maakt de set
-    compleet mét één open blokkade ⇒ lifecycle → geblokkeerd, dus de laatste score-write
-    raakt score + blokkade + component_profiel in één transactie.
-    (ADR-023 Fase F/F-6: demo-type verhuisd van `applicatieserver` naar `client_software`.)"""
+    Self-contained op het `applicatie`-type (89 tenant-vragen, geseed): 88×ja in een aparte
+    setup-transactie + de 89e score `nee` in de gemeten transactie maakt de set compleet mét
+    één open blokkade ⇒ lifecycle → geblokkeerd, dus die laatste score-write raakt
+    score(create) + blokkade(derive) + component_profiel(derive) in één transactie.
+    (LI022 — herijkt op de verrijkte seed: `client_software` is daar niet langer
+    checklist-dragend; `applicatie` is het enige dragende type. Elke `_worker` krijgt een
+    verse correlatie-id, dus de 88-ja-setup lekt niet in de gemeten correlatie.)"""
     from models.models import AuditLog, ChecklistVraag
+    from schemas.applicatie import ApplicatieCreate
     from schemas.checklistscore import ChecklistscoreCreate
-    from schemas.component import ComponentCreate
-    from services import checklistscore_service, component_service, lifecycle_service
+    from services import applicatie_service, checklistscore_service
 
     naam = f"AUDIT-SRV-{uuid.uuid4().hex[:8]}"
 
     async def _run():
-        comp_id = None
+        app_id = None
         try:
             async with _worker(DEV_TENANT) as s:
-                comp = await component_service.maak_aan(
+                app = await applicatie_service.maak_aan(
                     s, DEV_TENANT,
-                    ComponentCreate(naam=naam, componenttype="client_software",
-                                    hostingmodel="on_premise"),
+                    ApplicatieCreate(naam=naam, hostingmodel="saas",
+                                     migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
                 )
-                comp_id = comp["id"]
-                await lifecycle_service.start_beoordeling(s, DEV_TENANT, comp_id)
-                await s.commit()
+                app_id = app.id
+                await applicatie_service.start_inventarisatie(s, DEV_TENANT, app_id)
                 vraag_ids = [
                     r for (r,) in (await s.execute(
                         select(ChecklistVraag.id)
-                        .where(ChecklistVraag.componenttype == "client_software")
+                        .where(ChecklistVraag.componenttype == "applicatie")
                         .order_by(ChecklistVraag.code)
                     )).all()
                 ]
+            # 88×ja in een eigen transactie (eigen correlatie); de laatste vraag blijft
+            # ongescoord tot de gemeten transactie hieronder.
             async with _worker(DEV_TENANT) as s:
-                corr = tc.huidige_correlatie_id()
-                for vid, score in zip(vraag_ids, ("ja", "ja", "nee")):
+                for vid in vraag_ids[:-1]:
                     await checklistscore_service.maak_aan(
                         s, DEV_TENANT,
-                        ChecklistscoreCreate(component_id=comp_id, checklistvraag_id=vid, score=score),
+                        ChecklistscoreCreate(component_id=app_id, checklistvraag_id=vid, score="ja"),
                     )
+            # Gemeten transactie: de 89e score (nee) maakt de set compleet mét één open
+            # blokkade ⇒ score(create) + blokkade(derive) + component_profiel(derive).
+            async with _worker(DEV_TENANT) as s:
+                corr = tc.huidige_correlatie_id()
+                await checklistscore_service.maak_aan(
+                    s, DEV_TENANT,
+                    ChecklistscoreCreate(component_id=app_id, checklistvraag_id=vraag_ids[-1], score="nee"),
+                )
                 rows = (await s.execute(
                     select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
                     .order_by(AuditLog.tijdstip)
@@ -175,11 +186,11 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
             return rows
         finally:
             # Opruimen draait ALTIJD (ook bij een exception vóór dit punt): element-delete
-            # cascadeert naar component + score/blokkade/profiel, zodat een gefaalde run geen
-            # wees-component achterlaat.
-            if comp_id is not None:
+            # cascadeert naar applicatie + score/blokkade/profiel, zodat een gefaalde run geen
+            # wees-element achterlaat.
+            if app_id is not None:
                 async with _worker(DEV_TENANT) as s:
-                    await s.execute(text("DELETE FROM element WHERE id = :i"), {"i": str(comp_id)})
+                    await s.execute(text("DELETE FROM element WHERE id = :i"), {"i": str(app_id)})
                     await s.commit()
 
     rows = asyncio.run(_run())

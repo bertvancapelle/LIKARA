@@ -197,8 +197,8 @@ def test_lijst_levert_besturingsvelden_en_statusfilter():
     async def _flow(s):
         items, _ = await svc.lijst(s, _TID, limit=100)
         per_naam = {i["naam"]: i for i in items}
-        app = per_naam["Belastingsysteem"]
-        infra = per_naam["Oracle FIN-DB"]
+        app = per_naam["Zaaksysteem"]          # applicatie-subtype (besturingsvelden gevuld)
+        infra = per_naam["Shared DB-server"]   # kale technology-component (geen subtype/lifecycle)
         gefilterd, _ = await svc.lijst(s, _TID, limit=100, status=["concept", "in_inventarisatie", "geblokkeerd", "migratieklaar"])
         return app, infra, gefilterd
 
@@ -226,12 +226,12 @@ def test_lijst_laag_filter_en_projectie():
 
     tech, per_naam = asyncio.run(_sessie_run(_flow))
     namen = {i["naam"] for i in tech}
-    assert "Oracle FIN-DB" in namen            # database = technologielaag
-    assert "Belastingsysteem" not in namen     # applicatie = applicatielaag (uitgefilterd)
+    assert "Shared DB-server" in namen         # database = technologielaag
+    assert "Zaaksysteem" not in namen          # applicatie = applicatielaag (uitgefilterd)
     assert tech and all(i["laag"] == "technology" for i in tech)
     # Projectie aanwezig in de ongefilterde lijst (beide lagen).
-    assert per_naam["Belastingsysteem"]["laag"] == "application"
-    assert per_naam["Oracle FIN-DB"]["archimate_element"] == "system_software"
+    assert per_naam["Zaaksysteem"]["laag"] == "application"
+    assert per_naam["Shared DB-server"]["archimate_element"] == "system_software"
 
 
 @integratie
@@ -240,18 +240,18 @@ def test_structuur_overzicht_beide_richtingen():
     from services import component_service as svc
 
     async def _flow(s):
-        row = (await s.execute(text("select id from component where naam='Oracle FIN-DB'"))).first()
+        row = (await s.execute(text("select id from component where naam='Shared DB-server'"))).first()
         ov = await svc.structuur_overzicht(s, _TID, row[0])
         return {x["naam"] for x in ov["gebruikt_door"]}, ov["draait_op"]
 
     gebruikt_door, draait_op = asyncio.run(_sessie_run(_flow))
-    assert {"Belastingsysteem", "Financieel"} <= gebruikt_door  # de DB wordt door beide gebruikt
+    assert {"Zaaksysteem", "BRP", "DMS"} <= gebruikt_door  # de gedeelde DB draagt deze shared-apps
     assert draait_op == []  # de DB steunt zelf nergens op
 
 
 @integratie
 def test_component_contract_op_niet_applicatie_component():
-    """Oracle-licentie-casus: een contract op een database-component (geen applicatie)."""
+    """Casus: een contract op een database-component (geen applicatie)."""
     from sqlalchemy import text
     from schemas.component import ComponentCreate
     from schemas.component_contract import ComponentContractCreate
@@ -267,7 +267,7 @@ def test_component_contract_op_niet_applicatie_component():
         kop = None
         try:
             cid = (await s.execute(
-                text("select id from contract where contractnaam='GeoWorks Licentieovereenkomst'")
+                text("select id from contract where contractnaam='Burgerzaken-suite licentie 2023–2026'")
             )).first()[0]
             kop = await cc.maak_aan(
                 s, _TID, ComponentContractCreate(component_id=comp["id"], contract_id=cid, relatie_rol="valt_onder")

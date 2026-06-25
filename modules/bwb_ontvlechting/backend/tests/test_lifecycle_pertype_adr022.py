@@ -84,7 +84,7 @@ _INSERT_VRAAG = (
 @integratie
 def test_pertype_scoping_negeert_ander_type():
     """Een database-type vraag mag de applicatie-lifecycle niet beïnvloeden:
-    DMS (89/89 gescoord, geen blokkade) blijft `migratieklaar`, niet
+    BRP (89/89 gescoord, geen blokkade) blijft `migratieklaar`, niet
     `in_inventarisatie` (wat zou gebeuren bij een globale telling)."""
     from models.models import LifecycleStatus
     from services import lifecycle_service as ls
@@ -95,7 +95,7 @@ def test_pertype_scoping_negeert_ander_type():
         await _admin_exec(_INSERT_VRAAG, {"tenant_id": _TID, "code": code}, fetch=True)
         try:
             async def _run(s):
-                r = (await s.execute(text("select id from component where naam='DMS'"))).first()
+                r = (await s.execute(text("select id from component where naam='BRP'"))).first()
                 nieuwe = await ls.herbereken_lifecycle(s, _TID, r[0])
                 await s.commit()
                 return nieuwe
