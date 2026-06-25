@@ -2,6 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '@/store/auth'
 
 // Cytoscape gemockt (via de frontend-wrapper): de graaf-rendering is een side-effect;
 // de panelen zijn de testbare laag.
@@ -24,6 +26,8 @@ vi.mock('@/api', () => ({
     landschapskaart: { haalGrafdata: vi.fn() },
     componenten: { opties: vi.fn() }, // LI019 1b — componenttype-catalogus voor het type-filter
     partijen: { lijst: vi.fn() }, // LI019 1b — leverancier-zoek (externe partijen)
+    // ADR-033 2c — opgeslagen views.
+    impactViews: { lijst: vi.fn(), haal: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
   },
 }))
 
@@ -42,7 +46,11 @@ const GRAF = () => ({
   edges: [{ bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties', richting: 'eenrichting', protocol: 'rest' }],
 })
 
-async function mountView({ query = '' } = {}) {
+async function mountView({ query = '', rollen = ['medewerker'] } = {}) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  const auth = useAuthStore()
+  auth.user = { roles: rollen } // ADR-033 2c — beheer-recht op views via hasRole
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -54,7 +62,7 @@ async function mountView({ query = '' } = {}) {
   await router.push(`/landschapskaart${query}`)
   await router.isReady()
   const pushSpy = vi.spyOn(router, 'push')
-  const w = mount(LandschapskaartView, { global: { plugins: [router] } })
+  const w = mount(LandschapskaartView, { global: { plugins: [pinia, router] } })
   await flushPromises()
   return { w, pushSpy }
 }
@@ -81,6 +89,12 @@ beforeEach(() => {
     ],
   })
   api.partijen.lijst.mockResolvedValue({ items: [{ id: 'l1', naam: 'SaaS BV', aard: 'externe_partij' }] })
+  // ADR-033 2c — geen opgeslagen views by default (geen startscherm). Tests die views willen
+  // overschrijven dit per geval.
+  api.impactViews.lijst.mockResolvedValue([])
+  api.impactViews.maak.mockResolvedValue({ id: 'v-new' })
+  api.impactViews.werkBij.mockResolvedValue({ id: 'v1' })
+  api.impactViews.verwijder.mockResolvedValue(null)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -851,5 +865,137 @@ describe('LandschapskaartView v3', () => {
     const { w } = await mountView()
     expect(w.find('[data-testid="lk-res-blok-a2"]').exists()).toBe(true)
     expect(w.find('[data-testid="lk-res-blok-a1"]').exists()).toBe(false)
+  })
+
+  // ── ADR-033 slice 2c/2d — opgeslagen & deelbare views (voorkant) ───────────────────
+  const VIEW = (over = {}) => ({ id: 'v1', naam: 'Eigen', component_ids: ['a1'], gedeeld: false, maker_naam: 'Ik', is_eigenaar: true, ...over })
+
+  it('ADR-033 2c — View opslaan stuurt naam + huidige actieve set; deel-toggle zet gedeeld', async () => {
+    const { w } = await mountView() // medewerker, 0 views → geen startscherm
+    await kies(w, 'a1') // actieve set {a1}
+    expect(w.find('[data-testid="lk-view-opslaan"]').exists()).toBe(true)
+    await w.find('[data-testid="lk-view-opslaan"]').trigger('click')
+    expect(w.find('[data-testid="lk-view-dialog"]').exists()).toBe(true)
+    await w.find('[data-testid="lk-view-naam"]').setValue('Mijn view')
+    await w.find('[data-testid="lk-view-gedeeld-toggle"]').setValue(true)
+    await w.find('[data-testid="lk-view-bewaar"]').trigger('click')
+    await flushPromises()
+    expect(api.impactViews.maak).toHaveBeenCalledWith({ naam: 'Mijn view', component_ids: ['a1'], gedeeld: true })
+    expect(w.find('[data-testid="lk-view-dialog"]').exists()).toBe(false) // sluit na opslaan
+  })
+
+  it('ADR-033 2c — views-lijst toont eigen + gedeelde; herkomst + beheer alleen bij is_eigenaar', async () => {
+    api.impactViews.lijst.mockResolvedValue([
+      VIEW({ id: 'v1', naam: 'Eigen' }),
+      VIEW({ id: 'v2', naam: 'Van collega', gedeeld: true, maker_naam: 'Jan', is_eigenaar: false }),
+    ])
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click') // sluit startscherm
+    await flushPromises()
+    expect(w.find('[data-testid="lk-view-open-v1"]').text()).toBe('Eigen')
+    expect(w.find('[data-testid="lk-view-open-v2"]').text()).toBe('Van collega')
+    expect(w.find('[data-testid="lk-view-gedeeld-v2"]').text()).toContain('gedeeld door Jan')
+    expect(w.find('[data-testid="lk-view-gedeeld-v1"]').exists()).toBe(false) // eigen → geen herkomst
+    expect(w.find('[data-testid="lk-view-bewerk-v1"]').exists()).toBe(true) // eigen → beheer
+    expect(w.find('[data-testid="lk-view-verwijder-v1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-view-bewerk-v2"]').exists()).toBe(false) // van ander → geen beheer
+    expect(w.find('[data-testid="lk-view-verwijder-v2"]').exists()).toBe(false)
+  })
+
+  it('ADR-033 2c — een view openen zet de bewaarde selectie als actieve set → adaptieve weergave volgt', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Twee', component_ids: ['a1', 'a2'] })])
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-startscherm-open-v1"]').trigger('click')
+    await flushPromises()
+    expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+    expect(w.vm.modus).toBe('impact') // ≥2 → impact-verkenner-graph
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false) // startscherm dicht
+  })
+
+  it('ADR-033 2c — bewerken stuurt naam + gedeeld; selectie-bijwerken voegt de huidige set toe', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Oud', component_ids: ['a1'] })])
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await flushPromises()
+    await kies(w, 'a2') // actieve set {a2} (afwijkend van de view-selectie)
+    await w.find('[data-testid="lk-view-bewerk-v1"]').trigger('click')
+    await w.find('[data-testid="lk-view-naam"]').setValue('Nieuw')
+    await w.find('[data-testid="lk-view-gedeeld-toggle"]').setValue(true)
+    await w.find('[data-testid="lk-view-selectie-bijwerken"]').setValue(true)
+    await w.find('[data-testid="lk-view-bewaar"]').trigger('click')
+    await flushPromises()
+    expect(api.impactViews.werkBij).toHaveBeenCalledWith('v1', { naam: 'Nieuw', gedeeld: true, component_ids: ['a2'] })
+  })
+
+  it('ADR-033 2c — een eigen view verwijderen roept de API en herlaadt de lijst', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Weg' })])
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="lk-view-verwijder-v1"]').trigger('click')
+    await flushPromises()
+    expect(api.impactViews.verwijder).toHaveBeenCalledWith('v1')
+    expect(api.impactViews.lijst).toHaveBeenCalledTimes(2) // mount + na verwijderen
+  })
+
+  it('ADR-033 2c — een viewer ziet geen opslaan/beheer-affordances (alleen openen)', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Eigen' })])
+    const { w } = await mountView({ rollen: ['viewer'] })
+    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await flushPromises()
+    await kies(w, 'a1') // actieve set
+    expect(w.find('[data-testid="lk-view-opslaan"]').exists()).toBe(false) // geen opslaan
+    expect(w.find('[data-testid="lk-view-bewerk-v1"]').exists()).toBe(false) // geen beheer
+    expect(w.find('[data-testid="lk-view-verwijder-v1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-view-open-v1"]').exists()).toBe(true) // openen mag wel
+  })
+
+  it('ADR-033 2c — 422 op opslaan toont een inline veldfout op de naam (dialog blijft open)', async () => {
+    api.impactViews.maak.mockRejectedValue(Object.assign(new Error('x'), { status: 422, detail: [{ msg: 'naam mag maximaal 150 tekens zijn' }] }))
+    const { w } = await mountView()
+    await kies(w, 'a1')
+    await w.find('[data-testid="lk-view-opslaan"]').trigger('click')
+    await w.find('[data-testid="lk-view-naam"]').setValue('x')
+    await w.find('[data-testid="lk-view-bewaar"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-view-naam-fout"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-view-naam-fout"]').text()).toContain('150')
+    expect(w.find('[data-testid="lk-view-dialog"]').exists()).toBe(true)
+  })
+
+  it('ADR-033 2c — 409 dubbele naam wordt afgevangen (geen crash, geen inline-veldfout)', async () => {
+    api.impactViews.maak.mockRejectedValue(Object.assign(new Error('x'), { status: 409, code: 'VIEW_NAAM_BESTAAT_AL' }))
+    const { w } = await mountView()
+    await kies(w, 'a1')
+    await w.find('[data-testid="lk-view-opslaan"]').trigger('click')
+    await w.find('[data-testid="lk-view-naam"]').setValue('Bestaat al')
+    await w.find('[data-testid="lk-view-bewaar"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-view-dialog"]').exists()).toBe(true) // geen crash; dialog open
+    expect(w.find('[data-testid="lk-view-naam-fout"]').exists()).toBe(false) // 409 → Toast, geen inline
+  })
+
+  it('ADR-033 2d — ≥1 view → startscherm met werkende "begin met de hele kaart"-escape', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'X' })])
+    const { w } = await mountView()
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(true)
+    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false)
+    expect(w.vm.modus).toBe('geheel')
+    expect([...w.vm.actieveSet]).toEqual([])
+  })
+
+  it('ADR-033 2d — 0 opgeslagen views → geen startscherm (direct geheel-model)', async () => {
+    const { w } = await mountView() // lijst → [] (default)
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false)
+    expect(w.vm.modus).toBe('geheel')
+  })
+
+  it('ADR-033 2d — geen startscherm bij een deep-link (?center heeft voorrang)', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'X' })])
+    const { w } = await mountView({ query: '?center=a1' })
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false) // expliciete ingang
+    expect(w.vm.modus).toBe('ego')
   })
 })

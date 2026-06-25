@@ -13,6 +13,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from '@/composables/router'
 import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
 import { useToast } from '@/primevue'
+import { useAuthStore } from '@/store/auth'
 import { humaniseer } from '../labels'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 
@@ -463,6 +464,110 @@ function drillNaar(id) {
 }
 function stapTerug() {
   if (drillPad.value.length) drillPad.value = drillPad.value.slice(0, -1)
+}
+
+// ── ADR-033 slice 2c/2d — opgeslagen & deelbare views (voorkant) ─────────────────────
+const auth = useAuthStore()
+// Beheer-recht op views = de IMPACT_VIEW-AANMAKEN/WIJZIGEN/VERWIJDEREN-lijn (medewerker/beheerder).
+// Viewer/auditor zien de lijst en kunnen gedeelde views openen, maar krijgen geen opslaan/beheer.
+const magViewsBeheren = computed(() => auth.hasRole('medewerker', 'beheerder'))
+const opgeslagenViews = ref([])
+const toonStartscherm = ref(false) // 2d — startscherm bij ≥1 opgeslagen view
+
+async function laadViews() {
+  try {
+    opgeslagenViews.value = (await api.impactViews.lijst()) || []
+  } catch {
+    opgeslagenViews.value = [] // faalt zacht: geen views-lijst/startscherm
+  }
+}
+
+// Foutmapping (403/404/409/422) → Toast (of, bij `veld`, de 422-veldtekst terug voor inline-weergave).
+function _viewFout(e, { veld = false } = {}) {
+  const status = e?.status
+  if (veld && status === 422) {
+    const det = Array.isArray(e?.detail) ? e.detail[0] : null
+    return det?.msg || 'Controleer de naam (verplicht, max 150 tekens).'
+  }
+  const bericht =
+    status === 403 ? 'Je hebt geen rechten voor deze actie.'
+    : status === 404 ? 'Deze view bestaat niet (meer).'
+    : status === 409 ? 'Je hebt al een view met deze naam.'
+    : status === 422 ? 'Controleer de naam (verplicht, max 150 tekens).'
+    : (e?.message || 'Er ging iets mis.')
+  toast?.add?.({ severity: 'error', summary: 'View', detail: bericht, life: 4000 })
+  return null
+}
+
+// Opslaan-/bewerken-dialog (gedeelde vorm; bewerkId=null → nieuw, anders bewerken).
+const viewDialogOpen = ref(false)
+const viewBewerkId = ref(null)
+const viewNaam = ref('')
+const viewGedeeld = ref(false)
+const viewSelectieBijwerken = ref(false) // bewerken: selectie → huidige actieve set
+const viewNaamFout = ref(null)
+const viewBezig = ref(false)
+
+function openOpslaan() {
+  viewBewerkId.value = null
+  viewNaam.value = ''
+  viewGedeeld.value = false
+  viewSelectieBijwerken.value = false
+  viewNaamFout.value = null
+  viewDialogOpen.value = true
+}
+function openBewerk(v) {
+  viewBewerkId.value = v.id
+  viewNaam.value = v.naam
+  viewGedeeld.value = !!v.gedeeld
+  viewSelectieBijwerken.value = false
+  viewNaamFout.value = null
+  viewDialogOpen.value = true
+}
+function sluitViewDialog() { viewDialogOpen.value = false }
+
+async function bewaarView() {
+  viewNaamFout.value = null
+  const naam = viewNaam.value.trim()
+  if (!naam) { viewNaamFout.value = 'Naam is verplicht.'; return }
+  viewBezig.value = true
+  try {
+    if (viewBewerkId.value) {
+      const body = { naam, gedeeld: viewGedeeld.value }
+      // Selectie alleen bijwerken als de gebruiker dat kiest én er een actieve set is.
+      if (viewSelectieBijwerken.value && actieveSet.value.size) body.component_ids = [...actieveSet.value]
+      await api.impactViews.werkBij(viewBewerkId.value, body)
+    } else {
+      await api.impactViews.maak({ naam, component_ids: [...actieveSet.value], gedeeld: viewGedeeld.value })
+    }
+    viewDialogOpen.value = false
+    toast?.add?.({ severity: 'success', summary: 'View opgeslagen', life: 2000 })
+    await laadViews()
+  } catch (e) {
+    const veld = _viewFout(e, { veld: true })
+    if (veld) viewNaamFout.value = veld // 422 → inline op het naamveld
+  } finally {
+    viewBezig.value = false
+  }
+}
+
+// Openen: de bewaarde selectie wordt de actieve set → de adaptieve weergave volgt vanzelf.
+function openView(v) {
+  actieveSet.value = new Set(v.component_ids || [])
+  toonStartscherm.value = false
+}
+async function verwijderView(v) {
+  try {
+    await api.impactViews.verwijder(v.id)
+    toast?.add?.({ severity: 'success', summary: 'View verwijderd', life: 2000 })
+    await laadViews()
+  } catch (e) {
+    _viewFout(e)
+  }
+}
+// 2d — escape: direct naar het geheel-model (lege actieve set), zonder een view te kiezen.
+function beginMetHeleKaart() {
+  toonStartscherm.value = false
 }
 
 // ── Detail ────────────────────────────────────────────────────────────────────
@@ -1147,6 +1252,8 @@ onMounted(async () => {
   } catch {
     typeCatalogus.value = []
   }
+  // ADR-033 slice 2c — opgeslagen views laden (faalt zacht). Voedt de views-lijst + het startscherm.
+  await laadViews()
   // ADR-033 — deep-link ?center=<applicatie-id> (vanuit het applicatie-detail): de component
   // wordt als enige in de actieve set gezet → Ego-view (afgeleide modus), centraal op de kaart.
   // De oude ?modus-param is vervallen (de modus volgt voortaan de actieve set) en wordt genegeerd.
@@ -1158,6 +1265,11 @@ onMounted(async () => {
     detailId.value = qCenter
   } else {
     _herstelKaartState()
+  }
+  // ADR-033 slice 2d — startscherm: bij ≥1 opgeslagen view en géén expliciete ingang (deep-link of
+  // herstelde actieve set) tonen we de views als instap. 0 views → direct het geheel-model.
+  if (!qCenter && opgeslagenViews.value.length >= 1 && actieveSet.value.size === 0) {
+    toonStartscherm.value = true
   }
   await nextTick() // wacht tot de canvas-div in de DOM staat (en de flex-hoogte gezet is)
   if (containerRef.value) {
@@ -1205,7 +1317,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1247,6 +1359,23 @@ const typeLabel = (t) => humaniseer(t)
     <div class="flex min-h-0 flex-1">
       <!-- Linkerpaneel: zoek + filters + resultaten -->
       <aside class="flex w-60 flex-shrink-0 flex-col gap-[var(--cd-space-sm)] overflow-y-auto border-r border-[var(--cd-color-border)] bg-white p-[var(--cd-space-md)]" data-testid="lk-links">
+        <!-- ADR-033 2c — opgeslagen views (eigen + gedeeld; server filtert). Openen = de bewaarde
+             selectie wordt de actieve set → de adaptieve weergave volgt. Beheer (✎/×) alleen voor
+             de maker (is_eigenaar) mét beheer-recht. -->
+        <div v-if="opgeslagenViews.length" data-testid="lk-views" class="flex flex-col gap-1 border-b border-[var(--cd-color-border)] pb-[var(--cd-space-sm)]">
+          <p class="font-semibold text-[length:var(--cd-text-sm)]">Opgeslagen views</p>
+          <ul class="flex flex-col gap-0.5">
+            <li v-for="v in opgeslagenViews" :key="v.id" :data-testid="`lk-view-${v.id}`" class="flex items-center gap-1 text-[length:var(--cd-text-sm)]">
+              <button type="button" class="grow truncate text-left hover:underline" :data-testid="`lk-view-open-${v.id}`" :title="v.naam" @click="openView(v)">{{ v.naam }}</button>
+              <span v-if="!v.is_eigenaar && v.gedeeld" :data-testid="`lk-view-gedeeld-${v.id}`" class="shrink-0 text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]" :title="`gedeeld door ${v.maker_naam || '—'}`">gedeeld door {{ v.maker_naam || '—' }}</span>
+              <template v-if="v.is_eigenaar && magViewsBeheren">
+                <button type="button" class="shrink-0 text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-primary)]" :data-testid="`lk-view-bewerk-${v.id}`" aria-label="View bewerken" title="Bewerken" @click="openBewerk(v)">✎</button>
+                <button type="button" class="shrink-0 text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-danger)]" :data-testid="`lk-view-verwijder-${v.id}`" aria-label="View verwijderen" title="Verwijderen" @click="verwijderView(v)">×</button>
+              </template>
+            </li>
+          </ul>
+        </div>
+
         <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)]" />
 
         <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
@@ -1505,6 +1634,8 @@ const typeLabel = (t) => humaniseer(t)
             </li>
             <li v-if="!actieveSet.size" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">Nog niets geselecteerd.</li>
           </ul>
+          <!-- ADR-033 2c — huidige actieve set bewaren als view (alleen met beheer-recht op views). -->
+          <button v-if="actieveSet.size > 0 && magViewsBeheren" type="button" data-testid="lk-view-opslaan" class="mt-1 w-full rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]" @click="openOpslaan">💾 View opslaan</button>
         </div>
 
         <div class="border-t border-[var(--cd-color-border)] pt-[var(--cd-space-sm)]">
@@ -1559,6 +1690,70 @@ const typeLabel = (t) => humaniseer(t)
           <button type="button" data-testid="lk-ego-filter-annuleer" class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-md)] py-1" @click="egoFilterAnnuleer">Annuleren</button>
           <button type="button" data-testid="lk-ego-filter-doorgaan" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-1 text-white" @click="egoFilterDoorgaan">Doorgaan</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ADR-033 2c — opslaan/bewerken-dialog (naam + deel-toggle; bij bewerken optioneel de
+         selectie bijwerken naar de huidige actieve set). 422 → inline veldfout op de naam. -->
+    <div
+      v-if="viewDialogOpen"
+      data-testid="lk-view-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="lk-view-dialog-titel"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+    >
+      <div class="card flex w-80 max-w-[90%] flex-col gap-[var(--cd-space-md)] bg-white p-[var(--cd-space-lg)]">
+        <p id="lk-view-dialog-titel" class="font-semibold">{{ viewBewerkId ? 'View bewerken' : 'View opslaan' }}</p>
+        <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
+          <span class="font-semibold" for="lk-view-naam">Naam</span>
+          <input
+            id="lk-view-naam"
+            v-model="viewNaam"
+            type="text"
+            data-testid="lk-view-naam"
+            maxlength="150"
+            :aria-invalid="!!viewNaamFout"
+            aria-describedby="lk-view-naam-fout"
+            class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1"
+            @keyup.enter="bewaarView"
+          />
+          <span v-if="viewNaamFout" id="lk-view-naam-fout" role="alert" data-testid="lk-view-naam-fout" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-danger)]">{{ viewNaamFout }}</span>
+        </label>
+        <label class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+          <input type="checkbox" v-model="viewGedeeld" data-testid="lk-view-gedeeld-toggle" />Delen met collega's (anders privé)
+        </label>
+        <label v-if="viewBewerkId && actieveSet.size" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+          <input type="checkbox" v-model="viewSelectieBijwerken" data-testid="lk-view-selectie-bijwerken" />Selectie bijwerken naar de huidige actieve set ({{ actieveSet.size }})
+        </label>
+        <div class="flex justify-end gap-[var(--cd-space-sm)]">
+          <button type="button" data-testid="lk-view-annuleer" class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-md)] py-1" @click="sluitViewDialog">Annuleren</button>
+          <button type="button" data-testid="lk-view-bewaar" :disabled="viewBezig" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-1 text-white disabled:opacity-50" @click="bewaarView">Opslaan</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADR-033 2d — startscherm: bij ≥1 opgeslagen view een instap-lijst, met een duidelijke
+         escape naar het geheel-model. Geen verplichte horde: één klik naar de kaart. -->
+    <div
+      v-if="toonStartscherm"
+      data-testid="lk-startscherm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="lk-startscherm-titel"
+      class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
+    >
+      <div class="card flex w-96 max-w-[90%] flex-col gap-[var(--cd-space-md)] bg-white p-[var(--cd-space-lg)]">
+        <p id="lk-startscherm-titel" class="font-semibold">Verdergaan met een opgeslagen view?</p>
+        <ul class="flex max-h-72 flex-col gap-1 overflow-y-auto" data-testid="lk-startscherm-lijst">
+          <li v-for="v in opgeslagenViews" :key="v.id">
+            <button type="button" :data-testid="`lk-startscherm-open-${v.id}`" class="flex w-full items-center gap-2 rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-md)] py-2 text-left text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]" @click="openView(v)">
+              <span class="grow truncate">{{ v.naam }}</span>
+              <span v-if="!v.is_eigenaar && v.gedeeld" class="shrink-0 text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">gedeeld door {{ v.maker_naam || '—' }}</span>
+            </button>
+          </li>
+        </ul>
+        <button type="button" data-testid="lk-startscherm-hele-kaart" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-2 text-white" @click="beginMetHeleKaart">Begin met de hele kaart →</button>
       </div>
     </div>
   </div>

@@ -6,6 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '@/store/auth'
 
 vi.mock('@/composables/cytoscape', () => ({
   default: vi.fn(() => ({
@@ -24,6 +26,7 @@ vi.mock('@/api', () => ({
     contracten: { haal: vi.fn() },
     partijen: { haal: vi.fn() },
     relaties: { lijst: vi.fn() },
+    impactViews: { lijst: vi.fn() }, // ADR-033 2c — view-lijst (hier leeg: geen startscherm)
   },
 }))
 
@@ -43,6 +46,9 @@ const GRAF = () => ({
 
 let wrappers = []
 async function mountView() {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore().user = { roles: ['medewerker'] }
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
@@ -57,7 +63,7 @@ async function mountView() {
   await router.push('/landschapskaart')
   await router.isReady()
   const pushSpy = vi.spyOn(router, 'push')
-  const w = mount(LandschapskaartView, { global: { plugins: [router] } })
+  const w = mount(LandschapskaartView, { global: { plugins: [pinia, router] } })
   wrappers.push(w)
   await flushPromises()
   return { w, pushSpy }
@@ -67,6 +73,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear() // LI022 — voorkom dat bewaarde kaart-state tussen tests lekt
   api.landschapskaart.haalGrafdata.mockResolvedValue(GRAF())
+  api.impactViews.lijst.mockResolvedValue([]) // geen views → geen startscherm in deze suite
 })
 afterEach(() => {
   wrappers.forEach((w) => w.unmount())

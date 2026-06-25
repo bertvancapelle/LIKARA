@@ -265,6 +265,16 @@ export const api = {
     haalGrafdata: (params = {}) => request(`/landschapskaart${_filterQuery('landschapskaart.haalGrafdata', params, ['diepte'])}`),
   },
 
+  // ADR-033 slice 2 — opgeslagen & deelbare Impact-verkenner-views. Lijst = eigen + gedeeld
+  // (server filtert op maker/gedeeld); ophalen/wijzigen/verwijderen no-leak-404 voor niet-eigen.
+  impactViews: {
+    lijst: () => request('/impact-views'),
+    haal: (id) => request(`/impact-views/${id}`),
+    maak: (data) => request('/impact-views', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) => request(`/impact-views/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/impact-views/${id}`, { method: 'DELETE' }),
+  },
+
   // ADR-023 Fase F (F-3 stap 2) — consistentie-signalering technische plaatsing (read-only).
   signalen: {
     plaatsing: () => request('/signalen/plaatsing'),
