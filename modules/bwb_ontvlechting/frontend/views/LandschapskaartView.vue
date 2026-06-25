@@ -8,7 +8,7 @@
  * álle panelen (zoek/resultaten/set/detail/legenda/samenvatting) zijn pure Vue-state, zodat de
  * UI testbaar is met een gemockte cytoscape. Read-only; geen engine-aanraking.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from '@/composables/router'
 import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
@@ -269,6 +269,9 @@ function _commitFilterSnap() {
 }
 watch([filterTypes, filterLeveranciers, filterHosting, filterLifecycle], () => {
   if (_filterRevert) return
+  // Bij een history-herstel niet de ego-filterdialog openen; wel de snapshot-baseline meenemen
+  // zodat een láter echte filterwijziging tegen de juiste uitgangsstaat vergelijkt.
+  if (_herstellen) { _commitFilterSnap(); return }
   const centrum = egoStartId.value ? nodePerId.value[egoStartId.value] : null
   if (modus.value !== 'ego' || !centrum) { _commitFilterSnap(); return }
   // Alleen vragen bij de overgang zichtbaar → verborgen van het centrum.
@@ -409,11 +412,19 @@ watch(() => actieveSet.value.size, (n) => { if (n === 0) focusOpSet.value = fals
 // De basis is de actieve set; elke drill-down legt één extra focus-stap bovenop (stack).
 // De verkenningsstaat wordt NIET bewaard (slice 2 bewaart later alleen de startselectie).
 const drillPad = ref([]) // node-ids waar achtereenvolgens in is ingezoomd
+// Vlag: een history-herstel (terug/vooruit) is bezig — onderdruk de afgeleide neven-effecten
+// (drill-reset hieronder + filter-dialog + push) zodat de herstelde toestand niet wordt
+// overschreven of dubbel-gepusht.
+let _herstellen = false
+// Vlag: de eerstvolgende (her)tekening komt uit een herstel → zonder layout-animatie tekenen,
+// zodat rap terug/vooruit geen 400ms-animaties opstapelt (de hang). Geconsumeerd in tekenGraaf.
+let _herstelZonderAnimatie = false
 // Een wijziging van de actieve set reset de verkenning naar de basis; bij precies 1 component
 // centreert de Ego-view op die component (afgeleide modus).
 watch(
   () => [...actieveSet.value].sort().join('|'),
   () => {
+    if (_herstellen) return // bij history-herstel blijft de herstelde drill/ego staan
     drillPad.value = []
     if (actieveSet.value.size === 1) {
       egoStartId.value = [...actieveSet.value][0]
@@ -631,6 +642,96 @@ watch(geselecteerdNodeId, _pasSelectieHighlight)
 function inspecteerNode(id) {
   geselecteerdNodeId.value = id
   openNodePopup(id) // zet detailId + toont het detail (zoals nu)
+}
+
+// ── Toestand-geschiedenis (browser-model: lineair + cursor) ─────────────────────────
+// Heen-en-weer door bezochte kaarttoestanden met een cursor. Eén toestand = selectie/
+// centrering (actieve set + geselecteerde/ingezoomde node + impact-drill) + ring-instellingen
+// (welke ringen aan, "Groepeer per organisatie") + filters (type/leverancier/hosting/lifecycle,
+// zoekterm, "Focus op actieve set"). Zoom/pan tellen NIET (puur kijkhoek → geen entry).
+// De impact-drill is gewoon één toestand-entry — geen tweede terug-mechanisme. Werkgeheugen
+// binnen de sessie; niet gepersisteerd (opgeslagen views dekken bewaren/delen, ongemoeid).
+// shallowRef + bevroren snapshots: geen diepe reactiviteit op de (groeiende) history → geen
+// geheugenlek bij een lange klik-sessie. Begrensd op de laatste _HIST_MAX entries.
+const historie = shallowRef([])
+const cursor = ref(-1)
+const _HIST_MAX = 50
+let _historieKlaar = false
+const kanTerug = computed(() => cursor.value > 0)
+const kanVooruit = computed(() => cursor.value < historie.value.length - 1)
+
+function _maakToestand() {
+  return {
+    set: [...actieveSet.value], sel: geselecteerdNodeId.value,
+    drill: [...drillPad.value], ego: egoStartId.value,
+    ring: [...ringAan.value], groep: groepeerPerOrg.value,
+    fTypes: [...filterTypes.value], fLev: [...filterLeveranciers.value],
+    fHost: [...filterHosting.value], fLc: [...filterLifecycle.value],
+    zoek: zoekterm.value, focus: focusOpSet.value,
+  }
+}
+// Genormaliseerde signatuur van de history-relevante toestand (volgorde-onafhankelijk) —
+// een wijziging hiervan = een nieuwe toestand. Zoom/pan zitten er bewust NIET in.
+const _toestandSig = computed(() => JSON.stringify({
+  set: [...actieveSet.value].sort(), sel: geselecteerdNodeId.value,
+  drill: drillPad.value, ego: egoStartId.value,
+  ring: [...ringAan.value].sort(), groep: groepeerPerOrg.value,
+  fTypes: [...filterTypes.value].sort(), fLev: [...filterLeveranciers.value].sort(),
+  fHost: [...filterHosting.value].sort(), fLc: [...filterLifecycle.value].sort(),
+  zoek: zoekterm.value, focus: focusOpSet.value,
+}))
+watch(_toestandSig, () => {
+  if (!_historieKlaar || _herstellen) return
+  // Browser-model: een nieuwe wijziging vanaf een teruggehaalde toestand knipt de
+  // vooruit-tak (alles ná de cursor) af en begint daar een nieuw pad. Begrensd op _HIST_MAX
+  // (oudste valt eruit). Bevroren snapshot (geen diepe reactiviteit).
+  let arr = historie.value.slice(0, cursor.value + 1)
+  arr.push(Object.freeze(_maakToestand()))
+  if (arr.length > _HIST_MAX) arr = arr.slice(arr.length - _HIST_MAX)
+  historie.value = arr
+  cursor.value = arr.length - 1
+})
+function _zaaiHistorie() {
+  historie.value = [Object.freeze(_maakToestand())]
+  cursor.value = 0
+  _historieKlaar = true
+}
+function _herstelToestand(t) {
+  _herstellen = true
+  // Anti-thrash: de door dit herstel uitgelokte (her)tekening zonder layout-animatie laten
+  // verlopen (tekenGraaf consumeert deze vlag); de nextTick hieronder wist een eventuele rest.
+  _herstelZonderAnimatie = true
+  const setGelijk = (s, a) => s.size === a.length && a.every((x) => s.has(x))
+  const arrGelijk = (cur, a) => cur.length === a.length && cur.every((x, i) => x === a[i])
+  // ALLEEN toewijzen wat écht verandert: nieuwe Set-/array-instanties laten de teken-watch op
+  // referentie vuren → anders forceert elke (ook gelijke) herstelstap een volledige relayout
+  // (de kern van de hang). Een gelijk-blijvende toestand levert nu nul (re)tekeningen.
+  if (!setGelijk(actieveSet.value, t.set)) actieveSet.value = new Set(t.set)
+  if (geselecteerdNodeId.value !== t.sel) geselecteerdNodeId.value = t.sel
+  if (!arrGelijk(drillPad.value, t.drill)) drillPad.value = [...t.drill]
+  if (egoStartId.value !== t.ego) egoStartId.value = t.ego
+  if (!setGelijk(ringAan.value, t.ring)) ringAan.value = new Set(t.ring)
+  if (groepeerPerOrg.value !== t.groep) groepeerPerOrg.value = t.groep
+  if (!arrGelijk(filterTypes.value, t.fTypes)) filterTypes.value = [...t.fTypes]
+  if (!arrGelijk(filterLeveranciers.value, t.fLev)) filterLeveranciers.value = [...t.fLev]
+  if (!arrGelijk(filterHosting.value, t.fHost)) filterHosting.value = [...t.fHost]
+  if (!arrGelijk(filterLifecycle.value, t.fLc)) filterLifecycle.value = [...t.fLc]
+  if (zoekterm.value !== t.zoek) zoekterm.value = t.zoek
+  if (focusOpSet.value !== t.focus) focusOpSet.value = t.focus
+  // Afgeleide watchers (drill-reset, filter-dialog, push) draaien op de flush → pas dáárná
+  // vrijgeven; een onverbruikte animatie-vlag (geen tekening uitgelokt) ook wissen. Centreren
+  // loopt via de layout-stop (_naLayout) — geen losse cy.fit() meer (auto-centreren gaat hierin op).
+  nextTick(() => { _herstellen = false; _herstelZonderAnimatie = false })
+}
+function terugInHistorie() {
+  if (!kanTerug.value) return
+  cursor.value -= 1
+  _herstelToestand(historie.value[cursor.value])
+}
+function vooruitInHistorie() {
+  if (!kanVooruit.value) return
+  cursor.value += 1
+  _herstelToestand(historie.value[cursor.value])
 }
 
 // ── Klik-detail-popups (koppeling + knoop) + fullscreen — read-only weergave ─────
@@ -942,10 +1043,69 @@ function _txtColor(bg) {
   const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55 ? '#ffffff' : '#1a1a2e'
 }
-// LI019 Taak 3 — element_types die géén componenttype zijn: hiervoor verschijnt geen type-regel
-// onder de node-naam (partij/contract zijn geen componenten; gebruikersgroep toont al ledental).
+// LI019 Taak 3 — element_types die géén componenttype zijn (gebruikt door het TYPE-FILTER, dat
+// alleen op componenttypes werkt). NB: het type-LABEL onder de node verschijnt sinds de
+// vorm-per-type-slice voor ÁLLE typen (zie `_typeRegelVoor`), dit blijft puur de filter-scoping.
 const GEEN_COMPONENTTYPE = new Set(['partij', 'gebruikersgroep', 'contract'])
 const _heeftTypeLabel = (n) => !!n.element_type && !GEEN_COMPONENTTYPE.has(n.element_type)
+
+// ── Vorm per node-type (kleur blijft status) — ÉÉN gedeelde bron, gelezen door graph + swimlane ──
+// Alleen native, labelvriendelijke Cytoscape-vormen; de in de praktijk dicht-bij-elkaar liggende
+// paren (leverancier/contract, burger/persoon, afdeling/organisatie) krijgen een echt ander silhouet.
+const _AARD_VORM = {
+  persoon: 'ellipse',            // individu = ovaal
+  organisatie: 'hexagon',        // organisatie-koepel
+  organisatie_eenheid: 'cut-rectangle', // afdeling — duidelijk anders dan organisatie-hexagon
+  externe_partij: 'rhomboid',    // leverancier — schuin blok, duidelijk anders dan contract-tag
+  burger: 'pentagon',            // burger — duidelijk anders dan persoon-ovaal
+}
+function _vormVoorType(n) {
+  if (n.element_type === 'gebruikersgroep') return 'octagon'        // groep/rol-badge
+  if (n.element_type === 'contract') return 'tag'                   // label/"document"
+  if (n.element_type === 'partij') return _AARD_VORM[n.soort] || 'round-rectangle'
+  if (n.laag === 'technology') return 'barrel'                      // infrastructuur = cilinder
+  return 'round-rectangle'                                          // component (application)
+}
+// Vormen die een ruimer bounding-box nodig hebben om het (tweeregelige) label te bevatten.
+const _SHAPE_KLASSE = (shape) =>
+  (shape === 'ellipse' || shape === 'barrel') ? 'rond'
+  : (shape === 'hexagon' || shape === 'octagon' || shape === 'pentagon') ? 'veelhoek'
+  : null
+
+// Leesbare type-aanduiding (tweede labelregel) voor ÁLLE typen — naast de vorm het tekstsignaal.
+const _AARD_LABEL = {
+  persoon: 'Persoon', organisatie: 'Organisatie', organisatie_eenheid: 'Afdeling',
+  externe_partij: 'Leverancier', burger: 'Burger',
+}
+function _typeRegelVoor(n) {
+  if (n.element_type === 'partij') return _AARD_LABEL[n.soort] || 'Partij'
+  if (n.element_type === 'gebruikersgroep') return 'Gebruikersgroep'
+  if (n.element_type === 'contract') return 'Contract'
+  if (n.laag === 'technology') return 'Infrastructuur'
+  return typeLabel(n.element_type) // componenttype, bv. "Applicatie" / "Database"
+}
+
+// Legenda-glyphs: CSS-benaderingen van de Cytoscape-vormen (clip-path / border-radius). Neutrale
+// grijze vulling — kleur blijft voorbehouden aan status; deze glyphs tonen alléén de vorm→type-uitleg.
+const VORM_LEGENDA = [
+  { label: 'Component', stijl: { borderRadius: '3px' } },
+  { label: 'Infrastructuur', stijl: { borderRadius: '50% / 35%' } },
+  { label: 'Contract', stijl: { clipPath: 'polygon(0 0,80% 0,100% 50%,80% 100%,0 100%)' } },
+  { label: 'Persoon', stijl: { borderRadius: '50%' } },
+  { label: 'Gebruikersgroep', stijl: { clipPath: 'polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%)' } },
+  { label: 'Organisatie', stijl: { clipPath: 'polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)' } },
+  { label: 'Afdeling', stijl: { clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)' } },
+  { label: 'Leverancier', stijl: { clipPath: 'polygon(22% 0,100% 0,78% 100%,0 100%)' } },
+  { label: 'Burger', stijl: { clipPath: 'polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%)' } },
+]
+// Uitklapbare legenda — standaard ingeklapt; open/dicht-voorkeur onthouden (sessionStorage, niet-gevoelig).
+const _LEGENDA_KEY = 'lk-legenda-open'
+const legendaOpen = ref(false)
+try { legendaOpen.value = sessionStorage.getItem(_LEGENDA_KEY) === '1' } catch { /* sessionStorage onbereikbaar */ }
+function toggleLegenda() {
+  legendaOpen.value = !legendaOpen.value
+  try { sessionStorage.setItem(_LEGENDA_KEY, legendaOpen.value ? '1' : '0') } catch { /* negeren */ }
+}
 
 // LI019 1d-v5 — swimlane-indeling, afgeleid uit bestaande node-velden. Robuust voor de werkelijke
 // data: ÉLK element_type dat geen partij/contract/gebruikersgroep is, is een componenttype →
@@ -994,22 +1154,22 @@ const laneLayout = computed(() => {
 const laneBanden = computed(() => laneLayout.value)
 function _nodeData(n) {
   const isGG = n.element_type === 'gebruikersgroep'
+  // KLEUR = STATUS (ongewijzigd): lifecycle-tint (of GG-vast/domeinkleur). Vorm staat hier los van.
   let bg = isGG ? GG_STYLE.bg : lcStyle(n.lifecycle_status).bg
   let border = isGG
     ? GG_STYLE.border
     : kleurOpDomein.value && n.domein
       ? domeinKleur.value[n.domein]
       : lcStyle(n.lifecycle_status).border
-  // ADR-033 — geen automatische oranje rand meer; oranje betekent voortaan uitsluitend "het nu
-  // aangeklikte/geïnspecteerde component" (runtime `hl-node`-klasse, zie `_pasSelectieHighlight`).
-  // De knoop houdt z'n lifecycle-achtergrond + rand + ⚠.
-  // ADR-031 — gebruikersgroep: ledental als tweede labelregel (alleen bij >0); anders blokkade-vlag.
-  // LI019 Taak 3 — componenttype als tweede labelregel onder de naam (bij component-nodes).
-  const typeRegel = _heeftTypeLabel(n) ? `\n${typeLabel(n.element_type)}` : ''
-  const label = isGG
-    ? (n.naam || '') + (n.aantal_leden > 0 ? `\n(${n.aantal_leden})` : '')
-    : (n.naam || '') + (n.blokkades_open > 0 ? ' ⚠' : '') + typeRegel
-  return { id: n.id, label, bg, border, txt: _txtColor(bg), shape: isGG ? 'ellipse' : 'round-rectangle' }
+  // ADR-033 — geen automatische oranje rand; oranje = uitsluitend de selectie (runtime hl-node).
+  // VORM = TYPE (vorm-per-type-slice): via de ene gedeelde bron `_vormVoorType` (graph + swimlane).
+  // TYPE-LABEL voor ÁLLE typen als tweede tekstsignaal naast de vorm; GG toont ook het ledental.
+  let tweede = _typeRegelVoor(n)
+  if (isGG && n.aantal_leden > 0) tweede += ` (${n.aantal_leden})`
+  const label = (n.naam || '') + (!isGG && n.blokkades_open > 0 ? ' ⚠' : '') + `\n${tweede}`
+  // HARDE leesbaarheidseis: tekstkleur ALTIJD via de luminantie van de werkelijke vulkleur (`bg`),
+  // voor elke vorm × elke status — nooit een vaste kleur per vorm.
+  return { id: n.id, label, bg, border, txt: _txtColor(bg), shape: _vormVoorType(n) }
 }
 function _edgeData(e, i) {
   let lc = '#94a3b8' // LI019 1d-v5 — iets donkerder default zodat edges tussen lanes goed zichtbaar zijn
@@ -1078,7 +1238,7 @@ function _elementen() {
   const znIds = new Set(zn.map((n) => n.id))
   const ze = zichtbareEdges.value.filter((e) => znIds.has(e.bron_id) && znIds.has(e.doel_id))
   return [
-    ...zn.map((n) => ({ data: _nodeData(n), classes: n.element_type === 'gebruikersgroep' ? 'gg' : _heeftTypeLabel(n) ? 'cmp' : undefined })),
+    ...zn.map((n) => { const d = _nodeData(n); return { data: d, classes: _SHAPE_KLASSE(d.shape) || undefined } }),
     ...ze.map((e, i) => ({ data: _edgeData(e, i) })),
   ]
 }
@@ -1164,7 +1324,10 @@ function onLaneSleepEinde(e) {
   if (doel) _herschikLane(sleepLane.value, doel)
   sleepLane.value = null
 }
-function _layout() {
+function _layout(geenAnimatie = false) {
+  // `geenAnimatie` (bij history-herstel): teken direct, zonder de 400ms-animatie — voorkomt dat
+  // snel terug/vooruit animaties opstapelt. De stop-callback (_naLayout) kadert daarna één keer.
+  const anim = geenAnimatie ? { animate: false } : { animate: true, animationDuration: 400 }
   // LI019 1d (Taak 2) — Swimlanes: custom preset-posities per lane (0 nieuwe dependencies).
   // `positions` als object-map {nodeId: {x,y}} (Cytoscape doet de id-lookup zelf) — géén callback
   // met `node.id` (= de id-METHODE, niet de string). animate:false + fit:true geeft een direct,
@@ -1176,26 +1339,30 @@ function _layout() {
   if (modus.value === 'ego') {
     return {
       name: 'concentric', concentric: (n) => (n.id() === egoStartId.value ? 10 : 5), levelWidth: () => 1,
-      minNodeSpacing: 60, padding: 60, animate: true, animationDuration: 400, stop: _naLayout,
+      minNodeSpacing: 60, padding: 60, ...anim, stop: _naLayout,
     }
   }
   // ADR-033 1c — Impact-verkenner: concentric met de FOCUS centraal, de directe buren eromheen.
   if (modus.value === 'impact') {
     return {
       name: 'concentric', concentric: (n) => (huidigeFocusSet.value.has(n.id()) ? 10 : 5), levelWidth: () => 1,
-      minNodeSpacing: 60, padding: 60, animate: true, animationDuration: 400, stop: _naLayout,
+      minNodeSpacing: 60, padding: 60, ...anim, stop: _naLayout,
     }
   }
   // LI019 1d (Taak 3) — Radiaal/Geheel+Impact: concentric op koppelingsdichtheid (meer koppelingen
   // → dichter bij het centrum).
   return {
     name: 'concentric', concentric: (n) => n.degree(false), levelWidth: () => 2,
-    minNodeSpacing: 50, padding: 50, animate: true, animationDuration: 400, stop: _naLayout,
+    minNodeSpacing: 50, padding: 50, ...anim, stop: _naLayout,
   }
 }
 
 async function tekenGraaf() {
   if (!cy) return
+  // Consumeer de herstel-vlag synchroon bij het starten (vóór de awaits), zodat exact de
+  // door dit herstel uitgelokte (her)tekening zonder animatie verloopt.
+  const _geenAnim = _herstelZonderAnimatie
+  _herstelZonderAnimatie = false
   await nextTick()
   await nextTick() // tweede tick voor (HMR-)edge cases waarin de layout nog niet geflusht is
   // Cytoscape meet zijn container soms op 0 (flex-hoogte nog niet gezet) → forceer een hoogte
@@ -1204,7 +1371,7 @@ async function tekenGraaf() {
   if (el && el.offsetHeight === 0) el.style.minHeight = '500px'
   cy.elements().remove()
   cy.add(_elementen())
-  cy.layout(_layout()).run()
+  cy.layout(_layout(_geenAnim)).run()
   // Klein delay voor de browser-layout-flush, dán her-meten + passend maken.
   setTimeout(() => {
     cy?.resize?.()
@@ -1220,14 +1387,16 @@ const CY_STYLE = [
     style: {
       'background-color': 'data(bg)', 'border-color': 'data(border)', 'border-width': 2,
       label: 'data(label)', 'font-size': 11, color: 'data(txt)', 'text-valign': 'center', 'text-halign': 'center',
-      width: 'label', 'padding-left': 12, 'padding-right': 12, height: 28, shape: 'data(shape)', 'text-wrap': 'ellipsis', 'text-max-width': 150,
+      // Vorm-per-type-slice — elk type heeft nu een tweeregelig label (naam + type): wrap aan,
+      // hoogte volgt het label, ruime padding zodat de type-regel onder de naam past.
+      width: 'label', height: 'label', shape: 'data(shape)', 'text-wrap': 'wrap', 'text-max-width': 150,
+      'padding-left': 12, 'padding-right': 12, 'padding-top': 6, 'padding-bottom': 6,
     },
   },
-  // ADR-031 — gebruikersgroep-nodes: ronde vorm + wrap (ledental op tweede regel).
-  { selector: 'node.gg', style: { shape: 'ellipse', 'text-wrap': 'wrap', width: 64, height: 64 } },
-  // LI019 Taak 3 — component-nodes met componenttype op een tweede labelregel: wrap aan en
-  // hoogte volgt het (nu tweeregelige) label, zodat de type-regel onder de naam past.
-  { selector: 'node.cmp', style: { 'text-wrap': 'wrap', height: 'label', 'padding-top': 6, 'padding-bottom': 6 } },
+  // Ronde vormen (ellipse/barrel) clippen het label aan de randen → ruimere padding.
+  { selector: 'node.rond', style: { 'padding-left': 18, 'padding-right': 18, 'padding-top': 12, 'padding-bottom': 12 } },
+  // Veelhoeken (hexagon/octagon/pentagon) knijpen het label aan de hoeken → ruimere padding.
+  { selector: 'node.veelhoek', style: { 'padding-left': 16, 'padding-right': 16, 'padding-top': 12, 'padding-bottom': 12 } },
   {
     selector: 'edge',
     style: {
@@ -1320,6 +1489,9 @@ onMounted(async () => {
   if (!qCenter && opgeslagenViews.value.length >= 1 && actieveSet.value.size === 0) {
     toonStartscherm.value = true
   }
+  // Toestand-geschiedenis zaaien op de zojuist opgebouwde begintoestand (cursor 0). Vanaf hier
+  // legt elke betekenisvolle wijziging een nieuwe entry vast (zie de _toestandSig-watch).
+  _zaaiHistorie()
   await nextTick() // wacht tot de canvas-div in de DOM staat (en de flex-hoogte gezet is)
   if (containerRef.value) {
     // LI019 1d-v4 (bug 6) — maxZoom begrenst de fit-inzoom bij een kleine node-set, zodat 2 nodes
@@ -1366,7 +1538,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1559,11 +1731,58 @@ const typeLabel = (t) => humaniseer(t)
         <!-- Inline min-height als harde vangrail: zelfs als de flex-hoogteketen faalt, krijgt
              Cytoscape een meetbare hoogte op het init-moment (anders blijft de graaf leeg). -->
         <div ref="containerRef" data-testid="lk-canvas" class="relative z-[1] h-full w-full" style="min-height: 500px"></div>
-        <!-- ADR-033 1c — de Impact-verkenner is nu een graaf OP het canvas (geen HTML-lijst meer):
-             de focus + hun directe geraakte buren, met oranje impact-edges. Drill-down = klik op een
-             buur (onNodeTap), "← terug" hieronder. -->
-        <div v-if="modus === 'impact' && drillPad.length" class="absolute left-3 top-3 z-10">
-          <button type="button" data-testid="lk-impact-terug" class="rounded-[var(--cd-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)] hover:bg-[var(--cd-color-accent)]" @click="stapTerug">← Terug</button>
+        <!-- Toestand-geschiedenis: heen-en-weer door bezochte kaarttoestanden (selectie/centrering,
+             ringen, filters). De impact-drill loopt via dezelfde geschiedenis — geen aparte drill-terug.
+             "← Terug naar Landschapskaart" (de kaart verlaten) is een andere actie en blijft elders. -->
+        <div class="absolute left-3 top-3 z-10 flex gap-[var(--cd-space-xs)]">
+          <button
+            type="button" data-testid="lk-hist-terug" aria-label="Vorige kaarttoestand"
+            :disabled="!kanTerug"
+            class="h-10 rounded-[var(--cd-radius-btn)] bg-white/90 px-3 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)] hover:bg-[var(--cd-color-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+            @click="terugInHistorie"
+          >← Terug</button>
+          <button
+            type="button" data-testid="lk-hist-vooruit" aria-label="Volgende kaarttoestand"
+            :disabled="!kanVooruit"
+            class="h-10 rounded-[var(--cd-radius-btn)] bg-white/90 px-3 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)] hover:bg-[var(--cd-color-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+            @click="vooruitInHistorie"
+          >Vooruit →</button>
+        </div>
+
+        <!-- Uitklapbare legenda — rechtsonder op het canvas. Standaard ingeklapt tot een knop;
+             uitgeklapt: "Vorm = type" (negen vorm-glyphs) + "Kleur = status" (lifecycle + ⚠). -->
+        <div class="absolute bottom-3 right-3 z-10" data-testid="lk-legenda">
+          <button
+            v-if="!legendaOpen"
+            type="button" data-testid="lk-legenda-toggle" aria-expanded="false"
+            class="h-10 rounded-[var(--cd-radius-btn)] bg-white/90 px-3 text-[length:var(--cd-text-sm)] shadow-[var(--cd-shadow-sm)] hover:bg-[var(--cd-color-accent)]"
+            @click="toggleLegenda"
+          >Legenda</button>
+          <div
+            v-else
+            data-testid="lk-legenda-paneel"
+            class="max-h-[70%] w-60 overflow-auto rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-white/95 p-[var(--cd-space-sm)] shadow-[var(--cd-shadow-lg)]"
+          >
+            <div class="mb-1 flex items-center justify-between">
+              <span class="font-semibold text-[length:var(--cd-text-sm)]">Legenda</span>
+              <button type="button" data-testid="lk-legenda-sluit" aria-label="Legenda inklappen" class="px-1 text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-text)]" @click="toggleLegenda">×</button>
+            </div>
+            <!-- Vorm = type -->
+            <div data-testid="lk-legenda-vorm" class="flex flex-col gap-1">
+              <p class="text-[length:var(--cd-text-xs)] font-semibold text-[var(--cd-color-text-muted)]">Vorm = type</p>
+              <span v-for="v in VORM_LEGENDA" :key="v.label" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+                <span class="inline-block h-3.5 w-3.5 shrink-0 bg-[var(--cd-color-text-muted)]" :style="v.stijl" aria-hidden="true"></span>{{ v.label }}
+              </span>
+            </div>
+            <!-- Kleur = status -->
+            <div data-testid="lk-legenda-status" class="mt-[var(--cd-space-sm)] flex flex-col gap-1 border-t border-[var(--cd-color-border)] pt-[var(--cd-space-sm)]">
+              <p class="text-[length:var(--cd-text-xs)] font-semibold text-[var(--cd-color-text-muted)]">Kleur = status</p>
+              <span v-for="lc in LIFECYCLE_OPTIES.concat(['null'])" :key="lc" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+                <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: lcStyle(lc).bg, border: `1px solid ${lcStyle(lc).border}` }"></span>{{ lc === 'null' ? 'geen profiel' : typeLabel(lc) }}
+              </span>
+              <span class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">⚠ Open blokkade(s)</span>
+            </div>
+          </div>
         </div>
 
         <!-- (2) lane-HEADERS BOVEN het canvas (z-[5]). De container is pointer-events-none → node-
@@ -1712,16 +1931,6 @@ const typeLabel = (t) => humaniseer(t)
           <p v-else class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]" data-testid="lk-detail-leeg">Klik een node voor detail.</p>
         </div>
 
-        <div class="border-t border-[var(--cd-color-border)] pt-[var(--cd-space-sm)]" data-testid="lk-legenda">
-          <p class="mb-1 font-semibold text-[length:var(--cd-text-sm)]">Legenda</p>
-          <div class="flex flex-col gap-1 text-[length:var(--cd-text-sm)]">
-            <span v-for="lc in LIFECYCLE_OPTIES.concat(['null'])" :key="lc" class="flex items-center gap-2">
-              <span class="inline-block h-3 w-3 rounded-full" :style="{ background: lcStyle(lc).bg, border: `1px solid ${lcStyle(lc).border}` }"></span>{{ lc === 'null' ? 'geen profiel' : typeLabel(lc) }}
-            </span>
-            <span class="flex items-center gap-2">⚠ Open blokkade(s)</span>
-            <span class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">Klik een node = detail</span>
-          </div>
-        </div>
       </aside>
     </div>
 

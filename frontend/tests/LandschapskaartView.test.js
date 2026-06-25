@@ -602,17 +602,17 @@ describe('LandschapskaartView v3', () => {
     await kies(w, 'a3') // focus {a1,a3}; a2 is de gedeelde directe buur
     expect(w.vm.huidigeFocus.sort()).toEqual(['a1', 'a3'])
     expect(getekendeIds(w)).toEqual(['a1', 'a2', 'a3'])
-    expect(w.find('[data-testid="lk-impact-terug"]').exists()).toBe(false) // nog niet ingezoomd
-    // Drill-down op a2 → a2 wordt de focus; zijn directe buren (a1,a3) blijven in beeld.
+    // Drill-down op a2 → a2 wordt de focus; zijn directe buren (a1,a3) blijven in beeld. Dit is
+    // ÉÉN toestand-entry in de geschiedenis (geen apart drill-terug-mechanisme meer).
     w.vm.drillNaar('a2')
     await flushPromises()
     expect(w.vm.drillPad).toEqual(['a2'])
     expect(w.vm.huidigeFocus).toEqual(['a2'])
     expect(w.vm.impactDirect.map((n) => n.id).sort()).toEqual(['a1', 'a3'])
     expect(getekendeIds(w)).toEqual(['a1', 'a2', 'a3'])
-    expect(w.find('[data-testid="lk-impact-terug"]').exists()).toBe(true) // terug-knop verschijnt
-    // "← terug" gaat één stap terug naar de oorspronkelijke selectie.
-    await w.find('[data-testid="lk-impact-terug"]').trigger('click')
+    // De ene in-kaart "← Terug" gaat één toestand terug (de drill-stap ongedaan).
+    expect(w.vm.kanTerug).toBe(true)
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click')
     await flushPromises()
     expect(w.vm.drillPad).toEqual([])
     expect(w.vm.huidigeFocus.sort()).toEqual(['a1', 'a3'])
@@ -1106,5 +1106,234 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.modus).toBe('impact')
     // 'per' hangt alleen via hoort_bij aan 'afd' → géén impact-buur (ring buiten IMPACT_RINGEN).
     expect(w.vm.impactDirect.map((n) => n.id)).not.toContain('per')
+  })
+
+  // ── Toestand-geschiedenis (browser-model: terug/vooruit met cursor) ──
+  it('geschiedenis — een wijziging pusht; terug herstelt de vorige; vooruit herstelt weer', async () => {
+    const { w } = await mountView() // t0 = begintoestand (cursor 0)
+    expect(w.vm.cursor).toBe(0)
+    expect(w.vm.kanTerug).toBe(false)
+    expect(w.vm.ringAan.has('contracten')).toBe(true) // standaard aan
+    // Ring-toggle = een nieuwe toestand.
+    await w.find('[data-testid="lk-ring-contracten"]').trigger('change')
+    await flushPromises()
+    expect(w.vm.cursor).toBe(1)
+    expect(w.vm.ringAan.has('contracten')).toBe(false)
+    // Terug → de vorige toestand (contracten weer aan).
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click')
+    await flushPromises()
+    expect(w.vm.cursor).toBe(0)
+    expect(w.vm.ringAan.has('contracten')).toBe(true)
+    // Vooruit → weer naar de gewijzigde toestand.
+    await w.find('[data-testid="lk-hist-vooruit"]').trigger('click')
+    await flushPromises()
+    expect(w.vm.cursor).toBe(1)
+    expect(w.vm.ringAan.has('contracten')).toBe(false)
+  })
+
+  it('geschiedenis — nieuwe wijziging vanaf een teruggehaalde toestand knipt de vooruit-tak af', async () => {
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-ring-contracten"]').trigger('change') // t1
+    await flushPromises()
+    await w.find('[data-testid="lk-ring-infrastructuur"]').trigger('change') // t2
+    await flushPromises()
+    expect(w.vm.historie.length).toBe(3)
+    // Terug naar t1 → er is een vooruit-tak (t2).
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click')
+    await flushPromises()
+    expect(w.vm.cursor).toBe(1)
+    expect(w.vm.kanVooruit).toBe(true)
+    // Nieuwe wijziging vanaf t1 → knipt t2 af en begint een nieuw pad.
+    await w.find('[data-testid="lk-ring-gebruikers"]').trigger('change')
+    await flushPromises()
+    expect(w.vm.historie.length).toBe(3) // t0, t1, t2' (oude t2 vervangen)
+    expect(w.vm.cursor).toBe(2)
+    expect(w.vm.kanVooruit).toBe(false) // vooruit-tak afgeknipt
+  })
+
+  it('geschiedenis — knoppen disabled aan de randen', async () => {
+    const { w } = await mountView()
+    expect(w.find('[data-testid="lk-hist-terug"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-testid="lk-hist-vooruit"]').attributes('disabled')).toBeDefined()
+    // De in-kaart-terug is een eigen actie (aria-label), niet "Terug naar Landschapskaart".
+    expect(w.find('[data-testid="lk-hist-terug"]').attributes('aria-label')).toBe('Vorige kaarttoestand')
+    await w.find('[data-testid="lk-ring-contracten"]').trigger('change')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-hist-terug"]').attributes('disabled')).toBeUndefined() // terug kan
+    expect(w.find('[data-testid="lk-hist-vooruit"]').attributes('disabled')).toBeDefined()  // geen vooruit
+  })
+
+  it('geschiedenis — een kijkhoek-wijziging (fullscreen, net als zoom/pan) pusht GEEN toestand', async () => {
+    const { w } = await mountView()
+    const n = w.vm.historie.length
+    // Fullscreen/zoom/pan zitten bewust NIET in de toestand-signatuur → geen nieuwe entry.
+    w.vm.toggleFullscreen()
+    await flushPromises()
+    expect(w.vm.historie.length).toBe(n)
+    expect(w.vm.cursor).toBe(n - 1)
+  })
+
+  // ── Hang-fix: herstel zonder thrash + history begrenzen + filter-guard ──
+  // Opname-cy: registreert layout-`animate` + viewport-ops, en vuurt de layout-`stop` (_naLayout)
+  // synchroon — zo is het centreren-via-stop testbaar. `mockImplementationOnce` → de mount krijgt
+  // deze cy, daarna valt cytoscape terug op de default-mock (geen lek naar andere tests).
+  const _opnameCy = (rec) => () => {
+    const cy = {
+      on: vi.fn(), elements: () => ({ remove: vi.fn(), unselect: vi.fn() }),
+      nodes: () => ({ removeClass: vi.fn() }), edges: () => ({ removeClass: vi.fn() }),
+      getElementById: () => ({ length: 0, select: vi.fn() }),
+      animate: vi.fn(), zoom: () => 1, pan: () => ({ x: 0, y: 0 }), add: vi.fn(),
+      layout: (opts) => ({ run: () => { rec.anim.push(opts && opts.animate); if (opts && opts.stop) opts.stop() } }),
+      resize: vi.fn(), fit: () => { rec.viewport++ }, center: () => { rec.viewport++ }, destroy: vi.fn(),
+    }
+    return cy
+  }
+
+  it('hang-fix — terug tekent ZONDER layout-animatie en centreert via de layout-stop; geen nieuwe entry', async () => {
+    const rec = { anim: [], viewport: 0 }
+    cytoscape.mockImplementationOnce(_opnameCy(rec))
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-ring-contracten"]').trigger('change') // t1 (echte wijziging)
+    await flushPromises()
+    const len = w.vm.historie.length, cur = w.vm.cursor
+    rec.anim.length = 0; rec.viewport = 0
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click')
+    await flushPromises()
+    expect(rec.anim.length).toBeGreaterThan(0)             // er werd (her)getekend
+    expect(rec.anim.every((a) => a === false)).toBe(true)  // maar ZONDER animatie (anti-thrash)
+    expect(rec.viewport).toBeGreaterThan(0)                // centreren liep via de layout-stop (_naLayout)
+    expect(w.vm.historie.length).toBe(len)                 // herstel pusht GEEN entry
+    expect(w.vm.cursor).toBe(cur - 1)                      // cursor enkel door de navigatie
+  })
+
+  it('hang-fix — een herstel zonder zichtbare-graaf-wijziging tekent NIET opnieuw (geen relayout)', async () => {
+    const rec = { anim: [], viewport: 0 }
+    cytoscape.mockImplementationOnce(_opnameCy(rec))
+    const { w } = await mountView()
+    w.vm.inspecteerNode('a1'); await flushPromises() // push: enkel geselecteerdNodeId (geen teken-dep)
+    rec.anim.length = 0
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click'); await flushPromises()
+    expect(rec.anim.length).toBe(0)            // selectie-only herstel → géén relayout
+    expect(w.vm.geselecteerdNodeId).toBe(null) // herstel klopt wél (sel terug naar begin)
+  })
+
+  it('hang-fix — history begrensd op ~50 (oudste eruit), cursor consistent, terug/vooruit binnen venster', async () => {
+    const { w } = await mountView()
+    for (let i = 0; i < 60; i++) {
+      await w.find('[data-testid="lk-ring-contracten"]').trigger('change'); await flushPromises()
+    }
+    expect(w.vm.historie.length).toBeLessThanOrEqual(50)
+    expect(w.vm.cursor).toBe(w.vm.historie.length - 1)
+    const top = w.vm.cursor
+    w.vm.terugInHistorie(); await flushPromises()
+    expect(w.vm.cursor).toBe(top - 1)
+    w.vm.vooruitInHistorie(); await flushPromises()
+    expect(w.vm.cursor).toBe(top)
+  })
+
+  it('hang-fix — herstel opent GEEN ego-filterdialog (filter-watch afgeschermd)', async () => {
+    const { w } = await mountView()
+    await kies(w, 'a1') // ego, centrum a1 (applicatie)
+    expect(w.vm.modus).toBe('ego')
+    // Filter die het centrum verbergt → de dialog hoort bij een NORMALE wijziging te openen.
+    await w.find('[data-testid="lk-filter-type-input"]').trigger('focus')
+    await w.find('[data-testid="lk-filter-type-optie-database"]').trigger('mousedown')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-ego-filter-dialog"]').exists()).toBe(true)
+    await w.find('[data-testid="lk-ego-filter-doorgaan"]').trigger('click') // bevestig + sluit
+    await flushPromises()
+    expect(w.find('[data-testid="lk-ego-filter-dialog"]').exists()).toBe(false)
+    // terug (filter eraf) → vooruit (filter weer aan = herstel dat a1 verbergt). De guard houdt
+    // de dialog tijdens herstel dicht.
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click'); await flushPromises()
+    await w.find('[data-testid="lk-hist-vooruit"]').trigger('click'); await flushPromises()
+    expect(w.find('[data-testid="lk-ego-filter-dialog"]').exists()).toBe(false)
+  })
+
+  // ── Vorm per node-type (kleur blijft status) + uitklapbare legenda ──
+  // Replica van de luminantie-keuze in _txtColor (zwart/wit op basis van de werkelijke vulkleur).
+  const _lumKeuze = (bg) => {
+    const h = String(bg || '').replace('#', '')
+    if (h.length !== 6) return '#1a1a2e'
+    const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16)
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.55 ? '#ffffff' : '#1a1a2e'
+  }
+
+  it('vorm-per-type — elk van de negen typen krijgt z\'n eigen native vorm via de gedeelde bron', async () => {
+    const { w } = await mountView()
+    const vorm = (n) => w.vm._nodeData(n).shape
+    const m = {
+      component: vorm({ id: 'c', element_type: 'applicatie', laag: 'application' }),
+      infra: vorm({ id: 'i', element_type: 'database', laag: 'technology' }),
+      contract: vorm({ id: 'k', element_type: 'contract', laag: 'business' }),
+      persoon: vorm({ id: 'p', element_type: 'partij', soort: 'persoon' }),
+      groep: vorm({ id: 'g', element_type: 'gebruikersgroep' }),
+      organisatie: vorm({ id: 'o', element_type: 'partij', soort: 'organisatie' }),
+      afdeling: vorm({ id: 'a', element_type: 'partij', soort: 'organisatie_eenheid' }),
+      leverancier: vorm({ id: 'l', element_type: 'partij', soort: 'externe_partij' }),
+      burger: vorm({ id: 'b', element_type: 'partij', soort: 'burger' }),
+    }
+    expect(m).toEqual({
+      component: 'round-rectangle', infra: 'barrel', contract: 'tag', persoon: 'ellipse',
+      groep: 'octagon', organisatie: 'hexagon', afdeling: 'cut-rectangle',
+      leverancier: 'rhomboid', burger: 'pentagon',
+    })
+    expect(new Set(Object.values(m)).size).toBe(9) // negen verschillende silhouetten
+    // de bijna-dubbele paren zijn echt verschillend
+    expect(m.leverancier).not.toBe(m.contract)
+    expect(m.burger).not.toBe(m.persoon)
+    expect(m.afdeling).not.toBe(m.organisatie)
+  })
+
+  it('vorm-per-type — type-label verschijnt voor ALLE typen (tweede signaal naast de vorm)', async () => {
+    const { w } = await mountView()
+    const lbl = (n) => w.vm._nodeData(n).label
+    expect(lbl({ element_type: 'partij', soort: 'persoon', naam: 'Jan' })).toContain('Persoon')
+    expect(lbl({ element_type: 'partij', soort: 'organisatie_eenheid', naam: 'Afd' })).toContain('Afdeling')
+    expect(lbl({ element_type: 'partij', soort: 'organisatie', naam: 'Org' })).toContain('Organisatie')
+    expect(lbl({ element_type: 'partij', soort: 'externe_partij', naam: 'Lev' })).toContain('Leverancier')
+    expect(lbl({ element_type: 'partij', soort: 'burger', naam: 'B' })).toContain('Burger')
+    expect(lbl({ element_type: 'contract', naam: 'K' })).toContain('Contract')
+    expect(lbl({ element_type: 'gebruikersgroep', naam: 'G', aantal_leden: 5 })).toContain('Gebruikersgroep')
+    expect(lbl({ element_type: 'database', laag: 'technology', naam: 'DB' })).toContain('Infrastructuur')
+    expect(lbl({ element_type: 'applicatie', laag: 'application', naam: 'App' })).toContain('Applicatie')
+  })
+
+  it('vorm-per-type — tekstkleur volgt ALTIJD de luminantie van de vulkleur (vorm × status)', async () => {
+    const { w } = await mountView()
+    const vormen = [
+      { element_type: 'applicatie', laag: 'application' }, { element_type: 'database', laag: 'technology' },
+      { element_type: 'contract' }, { element_type: 'partij', soort: 'persoon' },
+      { element_type: 'gebruikersgroep' }, { element_type: 'partij', soort: 'organisatie' },
+      { element_type: 'partij', soort: 'organisatie_eenheid' }, { element_type: 'partij', soort: 'externe_partij' },
+      { element_type: 'partij', soort: 'burger' },
+    ]
+    const statussen = ['migratieklaar', 'geblokkeerd', 'in_inventarisatie', 'concept', undefined]
+    for (const v of vormen) {
+      for (const s of statussen) {
+        const d = w.vm._nodeData({ ...v, lifecycle_status: s, naam: 'X' })
+        expect(d.txt).toBe(_lumKeuze(d.bg))           // exact de luminantie-keuze, niet vast per vorm
+        expect(['#ffffff', '#1a1a2e']).toContain(d.txt) // leesbaar zwart óf wit, nooit iets anders
+      }
+    }
+  })
+
+  it('vorm-per-type — legenda uitklapbaar (standaard ingeklapt), twee secties, onthoudt voorkeur', async () => {
+    let w = (await mountView()).w
+    // Standaard ingeklapt → alleen de knop.
+    expect(w.find('[data-testid="lk-legenda-toggle"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda-paneel"]').exists()).toBe(false)
+    await w.find('[data-testid="lk-legenda-toggle"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-legenda-paneel"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda-vorm"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda-status"]').exists()).toBe(true)
+    const vormtekst = w.find('[data-testid="lk-legenda-vorm"]').text()
+    for (const t of ['Component', 'Infrastructuur', 'Contract', 'Persoon', 'Gebruikersgroep', 'Organisatie', 'Afdeling', 'Leverancier', 'Burger']) {
+      expect(vormtekst).toContain(t)
+    }
+    // Voorkeur onthouden (sessionStorage): een nieuwe mount opent meteen uitgeklapt.
+    w = (await mountView()).w
+    expect(w.find('[data-testid="lk-legenda-paneel"]').exists()).toBe(true)
   })
 })
