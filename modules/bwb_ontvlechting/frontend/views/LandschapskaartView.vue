@@ -16,6 +16,7 @@ import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { humaniseer } from '../labels'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
+import KaartBeginscherm from './KaartBeginscherm.vue'
 
 const router = useRouter()
 // Toast voor de "Volgorde opgeslagen"-bevestiging; defensief: in tests zonder Toast-provider null.
@@ -491,6 +492,15 @@ function kiesComponent(id) {
 function voegAlleGefilterdeToe() {
   const s = new Set(actieveSet.value)
   for (const n of gefilterdeNodes.value) s.add(n.id)
+  actieveSet.value = s
+  heleLandschap.value = false
+}
+// Fase B slice 2b (LI023) — het beginscherm levert componenten via zijn ingangen (zoek/leverancier/
+// contract/gebruikerscontext). Voeg ze toe aan de set (al-aanwezige ids stil overgeslagen → geen
+// duplicaten); de set-watch haalt vervolgens de subgraaf van de bijgewerkte set op.
+function voegComponentenToeAanSet(componenten) {
+  const s = new Set(actieveSet.value)
+  for (const c of componenten || []) if (c?.id) s.add(c.id)
   actieveSet.value = s
   heleLandschap.value = false
 }
@@ -1665,7 +1675,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, scopeModus, organisatieNodes, toggleScopeOrg, zonderEigenaarAantal, organisatieloosGebruiktAantal, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, scopeModus, organisatieNodes, toggleScopeOrg, zonderEigenaarAantal, organisatieloosGebruiktAantal, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -1704,6 +1714,32 @@ const typeLabel = (t) => humaniseer(t)
       <!-- Fase B — "Begin opnieuw": enige harde reset → terug naar het lege beginscherm. -->
       <button v-if="!beginscherm" type="button" data-testid="lk-begin-opnieuw" class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] hover:bg-[var(--cd-color-accent)]" @click="wisSet">Begin opnieuw</button>
       <span class="ml-auto text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]" data-testid="lk-zichtbaar-aantal">{{ zichtbaarAantal }} in beeld</span>
+    </div>
+
+    <!-- Fase B slice 2b (LI023) — "in beeld"-chips: één chip per component in de set (≥1), zichtbaar
+         buiten het beginscherm (ego/impact). Tweede set-bewerkingsplek naast de context-routes;
+         × verwijdert via de bestaande toggleSet → de set-watch herlaadt de subgraaf. -->
+    <div
+      v-if="actieveSet.size"
+      data-testid="lk-chips"
+      class="flex flex-wrap items-center gap-1 border-b border-[var(--cd-color-border)] bg-white px-[var(--cd-space-md)] py-[var(--cd-space-xs)]"
+    >
+      <span class="text-[length:var(--cd-text-xs)] font-semibold text-[var(--cd-color-text-muted)]">In beeld:</span>
+      <span
+        v-for="n in actieveSetNodes"
+        :key="n.id"
+        :data-testid="`lk-chip-${n.id}`"
+        class="flex items-center gap-1 rounded bg-[var(--cd-color-accent)] px-[var(--cd-space-xs)] py-0.5 text-[length:var(--cd-text-xs)]"
+      >
+        {{ n.naam }}
+        <button
+          type="button"
+          :data-testid="`lk-chip-verwijder-${n.id}`"
+          :aria-label="`Verwijder ${n.naam} uit beeld`"
+          class="leading-none text-[var(--cd-color-text-muted)] hover:text-[var(--cd-color-danger)]"
+          @click="toggleSet(n.id)"
+        >×</button>
+      </span>
     </div>
 
     <div class="flex min-h-0 flex-1">
@@ -2047,12 +2083,19 @@ const typeLabel = (t) => humaniseer(t)
         <p v-if="tekenVoortgang" data-testid="lk-voortgang" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]">{{ tekenVoortgang.gedaan }} van {{ tekenVoortgang.totaal }} componenten geladen…</p>
         <p v-else-if="laden" data-testid="lk-laden" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--cd-color-text-muted)]">Landschap laden…</p>
         <p v-else-if="fout" role="alert" data-testid="lk-fout" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--cd-color-danger)]">{{ fout }}</p>
-        <!-- Fase B — leeg beginscherm (lege set, niet hele-landschap): minimale placeholder + de
-             bewuste "toon het hele landschap"-actie. Het volwaardige 4-ingangen-scherm is slice 2. -->
-        <div v-else-if="beginscherm" data-testid="lk-beginscherm" class="absolute left-1/2 top-1/2 flex max-w-md -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-[var(--cd-space-sm)] text-center text-[var(--cd-color-text-muted)]">
-          <p>Begin met zoeken of bladeren in het linkerpaneel — of toon het hele landschap.</p>
-          <button type="button" data-testid="lk-toon-hele-landschap" class="rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-2 text-white" @click="toonHeleLandschap">Toon het hele landschap →</button>
-        </div>
+        <!-- Fase B slice 2b (LI023) — het volwaardige 4-ingangen-beginscherm vervangt de placeholder
+             (zoek · context · opgeslagen views · hele landschap). Overlay over het lege canvas; de
+             component-root draagt data-testid="lk-beginscherm" + de "toon hele landschap"-actie. -->
+        <KaartBeginscherm
+          v-else-if="beginscherm"
+          class="absolute inset-0 bg-[var(--cd-color-bg)]"
+          :opgeslagen-views="opgeslagenViews"
+          :component-opties="typeCatalogus"
+          :eigenaar-opties="[]"
+          @voeg-componenten-toe="voegComponentenToeAanSet"
+          @open-view="openView"
+          @toon-hele-landschap="toonHeleLandschap"
+        />
         <p v-else-if="!heeftData" data-testid="lk-leeg" class="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 text-center text-[var(--cd-color-text-muted)]">Geen componenten in deze selectie.</p>
       </div>
       </div>

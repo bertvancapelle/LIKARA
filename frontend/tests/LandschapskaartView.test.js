@@ -1520,4 +1520,32 @@ describe('LandschapskaartView v3', () => {
       expect(w.findAll('[data-testid^="lk-res-naam-"]').length).toBe(0)
     })
   })
+
+  // ── Fase B (LI023) slice 2b — "in beeld"-chips: tweede set-bewerkingsplek naast de context-routes,
+  //    zichtbaar zodra de set ≥1 is (ego/impact), buiten het beginscherm. ─────────────────────────
+  describe('Fase B — in-beeld-chips', () => {
+    it('set ≥ 1 → chips zichtbaar (één per component)', async () => {
+      const { w } = await mountView({ heleLandschap: false })
+      w.vm.toggleSet('a1')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-chips"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-chip-a1"]').exists()).toBe(true)
+    })
+
+    it('× op een chip verwijdert het component uit de set', async () => {
+      const { w } = await mountView({ heleLandschap: false })
+      w.vm.toggleSet('a1')
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toEqual(['a1'])
+      await w.find('[data-testid="lk-chip-verwijder-a1"]').trigger('click')
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toEqual([])
+    })
+
+    it('lege set → geen chips', async () => {
+      const { w } = await mountView() // hele-landschap, set leeg
+      expect(w.vm.actieveSet.size).toBe(0)
+      expect(w.find('[data-testid="lk-chips"]').exists()).toBe(false)
+    })
+  })
 })

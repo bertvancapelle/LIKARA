@@ -165,6 +165,15 @@ export const api = {
       request(`/gebruikersgroepen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/gebruikersgroepen/${id}`, { method: 'DELETE' }),
     // Gebruikersgroep heeft geen enum-velden → geen opties-endpoint.
+    // Fase B slice 2a/2b (LI022/LI023) — gebruiker-context-picker voor het kaart-beginscherm.
+    // `contexten`: distinct (organisatie, afdeling)-contexten met component-telling (alleen `zoek`).
+    // `contextComponenten`: de componenten van één context (nullable composiet-sleutel → null-match).
+    contexten: (params = {}) =>
+      request(`/gebruikersgroepen/contexten${_filterQuery('gebruikersgroepen.contexten', params, ['zoek'])}`),
+    contextComponenten: (params = {}) =>
+      request(
+        `/gebruikersgroepen/contexten/componenten${_filterQuery('gebruikersgroepen.contextComponenten', params, ['organisatie_id', 'afdeling'])}`,
+      ),
   },
 
   // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.
@@ -216,6 +225,9 @@ export const api = {
     verwijder: (id) => request(`/contracten/${id}`, { method: 'DELETE' }),
     deelcontracten: (id) => request(`/contracten/${id}/deelcontracten`),
     applicaties: (id) => request(`/contracten/${id}/applicaties`),
+    // Fase B slice 2a (LI022) — ALLE aan het contract gekoppelde componenten (context-route naar de
+    // kaart-subgraaf), incl. kale/profielloze componenten die `/applicaties` weglaat.
+    componenten: (id) => request(`/contracten/${id}/componenten`),
   },
 
   // ADR-020 — applicatie↔contract-koppeling (precies één rol per koppeling).
