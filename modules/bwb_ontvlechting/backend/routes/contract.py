@@ -15,6 +15,7 @@ from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
 from models.models import ContractType
 from schemas.applicatie_contract import ApplicatieVoorContract
+from schemas.gebruiker_context import ContextComponentRead
 from schemas.contract import (
     CatalogusOpties,
     ContractCreate,
@@ -107,6 +108,17 @@ async def gekoppelde_applicaties(
     session: AsyncSession = Depends(get_tenant_session),
 ):
     return await svc.applicaties(session, user.tenant_id, contract_id)
+
+
+@router.get("/{contract_id}/componenten", response_model=list[ContextComponentRead])
+async def gekoppelde_componenten(
+    contract_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.CONTRACT, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Fase B slice 2a (LI022) — ALLE aan dit contract gekoppelde componenten (context-route naar
+    de subgraaf), incl. kale/profielloze componenten die `/applicaties` weglaat. Read-only."""
+    return await svc.componenten(session, user.tenant_id, contract_id)
 
 
 @router.post("", response_model=ContractRead, status_code=201)

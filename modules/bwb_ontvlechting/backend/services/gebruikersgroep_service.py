@@ -9,11 +9,11 @@ gebruikersgroep bestaan — alleen de relatie vervalt.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, distinct, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from models.models import Element, ElementType, Gebruikersgroep, Partij, Relatie
+from models.models import Component, Element, ElementType, Gebruikersgroep, Partij, Relatie
 from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepUpdate
 from services import applicatie_service
 from services.errors import NietGevonden
@@ -84,6 +84,81 @@ async def _applicaties_van(session: AsyncSession, tid: uuid.UUID, ids: list) -> 
         )
     ).all()
     return {r.doel_id: r.bron_id for r in rijen}
+
+
+def _escape_like(term: str) -> str:
+    """LIKE/ILIKE-wildcard-escaping (volgorde \\ → % → _), zoals de andere zoek-endpoints (CD017)."""
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+async def contexten(session: AsyncSession, tenant_id, *, zoek: str | None = None) -> list[dict]:
+    """Fase B slice 2a (LI022) — distinct `(organisatie, afdeling)`-gebruikercontexten over alle
+    gebruikersgroepen, met geresolveerde organisatie-naam + een telling van bijbehorende componenten
+    (distinct applicatie-bron van de serving-relatie). Doorzoekbaar (vrije term op organisatie-naam
+    OF afdeling). Bewust een BEGRENSDE afgeleide lijst (géén keyset): het aantal distinct contexten is
+    klein/begrensd — consistent met de andere context-sub-endpoints (`/partijen/{id}/componenten`,
+    `/contracten/{id}/componenten`) die óók ongepagineerd zijn. Read-only."""
+    tid = _tenant_uuid(tenant_id)
+    org = aliased(Partij)
+    serv = aliased(Relatie)
+    stmt = (
+        select(
+            Gebruikersgroep.organisatie_id.label("organisatie_id"),
+            org.naam.label("organisatie_naam"),
+            Gebruikersgroep.afdeling.label("afdeling"),
+            func.count(distinct(serv.bron_id)).label("aantal_componenten"),
+        )
+        .select_from(Gebruikersgroep)
+        .outerjoin(org, and_(org.id == Gebruikersgroep.organisatie_id, org.tenant_id == tid))
+        .outerjoin(serv, and_(serv.doel_id == Gebruikersgroep.id, serv.tenant_id == tid, serv.relatietype == _SERVING))
+        .where(Gebruikersgroep.tenant_id == tid)
+        .group_by(Gebruikersgroep.organisatie_id, org.naam, Gebruikersgroep.afdeling)
+        .order_by(org.naam.nulls_last(), Gebruikersgroep.afdeling.nulls_last())
+    )
+    if zoek and zoek.strip():
+        like = f"%{_escape_like(zoek.strip())}%"
+        stmt = stmt.where(or_(org.naam.ilike(like, escape="\\"), Gebruikersgroep.afdeling.ilike(like, escape="\\")))
+    rijen = (await session.execute(stmt)).all()
+    return [
+        {
+            "organisatie_id": r.organisatie_id, "organisatie_naam": r.organisatie_naam,
+            "afdeling": r.afdeling, "aantal_componenten": r.aantal_componenten,
+        }
+        for r in rijen
+    ]
+
+
+async def componenten_voor_context(
+    session: AsyncSession, tenant_id, *, organisatie_id: uuid.UUID | None, afdeling: str | None
+) -> list[dict]:
+    """Fase B slice 2a (LI022) — distinct componenten (de applicatie-bron van de serving-relatie) van de
+    gebruikersgroepen die EXACT op deze `(organisatie, afdeling)`-context matchen. Nullable-veilige match
+    (`IS NOT DISTINCT FROM`) zodat de lege-organisatie-/lege-afdeling-casus (bv. "— / Burgers") klopt.
+    Read-only; levert component-ids + naam + type voor de subgraaf."""
+    tid = _tenant_uuid(tenant_id)
+    rijen = (
+        await session.execute(
+            select(
+                Component.id.label("component_id"),
+                Component.naam.label("component_naam"),
+                Component.componenttype.label("componenttype"),
+            )
+            .select_from(Gebruikersgroep)
+            .join(Relatie, and_(Relatie.doel_id == Gebruikersgroep.id, Relatie.relatietype == _SERVING, Relatie.tenant_id == tid))
+            .join(Component, and_(Component.id == Relatie.bron_id, Component.tenant_id == tid))
+            .where(
+                Gebruikersgroep.tenant_id == tid,
+                Gebruikersgroep.organisatie_id.is_not_distinct_from(organisatie_id),
+                Gebruikersgroep.afdeling.is_not_distinct_from(afdeling),
+            )
+            .distinct()
+            .order_by(Component.naam, Component.id)
+        )
+    ).all()
+    return [
+        {"component_id": r.component_id, "component_naam": r.component_naam, "componenttype": r.componenttype}
+        for r in rijen
+    ]
 
 
 async def lijst(

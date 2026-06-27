@@ -544,3 +544,34 @@ async def applicaties(session: AsyncSession, tenant_id, contract_id) -> list[dic
         }
         for r in rijen
     ]
+
+
+async def componenten(session: AsyncSession, tenant_id, contract_id) -> list[dict]:
+    """Fase B slice 2a (LI022) — ALLE via de association aan dit contract gekoppelde componenten,
+    ongeacht profiel of (sub)type (context-route naar de subgraaf). Bewust GÉÉN ComponentProfiel-join
+    (zoals `applicaties` die wél heeft) — die INNER join liet kale, profielloze componenten wegvallen;
+    een contract op bv. een database-component was zo onzichtbaar. Dit ontkoppelt het endpoint juist van
+    de engine. Read-only; contract onbekend ⇒ 404 (no-leak). Levert component-ids + naam + type."""
+    tid = _tenant_uuid(tenant_id)
+    await haal_op(session, tenant_id, contract_id)
+    rijen = (
+        await session.execute(
+            select(
+                Component.id.label("component_id"),
+                Component.naam.label("component_naam"),
+                Component.componenttype.label("componenttype"),
+            )
+            .join(Relatie, Relatie.bron_id == Component.id)
+            .where(
+                Relatie.tenant_id == tid,
+                Relatie.doel_id == contract_id,
+                Relatie.relatietype == _ASSOCIATION,
+                Component.tenant_id == tid,
+            )
+            .order_by(Component.naam, Component.id)
+        )
+    ).all()
+    return [
+        {"component_id": r.component_id, "component_naam": r.component_naam, "componenttype": r.componenttype}
+        for r in rijen
+    ]

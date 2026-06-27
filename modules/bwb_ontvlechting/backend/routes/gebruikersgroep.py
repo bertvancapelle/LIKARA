@@ -13,6 +13,7 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
+from schemas.gebruiker_context import ContextComponentRead, GebruikerContextRead
 from schemas.gebruikersgroep import (
     GebruikersgroepCreate,
     GebruikersgroepPagina,
@@ -60,6 +61,32 @@ async def lijst_gebruikersgroepen(
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")
     return {"items": items, "volgende_cursor": volgende}
+
+
+# ── Fase B slice 2a (LI022) — gebruiker-context-routes (statische subpaden VÓÓR de dynamische /{id}) ──
+@router.get("/contexten", response_model=list[GebruikerContextRead])
+async def lijst_gebruikercontexten(
+    zoek: str | None = Query(None, max_length=255),
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSGROEP, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Picker-bron: distinct (organisatie, afdeling)-gebruikercontexten met component-telling.
+    Doorzoekbaar op organisatie-naam + afdeling. Begrensde afgeleide lijst (geen keyset) — zie service."""
+    return await svc.contexten(session, user.tenant_id, zoek=zoek)
+
+
+@router.get("/contexten/componenten", response_model=list[ContextComponentRead])
+async def gebruikercontext_componenten(
+    organisatie_id: uuid.UUID | None = Query(None),
+    afdeling: str | None = Query(None, max_length=255),
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSGROEP, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Componenten voor één gebruikercontext (context-route naar de subgraaf). Nullable composiet-
+    sleutel via query-params: niet-opgegeven = null-match (exacte context). Read-only."""
+    return await svc.componenten_voor_context(
+        session, user.tenant_id, organisatie_id=organisatie_id, afdeling=afdeling
+    )
 
 
 @router.get("/{gebruikersgroep_id}", response_model=GebruikersgroepRead)
