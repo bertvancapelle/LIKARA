@@ -508,6 +508,33 @@ function voegComponentenToeAanSet(componenten) {
   actieveSet.value = s
   heleLandschap.value = false
 }
+// Slice 5 (LI023) — directe COMPONENT-buren van een node, afgeleid uit de al-geladen graaf.
+// NB: leest bewust uit `grafEdges` + `nodePerId` (de reactieve bron, idem `detailKoppelingen`) en
+// NIET uit `cy.neighborhood().data()`: de Cytoscape-node-data draagt alleen id/label/stijl (zie
+// `_nodeData`), geen element_type/naam → `_isApp` op cy-data zou niet werken. Geen API-call.
+function componentBuren(id) {
+  const buurIds = new Set()
+  for (const e of grafEdges.value) {
+    if (e.bron_id === id) buurIds.add(e.doel_id)
+    else if (e.doel_id === id) buurIds.add(e.bron_id)
+  }
+  const out = []
+  for (const bid of buurIds) {
+    const m = nodePerId.value[bid]
+    if (m && _isApp(m)) out.push({ id: m.id, naam: m.naam, element_type: m.element_type })
+  }
+  return out
+}
+// Component-node: voeg het component ZELF + al zijn component-buren toe (dedup in de set-functie).
+function voegBurenToe(id) {
+  const m = nodePerId.value[id]
+  const self = m ? { id: m.id, naam: m.naam, element_type: m.element_type } : { id }
+  voegComponentenToeAanSet([self, ...componentBuren(id)])
+}
+// Context-node (org/contract/leverancier/gebruikersgroep): voeg alléén de component-buren toe.
+function voegContextComponentenToe(id) {
+  voegComponentenToeAanSet(componentBuren(id))
+}
 const actieveSetNodes = computed(() => [...actieveSet.value].map((id) => nodePerId.value[id]).filter(Boolean))
 
 // LI027 — focus op de actieve set (graph-filter) + wis-alles. Focus schakelt automatisch uit
@@ -723,6 +750,9 @@ function beginMetHeleKaart() {
 
 // ── Detail ────────────────────────────────────────────────────────────────────
 const detailNode = computed(() => (detailId.value ? nodePerId.value[detailId.value] : null))
+// Slice 5 (LI023) — component-buren van de getoonde node, gememoïseerd via computed (reactief op
+// grafEdges/nodePerId; één berekening i.p.v. twee per render voor disabled-staat + telling).
+const geselecteerdNodeBuren = computed(() => (detailId.value ? componentBuren(detailId.value) : []))
 const detailKoppelingen = computed(() => {
   const id = detailId.value
   if (!id) return 0
@@ -1682,7 +1712,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, scopeModus, organisatieNodes, toggleScopeOrg, zonderEigenaarAantal, organisatieloosGebruiktAantal, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, scopeModus, organisatieNodes, toggleScopeOrg, zonderEigenaarAantal, organisatieloosGebruiktAantal, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode })
 
 // Hertekenen bij elke state die de graaf raakt.
 watch(
@@ -2154,6 +2184,24 @@ const typeLabel = (t) => humaniseer(t)
             </p>
             <button v-if="isApplicatie(detailNode)" type="button" data-testid="lk-detail-open" class="mt-1 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-white" @click="openApplicatie">Open component →</button>
             <button type="button" :data-testid="`lk-detail-set`" class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1" @click="toggleSet(detailNode.id)">{{ inSet(detailNode.id) ? '× Verwijder uit set' : '+ Voeg toe aan set' }}</button>
+            <!-- Slice 5 (LI023) — set-acties: component-node = zichzelf + directe component-buren;
+                 context-node = alle component-buren. Disabled (grayed) als er geen component-buren zijn. -->
+            <button
+              v-if="_isApp(detailNode)"
+              type="button"
+              data-testid="haal-buren-erbij-knop"
+              :disabled="geselecteerdNodeBuren.length === 0"
+              class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 disabled:cursor-not-allowed disabled:opacity-50"
+              @click="voegBurenToe(detailNode.id)"
+            >+ Haal buren erbij<span v-if="geselecteerdNodeBuren.length"> ({{ geselecteerdNodeBuren.length }})</span></button>
+            <button
+              v-else
+              type="button"
+              data-testid="voeg-context-componenten-toe-knop"
+              :disabled="geselecteerdNodeBuren.length === 0"
+              class="rounded-[var(--cd-radius-btn)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 disabled:cursor-not-allowed disabled:opacity-50"
+              @click="voegContextComponentenToe(detailNode.id)"
+            >+ Voeg alle componenten toe<span v-if="geselecteerdNodeBuren.length"> ({{ geselecteerdNodeBuren.length }})</span></button>
           </div>
           <p v-else class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]" data-testid="lk-detail-leeg">Klik een node voor detail.</p>
         </div>

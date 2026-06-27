@@ -1574,4 +1574,60 @@ describe('LandschapskaartView v3', () => {
       expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true)
     })
   })
+
+  // ── Slice 5 (LI023) — set-acties in het node-detail-paneel ──────────────────────────────────
+  describe('slice 5 — set-acties in detail-paneel', () => {
+    // Context-node-graaf: contract k1 ↔ component a1 (association/contracten).
+    const CONTEXTGRAF = () => ({
+      nodes: [
+        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', blokkades_open: 0 },
+        { id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business', blokkades_open: 0 },
+      ],
+      edges: [{ bron_id: 'a1', doel_id: 'k1', relatietype: 'association', ring: 'contracten', label: 'valt onder' }],
+    })
+
+    it('toont "Haal buren erbij"-knop bij een component-node', async () => {
+      const { w } = await mountView()
+      w.vm.inspecteerNode('a1')
+      await flushPromises()
+      expect(w.find('[data-testid="haal-buren-erbij-knop"]').exists()).toBe(true)
+      expect(w.find('[data-testid="voeg-context-componenten-toe-knop"]').exists()).toBe(false)
+    })
+
+    it('"Haal buren erbij" voegt de node + zijn component-buren toe aan de actieve set', async () => {
+      const { w } = await mountView() // GRAF: a1 ↔ a2 (flow)
+      w.vm.inspecteerNode('a1')
+      await flushPromises()
+      await w.find('[data-testid="haal-buren-erbij-knop"]').trigger('click')
+      await flushPromises()
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+    })
+
+    it('"Haal buren erbij" is disabled zonder component-buren', async () => {
+      zetGraf({ nodes: [{ id: 'x1', naam: 'Solo', element_type: 'applicatie', laag: 'application', blokkades_open: 0 }], edges: [] })
+      const { w } = await mountView()
+      w.vm.inspecteerNode('x1')
+      await flushPromises()
+      expect(w.find('[data-testid="haal-buren-erbij-knop"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('toont "Voeg alle componenten toe"-knop bij een context-node', async () => {
+      zetGraf(CONTEXTGRAF())
+      const { w } = await mountView()
+      w.vm.inspecteerNode('k1')
+      await flushPromises()
+      expect(w.find('[data-testid="voeg-context-componenten-toe-knop"]').exists()).toBe(true)
+      expect(w.find('[data-testid="haal-buren-erbij-knop"]').exists()).toBe(false)
+    })
+
+    it('"Voeg alle componenten toe" voegt de component-buren toe (niet de context-node zelf)', async () => {
+      zetGraf(CONTEXTGRAF())
+      const { w } = await mountView()
+      w.vm.inspecteerNode('k1')
+      await flushPromises()
+      await w.find('[data-testid="voeg-context-componenten-toe-knop"]').trigger('click')
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toEqual(['a1'])
+    })
+  })
 })
