@@ -14,24 +14,19 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
-from schemas.signalering import BadgeRead, RegistratiegatenRead
+from schemas.signalering import BadgeRead
 from services import registratiegaten_service as svc
 
 router = APIRouter(prefix="/signalering", tags=["bwb:signalering"])
 
 
-@router.get("/registratiegaten", response_model=RegistratiegatenRead)
+@router.get("/registratiegaten")
 async def lijst_registratiegaten(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.ARCHITECTUUR, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Alle kritieke component-registratiegaten (Slice 1): zonder eigenaar + zonder verantwoordelijke."""
-    return {
-        "component_zonder_eigenaar": await svc.component_zonder_eigenaar(session, user.tenant_id),
-        "component_zonder_verantwoordelijke": await svc.component_zonder_verantwoordelijke(
-            session, user.tenant_id
-        ),
-    }
+    """Alle actieve registratiegaten, gegroepeerd per ernst (kritiek/aandacht). Read-only."""
+    return await svc.registratiegaten(session, user.tenant_id)
 
 
 @router.get("/badges/component/{component_id}", response_model=BadgeRead)

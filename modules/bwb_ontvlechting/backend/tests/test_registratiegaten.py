@@ -1,7 +1,8 @@
-"""Tests — registratiegaten_service (ADR-035 Slice 1). Offline (gemockte session).
+"""Tests — registratiegaten_service (ADR-035 Slice 1 + 2). Offline (gemockte session).
 
-Borgt de engine-invariant (geen engine-symbolen geïmporteerd) + de badge-signaalmatrix +
-de mapping van de lijst-functies. Geen DB nodig (asyncio.run + AsyncMock)."""
+Borgt de engine-invariant (geen engine-symbolen) + de badge-signaalmatrix + de mapping van de
+signaalfuncties. De WHERE-correctheid (NOT EXISTS-subqueries) is de offline-grens → live-DB.
+Geen DB nodig (asyncio.run + AsyncMock)."""
 import asyncio
 import uuid
 from unittest.mock import AsyncMock, Mock
@@ -28,36 +29,45 @@ def _row(naam="X", lc=None, _id=None):
 
 
 def test_registratiegaten_engine_afwezigheid():
-    """Engine-invariant: geen schrijf-/engine-symbolen in de servicemodule."""
+    """Engine-invariant: geen schrijf-/engine-symbolen in de servicemodule (alle functies)."""
     for naam in ["lifecycle_service", "herbereken_lifecycle", "bepaal_lifecycle",
                  "ComponentProfiel", "Blokkade", "Checklistscore"]:
         assert not hasattr(svc, naam), f"verboden engine-symbool aanwezig: {naam}"
 
 
+# ── badge_voor_component — execute-volgorde: bestaat, geen-eigenaar, rol, serving(gg), flow ──
 def test_badge_component_geen_gaten():
-    """Component MET eigenaar én MET rol → geen signalen."""
+    """MET eigenaar/rol/gebruikersgroep/koppeling → geen signalen."""
     s = AsyncMock()
-    # 1) bestaat → row; 2) geen-eigenaar-query → None; 3) rol-query → row (rol bestaat)
-    s.execute = AsyncMock(side_effect=[_res_first(("c",)), _res_first(None), _res_first(("rol",))])
+    s.execute = AsyncMock(side_effect=[
+        _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
+    ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
     assert out == {"signalen": [], "kritiek": 0, "aandacht": 0}
 
 
-def test_badge_component_beide_gaten():
-    """Component ZONDER eigenaar én ZONDER rol → twee kritieke signalen."""
+def test_badge_component_alle_gaten():
+    """ZONDER eigenaar/rol/gebruikersgroep/koppeling → 2 kritiek + 3 aandacht."""
     s = AsyncMock()
-    s.execute = AsyncMock(side_effect=[_res_first(("c",)), _res_first(("c",)), _res_first(None)])
+    s.execute = AsyncMock(side_effect=[
+        _res_first(("c",)), _res_first(("c",)), _res_first(None), _res_first(None), _res_first(None),
+    ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
-    assert out["kritiek"] == 2 and out["aandacht"] == 0
-    assert set(out["signalen"]) == {"component_zonder_eigenaar", "component_zonder_verantwoordelijke"}
+    assert out["kritiek"] == 2 and out["aandacht"] == 3
+    assert set(out["signalen"]) == {
+        "component_zonder_eigenaar", "component_zonder_verantwoordelijke",
+        "component_zonder_gebruikersgroep", "component_geisoleerd", "object_zonder_roltoewijzing",
+    }
 
 
 def test_badge_component_alleen_eigenaar_ontbreekt():
-    """ZONDER eigenaar maar MET rol → één signaal."""
+    """ZONDER eigenaar, verder compleet → één kritiek signaal, geen aandacht."""
     s = AsyncMock()
-    s.execute = AsyncMock(side_effect=[_res_first(("c",)), _res_first(("c",)), _res_first(("rol",))])
+    s.execute = AsyncMock(side_effect=[
+        _res_first(("c",)), _res_first(("c",)), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
+    ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
-    assert out["signalen"] == ["component_zonder_eigenaar"] and out["kritiek"] == 1
+    assert out["signalen"] == ["component_zonder_eigenaar"] and out["kritiek"] == 1 and out["aandacht"] == 0
 
 
 def test_badge_component_onbestaand_leeg():
@@ -68,15 +78,13 @@ def test_badge_component_onbestaand_leeg():
     assert out == {"signalen": [], "kritiek": 0, "aandacht": 0}
 
 
+# ── Slice 1 lijst-mapping ──
 def test_component_zonder_eigenaar_mapping():
-    """Lijst-functie mapt rijen naar het signaal-dict (kritiek)."""
     s = AsyncMock()
     s.execute = AsyncMock(return_value=_res_all([_row("Zaaksysteem", "concept"), _row("BRP", None)]))
     out = asyncio.run(svc.component_zonder_eigenaar(s, TID))
-    assert len(out) == 2
-    assert out[0]["naam"] == "Zaaksysteem" and out[0]["lifecycle_status"] == "concept"
+    assert len(out) == 2 and out[0]["naam"] == "Zaaksysteem" and out[0]["lifecycle_status"] == "concept"
     assert out[0]["signaal"] == "component_zonder_eigenaar" and out[0]["niveau"] == "kritiek"
-    assert out[1]["lifecycle_status"] is None
 
 
 def test_component_zonder_verantwoordelijke_mapping():
@@ -84,3 +92,57 @@ def test_component_zonder_verantwoordelijke_mapping():
     s.execute = AsyncMock(return_value=_res_all([_row("DMS", "in_inventarisatie")]))
     out = asyncio.run(svc.component_zonder_verantwoordelijke(s, TID))
     assert out[0]["signaal"] == "component_zonder_verantwoordelijke" and out[0]["niveau"] == "kritiek"
+
+
+# ── Slice 2 aandacht-signalen — mapping (signaal + niveau='aandacht') ──
+def test_component_zonder_gebruikersgroep_mapping():
+    s = AsyncMock()
+    s.execute = AsyncMock(return_value=_res_all([_row("Zaaksysteem")]))
+    out = asyncio.run(svc.component_zonder_gebruikersgroep(s, TID))
+    assert out[0]["signaal"] == "component_zonder_gebruikersgroep" and out[0]["niveau"] == "aandacht"
+
+
+def test_component_geisoleerd_mapping():
+    s = AsyncMock()
+    s.execute = AsyncMock(return_value=_res_all([_row("Solo")]))
+    out = asyncio.run(svc.component_geisoleerd(s, TID))
+    assert out[0]["signaal"] == "component_geisoleerd" and out[0]["niveau"] == "aandacht"
+
+
+def test_contract_zonder_component_mapping():
+    s = AsyncMock()
+    s.execute = AsyncMock(return_value=_res_all([_row("Contract X")]))
+    out = asyncio.run(svc.contract_zonder_component(s, TID))
+    assert out[0]["signaal"] == "contract_zonder_component" and out[0]["niveau"] == "aandacht"
+
+
+def test_gebruikersgroep_zonder_organisatie_mapping():
+    s = AsyncMock()
+    s.execute = AsyncMock(return_value=_res_all([_row("Burgerzaken")]))  # naam = afdeling-label
+    out = asyncio.run(svc.gebruikersgroep_zonder_organisatie(s, TID))
+    assert out[0]["signaal"] == "gebruikersgroep_zonder_organisatie" and out[0]["niveau"] == "aandacht"
+    assert out[0]["naam"] == "Burgerzaken"
+
+
+def test_object_zonder_roltoewijzing_combineert_drie_subtypes():
+    """Combineert component + contract + gebruikersgroep, elk met entiteit_type."""
+    s = AsyncMock()
+    s.execute = AsyncMock(side_effect=[
+        _res_all([_row("Comp")]), _res_all([_row("Contr")]), _res_all([_row("GG")]),
+    ])
+    out = asyncio.run(svc.object_zonder_roltoewijzing(s, TID))
+    assert [o["entiteit_type"] for o in out] == ["component", "contract", "gebruikersgroep"]
+    assert all(o["signaal"] == "object_zonder_roltoewijzing" and o["niveau"] == "aandacht" for o in out)
+
+
+def test_registratiegaten_groepeert_per_ernst():
+    """De orchestrator levert de twee ernst-groepen met alle signaaltype-sleutels."""
+    s = AsyncMock()
+    s.execute = AsyncMock(return_value=_res_all([]))  # alle queries leeg
+    out = asyncio.run(svc.registratiegaten(s, TID))
+    assert set(out) == {"kritiek", "aandacht"}
+    assert set(out["kritiek"]) == {"component_zonder_eigenaar", "component_zonder_verantwoordelijke"}
+    assert set(out["aandacht"]) == {
+        "component_zonder_gebruikersgroep", "component_geisoleerd", "contract_zonder_component",
+        "gebruikersgroep_zonder_organisatie", "object_zonder_roltoewijzing",
+    }

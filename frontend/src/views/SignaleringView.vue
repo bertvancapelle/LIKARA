@@ -1,10 +1,10 @@
 <script setup>
 /**
- * SignaleringView — coherent Signalering-scherm (ADR-035, Slice 1).
+ * SignaleringView — coherent Signalering-scherm (ADR-035).
  *
  * Twee tabs:
- *  - "Registratiegaten" — kritieke component-signalen (zonder eigenaar / zonder verantwoordelijke),
- *    read-only via `GET /signalering/registratiegaten`; doorkliklink naar ComponentDetail.
+ *  - "Registratiegaten" — alle actieve signaaltypen, gegroepeerd per ernst (🔴 kritiek / 🟡 aandacht),
+ *    read-only via `GET /signalering/registratiegaten`; per type een lijst met doorkliklink.
  *  - "Plaatsing" — de bestaande PlaatsingSignalenView, ongewijzigd ingebed.
  *
  * Read-only en informatief: signalering blokkeert niets en past niets aan.
@@ -14,23 +14,50 @@ import { api } from '@/api'
 import { humaniseer } from '@modules/bwb_ontvlechting/frontend/labels'
 import PlaatsingSignalenView from '@/views/PlaatsingSignalenView.vue'
 
+// Config per ernst: signaaltype-sleutel → label + link-soort (+ toon lifecycle-badge).
+const GROEPEN = {
+  kritiek: [
+    { key: 'component_zonder_eigenaar', label: 'Component zonder eigenaar', link: 'component', lc: true },
+    { key: 'component_zonder_verantwoordelijke', label: 'Component zonder verantwoordelijke', link: 'component', lc: true },
+  ],
+  aandacht: [
+    { key: 'component_zonder_gebruikersgroep', label: 'Component zonder gebruikersgroep', link: 'component' },
+    { key: 'component_geisoleerd', label: 'Component zonder koppeling (geïsoleerd)', link: 'component' },
+    { key: 'contract_zonder_component', label: 'Contract zonder gekoppeld component', link: 'contract' },
+    { key: 'gebruikersgroep_zonder_organisatie', label: 'Gebruikersgroep zonder organisatie', link: null },
+    { key: 'object_zonder_roltoewijzing', label: 'Object zonder roltoewijzing', link: 'object' },
+  ],
+}
+
 const tab = ref('registratiegaten')
-const zonderEigenaar = ref([])
-const zonderVerantwoordelijke = ref([])
+const data = ref({ kritiek: {}, aandacht: {} })
 const laden = ref(false)
 const fout = ref(null)
 const eersteGeladen = ref(false)
 
 const lcLabel = (s) => (s ? humaniseer(s) : '—')
-const totaal = computed(() => zonderEigenaar.value.length + zonderVerantwoordelijke.value.length)
+const items = (ernst, key) => data.value?.[ernst]?.[key] || []
+const totaal = computed(() => {
+  let n = 0
+  for (const ernst of ['kritiek', 'aandacht']) for (const g of GROEPEN[ernst]) n += items(ernst, g.key).length
+  return n
+})
+function linkVoor(item, soort) {
+  if (soort === 'component') return { name: 'component-detail', params: { id: item.id } }
+  if (soort === 'contract') return { name: 'contract-detail', params: { id: item.id } }
+  if (soort === 'object') {
+    if (item.entiteit_type === 'component') return { name: 'component-detail', params: { id: item.id } }
+    if (item.entiteit_type === 'contract') return { name: 'contract-detail', params: { id: item.id } }
+  }
+  return null // gebruikersgroep heeft (nog) geen detail-pagina → geen link
+}
 
 async function laadGaten() {
   laden.value = true
   fout.value = null
   try {
     const r = await api.signalering.registratiegaten()
-    zonderEigenaar.value = r?.component_zonder_eigenaar || []
-    zonderVerantwoordelijke.value = r?.component_zonder_verantwoordelijke || []
+    data.value = { kritiek: r?.kritiek || {}, aandacht: r?.aandacht || {} }
   } catch (e) {
     fout.value = e?.message || 'Laden van de registratiegaten mislukt.'
   } finally {
@@ -65,7 +92,7 @@ onMounted(laadGaten)
       >Plaatsing</button>
     </div>
 
-    <!-- Tab 1 — Registratiegaten -->
+    <!-- Tab 1 — Registratiegaten (gegroepeerd per ernst) -->
     <div v-show="tab === 'registratiegaten'" role="tabpanel" data-testid="sig-panel-registratiegaten">
       <p v-if="fout" role="alert" data-testid="sig-fout" class="mb-[var(--cd-space-md)] rounded-[var(--cd-radius-badge)] border border-[var(--cd-color-danger)] bg-[var(--cd-color-danger)]/10 px-[var(--cd-space-md)] py-[var(--cd-space-sm)] text-[var(--cd-color-danger)]">{{ fout }}</p>
       <p v-if="laden && !eersteGeladen" data-testid="sig-laden" class="text-[var(--cd-color-text-muted)]">Laden…</p>
@@ -77,28 +104,29 @@ onMounted(laadGaten)
       >Geen openstaande registratiegaten.</p>
 
       <template v-else-if="eersteGeladen && !laden">
-        <div v-if="zonderEigenaar.length" class="mb-[var(--cd-space-lg)]" data-testid="sig-zonder-eigenaar">
-          <h2 class="mb-[var(--cd-space-sm)] text-[length:var(--cd-text-base)] font-semibold">🔴 Component zonder eigenaar ({{ zonderEigenaar.length }})</h2>
-          <ul class="flex flex-col gap-0.5">
-            <li v-for="c in zonderEigenaar" :key="c.id" :data-testid="`sig-eigenaar-${c.id}`" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
-              <router-link :to="{ name: 'component-detail', params: { id: c.id } }" class="text-[var(--cd-color-primary)] hover:underline">{{ c.naam }}</router-link>
-              <span class="text-[var(--cd-color-text-muted)]">· {{ lcLabel(c.lifecycle_status) }}</span>
-            </li>
-          </ul>
-        </div>
-        <div v-if="zonderVerantwoordelijke.length" data-testid="sig-zonder-verantwoordelijke">
-          <h2 class="mb-[var(--cd-space-sm)] text-[length:var(--cd-text-base)] font-semibold">🔴 Component zonder verantwoordelijke ({{ zonderVerantwoordelijke.length }})</h2>
-          <ul class="flex flex-col gap-0.5">
-            <li v-for="c in zonderVerantwoordelijke" :key="c.id" :data-testid="`sig-verantwoordelijke-${c.id}`" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
-              <router-link :to="{ name: 'component-detail', params: { id: c.id } }" class="text-[var(--cd-color-primary)] hover:underline">{{ c.naam }}</router-link>
-              <span class="text-[var(--cd-color-text-muted)]">· {{ lcLabel(c.lifecycle_status) }}</span>
-            </li>
-          </ul>
-        </div>
+        <section v-for="ernst in ['kritiek', 'aandacht']" :key="ernst" class="mb-[var(--cd-space-lg)]" :data-testid="`sig-ernst-${ernst}`">
+          <h2 class="mb-[var(--cd-space-sm)] text-[length:var(--cd-text-lg)] font-semibold">
+            {{ ernst === 'kritiek' ? '🔴 Kritiek' : '🟡 Aandacht' }}
+          </h2>
+          <template v-for="g in GROEPEN[ernst]" :key="g.key">
+            <div v-if="items(ernst, g.key).length" class="mb-[var(--cd-space-md)]" :data-testid="`sig-groep-${g.key}`">
+              <p class="mb-1 text-[length:var(--cd-text-sm)] font-semibold">{{ g.label }} ({{ items(ernst, g.key).length }})</p>
+              <ul class="flex flex-col gap-0.5">
+                <li v-for="c in items(ernst, g.key)" :key="c.id" :data-testid="`sig-${g.key}-${c.id}`" class="flex items-center gap-2 text-[length:var(--cd-text-sm)]">
+                  <router-link v-if="linkVoor(c, g.link)" :to="linkVoor(c, g.link)" class="text-[var(--cd-color-primary)] hover:underline">{{ c.naam }}</router-link>
+                  <span v-else>{{ c.naam }}</span>
+                  <span v-if="c.entiteit_type" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">· {{ humaniseer(c.entiteit_type) }}</span>
+                  <span v-if="g.lc" class="text-[var(--cd-color-text-muted)]">· {{ lcLabel(c.lifecycle_status) }}</span>
+                </li>
+              </ul>
+            </div>
+          </template>
+          <p v-if="GROEPEN[ernst].every((g) => items(ernst, g.key).length === 0)" :data-testid="`sig-ernst-leeg-${ernst}`" class="text-[length:var(--cd-text-sm)] text-[var(--cd-color-text-muted)]">Geen {{ ernst === 'kritiek' ? 'kritieke' : 'aandacht' }}-signalen.</p>
+        </section>
       </template>
     </div>
 
-    <!-- Tab 2 — Plaatsing (bestaande view, ongewijzigd) -->
+    <!-- Tab 2 — Plaatsing (bestaande view, ongewijzigd ingebed) -->
     <div v-show="tab === 'plaatsing'" role="tabpanel" data-testid="sig-panel-plaatsing">
       <PlaatsingSignalenView />
     </div>

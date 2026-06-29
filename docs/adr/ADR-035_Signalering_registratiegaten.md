@@ -87,3 +87,19 @@ stelt: "LIKARA stimuleert volledigheid actief." Dit ADR vult die belofte in.
 3. **Aandacht-signalen** toevoegen.
 4. **Score-drempelwaarde** configureerbaar maken.
 5. **Plaatsingssignalen** integreren als tweede tab.
+
+---
+
+## Uitvoeringsnotities
+
+- **`blokkade_zonder_eigenaar` vereist schema-/semantiekherziening — uitgesteld.** Een blokkade is
+  geen element-subtype (eigen PK; FK's naar `checklistscore`/`component_profiel`, géén composiet-FK
+  naar `element`), en `roltoewijzing.object_id` verwijst naar `element`. Een roltoewijzing kan een
+  blokkade dus structureel niet refereren → "geen roltoewijzing op de blokkade" is voor élke blokkade
+  waar. Het signaal is daarom (nog) niet zinvol te berekenen; herziening nodig (bv. blokkade-eigenaar
+  afleiden van de eigenaar/verantwoordelijke van het component).
+- **`contract_zonder_leverancier` vervalt blijvend:** `contract.leverancier_id` is `NOT NULL` — een
+  contract heeft altijd een leverancier (zie ook Slice 1).
+- **Badges alleen waar een detail-pagina bestaat.** ComponentDetail draagt de badge; voor
+  gebruikersgroep en blokkade bestaan geen standalone detail-pagina's, dus die signalen zijn (Slice 2)
+  uitsluitend zichtbaar in het centrale Registratiegaten-overzicht.

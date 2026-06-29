@@ -13,10 +13,10 @@ de tenant (dubbele bescherming met de expliciete ``tenant_id``-filter).
 """
 import uuid
 
-from sqlalchemy import and_, column, exists, select, table
+from sqlalchemy import and_, column, exists, func, literal, or_, select, table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Component, Roltoewijzing
+from models.models import Component, Contract, Gebruikersgroep, Relatie, Roltoewijzing
 
 # Lichtgewicht handle op de engine-tabel (shared-PK: component_profiel.id == component.id) — leest
 # lifecycle_status zonder ComponentProfiel te importeren, zodat de engine-borging groen blijft.
@@ -24,7 +24,35 @@ _profiel = table("component_profiel", column("id"), column("tenant_id"), column(
 
 _SIG_EIGENAAR = "component_zonder_eigenaar"
 _SIG_VERANTWOORDELIJKE = "component_zonder_verantwoordelijke"
+# Slice 2 — aandacht-signalen.
+_SIG_GG = "component_zonder_gebruikersgroep"
+_SIG_ISOLATIE = "component_geisoleerd"
+_SIG_CONTRACT = "contract_zonder_component"
+_SIG_GG_ORG = "gebruikersgroep_zonder_organisatie"
+_SIG_OBJ_ROL = "object_zonder_roltoewijzing"
 _KRITIEK = "kritiek"
+_AANDACHT = "aandacht"
+
+# Gebruikersgroep heeft geen `naam`-kolom → label = afdeling, anders een generieke fallback
+# (org-naam-resolutie bewust overgeslagen: bij 'zonder organisatie' is er geen org).
+_GG_LABEL = func.coalesce(Gebruikersgroep.afdeling, literal("(gebruikersgroep)"))
+
+
+def _geen_roltoewijzing(id_col, tid: uuid.UUID):
+    """~EXISTS roltoewijzing met object_id == id_col (binnen de tenant)."""
+    return ~exists(
+        select(Roltoewijzing.id).where(
+            Roltoewijzing.tenant_id == tid, Roltoewijzing.object_id == id_col
+        )
+    )
+
+
+def _aitem(r, signaal: str, entiteit_type: str | None = None) -> dict:
+    """Aandacht-item: {id, naam[, entiteit_type], signaal, niveau}."""
+    d = {"id": r.id, "naam": r.naam, "signaal": signaal, "niveau": _AANDACHT}
+    if entiteit_type is not None:
+        d["entiteit_type"] = entiteit_type
+    return d
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -105,10 +133,136 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
             )
         )
     ).first() is None
+    geen_gg = (
+        await session.execute(
+            select(Relatie.id).where(
+                Relatie.tenant_id == tid, Relatie.relatietype == "serving",
+                Relatie.doel_id == component_id,
+            )
+        )
+    ).first() is None
+    geisoleerd = (
+        await session.execute(
+            select(Relatie.id).where(
+                Relatie.tenant_id == tid, Relatie.relatietype == "flow",
+                or_(Relatie.bron_id == component_id, Relatie.doel_id == component_id),
+            )
+        )
+    ).first() is None
 
-    signalen: list[str] = []
+    kritiek: list[str] = []
+    aandacht: list[str] = []
     if geen_eigenaar:
-        signalen.append(_SIG_EIGENAAR)
+        kritiek.append(_SIG_EIGENAAR)
     if geen_rol:
-        signalen.append(_SIG_VERANTWOORDELIJKE)
-    return {"signalen": signalen, "kritiek": len(signalen), "aandacht": 0}
+        kritiek.append(_SIG_VERANTWOORDELIJKE)
+    if geen_gg:
+        aandacht.append(_SIG_GG)
+    if geisoleerd:
+        aandacht.append(_SIG_ISOLATIE)
+    if geen_rol:  # een component zonder roltoewijzing telt óók als 'object zonder roltoewijzing' (ADR-035)
+        aandacht.append(_SIG_OBJ_ROL)
+    return {"signalen": kritiek + aandacht, "kritiek": len(kritiek), "aandacht": len(aandacht)}
+
+
+# ── Slice 2 — aandacht-signalen (alle puur SELECT) ───────────────────────────────────────────────
+async def component_zonder_gebruikersgroep(session: AsyncSession, tenant_id) -> list[dict]:
+    """Componenten zonder serving-relatie van een gebruikersgroep (doel=component)."""
+    tid = _tenant_uuid(tenant_id)
+    geen_serving = ~exists(
+        select(Relatie.id).where(
+            Relatie.tenant_id == tid, Relatie.relatietype == "serving", Relatie.doel_id == Component.id
+        )
+    )
+    stmt = (
+        select(Component.id, Component.naam)
+        .where(Component.tenant_id == tid, geen_serving)
+        .order_by(Component.naam.asc(), Component.id.asc())
+    )
+    return [_aitem(r, _SIG_GG) for r in (await session.execute(stmt)).all()]
+
+
+async def component_geisoleerd(session: AsyncSession, tenant_id) -> list[dict]:
+    """Componenten zonder enige flow-relatie (als bron óf doel)."""
+    tid = _tenant_uuid(tenant_id)
+    geen_flow = ~exists(
+        select(Relatie.id).where(
+            Relatie.tenant_id == tid, Relatie.relatietype == "flow",
+            or_(Relatie.bron_id == Component.id, Relatie.doel_id == Component.id),
+        )
+    )
+    stmt = (
+        select(Component.id, Component.naam)
+        .where(Component.tenant_id == tid, geen_flow)
+        .order_by(Component.naam.asc(), Component.id.asc())
+    )
+    return [_aitem(r, _SIG_ISOLATIE) for r in (await session.execute(stmt)).all()]
+
+
+async def contract_zonder_component(session: AsyncSession, tenant_id) -> list[dict]:
+    """Contracten zonder association-relatie van een component (doel=contract)."""
+    tid = _tenant_uuid(tenant_id)
+    geen_assoc = ~exists(
+        select(Relatie.id).where(
+            Relatie.tenant_id == tid, Relatie.relatietype == "association", Relatie.doel_id == Contract.id
+        )
+    )
+    stmt = (
+        select(Contract.id, Contract.contractnaam.label("naam"))
+        .where(Contract.tenant_id == tid, geen_assoc)
+        .order_by(Contract.contractnaam.asc(), Contract.id.asc())
+    )
+    return [_aitem(r, _SIG_CONTRACT) for r in (await session.execute(stmt)).all()]
+
+
+async def gebruikersgroep_zonder_organisatie(session: AsyncSession, tenant_id) -> list[dict]:
+    """Gebruikersgroepen met ``organisatie_id IS NULL`` (label = afdeling, anders fallback)."""
+    tid = _tenant_uuid(tenant_id)
+    stmt = (
+        select(Gebruikersgroep.id, _GG_LABEL.label("naam"))
+        .where(Gebruikersgroep.tenant_id == tid, Gebruikersgroep.organisatie_id.is_(None))
+        .order_by(_GG_LABEL.asc(), Gebruikersgroep.id.asc())
+    )
+    return [_aitem(r, _SIG_GG_ORG) for r in (await session.execute(stmt)).all()]
+
+
+async def object_zonder_roltoewijzing(session: AsyncSession, tenant_id) -> list[dict]:
+    """Componenten, contracten én gebruikersgroepen zonder enige roltoewijzing (object_id)."""
+    tid = _tenant_uuid(tenant_id)
+    out: list[dict] = []
+    comp = (await session.execute(
+        select(Component.id, Component.naam)
+        .where(Component.tenant_id == tid, _geen_roltoewijzing(Component.id, tid))
+        .order_by(Component.naam.asc(), Component.id.asc())
+    )).all()
+    out += [_aitem(r, _SIG_OBJ_ROL, "component") for r in comp]
+    contr = (await session.execute(
+        select(Contract.id, Contract.contractnaam.label("naam"))
+        .where(Contract.tenant_id == tid, _geen_roltoewijzing(Contract.id, tid))
+        .order_by(Contract.contractnaam.asc(), Contract.id.asc())
+    )).all()
+    out += [_aitem(r, _SIG_OBJ_ROL, "contract") for r in contr]
+    gg = (await session.execute(
+        select(Gebruikersgroep.id, _GG_LABEL.label("naam"))
+        .where(Gebruikersgroep.tenant_id == tid, _geen_roltoewijzing(Gebruikersgroep.id, tid))
+        .order_by(_GG_LABEL.asc(), Gebruikersgroep.id.asc())
+    )).all()
+    out += [_aitem(r, _SIG_OBJ_ROL, "gebruikersgroep") for r in gg]
+    return out
+
+
+async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
+    """Alle actieve signaaltypen, gegroepeerd per ernst (kritiek/aandacht). Read-only."""
+    return {
+        "kritiek": {
+            _SIG_EIGENAAR: await component_zonder_eigenaar(session, tenant_id),
+            _SIG_VERANTWOORDELIJKE: await component_zonder_verantwoordelijke(session, tenant_id),
+        },
+        "aandacht": {
+            _SIG_GG: await component_zonder_gebruikersgroep(session, tenant_id),
+            _SIG_ISOLATIE: await component_geisoleerd(session, tenant_id),
+            _SIG_CONTRACT: await contract_zonder_component(session, tenant_id),
+            _SIG_GG_ORG: await gebruikersgroep_zonder_organisatie(session, tenant_id),
+            _SIG_OBJ_ROL: await object_zonder_roltoewijzing(session, tenant_id),
+        },
+    }
