@@ -73,6 +73,8 @@ const magStarten = computed(
 const scoreSectie = ref(null)
 const gereedheidSectie = ref(null)
 const magKlaarverklaren = computed(() => auth.hasRole('medewerker', 'beheerder'))
+// ADR-025 — "Bekijk op kaart" = ARCHITECTUUR.LEZEN-affordance (elke tenant-rol; backend handhaaft).
+const magKaartZien = computed(() => auth.hasRole('viewer', 'medewerker', 'beheerder', 'auditor'))
 const gereedheidLabel = computed(() => (gereedheidSectie.value?.status === 'klaar' ? 'Heropenen' : 'Klaar verklaren'))
 const toonGereedheid = computed(
   () => component.value?.checklist_dragend === true || !!component.value?.lifecycle_status,
@@ -108,6 +110,12 @@ async function laad() {
 
 function naarBewerken() {
   router.push({ name: 'component-bewerken', params: { id: props.id } })
+}
+
+// ADR-025 — open de Landschapskaart in ego-view, gecentreerd op dit component (beginscherm wordt
+// overgeslagen via de center-deeplink).
+function bekijkOpKaart() {
+  router.push({ name: 'landschapskaart', query: { center: component.value.id } })
 }
 
 async function startBeoordeling() {
@@ -225,6 +233,13 @@ watch(() => props.id, () => laad(), { immediate: true })
       </div>
 
       <div class="mt-[var(--cd-space-lg)] flex flex-wrap gap-[var(--cd-space-md)]">
+        <Button
+          v-if="magKaartZien"
+          label="Bekijk op kaart"
+          severity="secondary"
+          data-testid="bekijk-op-kaart-knop"
+          @click="bekijkOpKaart"
+        />
         <Button
           v-if="magKlaarverklaren && toonGereedheid"
           :label="gereedheidLabel"

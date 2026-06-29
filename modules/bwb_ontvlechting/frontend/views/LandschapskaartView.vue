@@ -1668,6 +1668,8 @@ onMounted(async () => {
     actieveSet.value = new Set([qCenter])
     egoStartId.value = qCenter
     detailId.value = qCenter
+    // ADR-025 — "Bekijk op kaart": het beginscherm overslaan en direct de ego-view tonen.
+    beginschermOpen.value = false
   } else {
     _herstelKaartState()
   }

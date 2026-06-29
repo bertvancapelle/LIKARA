@@ -40,6 +40,8 @@ vi.mock('@/api', () => ({
       maak: vi.fn(),
       wijzigStatus: vi.fn(),
     },
+    // ADR-035 — SignaleringBadge laadt bij mount (fail-soft).
+    signalering: { badgeComponent: vi.fn(() => Promise.resolve({ kritiek: 0, aandacht: 0 })) },
   },
 }))
 
@@ -59,6 +61,7 @@ function maakRouter() {
       { path: '/componenten', name: 'component-lijst', component: { template: '<div/>' } },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
       { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
+      { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
     ],
   })
 }
@@ -319,5 +322,23 @@ describe('ComponentDetail', () => {
     expect(w.find('[data-testid="detail-subtype-hint"]').exists()).toBe(true)
     expect(w.find('[data-testid="bewerken-knop"]').exists()).toBe(false)
     expect(w.find('[data-testid="verwijder-knop"]').exists()).toBe(false)
+  })
+
+  // ADR-025 — "Bekijk op kaart".
+  it('toont "Bekijk op kaart" met ARCHITECTUUR.LEZEN (tenant-rol)', async () => {
+    const { w } = await mountDetail({ rollen: ['viewer'] })
+    expect(w.find('[data-testid="bekijk-op-kaart-knop"]').exists()).toBe(true)
+  })
+
+  it('"Bekijk op kaart" navigeert naar de landschapskaart met ?center', async () => {
+    const { w, router } = await mountDetail({ rollen: ['medewerker'] })
+    const pushSpy = vi.spyOn(router, 'push')
+    await w.find('[data-testid="bekijk-op-kaart-knop"]').trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'landschapskaart', query: { center: 'db-1' } })
+  })
+
+  it('"Bekijk op kaart" verborgen zonder tenant-rol (geen ARCHITECTUUR.LEZEN)', async () => {
+    const { w } = await mountDetail({ rollen: [] })
+    expect(w.find('[data-testid="bekijk-op-kaart-knop"]').exists()).toBe(false)
   })
 })

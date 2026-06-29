@@ -321,9 +321,9 @@ watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immedia
 
         <div class="mt-[var(--cd-space-lg)] flex flex-wrap gap-[var(--cd-space-md)]">
           <Button
-            label="Open in Landschapskaart"
+            label="Bekijk op kaart"
             severity="secondary"
-            data-testid="open-landschapskaart-knop"
+            data-testid="bekijk-op-kaart-knop"
             @click="openInLandschapskaart"
           />
           <Button

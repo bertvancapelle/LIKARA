@@ -1709,4 +1709,19 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm._relayoutTeller).toBe(voor)
     })
   })
+
+  // ── ADR-025 — "Bekijk op kaart"-deeplink (?center) ──────────────────────────────────────────────
+  describe('deep-link ?center (Bekijk op kaart)', () => {
+    it('?center → component in de set, ego-modus, beginscherm overgeslagen', async () => {
+      const { w } = await mountView({ query: '?center=a1' })
+      expect([...w.vm.actieveSet]).toEqual(['a1'])
+      expect(w.vm.modus).toBe('ego')
+      expect(w.vm.beginschermOpen).toBe(false)
+    })
+
+    it('zonder center → beginscherm blijft open (ongewijzigd)', async () => {
+      const { w } = await mountView({ heleLandschap: false })
+      expect(w.vm.beginschermOpen).toBe(true)
+    })
+  })
 })
