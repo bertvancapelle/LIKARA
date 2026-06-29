@@ -1801,6 +1801,29 @@ describe('LandschapskaartView v3', () => {
       await naDebounce()
       expect(w.vm._relayoutTeller).toBe(voor)
     })
+
+    it('LI037 — edge-only ring-toggle hertekent óók (nodes ongewijzigd, alleen edges wijzigen)', async () => {
+      zetGraf({
+        nodes: [
+          { id: 'cA', naam: 'A', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+          { id: 'cB', naam: 'B', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        ],
+        edges: [
+          { bron_id: 'cA', doel_id: 'cB', relatietype: 'flow', ring: 'applicaties' },
+          { bron_id: 'cA', doel_id: 'cB', relatietype: 'aggregation', ring: 'samenstelling' },
+        ],
+      })
+      const { w } = await mountView()
+      await naDebounce()
+      const voorIds = getekendeIds(w)
+      const voor = w.vm._relayoutTeller
+      // 'samenstelling' uit → die edge verdwijnt, maar cA/cB blijven (nog steeds verbonden via flow).
+      await w.find('[data-testid="lk-ring-samenstelling"]').trigger('change')
+      await flushPromises()
+      await naDebounce()
+      expect(getekendeIds(w)).toEqual(voorIds) // node-samenstelling ongewijzigd
+      expect(w.vm._relayoutTeller).toBeGreaterThan(voor) // tóch hertekend (zichtbareEdges-trigger)
+    })
   })
 
   // ── ADR-025 — "Bekijk op kaart"-deeplink (?center) ──────────────────────────────────────────────
