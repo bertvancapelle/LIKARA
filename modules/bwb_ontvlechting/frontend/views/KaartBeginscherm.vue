@@ -161,8 +161,26 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
   <div
     ref="wortel"
     data-testid="lk-beginscherm"
-    class="flex flex-col gap-[var(--cd-space-lg)] overflow-y-auto p-[var(--cd-space-lg)]"
+    class="flex flex-col"
   >
+    <!-- Vaste actiebalk bovenaan (niet-scrollend): alleen zichtbaar zodra er ≥1 component is
+         gekozen. Geen disabled-staat meer — bij een lege set is de knop simpelweg verborgen. -->
+    <div
+      v-if="setGrootte > 0"
+      class="shrink-0 border-b border-[var(--cd-color-border)] bg-[var(--cd-color-bg)] px-[var(--cd-space-lg)] py-[var(--cd-space-sm)]"
+    >
+      <button
+        type="button"
+        data-testid="toon-op-kaart-knop"
+        class="w-full rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-2 text-white"
+        @click="emit('sluit')"
+      >
+        Toon {{ setGrootte }} component{{ setGrootte === 1 ? '' : 'en' }} op de kaart
+      </button>
+    </div>
+
+    <!-- Scrollbare content -->
+    <div class="flex-1 overflow-y-auto px-[var(--cd-space-lg)] py-[var(--cd-space-md)]">
     <div class="mx-auto flex w-full max-w-2xl flex-col gap-[var(--cd-space-lg)]">
       <header class="flex flex-col gap-1">
         <h2 class="text-[length:var(--cd-text-lg)] font-semibold">Begin je verkenning</h2>
@@ -310,7 +328,7 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
         Zoek een component om te beginnen.
       </p>
 
-      <!-- 4 — Bescheiden ontsnapping: het hele landschap (boven de sticky actie, scrollt mee). -->
+      <!-- 4 — Bescheiden ontsnapping: het hele landschap (onderaan de scrollbare content). -->
       <div class="pt-[var(--cd-space-sm)]">
         <button
           type="button"
@@ -321,21 +339,7 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
           Of toon het hele landschap →
         </button>
       </div>
-
-      <!-- Primaire actie: STICKY onderaan de scrollbare container — altijd bereikbaar, ongeacht de
-           scrollpositie. Eigen achtergrond zodat de context-secties er netjes onderdoor scrollen.
-           Disabled (grayed-out) zolang de set leeg is — er valt dan nog niets te tonen. -->
-      <div class="sticky bottom-0 border-t border-[var(--cd-color-border)] bg-[var(--cd-color-bg)] pt-[var(--cd-space-sm)] pb-[var(--cd-space-sm)]">
-        <button
-          type="button"
-          data-testid="toon-op-kaart-knop"
-          :disabled="setGrootte === 0"
-          class="w-full rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-md)] py-2 text-white disabled:cursor-not-allowed disabled:opacity-50"
-          @click="emit('sluit')"
-        >
-          {{ setGrootte === 0 ? 'Selecteer componenten om te beginnen' : `Toon ${setGrootte} component${setGrootte === 1 ? '' : 'en'} op de kaart` }}
-        </button>
-      </div>
+    </div>
     </div>
   </div>
 </template>

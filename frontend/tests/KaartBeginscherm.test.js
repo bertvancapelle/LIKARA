@@ -128,18 +128,16 @@ describe('KaartBeginscherm', () => {
     expect(w.find('[data-testid="kb-views"]').exists()).toBe(false)
   })
 
-  // slice 2b-v2 (LI023) — expliciet sluiten via "Toon op de kaart".
-  it('setGrootte=0 → knop disabled met "Selecteer componenten om te beginnen"', () => {
+  // LI023 — actiebalk bovenaan: knop VERBORGEN bij lege set (v-if), niet langer disabled.
+  it('setGrootte=0 → knop niet zichtbaar', () => {
     const w = mountKB({ setGrootte: 0 })
-    const knop = w.find('[data-testid="toon-op-kaart-knop"]')
-    expect(knop.attributes('disabled')).toBeDefined()
-    expect(knop.text()).toBe('Selecteer componenten om te beginnen')
+    expect(w.find('[data-testid="toon-op-kaart-knop"]').exists()).toBe(false)
   })
 
-  it('setGrootte=3 → knop enabled met "Toon 3 componenten op de kaart"', () => {
+  it('setGrootte=3 → knop zichtbaar met "Toon 3 componenten op de kaart"', () => {
     const w = mountKB({ setGrootte: 3 })
     const knop = w.find('[data-testid="toon-op-kaart-knop"]')
-    expect(knop.attributes('disabled')).toBeUndefined()
+    expect(knop.exists()).toBe(true)
     expect(knop.text()).toBe('Toon 3 componenten op de kaart')
   })
 
@@ -152,11 +150,5 @@ describe('KaartBeginscherm', () => {
     const w = mountKB({ setGrootte: 2 })
     await w.find('[data-testid="toon-op-kaart-knop"]').trigger('click')
     expect(w.emitted('sluit')).toBeTruthy()
-  })
-
-  it('klik op de disabled knop (setGrootte=0) → géén sluit-event', async () => {
-    const w = mountKB({ setGrootte: 0 })
-    await w.find('[data-testid="toon-op-kaart-knop"]').trigger('click')
-    expect(w.emitted('sluit')).toBeFalsy()
   })
 })
