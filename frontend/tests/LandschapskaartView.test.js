@@ -1842,6 +1842,38 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
+  // ── LI031 — dubbele org-node: groepeer-per-org-aggregaat dubbelde de org-partij-node ─────────
+  describe('dubbele ring-nodes — org-absorptie (LI031)', () => {
+    it('org-node aanwezig → absorbeert haar gebruikersgroepen (geen dubbele org-genaamde node)', async () => {
+      zetGraf({
+        nodes: [
+          { id: 'cA', naam: 'AppA', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'X' },
+          { id: 'G', naam: 'Burgers', element_type: 'gebruikersgroep', laag: 'business', organisatie_id: 'X', aantal_leden: 100 },
+          { id: 'X', naam: 'Gemeente', element_type: 'partij', laag: 'business', soort: 'organisatie' },
+        ],
+        edges: [{ bron_id: 'cA', doel_id: 'G', relatietype: 'serving', ring: 'gebruikers' }],
+      })
+      const { w } = await mountView() // groepeerPerOrg is default aan
+      const ids = w.vm.grafNodes.map((n) => n.id)
+      expect(ids).toContain('X') // de echte org-node
+      expect(ids).not.toContain('gg-org-X') // géén tweede, org-genaamde aggregaat-node
+      // de serving-edge naar de groep wijst nu naar de org-node (geen dangling/dubbel)
+      expect(w.vm.grafEdges.some((e) => e.doel_id === 'X' && e.ring === 'gebruikers')).toBe(true)
+    })
+
+    it('zonder org-node blijft het synthetische per-org aggregaat bestaan', async () => {
+      zetGraf({
+        nodes: [
+          { id: 'cA', naam: 'AppA', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+          { id: 'G', naam: 'Burgers', element_type: 'gebruikersgroep', laag: 'business', organisatie_id: 'Y', aantal_leden: 100 },
+        ],
+        edges: [{ bron_id: 'cA', doel_id: 'G', relatietype: 'serving', ring: 'gebruikers' }],
+      })
+      const { w } = await mountView()
+      expect(w.vm.grafNodes.map((n) => n.id)).toContain('gg-org-Y') // org niet als node → aggregaat blijft
+    })
+  })
+
   // ── LI025 — interactieve legenda-typefilter (dimmen, niet verbergen) ─────────────────────────
   describe('legenda-typefilter (LI025)', () => {
     it('toggle: klik type → filter; nogmaals → null; ander type → dat type', async () => {

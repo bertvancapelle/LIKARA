@@ -121,17 +121,29 @@ const _rawNaam = (id) => nodes.value.find((n) => n.id === id)?.naam
 // Effectieve graaf-nodes/-edges. Bij "groepeer per organisatie" vervangen we de individuele
 // gebruikersgroep-nodes door één aggregaat-node per organisatie (gesommeerd ledental) en hangen
 // de serving-edges aan dat aggregaat (gededupliceerd). Alle graaf-afgeleiden gebruiken deze.
+// LI031 — `_aggDoelVoorGg(gg)`: waar landt een gebruikersgroep bij "groepeer per organisatie"?
+// Is de organisatie zélf al een node in de graaf, dán de org-node (geen tweede, org-genaamde
+// `gg-org-…`-node die de org zou dubbelen — die kreeg dezelfde naam maar een ander id, dus de
+// id-dedup in getekendeNodes ving 'm niet). Anders een synthetisch per-org aggregaat.
+function _aggDoelVoorGg(gg, orgNodeIds) {
+  const orgId = gg.organisatie_id || null
+  if (orgId && orgNodeIds.has(orgId)) return orgId // absorbeer in de bestaande org-node
+  return `gg-org-${orgId || '__overig__'}`
+}
 const grafNodes = computed(() => {
   if (!groepeerPerOrg.value) return nodes.value
   const overig = nodes.value.filter((n) => n.element_type !== 'gebruikersgroep')
+  const orgNodeIds = new Set(overig.map((n) => n.id))
   const agg = new Map()
   for (const g of nodes.value) {
     if (g.element_type !== 'gebruikersgroep') continue
-    const key = g.organisatie_id || '__overig__'
+    const orgId = g.organisatie_id || null
+    if (orgId && orgNodeIds.has(orgId)) continue // org-node vertegenwoordigt de groepen al → geen dubbel
+    const key = orgId || '__overig__'
     const cur = agg.get(key) || {
       id: `gg-org-${key}`, element_type: 'gebruikersgroep', laag: 'business',
-      naam: g.organisatie_id ? _rawNaam(g.organisatie_id) || 'Organisatie' : 'Overige groepen',
-      organisatie_id: g.organisatie_id || null, aantal_leden: 0,
+      naam: orgId ? _rawNaam(orgId) || 'Organisatie' : 'Overige groepen',
+      organisatie_id: orgId, aantal_leden: 0,
     }
     cur.aantal_leden += g.aantal_leden || 0
     agg.set(key, cur)
@@ -140,9 +152,10 @@ const grafNodes = computed(() => {
 })
 const grafEdges = computed(() => {
   if (!groepeerPerOrg.value) return edges.value
+  const orgNodeIds = new Set(nodes.value.filter((n) => n.element_type !== 'gebruikersgroep').map((n) => n.id))
   const naarAgg = new Map()
   for (const n of nodes.value) {
-    if (n.element_type === 'gebruikersgroep') naarAgg.set(n.id, `gg-org-${n.organisatie_id || '__overig__'}`)
+    if (n.element_type === 'gebruikersgroep') naarAgg.set(n.id, _aggDoelVoorGg(n, orgNodeIds))
   }
   const out = []
   const gezien = new Set()
