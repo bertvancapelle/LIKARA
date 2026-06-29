@@ -86,8 +86,10 @@ async function mountView({ query = '', rollen = ['medewerker'], heleLandschap = 
 
 // ADR-033 — klikken op een component in de lijst = toevoegen/verwijderen uit de actieve set.
 // De weergavemodus volgt eruit: 0 → geheel, 1 → ego, ≥2 → impact-verkenner.
+// LI029 — de resultatenlijst is nu gated (alleen zichtbaar bij zoekterm/filter in kaart-modus);
+// set-opbouw via dezelfde handler die de naam-klik aanroept, onafhankelijk van lijst-zichtbaarheid.
 const kies = async (w, id) => {
-  await w.find(`[data-testid="lk-res-naam-${id}"]`).trigger('click')
+  w.vm.kiesComponent(id)
   await flushPromises()
 }
 // ADR-033 1c — de Impact-verkenner is een graaf op het canvas; de testbare laag is de afgeleide
@@ -129,10 +131,12 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-modus-ego"]').exists()).toBe(false)
     expect(w.find('[data-testid="lk-modus-impact"]').exists()).toBe(false)
     expect(w.find('[data-testid="lk-modus-geheel"]').exists()).toBe(false)
-    // resultatenlijst: applicaties (a1, a2) + de eigen organisatie (p1) als vertrekpunt — niet het contract.
-    expect(w.findAll('[data-testid^="lk-res-naam-"]').length).toBe(3)
-    expect(w.find('[data-testid="lk-res-naam-p1"]').exists()).toBe(true)  // organisatie als vertrekpunt
-    expect(w.find('[data-testid="lk-res-naam-k1"]').exists()).toBe(false) // contract niet
+    // resultaten (LI029 — lijst is gated; toets de samenstelling op de data): applicaties (a1, a2)
+    // + de eigen organisatie (p1) als vertrekpunt — niet het contract.
+    const _ids = w.vm.gefilterdeNodes.map((n) => n.id)
+    expect(_ids.length).toBe(3)
+    expect(_ids).toContain('p1') // organisatie als vertrekpunt
+    expect(_ids).not.toContain('k1') // contract niet
   })
 
   it('ADR-033 — de modus volgt de actieve set: 0 → geheel, 1 → ego, ≥2 → impact-verkenner', async () => {
@@ -159,6 +163,8 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-res-set-a1"]').exists()).toBe(false)
     await kies(w, 'a1')
     expect([...w.vm.actieveSet]).toEqual(['a1'])
+    await w.find('[data-testid="lk-zoek"]').setValue('zaak') // LI029 — lijst tonen (gated)
+    await flushPromises()
     expect(w.find('[data-testid="lk-res-naam-a1"]').attributes('aria-pressed')).toBe('true')
     expect(w.find('[data-testid="lk-res-gekozen-a1"]').exists()).toBe(true) // ✓-markering
     await kies(w, 'a1') // opnieuw klikken → verwijderen → set leeg → beginscherm (Fase B: geen graaf meer)
@@ -604,7 +610,8 @@ describe('LandschapskaartView v3', () => {
   })
 
   it('LI028 — "+"-knop voegt een resultaat toe aan het beeld; ✓ als het al in beeld is', async () => {
-    const { w } = await mountView() // geheel → resultatenlijst toont app/org-nodes
+    const { w } = await mountView()
+    await w.find('[data-testid="lk-zoek"]').setValue('doc') // LI029 — lijst gated; toon a2 (Documentbeheer)
     await flushPromises()
     expect(w.find('[data-testid="lk-res-voegtoe-a2"]').exists()).toBe(true) // niet in set → + knop
     expect(w.find('[data-testid="lk-res-gekozen-a2"]').exists()).toBe(false)
@@ -613,6 +620,40 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.actieveSet.has('a2')).toBe(true) // toggleSet uitgevoerd
     expect(w.find('[data-testid="lk-res-voegtoe-a2"]').exists()).toBe(false) // in set → geen + knop
     expect(w.find('[data-testid="lk-res-gekozen-a2"]').exists()).toBe(true) // ✓
+  })
+
+  // ── LI029 — zoekresultaten inline onder de zoekbalk (alleen kaart-modus, bij zoek/filter) ────
+  describe('LI029 — inline zoekresultaten (kaart-modus)', () => {
+    it('kaart-modus + zoekterm → resultatenblok zichtbaar', async () => {
+      const { w } = await mountView() // beginschermOpen=false (hele landschap)
+      expect(w.find('[data-testid="lk-kaartzoek"]').exists()).toBe(false) // nog geen zoekterm/filter
+      await w.find('[data-testid="lk-zoek"]').setValue('doc')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-kaartzoek"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-res-naam-a2"]').exists()).toBe(true) // Documentbeheer
+    })
+
+    it('beginscherm open → blok NIET zichtbaar (beginscherm heeft eigen zoek)', async () => {
+      const { w } = await mountView({ heleLandschap: false }) // beginschermOpen blijft true
+      await w.find('[data-testid="lk-zoek"]').setValue('doc')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-kaartzoek"]').exists()).toBe(false)
+    })
+
+    it('kaart-modus zonder zoekterm én zonder filter → blok NIET zichtbaar', async () => {
+      const { w } = await mountView()
+      expect(w.find('[data-testid="lk-kaartzoek"]').exists()).toBe(false)
+    })
+
+    it("B′ — een actief filter toont het blok óók zonder zoekterm", async () => {
+      const { w } = await mountView()
+      await w.find('[data-testid="lk-filter-leverancier-input"]').trigger('focus')
+      await flushPromises()
+      await w.find('[data-testid="lk-filter-leverancier-optie-l1"]').trigger('mousedown')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-kaartzoek"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-res-naam-a1"]').exists()).toBe(true) // l1 → matcht
+    })
   })
 
   it('ADR-033 1b — toont alleen de DIRECTE impact (één laag), niet de hele transitieve keten', async () => {
@@ -903,6 +944,8 @@ describe('LandschapskaartView v3', () => {
   it('node-klik (resultaatrij) toont het detail-paneel', async () => {
     const { w } = await mountView()
     expect(w.find('[data-testid="lk-detail-leeg"]').exists()).toBe(true)
+    await w.find('[data-testid="lk-zoek"]').setValue('doc') // LI029 — lijst gated; toon a2
+    await flushPromises()
     await w.find('[data-testid="lk-res-naam-a2"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Documentbeheer')
@@ -910,6 +953,8 @@ describe('LandschapskaartView v3', () => {
 
   it('"Open applicatie →" navigeert naar het applicatie-detail', async () => {
     const { w, pushSpy } = await mountView()
+    await w.find('[data-testid="lk-zoek"]').setValue('zaak') // LI029 — lijst gated; toon a1
+    await flushPromises()
     await w.find('[data-testid="lk-res-naam-a1"]').trigger('click')
     await flushPromises()
     await w.find('[data-testid="lk-detail-open"]').trigger('click')
@@ -918,10 +963,12 @@ describe('LandschapskaartView v3', () => {
 
   it('"Voeg alle gefilterde toe" vult de actieve set', async () => {
     const { w } = await mountView()
+    await w.find('[data-testid="lk-zoek"]').setValue('e') // LI029 — lijst gated; 'e' matcht a1 + a2
+    await flushPromises()
     await w.find('[data-testid="lk-voeg-alle"]').trigger('click')
     await flushPromises()
-    // twee applicaties + de eigen organisatie (p1) als vertrekpunt = 3; het contract is niet selecteerbaar.
-    expect(w.find('[data-testid="lk-rechts"]').text()).toContain('Actieve set (3)')
+    // de twee gefilterde applicaties (a1, a2) worden toegevoegd.
+    expect(w.find('[data-testid="lk-rechts"]').text()).toContain('Actieve set (2)')
   })
 
   it('Fix 3: klik op een actieve-set-item selecteert de node (detail-paneel)', async () => {
@@ -967,6 +1014,8 @@ describe('LandschapskaartView v3', () => {
 
   it('v4: het detail-paneel toont de migratieplaatsing (plateau + dispositie) indien gevuld', async () => {
     const { w } = await mountView()
+    await w.find('[data-testid="lk-zoek"]').setValue('doc') // LI029 — lijst gated; toon a2
+    await flushPromises()
     await w.find('[data-testid="lk-res-naam-a2"]').trigger('click') // a2 zit op een plateau
     await flushPromises()
     const plateau = w.find('[data-testid="lk-detail-plateau"]')
@@ -974,6 +1023,8 @@ describe('LandschapskaartView v3', () => {
     expect(plateau.text()).toContain('Plateau 2026')
     expect(plateau.text()).toContain('Migreren')
     // a1 zit niet op een plateau → geen migratieplaatsing-regel.
+    await w.find('[data-testid="lk-zoek"]').setValue('zaak') // toon a1
+    await flushPromises()
     await w.find('[data-testid="lk-res-naam-a1"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-testid="lk-detail-plateau"]').exists()).toBe(false)
@@ -981,6 +1032,8 @@ describe('LandschapskaartView v3', () => {
 
   it('toont het blokkade-icoon op een node met open blokkades', async () => {
     const { w } = await mountView()
+    await w.find('[data-testid="lk-zoek"]').setValue('e') // LI029 — lijst gated; 'e' matcht a1 + a2
+    await flushPromises()
     expect(w.find('[data-testid="lk-res-blok-a2"]').exists()).toBe(true)
     expect(w.find('[data-testid="lk-res-blok-a1"]').exists()).toBe(false)
   })
@@ -1475,6 +1528,8 @@ describe('LandschapskaartView v3', () => {
   it('scope — organisatie is als vertrekpunt selecteerbaar in de lijst', async () => {
     zetGraf(_scopeGraf())
     const { w } = await mountView()
+    await w.find('[data-testid="lk-zoek"]').setValue('org a') // LI029 — lijst gated; toon oA
+    await flushPromises()
     expect(w.find('[data-testid="lk-res-naam-oA"]').exists()).toBe(true) // org in de zoeklijst
     await kies(w, 'oA')
     expect(w.vm.actieveSet.has('oA')).toBe(true) // als vertrekpunt gekozen

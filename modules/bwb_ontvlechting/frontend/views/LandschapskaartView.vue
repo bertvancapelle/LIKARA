@@ -1927,6 +1927,48 @@ const typeLabel = (t) => humaniseer(t)
 
         <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)]" />
 
+        <!-- LI029 — zoekresultaten direct onder de zoekbalk. Alleen in kaart-modus (beginscherm dicht)
+             én bij een actieve zoekopdracht óf filter (het beginscherm heeft zijn eigen zoek). -->
+        <div
+          v-if="!beginschermOpen && (zoekterm.trim() || filterActief)"
+          data-testid="lk-kaartzoek"
+          class="flex flex-col gap-[var(--cd-space-xs)] rounded-[var(--cd-radius-card)] border border-[var(--cd-color-border)] bg-[var(--cd-color-accent)]/30 p-[var(--cd-space-sm)]"
+        >
+          <p class="font-semibold text-[length:var(--cd-text-sm)]">
+            Componenten ({{ zoekResultaten.trim() ? `${gefilterdeResultaten.length} van ${gefilterdeNodes.length}` : gefilterdeNodes.length }})
+          </p>
+          <input
+            v-model="zoekResultaten"
+            type="search"
+            placeholder="Zoek in resultaten…"
+            data-testid="lk-zoek-resultaten"
+            aria-label="Zoek in resultaten"
+            class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
+          />
+          <ul class="flex max-h-64 flex-col gap-1 overflow-y-auto" data-testid="lk-resultaten">
+            <!-- Klikken op de naam = toevoegen/verwijderen uit de set + detail tonen (kiesComponent);
+                 de "+"-knop voegt alleen toe (✓ als het al in beeld is). -->
+            <li v-for="n in gefilterdeResultaten" :key="n.id" :data-testid="`lk-res-${n.id}`" :class="['flex items-center gap-1 rounded px-1 py-0.5 text-[length:var(--cd-text-sm)]', inSet(n.id) ? 'bg-[var(--cd-color-accent)]' : '']">
+              <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: lcStyle(n.lifecycle_status).bg, border: `1px solid ${lcStyle(n.lifecycle_status).border}` }"></span>
+              <button type="button" :aria-pressed="inSet(n.id)" class="grow truncate text-left hover:underline" :data-testid="`lk-res-naam-${n.id}`" @click="kiesComponent(n.id)">{{ n.naam }}</button>
+              <span v-if="n.blokkades_open > 0" :data-testid="`lk-res-blok-${n.id}`" title="Open blokkade(s)">⚠</span>
+              <span v-if="n.hosting_model">{{ hostingIcoon(n.hosting_model) }}</span>
+              <button
+                v-if="!inSet(n.id)"
+                type="button"
+                :data-testid="`lk-res-voegtoe-${n.id}`"
+                class="shrink-0 rounded px-1.5 font-semibold text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)]"
+                :title="`${n.naam} toevoegen aan beeld`"
+                :aria-label="`${n.naam} toevoegen aan beeld`"
+                @click="toggleSet(n.id)"
+              >+</button>
+              <span v-else :data-testid="`lk-res-gekozen-${n.id}`" class="text-[var(--cd-color-primary)]" title="Al in beeld">✓</span>
+            </li>
+            <li v-if="!gefilterdeResultaten.length" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">Geen resultaten.</li>
+          </ul>
+          <button type="button" data-testid="lk-voeg-alle" class="mt-1 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] text-white" @click="voegAlleGefilterdeToe">+ Voeg alle gefilterde toe</button>
+        </div>
+
         <label class="flex flex-col gap-[var(--cd-space-xs)] text-[length:var(--cd-text-sm)]">
           <span class="font-semibold">Type</span>
           <ZoekMultiSelect
@@ -2015,40 +2057,6 @@ const typeLabel = (t) => humaniseer(t)
           <input type="checkbox" v-model="verbergLegeLanes" data-testid="lk-verberg-lege" />Verberg lege lanes
         </label>
 
-        <p class="mt-[var(--cd-space-sm)] font-semibold text-[length:var(--cd-text-sm)]">
-          Componenten ({{ zoekResultaten.trim() ? `${gefilterdeResultaten.length} van ${gefilterdeNodes.length}` : gefilterdeNodes.length }})
-        </p>
-        <input
-          v-model="zoekResultaten"
-          type="search"
-          placeholder="Zoek in resultaten…"
-          data-testid="lk-zoek-resultaten"
-          aria-label="Zoek in resultaten"
-          class="rounded-[var(--cd-radius-input)] border border-[var(--cd-color-border)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--cd-color-primary)]"
-        />
-        <ul class="flex flex-col gap-1" data-testid="lk-resultaten">
-          <!-- ADR-033 — klikken = toevoegen/verwijderen uit de actieve set (de losse "+"-knop is
-               vervallen). De geselecteerde rij is gemarkeerd (✓ + accentkleur, aria-pressed). -->
-          <li v-for="n in gefilterdeResultaten" :key="n.id" :data-testid="`lk-res-${n.id}`" :class="['flex items-center gap-1 rounded px-1 py-0.5 text-[length:var(--cd-text-sm)]', inSet(n.id) ? 'bg-[var(--cd-color-accent)]' : '']">
-            <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: lcStyle(n.lifecycle_status).bg, border: `1px solid ${lcStyle(n.lifecycle_status).border}` }"></span>
-            <button type="button" :aria-pressed="inSet(n.id)" class="grow truncate text-left hover:underline" :data-testid="`lk-res-naam-${n.id}`" @click="kiesComponent(n.id)">{{ n.naam }}</button>
-            <span v-if="n.blokkades_open > 0" :data-testid="`lk-res-blok-${n.id}`" title="Open blokkade(s)">⚠</span>
-            <span v-if="n.hosting_model">{{ hostingIcoon(n.hosting_model) }}</span>
-            <!-- LI028 — expliciete, altijd zichtbare "voeg toe aan beeld"-actie; ✓ als het al in de set zit. -->
-            <button
-              v-if="!inSet(n.id)"
-              type="button"
-              :data-testid="`lk-res-voegtoe-${n.id}`"
-              class="shrink-0 rounded px-1.5 font-semibold text-[var(--cd-color-primary)] hover:bg-[var(--cd-color-accent)]"
-              :title="`${n.naam} toevoegen aan beeld`"
-              :aria-label="`${n.naam} toevoegen aan beeld`"
-              @click="toggleSet(n.id)"
-            >+</button>
-            <span v-else :data-testid="`lk-res-gekozen-${n.id}`" class="text-[var(--cd-color-primary)]" title="Al in beeld">✓</span>
-          </li>
-          <li v-if="!gefilterdeResultaten.length" class="text-[length:var(--cd-text-xs)] text-[var(--cd-color-text-muted)]">Geen resultaten.</li>
-        </ul>
-        <button type="button" data-testid="lk-voeg-alle" class="mt-1 rounded-[var(--cd-radius-btn)] bg-[var(--cd-color-primary)] px-[var(--cd-space-sm)] py-1 text-[length:var(--cd-text-sm)] text-white" @click="voegAlleGefilterdeToe">+ Voeg alle gefilterde toe</button>
       </aside>
 
       <!-- Midden: vaste organisatie-scopebalk bovenin + het kaart-canvas eronder. -->
