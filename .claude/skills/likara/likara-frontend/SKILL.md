@@ -883,3 +883,66 @@ met interactieve drag en edge-rendering.
   toestand-historie ná de laad (via `nextTick`), zodat de scope-default geen losse "terug"-stap wordt.
 - **Strategie A voor de tests** bij deze omslag: zie likara-tests (mountView-helper laadt het hele
   landschap; één setter voedt full-load én subgraaf-mock; nieuwe bedrading-tests apart).
+
+## LI023 — Landschapskaart Fase B patronen
+
+### beginschermOpen-vlag (expliciete sluit-actie)
+De zichtbaarheid van KaartBeginscherm is NIET gekoppeld aan de set-grootte.
+Een aparte `beginschermOpen = ref(true)` bepaalt of het beginscherm zichtbaar is.
+Sluiten = alleen via expliciete gebruikersactie ("Toon N componenten op de kaart"-knop).
+Heropenen = wisSet() + elke harde reset.
+Nooit: `v-if="actieveSet.size === 0"` voor het beginscherm.
+
+### Actiebalk bovenaan beginscherm
+De primaire actieknop staat als vaste actiebalk BOVENAAN het beginscherm (niet
+sticky-bottom). Structuur:
+- Root: `flex flex-col` (geen overflow op root)
+- Actiebalk: `shrink-0 border-b` (v-if="setGrootte > 0", niet disabled)
+- Scrollbare content: `flex-1 overflow-y-auto`
+Redenering: gebruiker heeft ogen bovenin na aanvinken → actie zit waar gebruiker kijkt.
+
+### z-index management Landschapskaart
+Canvas-kolom is een relative stacking-context:
+- Cytoscape-canvas #cy: `z-[1]`
+- Knoppen (history/legenda/fullscreen): `z-10`
+- KaartBeginscherm overlay: `z-20` (opaak, ontvangt pointer-events)
+- Modal-dialogen: `z-50` / `z-[60]`
+KaartBeginscherm heeft `absolute inset-0 z-20` — altijd boven canvas en knoppen.
+
+### componentBuren() — via grafEdges, NIET cy.neighborhood
+Cytoscape node-data draagt ALLEEN visuele velden (label, bg, border, shape).
+element_type/naam/laag zijn NIET beschikbaar via `cy.getElementById(id).data()`.
+Buren ophalen = via de reactieve `grafEdges` + `nodePerId` computed properties.
+Voorbeeld:
+```javascript
+function componentBuren(id) {
+  return grafEdges.value
+    .filter(e => e.bron === id || e.doel === id)
+    .map(e => e.bron === id ? nodePerId.value[e.doel] : nodePerId.value[e.bron])
+    .filter(n => n && _isApp(n))
+}
+```
+Dit is testbaar zonder cy-mock te wijzigen (Strategie A).
+
+### Generieke re-layout watcher
+De re-layout watcher keyt op getekendeNodes-ID-compositie (NIET op zichtbareNodes):
+```javascript
+watch(
+  () => getekendeNodes.value.map(n => n.id).join('|'),
+  _debounce(() => { if (_mountKlaar && cy) tekenGraaf() }, 250)
+)
+```
+- getekendeNodes vangt ook focusOpSet-wijzigingen (die zichtbareNodes niet raken)
+- Debounce coalesceert snelle wijzigingen
+- History-uitzondering: tijdens terug/vooruit (_herstellen) direct uitvoeren (niet debounced)
+- Initiële layout blijft de directe tekenGraaf() in onMounted/herlaadGraaf
+
+### Scope-filter in subgraaf-modus
+In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landschap-modus:
+- Set-leden: altijd zichtbaar (nooit weggefilterd)
+- Geen scope geselecteerd: alles zichtbaar
+- Org-nodes: alleen zichtbaar als scopeOrgs.has(n.id)
+- Gebruikersgroep-nodes: zichtbaar als scopeOrgs.has(n.organisatie_id); org-loos → altijd
+- Contract/infra/persoon/externe partij: altijd zichtbaar
+- Application-componenten: NOOIT weggefilterd in subgraaf-modus (de set IS de scope)
+"Biedt aan/Gebruikt"-toggle: v-if="actieveSet.size === 0" (alleen hele-landschap)

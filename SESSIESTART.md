@@ -1,6 +1,6 @@
-# SESSIESTART — LIKARA V023
+# SESSIESTART — LIKARA V024
 
-**Datum**: 2026-06-27
+**Datum**: 2026-06-29
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle likara-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V023 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V024 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V023
+# SESSIE_BRIEFING.md — LIKARA V024
 
-**Gegenereerd**: 2026-06-27
+**Gegenereerd**: 2026-06-29
 
 ---
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V023 |
+| Build | V024 |
 | Datum | June 2026 |
-| Commit | 7556248 |
-| Tests | 663 frontend + 910 backend groen (2 skipped) |
-| TST-rapport | TST-V023-Validatierapport.md |
+| Commit | 0e16999 |
+| Tests | 698 frontend + 910 backend groen (2 skipped) |
+| TST-rapport | TST-V024-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,11 +64,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
-7556248 chore(sessie): LI022 afgesloten — Fase B slice 0+1+2a, skill-rename, werkprotocol (V023)
-509e9ca feat(landschapskaart): contract- en gebruiker-context routes naar componenten (Fase B slice 2a, LI022)
-10bb35e feat(landschapskaart): set-gestuurd laadpad + subgraaf api-client (Fase B slice 0+1, LI022)
-6043094 docs: Laag-2 identifier-rename als opvolgpunt geborgd (LI022)
-8b8a8b2 docs(skill): rename complidata→likara skill-laag + likara-werkprotocol (LI022)
+0e16999 chore: verouderd root-OPVOLGPUNTEN.md verwijderd — docs/OPVOLGPUNTEN.md is de enige bron (LI023)
+ac4afb7 docs(adr): ADR-025/026 nadere besluiten + ADR-030 besloten + ADR-035 Signalering aangemaakt + OPVOLGPUNTEN bijgewerkt (LI023)
+3fc3414 docs: PRODUCTVISIE.md toegevoegd aan projectroot (LI023)
+a4979fa fix(landschapskaart): zoekterm en dropdown resetten na aanvinken component (LI023)
+1019d8f feat(landschapskaart): generieke re-layout bij elke node-samenstelling-wijziging (LI023)
 ```
 
 ---
@@ -168,6 +168,6 @@ het echte scherm. **Databron staat volledig klaar** (slice 2a + bestaande routes
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V023"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V024"
 4. Wacht op START: [naam] van Bert
 

@@ -7,6 +7,42 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V024 (sessie-afsluiting LI023, 2026-06-29)
+
+Build **V023 → V024**. LI023 = Landschapskaart Fase B compleet + UX-fixes +
+ADR-besluiten + PRODUCTVISIE.md.
+
+**Geland in LI023:**
+- Werkprotocol herbevestigd + geborgd in likara-werkprotocol skill (a367d3d)
+- Slice 2b: 4-ingangen-beginscherm + chips (b5a6e33, cab0988)
+- Slice 2b UX-fixes: z-index blokkade (94aa12e), actieknop bovenaan (ef68c40),
+  zoekterm reset na aanvinken (a4979fa)
+- Slice 5: detail-paneel set-acties — buren erbij + context-componenten (0b018bd)
+- Slice 6: cytoscape-dagre dependency verwijderd (776ab38)
+- Scope-balk fix: filtert org/gg-nodes in subgraaf-modus (097d1e9)
+- Generieke re-layout watcher op getekendeNodes-compositie (1019d8f)
+- PRODUCTVISIE.md toegevoegd aan projectroot (3fc3414)
+- ADR-025/026 nadere besluiten + ADR-030 besloten + ADR-035 Signalering (ac4afb7)
+- root-OPVOLGPUNTEN.md verwijderd — docs/OPVOLGPUNTEN.md is enige bron (0e16999)
+
+**Nieuw besloten, nog te bouwen (prioriteitsvolgorde):**
+1. ADR-035 Signalering registratiegaten
+2. ADR-025 "Bekijk op kaart"-knop (praatplaat ego-view)
+3. ADR-026 ArchiMate typering verplicht in componenttype-formulier
+4. ADR-030 Contract coverage per-band
+5. Klaarverklaring-blok op ComponentDetail (triviale gap, ADR-027 compleet)
+6. Interactieve legenda als type-filter
+
+**Landschapskaart uitgesteld na live testing:**
+- Scope-balk gedrag in subgraaf-modus (bewust uitgesteld)
+- Impact-modus semantiek op een set (bewust uitgesteld)
+- Swimlane implementatie (ADR-034, geparkeerd)
+- Saved views als permanente hoofdingang (Fase D)
+- "Zoek-erop-dan-toon-het" principe
+
+**Nieuw strategisch thema (parked):**
+- Export/import/rapportage — scope en fasering apart te bepalen
+
 ### Stand V023 (sessie-afsluiting LI022, 2026-06-27)
 
 Build **V022 → V023**. LI022 = Landschapskaart Fase B (set-gestuurd) + hygiëne/rename.

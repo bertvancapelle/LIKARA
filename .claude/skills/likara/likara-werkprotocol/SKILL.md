@@ -97,3 +97,17 @@ terwijl de gebruikersvraag functioneel is:
 3. Geef het antwoord vanuit de gebruikerservaring.
 
 Conflict tussen gebruikerslogica en procesvoorkeur: **gebruikerservaring wint.**
+
+---
+
+## Operationele afspraken
+
+### Stack opstarten
+"Start de gehele stack" = altijd Docker Compose + frontend dev-server samen.
+Nooit alleen Docker Compose zonder dev-server — de gebruiker kan dan niet inloggen
+(Keycloak redirect_uri wijst naar :3000).
+
+Volgorde:
+1. `docker compose up -d`
+2. `cd frontend && npm run dev` (of via CC achtergrondtaak)
+3. Verifieer: `docker compose ps` (alle services healthy) + :3000 bereikbaar

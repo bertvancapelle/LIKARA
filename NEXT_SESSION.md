@@ -1,85 +1,52 @@
-# NEXT_SESSION.md — LIKARA V023
+# NEXT_SESSION.md — LIKARA V024
 
-**Gegenereerd**: 2026-06-27 (sessie-afsluiting LI022)
-**Build**: V022 → **V023**
-**Migratie head**: `0042` (`0042_adr033_opgeslagen_view`) — LI022 had geen schema-/migratiewijziging
-(Fase B = frontend + read-side; slice 2a = nieuwe read-queries over bestaande relaties).
-**Tests**: frontend **663 groen** + `vite build` + `test:css-build` ok; backend **910 passed / 2 skipped**
-(de 8 LI021-failers zijn herijkt — 0 failers).
-
----
-
-## Stand van zaken (V023) — Landschapskaart Fase B (set-gestuurd) + hygiëne/rename
-
-Deze sessie (LI022):
-- **Reset + seed-herijking** (`d6cd59f`) — de 8 pre-existing live-DB-failers herijkt op de verrijkte
-  `_seed_bvowb_scenario` (seed onaangeroerd; tests bewogen mee).
-- **Skill-laag hernoemd** `complidata-* → likara-*` + nieuwe **`likara-werkprotocol`**-skill (`8b8a8b2`);
-  **Laag-2 identifier-rename** als opvolgpunt geborgd (`6043094`).
-- **Fase B slice 0+1** (`10bb35e`) — set-gestuurd laadpad + `subgraaf` api-client.
-- **Fase B slice 2a** (`509e9ca`) — contract- + gebruiker-context-routes naar componenten (databron voor
-  de "Via context"-ingangen).
-- **Sessie-afsluiting** — generators (gen_build/gen_sessiestart) meegerenamed naar `.claude/skills/likara/`.
+**Gegenereerd**: 2026-06-29 (sessie-afsluiting LI023)
+**Build**: V023 → **V024**
+**Migratie head**: `0042` (`0042_adr033_opgeslagen_view`) — LI023 had géén schema-/migratiewijziging
+(alles frontend + docs/ADR).
+**Tests**: frontend **698 groen** (63 files) + `vite build` + `test:css-build` ok; backend **910 passed / 2 skipped**.
+**TST**: `docs/TST-V024-Validatierapport.md` — 0 kritieken.
 
 ---
 
-## Vertrekpunt volgende sessie — Slice 2b (BESLOTEN ONTWERP, niet opnieuw ontwerpen)
+## Stand van zaken (V024) — Landschapskaart Fase B compleet + UX-fixes + ADR-besluiten
 
-**Slice 2b — leeg-openend 4-ingangen-beginscherm (frontend).** Vervangt de placeholder uit slice 1 door
-het echte scherm. **Databron staat volledig klaar** (slice 2a + bestaande routes); geen backend nodig.
+Deze sessie (LI023):
+- **Werkprotocol** herbevestigd + geborgd in `likara-werkprotocol` (`a367d3d`).
+- **Slice 2b** — 4-ingangen-beginscherm + "in beeld"-chips (`b5a6e33`); beginscherm expliciet sluiten
+  via "Toon N op de kaart" (`cab0988`).
+- **Slice 2b UX-fixes** — z-index/pointer-events-blokkade (`94aa12e`), actieknop als actiebalk bovenaan
+  (`ef68c40`), zoekterm/dropdown reset na aanvinken (`a4979fa`).
+- **Slice 5** — detail-paneel set-acties: "Haal buren erbij" + "Voeg alle componenten toe" (`0b018bd`).
+- **Slice 6** — dode `cytoscape-dagre`-dependency verwijderd (`776ab38`).
+- **Scope-fix** — scope-balk filtert in subgraaf-modus org/gg-nodes i.p.v. de componenten (`097d1e9`).
+- **Generieke re-layout** — watcher op `getekendeNodes`-compositie + debounce (`1019d8f`).
+- **PRODUCTVISIE.md** toegevoegd (`3fc3414`); **ADR-025/026 nadere besluiten + ADR-030 besloten +
+  ADR-035 Signalering** (`ac4afb7`); **root-OPVOLGPUNTEN.md verwijderd** (`0e16999`).
 
-- **Hoofdroute (zoekzone):** type-scope-keuze (standaard `applicatie`; "applicatie" is gewoon een waarde
-  van het componenttype-filter, **géén aparte ingang**; aanpasbaar) + vrije zoekterm → `api.componenten.lijst`
-  (server-side, AND-gecombineerd) → treffers als **aanvinkbare multi-select-dropdown** → aangevinkte
-  componenten verschijnen als **"In beeld"-chips** onder de balk.
-- **"In beeld"-chips = tweede bewerk-plek op één selectie:** uitvinken/`×` = uit de graaf; één bron van
-  waarheid met de knopen.
-- **Filters** (laag · hosting · eigenaar) weggevouwen onder "+ Filters", verfijnen dezelfde treffers.
-- **Via context (drie symmetrische routes — doorzoekbare multi-selects → onderliggende componenten in de set):**
-  - leverancier → `api.partijen.lijst({aard:'externe_partij', zoek})` + `GET /partijen/{id}/componenten`
-  - contract → `api.contracten.lijst({zoek})` + `GET /contracten/{id}/componenten` (nieuw, slice 2a)
-  - gebruiker-context → `GET /gebruikersgroepen/contexten?zoek=` (distinct org+afdeling, met telling) +
-    `GET /gebruikersgroepen/contexten/componenten?organisatie_id=&afdeling=`
-- **Hergebruiken:** bestaande opgeslagen-views-lijst, als gelijkwaardige ingang op het scherm.
-- **Toon het hele landschap:** bestaande actie (slice 1), bescheiden apart onderaan.
-- **Granulariteit:** component-zoek = individuen kiezen; context-routes = context kiezen → alle
-  onderliggende componenten. Alles **accumuleert**; subgraaf-herfetch op de hele set bij elke mutatie.
-- **Engine:** read-only/frontend; geen backend nodig.
+Landschapskaart Fase B (set-gestuurd beginscherm + ingangen + interactie) is daarmee functioneel rond;
+verfijningen op een opgebouwde set (scope/impact/swimlane-semantiek) zijn bewust uitgesteld na live testing.
 
 ---
 
-## Herziene slice-planning (het ontwerp heeft de oude nummering verschoven)
+## Vertrekpunt volgende sessie — top-5 prioriteiten (BESLOTEN, nog te bouwen)
 
-- **Slice 2b absorbeert** de oude "Typen server-side" (oud slice 3) en "Bladeren" (oud slice 4) — die
-  worden **niet apart** gebouwd.
-- **Slice 5 (design-heavy, CHECKPOINT-EERST):** het interactiemodel op de graaf — klik = toevoegen,
-  `×` = weghalen, doorklik haalt buren erbij (+voegt de buur toe), verzamel-doorklik op context-knopen
-  (alle onderliggende componenten), "N in beeld"-teller op de graaf, "Begin opnieuw" als harde reset —
-  **plus** de geparkeerde **subgraaf-semantiek-beslissing** (welke van filter/scope/impact/swimlane
-  zinvol zijn op een set). Bert wil het interactiegedrag kunnen **testen** zodra deze slice landt.
-- **Slice 6:** opschonen (dode full-graph-op-mount-paden, `cytoscape-dagre`-cleanup).
+1. **ADR-035 — Signalering registratiegaten.** Coherent Signalering-scherm (absorbeert
+   Plaatsingssignalen), 10 signaaltypen in 2 niveaus, badges op entiteiten + centraal overzicht.
+   Read-only, geen engine-poort. n≥2-discipline: bouw eerst 2 concrete signalen (component zonder
+   eigenaar + contract zonder leverancier).
+2. **ADR-025 — "Bekijk op kaart"-knop** op alle componentdetailpagina's → vooringestelde ego-view op
+   de Landschapskaart (hergebruik bestaande infra). Koppelingenkaart-visueel vervalt.
+3. **ADR-026 — ArchiMate-typering verplicht** in het componenttype-formulier (3 verplichte velden,
+   gesloten lijsten/code-constanten; seed compliant maken bij de slice).
+4. **ADR-030 — Contract-dekking per-band** naast contract-breed (Optie B).
+5. **Klaarverklaring-blok op ComponentDetail** — MigratiegereedheidSectie + knop (ADR-027 compleet;
+   triviale implementatiegap). + **interactieve legenda als type-filter** (klein).
 
----
+## Openstaande punten / bewust uitgesteld
+- **Subgraaf-semantiek** (filter/scope/impact/swimlane op een opgebouwde set) — eigen ontwerpslice na live testing.
+- **Swimlane** — geparkeerd (ADR-034, HTML/CSS-herwrite).
+- **Saved views als permanente hoofdingang** (Fase D); "zoek-erop-dan-toon-het"-principe.
+- **Nieuw strategisch thema (parked)**: export/import/rapportage — scope/fasering apart te bepalen.
 
-## Bekende risico's en aandachtspunten
-
-- **8 LI021-failers zijn opgelost** (herijkt op de verrijkte seed) — niet als open beschouwen.
-- **`GET /gebruikersgroepen/contexten` is bewust ongepagineerd** (begrensde afgeleide lijst). Alleen bij
-  extreem veel distinct (org, afdeling)-contexten een keyset-slice nodig (zie OPVOLGPUNTEN).
-- **Laag-2 identifier-rename** (`complidata-api`-clientId, `cd_`-familie, `COMPLIDATA_TEST_MODE`) staat nog
-  open als aparte, gecoördineerde slag (OPVOLGPUNTEN) — raakt Keycloak/realm + evt. schema (tabelprefix).
-- Werktree is **schoon** na de afsluit-commit(s).
-
----
-
-## Geleerde patronen deze sessie (verwerkt in de likara-skills)
-
-- **likara-frontend** — set-gestuurd kaart-laadpad: leeg openen, subgraaf-per-set (hele set herfetch),
-  hele-landschap als bewuste actie met "X van N"-teller op verwerkte data, begin-opnieuw = harde reset,
-  entry-point = verse history-wortel.
-- **likara-backend** — context→componenten read-endpoint: deel de WHERE, splits de projectie; geen
-  ComponentProfiel-join (engine-ontkoppeld, kale componenten mee); nullable composiet-sleutel via
-  `IS NOT DISTINCT FROM`; begrensde distinct-picker mag ongepagineerd.
-- **likara-tests** — strategie A bij een laadpad-omslag: mountView laadt de "volledige" modus, één setter
-  voedt beide laadpaden, nieuwe bedrading-tests apart; nagel onbesliste semantiek niet vast; function-
-  bronscan met `ast`-docstring-strip voor engine-borging.
+Zie `docs/OPVOLGPUNTEN.md` (de enige backlog-bron) voor het volledige overzicht.
