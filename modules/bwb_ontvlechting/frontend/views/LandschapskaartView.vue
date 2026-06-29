@@ -1674,7 +1674,7 @@ const CY_STYLE = [
   { selector: 'edge.hl-edge', style: { 'line-color': SELECTIE_RAND, 'target-arrow-color': SELECTIE_RAND, width: 2.5, 'z-index': 900 } },
   { selector: 'node.hl-node', style: { 'border-width': 3, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
   // LI025 — legenda-typefilter: niet-matchende nodes dimmen (spotlight op het gekozen type).
-  { selector: 'node.lk-dim', style: { opacity: 0.15 } },
+  { selector: 'node.lk-dim', style: { opacity: 0.35 } },
   // Fix 3: visuele markering van de geselecteerde node (klik op set-item / node).
   { selector: 'node:selected', style: { 'border-width': 4, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
 ]
