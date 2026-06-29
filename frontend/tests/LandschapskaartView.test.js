@@ -1819,5 +1819,14 @@ describe('LandschapskaartView v3', () => {
       w.vm.onLegendaMousedown({ target: { closest: (sel) => (sel.includes('button') ? {} : null) }, preventDefault() {} })
       expect(w.vm.legendaDragging).toBe(false) // mousedown op een knop start geen drag
     })
+
+    it('dubbelklik op een node heft de legenda-dim op (legendaTypeFilter → null)', async () => {
+      const { w } = await mountView()
+      w.vm.toggleLegendaFilter('Component')
+      expect(w.vm.legendaTypeFilter).toBe('Component')
+      w.vm.onNodeTap('a1') // eerste tap
+      w.vm.onNodeTap('a1') // tweede tap binnen de drempel → dubbelklik
+      expect(w.vm.legendaTypeFilter).toBe(null)
+    })
   })
 })

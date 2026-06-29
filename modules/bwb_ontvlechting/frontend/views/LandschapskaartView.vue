@@ -1177,6 +1177,7 @@ const _DBLTAP_MS = 280
 function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
+    legendaTypeFilter.value = null // LI025 — dieper verkennen heft de legenda-dim op (schone focus)
     // ADR-033 — DUBBELklik = dieper verkennen (uniform per nodetype):
     //  - Impact-verkenner: inzoomen op een directe buur (drill-down; "← terug" blijft);
     //  - ego/geheel: focus op deze knoop alleen → Ego-view, hercentreren (bestaand gedrag).
