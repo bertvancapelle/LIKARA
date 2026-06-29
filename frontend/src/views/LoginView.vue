@@ -57,7 +57,7 @@ function inloggen() {
         LIKARA
       </h1>
       <p class="text-[var(--cd-color-text-muted)] mb-[var(--cd-space-lg)]">
-        Gecontroleerd databeheer en migratie-analyse voor de Nederlandse overheid.
+        Logische ICT Kaart Afhankelijkheden Relaties Analyse — logisch inzicht in uw ICT-landschap.
       </p>
 
       <p
