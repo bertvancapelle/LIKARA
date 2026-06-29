@@ -34,7 +34,11 @@ const LC_STYLE = {
 }
 const lcStyle = (s) => LC_STYLE[s] || LC_STYLE.null
 const LIFECYCLE_OPTIES = ['migratieklaar', 'in_inventarisatie', 'geblokkeerd', 'concept']
-const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
+// LI036 — 'eigenaar' ("is eigendom van", org → component) is een eigen ring. Stond eerder niet in
+// RINGEN → geen checkbox → `ringAan.has('eigenaar')` altijd false → de eigendom-edges werden
+// permanent weggefilterd terwijl hun nodes wél zichtbaar bleven. Default AAN (essentieel: wie is
+// verantwoordelijk voor dit component).
+const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
 // ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie); standaard
 // UIT (zie ringAan), want context, niet de hoofdvraag van de kaart.
 const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
@@ -43,6 +47,7 @@ const RING_LABELS = {
   applicaties: 'Componenten',
   samenstelling: 'Samenstelling', // ADR-033 1b — "onderdeel van" (component↔component aggregatie)
   rollen: 'Rollen & beheer',
+  eigenaar: 'Eigendom', // LI036 — "is eigendom van" (eigenaar-organisatie → component)
   gebruikers: 'Gebruikers',
   contracten: 'Contracten',
   infrastructuur: 'Infrastructuur',

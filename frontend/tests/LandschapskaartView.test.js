@@ -1948,6 +1948,33 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
+  // ── LI036 — eigenaar-ring (eigendom-edges verdwenen permanent: ring zonder checkbox) ─────────
+  describe('eigenaar-ring (LI036)', () => {
+    const _eigGraf = () => ({
+      nodes: [
+        { id: 'cA', naam: 'AppA', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'X' },
+        { id: 'X', naam: 'Gemeente', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      ],
+      edges: [{ bron_id: 'X', doel_id: 'cA', relatietype: 'eigenaar', label: 'is eigendom van', ring: 'eigenaar' }],
+    })
+
+    it('eigenaar is een ring die default AAN staat (met checkbox)', async () => {
+      zetGraf(_eigGraf())
+      const { w } = await mountView()
+      expect([...w.vm.ringAan]).toContain('eigenaar')
+      expect(w.find('[data-testid="lk-ring-eigenaar"]').exists()).toBe(true)
+    })
+
+    it('eigenaar-edge is default zichtbaar; ring uitvinken verbergt de edge', async () => {
+      zetGraf(_eigGraf())
+      const { w } = await mountView()
+      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'eigenaar')).toBe(true)
+      await w.find('[data-testid="lk-ring-eigenaar"]').trigger('change') // uitvinken
+      await flushPromises()
+      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'eigenaar')).toBe(false)
+    })
+  })
+
   // ── LI025 — interactieve legenda-typefilter (dimmen, niet verbergen) ─────────────────────────
   describe('legenda-typefilter (LI025)', () => {
     it('toggle: klik type → filter; nogmaals → null; ander type → dat type', async () => {
