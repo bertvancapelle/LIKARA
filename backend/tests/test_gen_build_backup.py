@@ -11,7 +11,7 @@ import gen_build  # noqa: E402
 def test_kopieert_alleen_sql_niet_secrets(tmp_path):
     backups = tmp_path / "backups"
     backups.mkdir()
-    dump = backups / "complidata_20260607_1200.sql"
+    dump = backups / "likara_20260607_1200.sql"
     dump.write_text("DUMP")
     (backups / ".env").write_text("POSTGRES_PASSWORD=geheim")  # mag NOOIT mee
 
@@ -25,7 +25,7 @@ def test_kopieert_alleen_sql_niet_secrets(tmp_path):
 
 
 def test_ontbrekende_icloud_map_waarschuwt_zonder_fout(tmp_path):
-    dump = tmp_path / "complidata_x.sql"
+    dump = tmp_path / "likara_x.sql"
     dump.write_text("D")
     afwezig = tmp_path / "niet_gemount" / "sub"  # parent bestaat niet → niet gemount
     assert gen_build.kopieer_naar_icloud(dump, afwezig) is False  # geen exception
@@ -47,7 +47,7 @@ def test_geen_dump_geeft_false(tmp_path):
 
 def test_backup_stap_volgorde_dump_dan_icloud(monkeypatch, tmp_path):
     volgorde = []
-    dump = tmp_path / "complidata_y.sql"
+    dump = tmp_path / "likara_y.sql"
     dump.write_text("D")
 
     def _fake_dump():

@@ -31,7 +31,7 @@ const magAuditlog = computed(() => auth.hasRole('beheerder', 'auditor'))
 
 function _laadVoorkeur() {
   try {
-    return localStorage.getItem('cd-sidebar-ingeklapt') === '1'
+    return localStorage.getItem('lk-sidebar-ingeklapt') === '1'
   } catch {
     return false
   }
@@ -40,7 +40,7 @@ function _laadVoorkeur() {
 function toggleSidebar() {
   ingeklapt.value = !ingeklapt.value
   try {
-    localStorage.setItem('cd-sidebar-ingeklapt', ingeklapt.value ? '1' : '0')
+    localStorage.setItem('lk-sidebar-ingeklapt', ingeklapt.value ? '1' : '0')
   } catch {
     /* localStorage niet beschikbaar — voorkeur niet bewaren is acceptabel */
   }

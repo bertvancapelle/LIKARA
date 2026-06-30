@@ -207,7 +207,7 @@ def maak_db_dump():
     (docker/container afwezig) — de build breekt hier nooit op.
     """
     BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
-    doel = BACKUPS_DIR / f"complidata_{datetime.now().strftime('%Y%m%d_%H%M')}.sql"
+    doel = BACKUPS_DIR / f"likara_{datetime.now().strftime('%Y%m%d_%H%M')}.sql"
     try:
         with open(doel, "wb") as fh:
             r = subprocess.run(
