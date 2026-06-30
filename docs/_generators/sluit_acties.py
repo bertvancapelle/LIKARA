@@ -24,19 +24,19 @@ def check_tst():
     return True
 
 def check_skills_gevuld():
-    """Controleert of de complidata-skills niet meer leeg zijn."""
-    skills_dir = REPO_ROOT / ".claude" / "skills" / "complidata"
+    """Controleert of de likara-skills niet meer leeg zijn."""
+    skills_dir = REPO_ROOT / ".claude" / "skills" / "likara"
     lege = []
     for skill in skills_dir.rglob("SKILL.md"):
         if skill.stat().st_size < 200:
             lege.append(str(skill.relative_to(REPO_ROOT)))
     if lege:
-        print("⚠️  Lege complidata-skills gevonden:")
+        print("⚠️  Lege likara-skills gevonden:")
         for s in lege:
             print(f"   • {s}")
         print("   Vul de relevante skills bij voordat je afsluit (skill-review stap)")
         return False
-    print("✅ Alle complidata-skills gevuld")
+    print("✅ Alle likara-skills gevuld")
     return True
 
 def check_next_session():
