@@ -20,7 +20,7 @@ class OriginCheckMiddleware(BaseHTTPMiddleware):
         origin = request.headers.get("origin")
 
         if not origin:
-            if settings.complidata_test_mode:
+            if settings.likara_test_mode:
                 return await call_next(request)
             return JSONResponse(
                 status_code=403,

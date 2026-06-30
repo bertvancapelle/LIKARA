@@ -32,7 +32,7 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 ## OriginCheckMiddleware
 
 - Controleert de Origin-header op muterende methodes (POST/PUT/PATCH/DELETE).
-- Uitzondering: `complidata_test_mode` accepteert requests zonder Origin.
+- Uitzondering: `likara_test_mode` accepteert requests zonder Origin.
 - Bij mismatch/ontbreken: HTTP 403, foutcode `ORIGIN_GEWEIGERD`.
 
 ## Auth endpoint-patroon
@@ -185,7 +185,7 @@ over HTTP. **Productie houdt `secure=True`** — de dev-waarde nooit meenemen.
 
 ## Test-mode is GEEN auth-stub
 
-`COMPLIDATA_TEST_MODE` versoepelt **alleen** de Origin-check (`origin_check.py`) en de
+`LIKARA_TEST_MODE` versoepelt **alleen** de Origin-check (`origin_check.py`) en de
 rate-limit-sleutel (`rate_limit.py`). Het stubt **geen** auth en seedt niets. Inloggen
 vereist altijd Keycloak (volledige stack). (De CLAUDE.md-comment "auth stub/auto-seed"
 is onjuist — openstaand vervolgpunt.)

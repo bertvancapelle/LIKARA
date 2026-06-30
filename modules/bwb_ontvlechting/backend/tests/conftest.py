@@ -27,7 +27,7 @@ _ENV_DEFAULTS = {
     "KEYCLOAK_CLIENT_ID": "likara-api",
     "KEYCLOAK_CLIENT_SECRET": "test-secret",
     "RABBITMQ_URL": "amqp://localhost",
-    "COMPLIDATA_TEST_MODE": "true",
+    "LIKARA_TEST_MODE": "true",
 }
 for _k, _v in _ENV_DEFAULTS.items():
     os.environ.setdefault(_k, _v)

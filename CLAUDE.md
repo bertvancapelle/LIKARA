@@ -195,10 +195,10 @@ docker compose -f docker-compose.yml up -d
 # Backend (development)
 cd backend && python3 -m uvicorn app.main:app --port 8000 --reload
 
-# Backend (test mode) — COMPLIDATA_TEST_MODE versoepelt ALLEEN de origin-check
+# Backend (test mode) — LIKARA_TEST_MODE versoepelt ALLEEN de origin-check
 # (POST zonder Origin toegestaan) en de rate-limit. Het is GEEN auth-stub en seedt
 # NIETS — inloggen vereist de volledige stack (Keycloak). [gecorrigeerd V004]
-cd backend && COMPLIDATA_TEST_MODE=true python3 -m uvicorn app.main:app --port 8000
+cd backend && LIKARA_TEST_MODE=true python3 -m uvicorn app.main:app --port 8000
 
 # Frontend
 cd frontend && npm run dev     # port 3000, proxy to :8000

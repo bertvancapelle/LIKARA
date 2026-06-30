@@ -83,7 +83,7 @@ daarom blijft de assertie ook bij de tweede (idempotente) run kloppen.
 verplichte env-vars. `backend/tests/conftest.py` zet die daarom met
 `os.environ.setdefault(...)` (dummy-waarden: `DATABASE_URL`,
 `DATABASE_URL_SYNC`, `PLATFORM_DATABASE_URL`, `KEYCLOAK_*`, `RABBITMQ_URL`,
-`COMPLIDATA_TEST_MODE=true`) en voegt `backend/` aan `sys.path` toe — vóór enig
+`LIKARA_TEST_MODE=true`) en voegt `backend/` aan `sys.path` toe — vóór enig
 `app.*`-import. Keycloak/Redis/DB worden gemockt; geen echte verbinding.
 
 ## RBAC-matrixtests (her-codeer de matrix onafhankelijk)

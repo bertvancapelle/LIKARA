@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     rate_limit_window: int = 60
 
     # Test mode
-    complidata_test_mode: bool = False
-    complidata_fixture_set: str = ""
+    likara_test_mode: bool = False
+    likara_fixture_set: str = ""
 
     # MinIO / Blob store (bucket-per-tenant)
     minio_endpoint_url: str = "http://localhost:9000"

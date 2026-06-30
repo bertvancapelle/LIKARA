@@ -5,7 +5,7 @@ login-round-trip (Keycloak Authorization Code + PKCE) en de Applicatie-data-flow
 zijn programmatisch bewezen; de UI-klik zelf doe je in de browser.
 
 > **Belangrijk:** inloggen vereist de **volledige stack** (Keycloak draait mee).
-> `COMPLIDATA_TEST_MODE` is **géén** auth-stub en seedt niets — het versoepelt
+> `LIKARA_TEST_MODE` is **géén** auth-stub en seedt niets — het versoepelt
 > alleen de Origin-check en de rate-limit-sleutel. Een losse backend (uvicorn)
 > zonder Keycloak laat je dus niet inloggen.
 
@@ -123,6 +123,6 @@ is een *affordance*; de backend handhaaft de rechten hoe dan ook.
 
 ## Alternatief: backend zonder Docker
 
-Kan, maar **Keycloak is alsnog nodig** voor inloggen. `COMPLIDATA_TEST_MODE=true`
+Kan, maar **Keycloak is alsnog nodig** voor inloggen. `LIKARA_TEST_MODE=true`
 versoepelt enkel Origin-check/rate-limit; het levert **geen** sessie. Voor een
 volledige doorklik-test is de Docker-stack hierboven de eenvoudigste weg.

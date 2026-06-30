@@ -71,7 +71,7 @@ await session.execute(
   `admin_database_url`, `keycloak_url/realm/client_id/client_secret`,
   `rabbitmq_url` — de app start niet zonder deze (`validate_startup_config`).
 - Cookie-naam: `lk_session`.
-- Test-mode: `COMPLIDATA_TEST_MODE=true` versoepelt Origin-check en
+- Test-mode: `LIKARA_TEST_MODE=true` versoepelt Origin-check en
   rate-limit-key.
 
 ## Enum-sync-patroon (Python ↔ PostgreSQL)

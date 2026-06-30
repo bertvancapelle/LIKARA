@@ -19,7 +19,7 @@ logger = logging.getLogger("cd.ratelimit")
 
 def _get_key(request: Request) -> str:
     """Bepaal rate limit key: tenant_id uit request state, of IP als fallback."""
-    if settings.complidata_test_mode:
+    if settings.likara_test_mode:
         return get_remote_address(request)
 
     if hasattr(request.state, "user") and request.state.user:
