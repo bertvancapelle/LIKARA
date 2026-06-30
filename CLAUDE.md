@@ -281,7 +281,7 @@ CREATE POLICY tenant_isolation ON new_table
 
 ### Naamgeving
 - Prefix: `lk_` (DB-rollen) / `lk-` (containers); **tabellen zijn ongeprefixd** (er bestaat géén
-  `cd_`-tabelprefix) — niet `cm_` (dat is CompliMan, een ander product)
+  `cd_`-tabelprefix) — niet `cm_` (legacy-prefix uit de oude productnaam CompliMan — nu LIKARA; niet opnieuw gebruiken)
 - Database: `likara`
 - App-gebruiker: `lk_app`
 - Admin-gebruiker: `lk_admin`

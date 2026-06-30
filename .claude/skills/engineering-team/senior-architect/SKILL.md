@@ -474,7 +474,7 @@ Regie-instrument: toont, signaleert, registreert, maakt aantoonbaar.
 Handhavingsinstrument: dwingt af, oordeelt, valideert inhoudelijk.
 
 Gap = feitelijk informatief, nooit normatief oordeel.
-CompliMan registreert en signaleert — de tenant beslist.
+LIKARA registreert en signaleert — de tenant beslist.
 
 Vervallen hiaten (herkeuring V691): H-05 normgewicht (= tenant-oordeel),
 H-06 voldoende bewijs (= B-VRG), H-09 bewijs-kwaliteit (= B-VRG).
@@ -486,7 +486,7 @@ bestaande controls, eigen normen en bestaande werkwijzen heeft. Greenfield
 (lege tenant) is de uitzondering, niet de standaard.
 
 Functionele beschrijving altijd opstellen vanuit de niet-greenfield situatie:
-"de tenant heeft al X, CompliMan helpt hem Y zichtbaar te maken."
+"de tenant heeft al X, LIKARA helpt hem Y zichtbaar te maken."
 
 **Precedent V691:** Functionele beschrijving Gemeente Veldendam — bestaand
 VLD-IB-Beleid v3.2 + VLD-PRO-012 + audit-rapport als startpunt.

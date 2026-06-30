@@ -222,7 +222,7 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   (offline blijft alles groen via de offline-tests). Importeer `app.core.audit` zodat de capture-hook
   actief is bij een live audit-test.
 - **Nieuwe migratie ⇒ dev-DB bijwerken vóór de live-run**: pas de migratie als `lk_admin` toe
-  (`DATABASE_URL_SYNC=postgresql://lk_admin:changeme_dev@localhost:5432/complidata python3 -m alembic
+  (`DATABASE_URL_SYNC=postgresql://lk_admin:changeme_dev@localhost:5432/likara python3 -m alembic
   upgrade head`) zodat de skip-if-DB-tests de nieuwe tabellen/kolommen zien; ID ≤32 tekens. Een
   ORM-`SELECT` die een **nog niet gemigreerde** kolom noemt → "column does not exist" + aborted
   transaction in **alle** live-tests van dat bestand (signaal: migratie nog niet toegepast).
@@ -250,7 +250,7 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   gebruik **gerichte staging** (`git add <expliciete feature-paden>` + `git diff --cached --stat` als
   bewijs); de afsluit-/parkeer-updates van OPVOLGPUNTEN landen in de **sessie-afsluit-commit**.
 - **Dev-ergonomie**: `psql` staat **niet** op de host → `docker exec lk-postgres psql -U lk_admin -d
-  complidata -At -F'|' -c "…"` voor read-only metingen als lk_admin (ziet álle tenants). `rm` is in de
+  likara -At -F'|' -c "…"` voor read-only metingen als lk_admin (ziet álle tenants). `rm` is in de
   sandbox geweigerd → ruim een per ongeluk aangemaakt stray-bestand op met `find <pad> -type f -delete`.
 - **Teardown MOET via het element-supertype (les uit V011 — wees-elementen).** Een live-test-teardown
   ruimt een element-subtype (component/contract/…) **uitsluitend** op met `DELETE FROM element WHERE id=…`
