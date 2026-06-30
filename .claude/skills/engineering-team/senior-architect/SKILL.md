@@ -390,6 +390,15 @@ ls docs/adr/ADR-*.md | sed -E 's@.*/ADR-0*([0-9]+)_.*@\1@' | grep -E '^[0-9]+$' 
 
 ## Patronen vastgesteld sessie V691
 
+> **Legacy — CompliMan-tijdperk (historie, niet geldend voor LIKARA).**
+> Deze sectie beschrijft een architectuur-nummerings- en governance-apparaat
+> (`ARCH-COMP` / `ARCH-MASTER-001` / `ACT`, paden onder `docs/C7-Architectuur/`,
+> `eXo`/`OnlyOffice`, Compliance Intelligence / `B-VRG`, voorbeeld Gemeente Veldendam)
+> dat in LIKARA **niet bestaat**. Bewaard als historische context — niet toepassen op
+> LIKARA-werk. Voor LIKARA geldt: ADR's volgens `docs/adr/` (zie
+> "## ADR-conventie (LIKARA)" hierboven), modules onder `modules/`, en het
+> component-model uit ADR-021.
+
 ### P-ARCH-01 — ARCH-COMP positionering: zelfstandige component vs implementatiedetail
 
 Een component krijgt alleen een eigen ARCH-COMP-nummer als het een zelfstandige
