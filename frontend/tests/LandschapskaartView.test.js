@@ -1473,83 +1473,98 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-legenda-paneel"]').exists()).toBe(true)
   })
 
-  // ── Organisatie-scopebalk (ADR-024 slice 2) ──
+  // ── "Organisaties in beeld"-balk (LI053) — bestuurt UITSLUITEND de organisatie-overlay ──
+  // Org-nodes + hun (org-gebonden) gebruikersgroepen; componenten worden nooit geraakt.
   const _scopeGraf = () => ({
     nodes: [
-      { id: 'oA', naam: 'Org A', element_type: 'partij', laag: 'business', soort: 'organisatie' },
-      { id: 'oB', naam: 'Org B', element_type: 'partij', laag: 'business', soort: 'organisatie' },
-      { id: 'appA', naam: 'App A', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'oA', gebruikt_door_organisaties: [] },
-      { id: 'appB', naam: 'App B', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'oB', gebruikt_door_organisaties: [] },
-      { id: 'appNone', naam: 'App None', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: null, gebruikt_door_organisaties: [] },
-      { id: 'appUseA', naam: 'App UseA', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: null, gebruikt_door_organisaties: ['oA'] },
-      { id: 'appLoos', naam: 'App Loos', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: null, gebruikt_door_organisaties: [], gebruikt_door_organisatieloos: true },
+      { id: 'oA', naam: 'Org A', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      { id: 'oB', naam: 'Org B', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      { id: 'appA', naam: 'App A', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'oA' },
+      { id: 'appB', naam: 'App B', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'oB' },
+      { id: 'ggA', naam: 'Groep A', element_type: 'gebruikersgroep', laag: 'business', organisatie_id: 'oA', aantal_leden: 5, blokkades_open: 0 },
+      { id: 'ggLoos', naam: 'Burgers', element_type: 'gebruikersgroep', laag: 'business', organisatie_id: null, aantal_leden: 9, blokkades_open: 0 },
     ],
-    edges: [],
+    edges: [
+      { bron_id: 'appA', doel_id: 'ggA', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' },
+      { bron_id: 'appB', doel_id: 'ggLoos', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' },
+    ],
   })
-  const _appsInScope = (w) => w.vm.zichtbareNodes.filter((n) => n.element_type === 'applicatie').map((n) => n.id).sort()
-
-  it('scope — organisatie-checkboxes uit soort=organisatie, standaard alle aan + Biedt aan', async () => {
+  // Rauwe node-zichtbaarheid (groepeerPerOrg uit → individuele gg-nodes toetsbaar, geen aggregatie).
+  const _zichtbaar = (w) => w.vm.zichtbareNodes.map((n) => n.id).sort()
+  async function _mountScope() {
     zetGraf(_scopeGraf())
     const { w } = await mountView()
+    w.vm.groepeerPerOrg = false
+    await flushPromises()
+    return { w }
+  }
+
+  it('LI053 — alle organisaties standaard AAN + label "Organisaties in beeld"', async () => {
+    const { w } = await _mountScope()
     expect(w.find('[data-testid="lk-scope-org-oA"]').exists()).toBe(true)
     expect(w.find('[data-testid="lk-scope-org-oB"]').exists()).toBe(true)
-    expect([...w.vm.scopeOrgs].sort()).toEqual(['oA', 'oB']) // alle organisaties standaard aan
-    expect(w.vm.scopeModus).toBe('biedt')
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oA', 'oB']) // default alle aan
+    // Hernoemd label; geen zichtbare "Scope"-tekst meer, geen Biedt/Gebruikt-schakelaar.
+    expect(w.find('[data-testid="lk-scopebalk"]').text()).toContain('Organisaties in beeld')
+    expect(w.find('[data-testid="lk-scopebalk"]').text()).not.toMatch(/Scope/)
+    expect(w.find('[data-testid="lk-scope-biedt"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-scope-gebruikt"]').exists()).toBe(false)
   })
 
-  it('scope — Biedt aan toont componenten met eigenaar ∈ selectie', async () => {
-    zetGraf(_scopeGraf())
-    const { w } = await mountView()
-    expect(_appsInScope(w)).toEqual(['appA', 'appB']) // eigenaar ∈ {oA,oB}; rest buiten scope
-    await w.find('[data-testid="lk-scope-org-oB"]').trigger('change') // oB uit
+  it('LI053 — organisatie uitvinken verbergt de org-node én haar gebruikersgroepen; componenten blijven', async () => {
+    const { w } = await _mountScope()
+    expect(_zichtbaar(w)).toEqual(['appA', 'appB', 'ggA', 'ggLoos', 'oA', 'oB'])
+    await w.find('[data-testid="lk-scope-org-oA"]').trigger('change') // oA uit
     await flushPromises()
-    expect(_appsInScope(w)).toEqual(['appA'])
+    // oA-node + ggA (org=oA) weg; appA/appB blijven (componenten nooit gescoopt); oB + ggLoos blijven.
+    expect(_zichtbaar(w)).toEqual(['appA', 'appB', 'ggLoos', 'oB'])
   })
 
-  it('scope — Gebruikt toont gebruik-overlap ∈ selectie (schakelaar geldt voor de hele balk)', async () => {
-    zetGraf(_scopeGraf())
-    const { w } = await mountView()
-    await w.find('[data-testid="lk-scope-gebruikt"]').trigger('click')
-    await flushPromises()
-    expect(w.vm.scopeModus).toBe('gebruikt')
-    expect(_appsInScope(w)).toEqual(['appUseA']) // gebruikt door oA; appA/appB hebben lege gebruik-set
-  })
-
-  it('scope — niets aangevinkt → volledige kaart (terugval op alles)', async () => {
-    zetGraf(_scopeGraf())
-    const { w } = await mountView()
+  it('LI053 — organisatieloze groep volgt de Gebruikers-ring, niet de organisatie-vinkjes; alles-uit = componentenlaag', async () => {
+    const { w } = await _mountScope()
     await w.find('[data-testid="lk-scope-org-oA"]').trigger('change')
     await w.find('[data-testid="lk-scope-org-oB"]').trigger('change')
     await flushPromises()
-    expect([...w.vm.scopeOrgs]).toEqual([])
-    expect(_appsInScope(w)).toEqual(['appA', 'appB', 'appLoos', 'appNone', 'appUseA']) // alles
+    expect([...w.vm.scopeOrgs]).toEqual([]) // alles uit
+    const zichtbaar = _zichtbaar(w)
+    expect(zichtbaar).toEqual(['appA', 'appB', 'ggLoos']) // enkel componenten + de org-loze groep
+    expect(zichtbaar).not.toContain('oA')
+    expect(zichtbaar).not.toContain('oB')
+    expect(zichtbaar).not.toContain('ggA') // org-gebonden groep verdwijnt met zijn organisatie
   })
 
-  it('scope — de twee gaten zijn herkenbaar (zonder eigenaar bij Biedt; organisatieloos-gebruik bij Gebruikt)', async () => {
-    zetGraf(_scopeGraf())
-    const { w } = await mountView()
-    // Biedt: appNone + appUseA + appLoos hebben geen eigenaar → 3.
-    expect(w.vm.zonderEigenaarAantal).toBe(3)
-    expect(w.find('[data-testid="lk-scope-gap"]').text()).toContain('zonder eigenaar')
-    // Gebruikt: alleen appLoos wordt uitsluitend door een organisatieloze groep gebruikt → 1.
-    await w.find('[data-testid="lk-scope-gebruikt"]').trigger('click')
-    await flushPromises()
-    expect(w.vm.organisatieloosGebruiktAantal).toBe(1)
-    expect(w.find('[data-testid="lk-scope-gap"]').text()).toContain('organisatieloze groep')
-  })
-
-  it('scope — een scope-wijziging pusht een toestand in de terug/vooruit-geschiedenis', async () => {
+  it('LI053 — een scope-wijziging pusht een toestand in de terug/vooruit-geschiedenis en herstelt', async () => {
     zetGraf(_scopeGraf())
     const { w } = await mountView()
     const cur = w.vm.cursor
-    await w.find('[data-testid="lk-scope-org-oB"]').trigger('change') // scope wijzigen
+    await w.find('[data-testid="lk-scope-org-oB"]').trigger('change') // oB uit
     await flushPromises()
     expect(w.vm.cursor).toBe(cur + 1) // betekenisvolle wijziging → nieuwe toestand
-    expect(_appsInScope(w)).toEqual(['appA'])
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oA'])
     await w.find('[data-testid="lk-hist-terug"]').trigger('click') // terug herstelt de scope
     await flushPromises()
     expect([...w.vm.scopeOrgs].sort()).toEqual(['oA', 'oB'])
-    expect(_appsInScope(w)).toEqual(['appA', 'appB'])
+  })
+
+  it('LI053 — history-restore laadt zowel oud-format (mét vervallen scopeModus) als nieuw-format (zonder)', async () => {
+    zetGraf(_scopeGraf())
+    const { w } = await mountView()
+    const base = { ...w.vm.historie[w.vm.cursor] } // een geldige, volledige toestand als basis
+    // index 0 = oud-format snapshot met het vervallen veld; index 1 = nieuw-format zonder.
+    const oud = Object.freeze({ ...base, scopeOrgs: ['oA'], scopeModus: 'gebruikt' })
+    const nieuw = Object.freeze({ ...base, scopeOrgs: ['oB'] })
+    w.vm.historie = [oud, nieuw]
+    w.vm.cursor = 1
+    await flushPromises()
+    // Terug naar het oude formaat → laadt schoon, het overtollige scopeModus-veld wordt genegeerd.
+    await w.find('[data-testid="lk-hist-terug"]').trigger('click')
+    await flushPromises()
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oA'])
+    expect(w.vm.scopeModus).toBeUndefined() // symbool bestaat niet meer op de component
+    // Vooruit naar het nieuwe formaat → óók schoon.
+    await w.find('[data-testid="lk-hist-vooruit"]').trigger('click')
+    await flushPromises()
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oB'])
   })
 
   it('scope — organisatie is als vertrekpunt selecteerbaar in de lijst', async () => {
@@ -1780,56 +1795,54 @@ describe('LandschapskaartView v3', () => {
   })
 
   // ── LI023 — scope filtert in subgraaf-modus CONTEXT (org/gg), niet de componenten ──────────────
-  describe('scope subgraaf-modus', () => {
+  describe('scope subgraaf-modus (LI053 — organisatie-overlay, identiek aan Geheel)', () => {
     const APP = { id: 'a1', element_type: 'applicatie', laag: 'application' }
     const ORG1 = { id: 'p1', element_type: 'partij', soort: 'organisatie' }
-    const ORG2 = { id: 'p2', element_type: 'partij', soort: 'organisatie' }
 
-    // Zet de view in subgraaf-modus (set ≥1) met een gekozen scope-org.
-    async function metScope(orgIds = []) {
+    // Subgraaf-modus (set ≥1) met de enige aanwezige org p1 → default AAN in scope.
+    async function subgraafMetOrg() {
       const { w } = await mountView({ heleLandschap: false })
       w.vm.toggleSet('a1')
-      await flushPromises()
-      for (const id of orgIds) w.vm.toggleScopeOrg(id)
       await flushPromises()
       return w
     }
 
-    it('set-lid altijd zichtbaar ongeacht scope', async () => {
-      const w = await metScope(['p1'])
-      expect(w.vm._inScope(APP)).toBe(true) // a1 is set-lid
+    it('set-lid altijd zichtbaar, ook als de scope leeg is', async () => {
+      const w = await subgraafMetOrg()
+      w.vm.toggleScopeOrg('p1') // alles uit
+      await flushPromises()
+      expect(w.vm._inScope(APP)).toBe(true) // a1 is set-lid → altijd
     })
 
-    it('org-node zonder scope → zichtbaar', async () => {
-      const w = await metScope([]) // geen scope gekozen
-      expect(w.vm._inScope(ORG2)).toBe(true)
+    it('org-node: zichtbaar als aangevinkt (default aan), verborgen als uitgevinkt', async () => {
+      const w = await subgraafMetOrg()
+      expect(w.vm._inScope(ORG1)).toBe(true) // default aan
+      w.vm.toggleScopeOrg('p1')
+      await flushPromises()
+      expect(w.vm._inScope(ORG1)).toBe(false)
     })
 
-    it('org-node met scope → alleen de gekozen org zichtbaar', async () => {
-      const w = await metScope(['p1'])
-      expect(w.vm._inScope(ORG1)).toBe(true)
-      expect(w.vm._inScope(ORG2)).toBe(false)
-    })
-
-    it('gebruikersgroep met organisatie_id buiten scope → verborgen (binnen scope → zichtbaar; org-loos → zichtbaar)', async () => {
-      const w = await metScope(['p1'])
-      expect(w.vm._inScope({ id: 'gg-org-p2', element_type: 'gebruikersgroep', organisatie_id: 'p2' })).toBe(false)
+    it('gebruikersgroep volgt de organisatie-vinkjes; org-loze groep altijd zichtbaar', async () => {
+      const w = await subgraafMetOrg() // scope = {p1}
       expect(w.vm._inScope({ id: 'gg-org-p1', element_type: 'gebruikersgroep', organisatie_id: 'p1' })).toBe(true)
+      expect(w.vm._inScope({ id: 'gg-org-p2', element_type: 'gebruikersgroep', organisatie_id: 'p2' })).toBe(false)
       expect(w.vm._inScope({ id: 'gg-org-x', element_type: 'gebruikersgroep', organisatie_id: null })).toBe(true)
     })
 
-    it('contract/infra-node altijd zichtbaar bij scope', async () => {
-      const w = await metScope(['p1'])
+    it('componenten/contract/infra worden nooit door de scope geraakt (ook niet-set-leden)', async () => {
+      const w = await subgraafMetOrg()
+      w.vm.toggleScopeOrg('p1') // alles uit
+      await flushPromises()
       expect(w.vm._inScope({ id: 'k1', element_type: 'contract' })).toBe(true)
       expect(w.vm._inScope({ id: 'd1', element_type: 'component', laag: 'technology' })).toBe(true)
+      expect(w.vm._inScope({ id: 'ander-comp', element_type: 'applicatie' })).toBe(true) // niet-set component ook
     })
 
-    it('Biedt aan/Gebruikt-toggle verborgen in subgraaf-modus, zichtbaar in hele-landschap', async () => {
-      const sub = await metScope(['p1'])
-      expect(sub.find('[data-testid="lk-scopebalk"]').exists()).toBe(true) // p1 is een org-node in de subgraaf
-      expect(sub.find('[data-testid="lk-scope-biedt"]').exists()).toBe(false)
-      const { w: heel } = await mountView() // hele-landschap
-      expect(heel.find('[data-testid="lk-scope-biedt"]').exists()).toBe(true)
+    it('geen Biedt/Gebruikt-schakelaar meer (component-scoping vervallen)', async () => {
+      const w = await subgraafMetOrg()
+      expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-scope-biedt"]').exists()).toBe(false)
+      expect(w.find('[data-testid="lk-scope-gebruikt"]').exists()).toBe(false)
     })
   })
 
