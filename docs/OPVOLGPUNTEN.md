@@ -7,6 +7,32 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V027 (sessie-afsluiting LI057+LI058, 2026-07-01)
+
+Build **V026 → V027**. Component-focus-herfundering **Slice 1 + Slice 2** geland (+ OP-30 afgerond).
+
+**Geland:**
+- **LI057 (Slice 1, 0045):** `migratiepad/complexiteit/prioriteit` component-breed (basis-`component`,
+  NOT NULL + defaults); enum `tijdelijk_gedeeld → gedeeld`. Expand met dual-write naar de behouden
+  applicatie-subtabel. Dubbele engine-borging.
+- **LI058 (Slice 2, 0046):** scoren per type via `checklist_dragend`; `database` beoordeeld + 6-vragen
+  startset; **profiel-backfill** bij False→True (platform-toggle → per-tenant RLS-scoped backfill,
+  idempotent; True→False inert). Engine al generiek.
+- **OP-30:** env-afhankelijke auth-cookie-test deterministisch (afgerond, `b99b901`).
+
+**Backlog (component-focus, volgende sessies):**
+- **Slice 3 (contract):** applicatie-subtabel droppen + `applicatie_service`/routes/schemas opheffen.
+- **Slice 4 (frontend):** één `ComponentFormulier`; `ApplicatieFormulier`/`ApplicatieDetail` retireren.
+- **Slice 5:** tests + TST + ADR-021/022 afronding.
+- **Componenttype-catalogus uitbreiden** (integratie/koppel, landelijke voorziening, server/compute;
+  consolidatie applicatieserver+middleware); daarna fileshare → SaaS beoordeelbaar maken.
+- **Impact-verkenner render-herbouw** (deterministische render-eigenaar; edges-onzichtbaar-bug zit in
+  de echte cytoscape-render, niet in de logica).
+
+Tests: backend **944/0** (2 skipped) · frontend **745**. Migratie-head **0046**.
+
+---
+
 ### Stand V026 (sessie-afsluiting LI051, 2026-06-30)
 
 Build **V025 → V026**. Deze sessie ging volledig over de **code-rebrand

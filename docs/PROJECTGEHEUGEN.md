@@ -5,32 +5,33 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V026 · 2026-06-30
-- **Commit:** 74966b7 (sessie-afsluiting LI051)
-- **Tests:** backend 931 / 2 skipped / 0 failed · frontend 745 groen (65 files) · 0 kritieken
-- **Migratie-head:** `0044_lk_audit_append_only`
-- **TST-rapport:** `docs/TST-V026-Validatierapport.md`
+- **Build:** V027 · 2026-07-01
+- **Commit:** 73413d7 (LI058 Slice 2) — sessie-afsluiting LI057+LI058 volgt
+- **Tests:** backend 944 / 2 skipped / 0 failed · frontend 745 groen (65 files) · 0 kritieken
+- **Migratie-head:** `0046_database_beoordeeld`
+- **TST-rapport:** `docs/TST-V027-Validatierapport.md`
 
-## Deze sessie (LI038–LI051)
-Code-rebrand `cd_`/`complidata`/`CompliData`/`CompliMan` → `lk`/`likara`/`LIKARA` **compleet**:
-- Skills/docs/generators (LI038–LI042) + alle gedragsbepalende identifiers in slices S1–S8:
-  cosmetische namen + role-prefix, CSS-tokens `--lk-`, cookies `lk_session`/`lk_refresh`,
-  env `LIKARA_TEST_MODE`/`LIKARA_FIXTURE_SET`, localStorage `lk-sidebar-ingeklapt` +
-  backup-basisnaam `likara_*.sql`, infra (`lk_rabbit`, vhost `lk-{slug}`, MinIO `likara_admin`,
-  paden `~/likara/`), DB-triggerfunctie `lk_audit_append_only`.
-- **Deploy-blocker verholpen** (LI049): migratie-revisie-id ≤32 tekens, geborgd met een
-  handhavingstest over **beide** migratiebomen (`backend/alembic` + `modules/**/migrations`).
-- **Audit-triggerfunctie hernoemd** (LI050, forward-migratie 0044): append-only LIVE bewezen
-  (UPDATE/DELETE geweigerd), ADR-006 hash-keten intact.
-- Geen `cd_`/`complidata` meer in live code/config/schema; **historie bewust behouden** in
-  migratie `0010` + `docs/OPVOLGPUNTEN.md` + `docs/changelog/`.
+## Deze sessie (LI057 + LI058) — component-focus-herfundering Slice 1 + 2
+**Besloten kader (Variant A):** applicatie wordt één van de componenttypen; beheer blijft
+tenant-scoped; engine blijft generiek; score = enige lifecycle-driver.
+- **Slice 1 (LI057, migratie 0045):** `migratiepad`/`complexiteit`/`prioriteit` **component-breed**
+  (basis-`component`, NOT NULL + defaults); enum `tijdelijk_gedeeld → gedeeld`. **Expand** met
+  dual-write naar de behouden applicatie-subtabel (drop = contract-slice).
+- **Slice 2 (LI058, migratie 0046):** scoren **per type** via de `checklist_dragend`-vlag; `database`
+  beoordeeld + 6-vragen startset; **profiel-backfill** bij False→True (platform-toggle → per-tenant
+  RLS-scoped worker-sessie, idempotent; True→False = profielen **inert**). Engine al generiek.
+- **OP-30:** env-afhankelijke auth-cookie-test deterministisch gemaakt.
+- **Engine-invariant dubbel geborgd** (offline `test_engine_borging_li057`/`test_backfill…li058` +
+  live lifecycle/backfill-tests).
+- **Docdrift rechtgezet:** dagre → fcose/concentric (frontend-skill); `ChecklistVraag` = **tenant-scoped**
+  (niet platform-referentiedata; likara-db-skill); `LOKAAL-TESTEN.md` gemoderniseerd (reset zonder `down -v`).
 
-## Top-5 prioriteiten volgende sessie (LI052)
-1. ADR-035 Slice 3 — registratie onvolledig (configureerbare score-drempelwaarde)
-2. Modus ego→impact ontkoppelen van set-grootte (ADR-033-revisie)
-3. GebruikersgroepDetail — standalone pagina
-4. BlokkadeDetail — standalone pagina
-5. Zoekbalk contextlabel "Component toevoegen aan beeld" (kaart-modus)
+## Top-5 prioriteiten volgende sessie (LI059)
+1. **Slice 3 (contract)** — applicatie-subtabel droppen + `applicatie_service`/routes/schemas opheffen
+2. **Slice 4 (frontend)** — één `ComponentFormulier`; `ApplicatieFormulier`/`ApplicatieDetail` retireren
+3. **Slice 5** — tests + TST + ADR-021/022 afronding
+4. **Componenttype-catalogus uitbreiden** (config + ArchiMate-typering); daarna fileshare→SaaS beoordeelbaar
+5. **Impact-verkenner render-herbouw** — deterministische render-eigenaar + echte render-verificatie
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

@@ -35,28 +35,34 @@ Containers en poorten: postgres `:5432` · keycloak `:8080` · rabbitmq `:5672/:
 `profiles: [production]` en start lokaal niet mee — gebruik de dev-server hieronder.)
 
 Keycloak heeft sinds **CD055** een **eigen database** `keycloak` (rol `kc_user`),
-losgekoppeld van de app-DB `complidata` — geen schema-collision meer en de
-`complidata`-dump bevat geen Keycloak-data (OP-22).
+losgekoppeld van de app-DB `likara` — geen schema-collision meer en de
+`likara`-dump bevat geen Keycloak-data (OP-22).
 
 ### 1b. Schoon resetten / herseeden
 
-De Postgres-data zit in een **named volume** (CD055), dus `down -v` reset de DB echt:
+De Postgres-data zit in een **named volume**. **`down -v` staat op Deny** (wist het volume
+niet betrouwbaar); gebruik de **expliciete volume-rm-route**:
 
 ```bash
-docker compose down -v && docker compose up -d   # wist DB → migratie 0006 + platform-seed
+docker compose down
+docker volume rm likara_lk_postgres_data
+docker compose up -d          # init-container (lk-migrate) migreert tot head + platform-seed
 ```
 
-De **platform-seed** (89 checklistvragen + beide catalogi, 9/9) loopt automatisch in de
-init-container. De **dev-testdata** (12 applicaties, 14 componenten, register, structuur)
-is een aparte, idempotente fixture — draai hem ná de reset handmatig:
+De **platform-seed** (89 applicatie-checklistvragen + beide catalogi + `checklist_dragend`-vlaggen)
+loopt automatisch in de init-container. De **dev-testdata** (16 applicaties + infra, register,
+structuur, database-scoring-backfill) is een aparte, idempotente fixture — draai hem ná de reset
+**in de container**:
 
 ```bash
 docker exec -w /app lk-api python3 dev_seed_testdata.py
 ```
 
-Schone baseline daarna: componenten **14** · structuur **3** · leveranciers **4** ·
-contracten **7** · koppelingen **10** · applicaties **12** · blokkades **10** ·
-component-contract **11**.
+Schone baseline daarna (dev-seed-scenario): componenten **19** (16 applicatie + 1 database +
+1 fileshare + 1 saas_dienst) · applicaties **16** · contracten **15** · relaties **81**
+(flow 29 · serving 31 · association 12 · assignment 6 · aggregation 3) · roltoewijzingen **75** ·
+gebruikersgroepen **31**. **Profiel-stand** (LI058): applicatie 16/16 · database 1/1 · fileshare/saas 0
+(niet-beoordeeld). Checklistvragen per tenant: applicatie **89** · database **6** (startset).
 
 ### 2. Frontend dev-server starten
 
@@ -108,16 +114,17 @@ is een *affordance*; de backend handhaaft de rechten hoe dan ook.
   `degraded`/`db:error` → postgres nog niet healthy of `lk-migrate` niet klaar.
 - **Lege Applicatie-lijst:** verwacht — maak er één aan via "Nieuwe applicatie".
 - **Wel ingelogd bij Keycloak maar de app blijft op login / `/auth/me` 401:**
-  cookie-probleem. De `cd_session`-cookie is `Secure`; voor lokaal **http** staat
+  cookie-probleem. De `lk_session`-cookie is `Secure`; voor lokaal **http** staat
   daarom `COOKIE_SECURE: "false"` op de `api`-service in `docker-compose.yml`
   (dev-only; productie houdt `secure=True`). Draai je een eigen backend, zet dan
   `COOKIE_SECURE=false` in je `.env`.
 - **Open `http://localhost:3000`**, niet `:8000` — anders matcht de redirect_uri/
   cookie-origin niet.
 - **Keycloak nog niet klaar:** `docker logs lk-keycloak | tail`; wacht tot healthy
-  (realm `complidata` wordt met `--import-realm` geladen).
+  (realm `likara` wordt met `--import-realm` geladen).
 - **Stoppen:** dev-server met `pkill -f vite`; stack met `docker compose down`
-  (data blijft in volumes; `down -v` wist ook de database).
+  (data blijft in het named volume). Écht wissen = de expliciete `docker volume rm
+  likara_lk_postgres_data` (zie §1b) — **niet** `down -v` (staat op Deny).
 
 ---
 

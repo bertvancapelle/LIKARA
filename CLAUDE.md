@@ -493,11 +493,11 @@ Pas dan: klaar.
 
 | Veld | Waarde |
 |------|--------|
-| Build | V026 |
-| Datum | June 2026 |
-| Commit | 74966b7 |
-| Tests | backend 931/2/0, frontend 745/745 |
-| TST-rapport | TST-V026-Validatierapport.md |
+| Build | V027 |
+| Datum | July 2026 |
+| Commit | 73413d7 |
+| Tests | backend 944/2/0, frontend 745/745 |
+| TST-rapport | TST-V027-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 <!-- BOUWSTATUS_END -->

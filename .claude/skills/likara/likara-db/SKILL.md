@@ -71,9 +71,12 @@ Plaats `tenant_id` als eerste kolom in composite indexen.
 
 ## Referentietabel-uitzondering
 
-`ChecklistVraag` heeft **geen** RLS en **geen** `tenant_id` — het is
-platform-brede seeddata die alle tenants delen (int-PK, `code` UNIQUE).
-Alleen `GRANT SELECT, INSERT, UPDATE` + sequence-grant voor `lk_app`.
+**Gecorrigeerd (ADR-022 W1):** `ChecklistVraag` is **tenant-scoped** (RLS + FORCE, surrogate
+UUID-PK, `UNIQUE(tenant_id, componenttype, code)`) — géén platform-referentiedata. De baseline
+(89 applicatie-vragen, LI058 + 6 database-vragen) is een hardcoded lijst in `services/seed.py`
+die **per tenant gekopieerd** wordt (kopie bij onboarding). Vraagbeheer = **tenant-bevoegdheid**
+(`Entiteit.CHECKLISTVRAAG`, tenant-rollen). `lk_platform` heeft er SELECT/UPDATE op voor het
+platform-antwoordtype-/label-beheer, maar de vragen zélf leven per tenant.
 
 ## Alembic multi-location (platform + modules)
 
@@ -213,9 +216,22 @@ op pagina 1). Filters/sortering zitten **niet** in de cursor — reset volstaat.
   invariant B2 klopt nu **per constructie** op beide schrijfpaden (handmatig begrensd
   tot `open ↔ in_behandeling`, `opgelost` enkel auto). `checklist_compleet` blijft
   transient (ADR-013 B4). Geen migratie/enumwijziging. [CD011]
-- **ChecklistVraag = platform-referentiedata** (89 vragen, géén `tenant_id`, géén RLS;
-  seed via platform-init). Koppeling vanuit Checklistscore op `vraag_code` (string),
-  niet op id. [CD004]
+- **ChecklistVraag = tenant-scoped** (ADR-022 W1; RLS + FORCE, `UNIQUE(tenant_id, componenttype,
+  code)`, per componenttype). Baseline (89 applicatie + 6 database, LI058) hardcoded in `seed.py`,
+  per tenant gekopieerd. `Checklistscore`/`Blokkade`/`ComponentProfiel` hangen aan `component_id`
+  (Besluit 13). De engine telt per `herbereken_lifecycle` de **actieve** vragen van het type. [CD004, LI058]
+- **Component-focus-herfundering (LI057/LI058)**:
+  - *LI057* — `migratiepad`/`complexiteit`/`prioriteit` zijn **component-breed** (basis-`component`,
+    NOT NULL + server_default `onbekend`/`midden`/`midden`); enum `tijdelijk_gedeeld → gedeeld`
+    (`ALTER TYPE ... RENAME VALUE`). **Expand**: de `applicatie`-subtabel blijft (bron = component;
+    subtabel-spiegel via **dual-write** in beide services) tot de contract-slice 'm dropt. Migratie 0045.
+  - *LI058* — scoren **per type** via de `checklist_dragend`-vlag op `componentconfig_optie` (platform,
+    togglebaar). Bij **False→True** loopt een **profiel-backfill**: de platform-sessie (`lk_platform`,
+    géén tenant-toegang) enumereert de `Tenant`-registry en opent **per tenant een RLS-scoped
+    worker-sessie** → ontbrekende `ComponentProfiel` + `herbereken_type`. Idempotent; **True→False =
+    profielen inert** (nooit scoringsdata vernietigen op een config-flip). Migratie 0046 (reconcile).
+  - **Engine-invariant**: score blijft de enige lifecycle-driver — dubbel geborgd
+    (`test_engine_borging_li057` offline + `test_backfill_beoordeeld_li058` + `test_lifecycle*` live).
 - **Data-pass-discipline**: een ADR-die-bestaande-data-raakt (ADR-016) eerst tegen de
   DB tellen (read-only, als lk_admin); bij gevulde DB een herbereken-pass voorstellen,
   niet zelf draaien vóór akkoord. [CD011]

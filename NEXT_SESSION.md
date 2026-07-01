@@ -1,60 +1,62 @@
-# LIKARA — Next Session (LI052)
+# LIKARA — Next Session (LI059)
 
-> **Sessie LI051 (V026):** volledige code-rebrand `cd_`/`complidata` → `lk`/`likara`
-> afgerond (LI038–LI050). De onderstaande top-5 is in V025 vastgesteld en deze sessie
-> NIET opgepakt — blijft de prioriteit. Resterende rebrand-punten staan onderaan.
+> **Sessie LI057+LI058 (V027):** component-focus-herfundering Slice 1 + Slice 2 geland.
+> - **Slice 1 (LI057):** `migratiepad`/`complexiteit`/`prioriteit` component-breed (basis-`component`,
+>   NOT NULL + defaults); enum `tijdelijk_gedeeld → gedeeld`. Expand met dual-write naar de behouden
+>   applicatie-subtabel. Migratie 0045.
+> - **Slice 2 (LI058):** scoren per type via `checklist_dragend`; `database` beoordeeld (migratie 0046
+>   + seed + 6-vragen startset); **profiel-backfill** bij `checklist_dragend` False→True (platform-toggle
+>   → per-tenant RLS-scoped backfill, idempotent; True→False = profielen inert). Engine al generiek.
+> - **OP-30:** env-afhankelijke auth-cookie-test deterministisch gemaakt (afgerond).
+>
+> Laatste commit: `73413d7`. Tests: backend **944/0** (2 skipped) · frontend **745**. Migratie-head **0046**.
 
-## Top-5 prioriteiten
+## Top-5 prioriteiten (volgende sessie)
 
-1. **ADR-035 Slice 3** — Registratie onvolledig (score onder configureerbare drempelwaarde).
-   Vereist platform-instelling (tenant-breed, default 80%). Aparte mini-slice.
+1. **Slice 3 (contract)** — `applicatie`-subtabel droppen (`migratiepad/complexiteit/prioriteit`) +
+   `applicatie_service`/routes/schemas opheffen in `component_service`. GATE, engine-rakend,
+   dubbele borging + reseed. (Dual-write vervalt; component wordt de enige bron.)
 
-2. **Modus ego→impact ontkoppelen van set-grootte** — automatische modus-wissel bij
-   2+ set-leden voelt abrupt. Modus wordt expliciete gebruikerskeuze (tabs);
-   ADR-033-revisie nodig.
+2. **Slice 4 (frontend)** — één uniform `ComponentFormulier` (de drie velden voor álle typen) +
+   type-wissel-UX met data-waarschuwing; `ApplicatieFormulier`/`ApplicatieDetail` retireren.
 
-3. **GebruikersgroepDetail — standalone pagina** — ontbreekt; gebruikersgroepen
-   leven nu als sectie in ComponentDetail. Badge + signalering wachten hierop.
+3. **Slice 5** — tests + TST + **ADR-021/022 afronding** (herfundering formeel sluiten).
 
-4. **BlokkadeDetail — standalone pagina** — ontbreekt; blokkades hebben alleen
-   BlokkadeOverzichtView (lijst). Badge + signalering wachten hierop.
+4. **Componenttype-catalogus uitbreiden** (config, ADR-026 ArchiMate-typering): integratie-/
+   koppelvoorziening, landelijke voorziening/basisregistratie, server/compute; **consolidatie**
+   `applicatieserver`+`middleware` → systeemsoftware/middleware. Daarna beoordeelbare typen ná
+   database aanzetten (fileshare → SaaS-dienst; Bert vult de vragen in de UI).
 
-5. **Zoekbalk contextlabel** — "Component toevoegen aan beeld" boven de zoekbalk
-   in kaart-modus (klein, cosmetic, 1 regel tekst).
+5. **Render-/orkestratielaag Impact-verkenner herbouwen** (ná component-focus) — één deterministische
+   render-eigenaar, géén cascade, met **echte** render-verificatie (headless-cytoscape/e2e) i.p.v.
+   mocks. De mislukte LI054/LI055-render-patches zijn nooit gecommit (schone basis).
 
 ## Openstaande punten (volledig)
 
+### Component-focus-herfundering (Variant A besloten)
+- Q1 per-type configureerbaar (`checklist_dragend`), Q2 velden component-breed NOT NULL + defaults,
+  Q3 subtabel droppen (Slice 3), Q4 type vrij wijzigbaar met data-safety, Q5 enum-rename gedaan.
+- Checklist-beheer is **tenant-scoped** (ADR-022 W1) — geen platform-brede checklist-baseline (bewust);
+  platformbeheerder togglet `checklist_dragend` + baseline-inhoud in de seed.
+
+### Impact-verkenner
+- **Render-bug** (edges onzichtbaar op preset-pad; `nodes:visible` inzakking) — onopgelost, geagendeerd
+  voor de render-herbouw (top-5 #5). Logica/model bewezen correct; zit in de echte cytoscape-render.
+- Modus ego→impact ontkoppelen van set-grootte (ADR-033-revisie) — nog niet opgepakt.
+- Swimlane (ADR-034, geparkeerd); Saved views als permanente hoofdingang (Fase D).
+
 ### ADR-035 Signalering
-- Slice 3: "Registratie onvolledig" (configureerbare score-drempelwaarde) — uitgesteld
-- blokkade_zonder_eigenaar — structureel onmogelijk (roltoewijzing verwijst niet naar
-  blokkade, blokkade is geen element-subtype); vereist schema-/semantiekherziening
-- badges op GebruikersgroepDetail/BlokkadeDetail — uitgesteld tot detail-pagina's bestaan
+- Slice 3: "Registratie onvolledig" (configureerbare score-drempelwaarde) — uitgesteld.
+- blokkade_zonder_eigenaar — structureel onmogelijk zonder schema-/semantiekherziening.
+- badges op GebruikersgroepDetail/BlokkadeDetail — uitgesteld tot die detail-pagina's bestaan.
 
-### ADR-030
-- Signaaltype "component zonder per-band dekking" als toekomstig ADR-035-signaaltype — genoteerd
-
-### Landschapskaart
-- Modus ego→impact ontkoppelen van set-grootte (ADR-033-revisie)
-- Scope-balk gedrag in subgraaf-modus (bewust uitgesteld)
-- Swimlane implementatie (ADR-034, geparkeerd)
-- Saved views als permanente hoofdingang (Fase D)
-
-### Platform
-- GebruikersgroepDetail standalone pagina
-- BlokkadeDetail standalone pagina
-- fcose TOEGESTANE_ELEMENTEN uitbreiding (ADR-026-amendement, optioneel)
+### Platform / detail-pagina's
+- GebruikersgroepDetail + BlokkadeDetail standalone pagina's ontbreken.
 
 ### Cosmetic/klein
-- Zoekbalk contextlabel "Component toevoegen aan beeld" in kaart-modus
+- Zoekbalk-contextlabel "Component toevoegen aan beeld" in kaart-modus.
 
 ### Strategisch (parked)
-- Export/import/rapportage — scope en fasering apart te bepalen
-
-### Resterend uit de rebrand (LI038–LI050, geen code meer)
-- **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL;
-  lokale map `~/complidata/` opruimen (stack draait op `~/likara/`). Berts GitHub-actie.
-- **Deploy-side** — andere omgevingen: `.env`/secrets bijwerken (`RABBITMQ_URL`→`lk_rabbit`,
-  `MINIO_ROOT_USER`→`likara_admin`, cookie-/env-namen) + re-provision.
-- **env-test-robuustheid** (OP-30) — `test_callback_succes_zet_lk_session_cookie` laat
-  `cookie_secure` van de omgeving afhangen; expliciet zetten.
-- **Procesgat secrets-backup** — `~/likara/secrets/` gedocumenteerd maar feitelijk nooit gevuld → verzoenen.
+- Export/import/rapportage — scope apart te bepalen.
+- **DC013** — GitHub-repo/remote-rename + lokale `~/complidata/`-map opruimen (Berts actie).
+- Deploy-side `.env`/secrets bijwerken op andere omgevingen; `~/likara/secrets/` daadwerkelijk vullen.

@@ -611,8 +611,10 @@ Knop verborgen als er geen vorige route is (directe URL-toegang).
 **State-preservatie:** sessionStorage key `lk-state`
 (modus / egoStartId / ringAan / groepeerPerOrg — bewaard bij onBeforeRouteLeave).
 
-**Layout:** dagre (cytoscape-dagre geïnstalleerd) voor Geheel model + Impact-view;
-cose/concentric (radiaal) voor Ego-view.
+**Layout:** `cytoscape-dagre` is **verwijderd** (LI023, Slice 6). De composable
+(`frontend/src/composables/cytoscape.js`) registreert **fcose**. `_layout()` kiest per modus:
+`concentric` (Ego + Geheel model, radiaal-op-degree/centrum), **fcose** (Impact-verkenner,
+set-nodes gefixeerd), `preset` (swimlane + positie-stabiele re-render). Géén dagre-aanroep.
 
 **Edge-labels:** standaard verborgen (`text-opacity: 0`); zichtbaar op hover of
 bij geselecteerde edge (class `sel-edge`).
