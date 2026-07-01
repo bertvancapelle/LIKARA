@@ -25,7 +25,7 @@ vi.mock('@/composables/cytoscape', () => ({
 vi.mock('@/api', () => ({
   api: {
     landschapskaart: { haalGrafdata: vi.fn(), subgraaf: vi.fn() }, // Fase B — set-scoped subgraaf
-    componenten: { opties: vi.fn() }, // LI019 1b — componenttype-catalogus voor het type-filter
+    componenten: { opties: vi.fn(), lijst: vi.fn() }, // LI019 1b — type-catalogus + beginscherm-zoek (LI052)
     partijen: { lijst: vi.fn() }, // LI019 1b — leverancier-zoek (externe partijen)
     // ADR-033 2c — opgeslagen views.
     impactViews: { lijst: vi.fn(), haal: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
@@ -35,6 +35,7 @@ vi.mock('@/api', () => ({
 import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
 import LandschapskaartView from '@modules/bwb_ontvlechting/frontend/views/LandschapskaartView.vue'
+import KaartBeginscherm from '@modules/bwb_ontvlechting/frontend/views/KaartBeginscherm.vue'
 
 const GRAF = () => ({
   nodes: [
@@ -111,6 +112,7 @@ beforeEach(() => {
     ],
   })
   api.partijen.lijst.mockResolvedValue({ items: [{ id: 'l1', naam: 'SaaS BV', aard: 'externe_partij' }] })
+  api.componenten.lijst.mockResolvedValue({ items: [] }) // LI052 — beginscherm-zoek default leeg
   // ADR-033 2c — geen opgeslagen views by default (geen startscherm). Tests die views willen
   // overschrijven dit per geval.
   api.impactViews.lijst.mockResolvedValue([])
@@ -156,6 +158,30 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.modus).toBe('ego')
     await kies(w, 'a1') // Fase B — set leeg én niet hele-landschap → beginscherm ('leeg'), niet meer 'geheel'
     expect(w.vm.modus).toBe('leeg')
+  })
+
+  // LI052 — spook-id: een set-lid dat de subgraaf niet als node oplevert wordt opgeruimd; teller/modus
+  // volgen de geresolveerde leden → één echt component blijft N=1/Ego (geen "(2) met 1 regel", geen
+  // spurieuze Impact) en er ontstaat geen refetch-lus.
+  it('LI052 — niet-resolvend set-lid wordt opgeruimd → N-1, blijft Ego, geen refetch-lus', async () => {
+    const { w } = await mountView()
+    // Subgraaf levert a2 NIET terug → a2 is een spook (wel in de request, niet in de respons).
+    api.landschapskaart.subgraaf.mockImplementation(() =>
+      Promise.resolve({ nodes: _graf.nodes.filter((n) => n.id !== 'a2'), edges: [] }))
+    await kies(w, 'a1')
+    await kies(w, 'a2') // ruwe set = {a1,a2}, maar a2 resolveert niet
+    await flushPromises()
+    // De set is opgeschoond naar alleen materialiseerbare leden.
+    expect([...w.vm.actieveSet].sort()).toEqual(['a1'])
+    expect(w.vm.actieveSetNodes.map((n) => n.id)).toEqual(['a1'])
+    // Teller/modus volgen de geresolveerde leden → Ego, niet Impact.
+    expect(w.vm.modus).toBe('ego')
+    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Ego-view')
+    // Anti-lus: extra ticks lokken geen nieuwe fetch uit (opschonen gebeurt één keer).
+    const n1 = api.landschapskaart.subgraaf.mock.calls.length
+    await flushPromises()
+    await flushPromises()
+    expect(api.landschapskaart.subgraaf.mock.calls.length).toBe(n1)
   })
 
   it('ADR-033 — klik in de lijst toggelt set-lidmaatschap (de losse "+"-knop is vervallen)', async () => {
@@ -1665,6 +1691,35 @@ describe('LandschapskaartView v3', () => {
       await flushPromises()
       expect(w.vm.beginschermOpen).toBe(true)
       expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true)
+    })
+
+    // LI052 — "Begin opnieuw" is altijd zichtbaar (ook op het beginscherm) én verst de zoek-picker:
+    // na reset is niets meer aangevinkt en is elk component weer toevoegbaar (het disabled-euvel weg).
+    it('LI052 — "Begin opnieuw" altijd zichtbaar en reset leegt de zoek-picker', async () => {
+      api.componenten.lijst.mockResolvedValue({ items: [{ id: 'a1', naam: 'Zaaksysteem' }] })
+      const { w } = await mountView({ heleLandschap: false }) // beginscherm open
+      // Altijd-zichtbaar: de reset-knop staat er ook op het lege beginscherm.
+      expect(w.find('[data-testid="lk-begin-opnieuw"]').exists()).toBe(true)
+      // Kies Zaaksysteem via de beginscherm-picker → aangevinkt + in de set. `zoek()` direct aanroepen
+      // op de child omzeilt de 300ms-debounce (zoals de KaartBeginscherm-tests).
+      await w.find('[data-testid="kb-zoek"]').setValue('zaak')
+      await w.findComponent(KaartBeginscherm).vm.zoek()
+      await flushPromises()
+      await w.find('[data-testid="kb-res-check-a1"]').trigger('change')
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toContain('a1')
+      // Begin opnieuw → set leeg + verse picker (remount via :key).
+      await w.find('[data-testid="lk-begin-opnieuw"]').trigger('click')
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toEqual([])
+      // Opnieuw zoeken toont Zaaksysteem NIET aangevinkt en WEL toevoegbaar (buffer geleegd).
+      await w.find('[data-testid="kb-zoek"]').setValue('zaak')
+      await w.findComponent(KaartBeginscherm).vm.zoek()
+      await flushPromises()
+      const check = w.find('[data-testid="kb-res-check-a1"]')
+      expect(check.exists()).toBe(true)
+      expect(check.element.checked).toBe(false)
+      expect(check.attributes('disabled')).toBeUndefined()
     })
   })
 

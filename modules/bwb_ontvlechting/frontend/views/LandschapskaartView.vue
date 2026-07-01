@@ -102,11 +102,16 @@ const actieveSet = ref(new Set())
 // ADR-033 — de weergavemodus is AFGELEID uit de actieve set (geen handmatige view-tabs meer):
 // lege set → Geheel model; 1 component → Ego-view; ≥2 componenten → Impact-verkenner.
 const modus = computed(() => {
-  const n = actieveSet.value.size
   // Fase B — een lege set is niet langer "geheel model": leeg = beginscherm ('leeg'), tenzij de
-  // bewuste "hele landschap"-actie aanstaat (dan de volledige plaat = 'geheel').
-  if (n === 0) return heleLandschap.value ? 'geheel' : 'leeg'
-  return n === 1 ? 'ego' : 'impact'
+  // bewuste "hele landschap"-actie aanstaat (dan de volledige plaat = 'geheel'). Leegte blijft op de
+  // RUWE set-grootte (nooit blanken bij een niet-lege set die nog laadt).
+  if (actieveSet.value.size === 0) return heleLandschap.value ? 'geheel' : 'leeg'
+  // LI052 — ego vs impact op de GERESOLVEERDE leden (set-ids die de subgraaf echt als node opleverde),
+  // niet de ruwe set-grootte: een niet-resolvend (spook-)id mag de modus niet spurieus naar Impact
+  // tillen. Vóór de eerste fetch is nodePerId nog leeg → val terug op Ego (n<2), nooit Impact.
+  let n = 0
+  for (const id of actieveSet.value) if (nodePerId.value[id]) n += 1
+  return n >= 2 ? 'impact' : 'ego'
 })
 const egoStartId = ref(null)
 const detailId = ref(null)
@@ -188,6 +193,10 @@ const heleLandschap = ref(false)
 // gebruiker bouwt er een set op en sluit het zelf via "Toon op de kaart" (@sluit). Zo verdwijnt het
 // scherm niet meer onder zijn voeten zodra het eerste component is toegevoegd. Start open.
 const beginschermOpen = ref(true)
+// LI052 — remount-sleutel voor <KaartBeginscherm>. "Begin opnieuw" (wisSet) verhoogt 'm, zodat het
+// beginscherm ALTIJD vers hermount — óók wanneer het al open stond (dan verandert beginschermOpen niet
+// en zou de interne picker-buffer/vinkjes/zoekresultaten anders de reset overleven).
+const beginschermSleutel = ref(0)
 const beginscherm = computed(() => actieveSet.value.size === 0 && !heleLandschap.value)
 // Voortgangsteller bij het laden van het hele landschap: {gedaan,totaal} of null. (cy.add is één
 // synchrone call zonder native telbare batches → we tellen op de in chunks verwerkte nodes.)
@@ -229,6 +238,7 @@ async function herlaadGraaf() {
       if (gen !== _laadGen) return
       nodes.value = data.nodes || []
       edges.value = _mapEdges(data.edges)
+      _schoonSetOp() // LI052 — spook-ids (geen node in de respons) uit de set halen (één keer, geen refetch)
     } else {
       // Lege set + hele-landschap-actie → de volledige graaf, in chunks verwerkt voor "X van N".
       const data = await api.landschapskaart.haalGrafdata({ diepte: diepte.value })
@@ -587,6 +597,7 @@ function wisSet() {
   actieveSet.value = new Set()
   heleLandschap.value = false
   beginschermOpen.value = true // "Begin opnieuw"/"Wis alles" = volledige reset → terug naar het beginscherm
+  beginschermSleutel.value += 1 // LI052 — forceer een verse picker (buffer/vinkjes/zoekresultaten leeg)
   legendaPos.value = { x: null, y: null } // LI025 — legenda terug naar standaardpositie
   detailPos.value = { x: null, y: null } // LI033 — detail-paneel terug naar standaardpositie
 }
@@ -604,10 +615,29 @@ watch(() => actieveSet.value.size, (n) => { if (n === 0) focusOpSet.value = fals
 // bijbehorende graaf opnieuw op. NIET tijdens de mount (de initiële laad gebeurt expliciet in
 // onMounted ná het bepalen van deep-link/herstelde staat) → `_mountKlaar` voorkomt een dubbele fetch.
 let _mountKlaar = false
+// LI052 — anti-lus-guard: het opruimen van niet-resolvende set-ids (_schoonSetOp) muteert de set en
+// zou zo een nieuwe fetch triggeren. De huidige nodes zijn dan al correct (een spook-id levert per
+// definitie geen extra buren), dus die ene mutatie mag de fetch overslaan. Precies één keer.
+let _slaHerlaadOver = false
 watch(
   () => `${[...actieveSet.value].sort().join('|')}#${heleLandschap.value}`,
-  () => { if (_mountKlaar) herlaadGraaf() },
+  () => {
+    if (!_mountKlaar) return
+    if (_slaHerlaadOver) { _slaHerlaadOver = false; return }
+    herlaadGraaf()
+  },
 )
+// LI052 — na een subgraaf-load: verwijder set-ids die GEEN node opleverden (spook-ids). Zo bevat de
+// set alleen materialiseerbare leden → teller/modus (op geresolveerde leden) en de set convergeren.
+// Toetst bewust tegen de RUWE respons-nodes (nodes.value), niet nodePerId (dat gg-nodes aggregeert).
+function _schoonSetOp() {
+  const aanwezig = new Set((nodes.value || []).map((n) => n.id))
+  const behouden = [...actieveSet.value].filter((id) => aanwezig.has(id))
+  if (behouden.length !== actieveSet.value.size) {
+    _slaHerlaadOver = true // deze opschoon-mutatie mag GEEN nieuwe fetch uitlokken
+    actieveSet.value = new Set(behouden)
+  }
+}
 
 // ── Impact-verkenner (ADR-033) — drill-down over de transitieve koppelingsketen ──────
 // De basis is de actieve set; elke drill-down legt één extra focus-stap bovenop (stack).
@@ -1966,7 +1996,8 @@ const typeLabel = (t) => humaniseer(t)
       </p>
       <span class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Weergave volgt je selectie</span>
       <!-- Fase B — "Begin opnieuw": enige harde reset → terug naar het lege beginscherm. -->
-      <button v-if="!beginscherm" type="button" data-testid="lk-begin-opnieuw" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]" @click="wisSet">Begin opnieuw</button>
+      <!-- LI052 — altijd zichtbaar/bruikbaar (ook op het beginscherm: daar idempotent) → gegarandeerd verse start. -->
+      <button type="button" data-testid="lk-begin-opnieuw" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]" @click="wisSet">Begin opnieuw</button>
       <span class="ml-auto text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]" data-testid="lk-zichtbaar-aantal">{{ zichtbaarAantal }} in beeld</span>
     </div>
 
@@ -2371,11 +2402,12 @@ const typeLabel = (t) => humaniseer(t)
              De component-root draagt data-testid="lk-beginscherm". -->
         <KaartBeginscherm
           v-if="beginschermOpen"
+          :key="beginschermSleutel"
           class="absolute inset-0 z-20 bg-[var(--lk-color-bg)]"
           :opgeslagen-views="opgeslagenViews"
           :component-opties="typeCatalogus"
           :eigenaar-opties="[]"
-          :set-grootte="actieveSet.size"
+          :set-grootte="actieveSetNodes.length"
           @voeg-componenten-toe="voegComponentenToeAanSet"
           @open-view="openView"
           @toon-hele-landschap="toonHeleLandschap"
@@ -2392,7 +2424,7 @@ const typeLabel = (t) => humaniseer(t)
       <aside class="flex w-56 flex-shrink-0 flex-col gap-[var(--lk-space-md)] overflow-y-auto border-l border-[var(--lk-color-border)] bg-white p-[var(--lk-space-md)]" data-testid="lk-rechts">
         <div>
           <div class="mb-1 flex items-center gap-2">
-            <p class="font-semibold text-[length:var(--lk-text-sm)]">Actieve set ({{ actieveSet.size }})</p>
+            <p class="font-semibold text-[length:var(--lk-text-sm)]">Actieve set ({{ actieveSetNodes.length }})</p>
             <button v-if="actieveSet.size > 0" type="button" data-testid="lk-set-wis" class="ml-auto text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)] hover:underline" @click="wisSet">Wis alles</button>
           </div>
           <label v-if="actieveSet.size > 0" class="mb-1 flex items-center gap-2 text-[length:var(--lk-text-sm)]">
