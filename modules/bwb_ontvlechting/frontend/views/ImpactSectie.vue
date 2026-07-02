@@ -34,11 +34,9 @@ async function analyseer() {
   }
 }
 
-// Subtype (heeft lifecycle) → ApplicatieDetail; overige → ComponentDetail.
+// LI059 Slice 4 — één detailscherm voor élk type.
 function rijRoute(rij) {
-  return rij.lifecycle_status != null
-    ? { name: 'applicatie-detail', params: { id: rij.component_id } }
-    : { name: 'component-detail', params: { id: rij.component_id } }
+  return { name: 'component-detail', params: { id: rij.component_id } }
 }
 const lifecycleLabel = (c) => label(LIFECYCLE, c)
 const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'

@@ -31,9 +31,18 @@ describe('router-structuur', () => {
     expect(route.redirect).toEqual({ name: 'component-lijst', query: { type: 'applicatie' } })
   })
 
-  it('behoudt het rijke applicatie-detail (/applicaties/:id) als subtype-view', () => {
-    const resolved = router.resolve({ name: 'applicatie-detail', params: { id: 'x' } })
-    expect(resolved.name).toBe('applicatie-detail')
-    expect(resolved.matched.length).toBe(2)
+  it('leidt het oude /applicaties/:id door naar component-detail (LI059 Slice 4)', () => {
+    // ApplicatieDetail is opgegaan in het generieke ComponentDetail; de oude route blijft
+    // als redirect bestaan zodat bookmarks/deep-links niet breken (functie-redirect met id).
+    const route = router.getRoutes().find((r) => r.name === 'applicatie-detail')
+    expect(typeof route.redirect).toBe('function')
+    expect(route.redirect({ params: { id: 'x' } })).toEqual({ name: 'component-detail', params: { id: 'x' } })
+  })
+
+  it('leidt /applicaties/nieuw en /:id/bewerken door naar de component-varianten (LI059)', () => {
+    const nieuw = router.getRoutes().find((r) => r.name === 'applicatie-nieuw')
+    expect(nieuw.redirect).toEqual({ name: 'component-nieuw' })
+    const bewerken = router.getRoutes().find((r) => r.name === 'applicatie-bewerken')
+    expect(bewerken.redirect({ params: { id: 'x' } })).toEqual({ name: 'component-bewerken', params: { id: 'x' } })
   })
 })

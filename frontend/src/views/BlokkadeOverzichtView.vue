@@ -94,7 +94,8 @@ function detailDoel(data, { markeer = false } = {}) {
     }
   }
   return {
-    name: isApplicatie ? 'applicatie-detail' : 'component-detail',
+    // LI059 Slice 4 — één detailscherm; de checklist-deep-link (tab/cat) werkt op ComponentDetail.
+    name: 'component-detail',
     params: { id: data.component_id },
     query,
   }

@@ -32,6 +32,7 @@ function maakRouter() {
       { path: '/contracten/:id', name: 'contract-detail', component: ContractDetail, props: true },
       { path: '/contracten/:id/bewerken', name: 'contract-bewerken', component: { template: '<div/>' } },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
+      { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
     ],
   })
 }
@@ -127,7 +128,7 @@ describe('ContractDetail — §2 gekoppelde applicaties', () => {
     expect(tabel.text()).toContain('Zaaksysteem')
     expect(tabel.text()).toContain('Valt onder / aanschaf')
     expect(tabel.text()).toContain('Geblokkeerd') // lifecycle-label (labels.js)
-    expect(w.find('[data-testid="app-link"]').attributes('href')).toContain('/applicaties/a1')
+    expect(w.find('[data-testid="app-link"]').attributes('href')).toContain('/componenten/a1')
   })
 
   it('lege-staat: "Geen gekoppelde applicaties."', async () => {

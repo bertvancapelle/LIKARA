@@ -314,14 +314,23 @@ describe('ComponentDetail', () => {
     expect(w.find('[data-testid="start-beoordeling-knop"]').exists()).toBe(false)
   })
 
-  it('applicatie-subtype: hint naar ApplicatieDetail, geen bewerk-/verwijderknop', async () => {
+  it('applicatie-subtype: geen aparte-hint, wél bewerken/verwijderen + applicatie-tabs (LI059)', async () => {
     api.componenten.haal.mockResolvedValue(
       _component({ componenttype: 'applicatie', componenttype_label: 'Applicatie', heeft_applicatie_subtype: true }),
     )
     const { w } = await mountDetail()
-    expect(w.find('[data-testid="detail-subtype-hint"]').exists()).toBe(true)
-    expect(w.find('[data-testid="bewerken-knop"]').exists()).toBe(false)
-    expect(w.find('[data-testid="verwijder-knop"]').exists()).toBe(false)
+    // De verwijzing naar een apart ApplicatieDetail bestaat niet meer.
+    expect(w.find('[data-testid="detail-subtype-hint"]').exists()).toBe(false)
+    // Beheer gebeurt hier: bewerken/verwijderen zijn beschikbaar (beheerder).
+    expect(w.find('[data-testid="bewerken-knop"]').exists()).toBe(true)
+    expect(w.find('[data-testid="verwijder-knop"]').exists()).toBe(true)
+    // Applicatie-eigen tabs verschijnen (conditioneel op het subtype).
+    const tabtekst = w.find('[data-testid="detailtabs"]').exists()
+      ? w.find('[data-testid="detailtabs"]').text()
+      : w.text()
+    expect(tabtekst).toContain('Datatypes')
+    expect(tabtekst).toContain('Gebruikersgroepen')
+    expect(tabtekst).toContain('Koppelingen')
   })
 
   // ADR-025 — "Bekijk op kaart".

@@ -841,7 +841,7 @@ function selecteerNode(id) {
   cy.animate?.({ center: { eles: node }, zoom: Math.max(cy.zoom?.() ?? 1, 1.2), duration: 400, easing: 'ease-in-out-cubic' })
 }
 function openApplicatie() {
-  if (detailNode.value) router.push({ name: 'applicatie-detail', params: { id: detailNode.value.id } })
+  if (detailNode.value) router.push({ name: 'component-detail', params: { id: detailNode.value.id } })
 }
 
 // ── ADR-033 — selectie-highlight: enkelklik op een knoop kleurt ALLEEN z'n incidente lijnen ──
@@ -995,7 +995,7 @@ function _detailLink(node) {
   if (!node) return null
   const id = node.id
   switch (node.element_type) {
-    case 'applicatie': return { label: 'Open component →', fn: () => router.push({ name: 'applicatie-detail', params: { id } }) }
+    case 'applicatie': return { label: 'Open component →', fn: () => router.push({ name: 'component-detail', params: { id } }) }
     case 'partij': return { label: 'Open partij →', fn: () => router.push({ name: 'partij-detail', params: { id } }) }
     case 'contract': return { label: 'Open contract →', fn: () => router.push({ name: 'contract-detail', params: { id } }) }
     case 'gebruikersgroep': return null
@@ -1114,8 +1114,8 @@ async function openNodePopup(id) {
   try {
     const et = n.element_type
     let d
-    if (et === 'applicatie') d = await api.applicaties.haal(id)
-    else if (et === 'contract') d = await api.contracten.haal(id)
+    // LI059 Slice 4 — applicatie ÍS een component; er is geen aparte /applicaties-haal meer.
+    if (et === 'contract') d = await api.contracten.haal(id)
     else if (et === 'partij') d = await api.partijen.haal(id)
     else d = await api.componenten.haal(id)
     if (popupKind.value !== 'node' || detailId.value !== id) return // intussen vervangen

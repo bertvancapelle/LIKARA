@@ -66,7 +66,7 @@ describe('ComponentFormulier', () => {
     expect(waarden).toContain('applicatie')
   })
 
-  it('aanmaken met type "applicatie" leidt door naar ApplicatieDetail (convergentie)', async () => {
+  it('aanmaken met type "applicatie" opent het generieke ComponentDetail (LI059)', async () => {
     api.componenten.maak.mockResolvedValueOnce({ id: 'app-new', heeft_applicatie_subtype: true })
     const { w, router } = await mountForm()
     await w.find('[data-testid="veld-naam"]').setValue('Nieuwe applicatie')
@@ -76,8 +76,24 @@ describe('ComponentFormulier', () => {
     expect(api.componenten.maak).toHaveBeenCalledWith(
       expect.objectContaining({ naam: 'Nieuwe applicatie', componenttype: 'applicatie' }),
     )
-    expect(router.currentRoute.value.name).toBe('applicatie-detail')
+    expect(router.currentRoute.value.name).toBe('component-detail')
     expect(router.currentRoute.value.params.id).toBe('app-new')
+  })
+
+  it('toont de transitie-selects en stuurt ze mee in de payload (LI059)', async () => {
+    api.componenten.maak.mockResolvedValueOnce({ id: 'c-1' })
+    const { w } = await mountForm()
+    expect(w.find('[data-testid="veld-migratiepad"]').exists()).toBe(true)
+    expect(w.find('[data-testid="veld-complexiteit"]').exists()).toBe(true)
+    expect(w.find('[data-testid="veld-prioriteit"]').exists()).toBe(true)
+    await w.find('[data-testid="veld-naam"]').setValue('DB1')
+    await w.find('[data-testid="veld-componenttype"]').setValue('database')
+    await w.find('[data-testid="veld-migratiepad"]').setValue('uitfaseren')
+    await w.find('[data-testid="component-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.componenten.maak).toHaveBeenCalledWith(
+      expect.objectContaining({ migratiepad: 'uitfaseren', complexiteit: 'midden', prioriteit: 'midden' }),
+    )
   })
 
   it('toont de vrije-tekstvelden eigenaar (naam) en leverancier niet meer (ADR-024)', async () => {
@@ -137,25 +153,34 @@ describe('ComponentFormulier', () => {
     expect(w.find('[data-testid="fout-naam"]').exists()).toBe(false)
   })
 
-  it('bewerken van een applicatie-subtype wordt omgeleid naar ApplicatieDetail', async () => {
+  it('bewerken van een applicatie laadt in hetzelfde formulier (geen redirect, LI059)', async () => {
     api.componenten.haal.mockResolvedValueOnce({
       id: 'app-1',
       naam: 'Belastingsysteem',
       componenttype: 'applicatie',
       hostingmodel: 'saas',
       heeft_applicatie_subtype: true,
+      migratiepad: 'herbouw',
+      complexiteit: 'hoog',
+      prioriteit: 'laag',
+      eigenaar_organisatie_id: null,
+      eigenaar_organisatie_naam: '',
+      beschrijving: '',
     })
     const router = maakRouter()
     await router.push('/componenten/app-1/bewerken')
     await router.isReady()
     const pinia = createPinia()
-    mount(ComponentFormulier, {
+    const w = mount(ComponentFormulier, {
       props: { id: 'app-1' },
       attachTo: document.body,
       global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } },
     })
     await flushPromises()
-    expect(router.currentRoute.value.name).toBe('applicatie-detail')
-    expect(api.componenten.maak).not.toHaveBeenCalled()
+    // Geen redirect meer: het applicatie-component wordt hier bewerkt (LI059 Slice 4).
+    expect(router.currentRoute.value.name).toBe('component-bewerken')
+    expect(w.find('[data-testid="veld-naam"]').element.value).toBe('Belastingsysteem')
+    expect(w.find('[data-testid="veld-migratiepad"]').element.value).toBe('herbouw')
+    expect(w.find('[data-testid="veld-complexiteit"]').element.value).toBe('hoog')
   })
 })

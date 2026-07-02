@@ -69,6 +69,7 @@ async function mountView({ query = '', rollen = ['medewerker'], heleLandschap = 
       { path: '/', name: 'home', component: { template: '<div/>' } },
       { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
+      { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
     ],
   })
   await router.push(`/landschapskaart${query}`)
@@ -978,14 +979,14 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Documentbeheer')
   })
 
-  it('"Open applicatie →" navigeert naar het applicatie-detail', async () => {
+  it('"Open component →" navigeert naar het component-detail', async () => {
     const { w, pushSpy } = await mountView()
     await w.find('[data-testid="lk-zoek"]').setValue('zaak') // LI029 — lijst gated; toon a1
     await flushPromises()
     await w.find('[data-testid="lk-res-naam-a1"]').trigger('click')
     await flushPromises()
     await w.find('[data-testid="lk-detail-open"]').trigger('click')
-    expect(pushSpy).toHaveBeenCalledWith({ name: 'applicatie-detail', params: { id: 'a1' } })
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'component-detail', params: { id: 'a1' } })
   })
 
   it('"Voeg alle gefilterde toe" vult de actieve set', async () => {

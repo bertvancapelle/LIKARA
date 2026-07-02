@@ -71,7 +71,7 @@ describe('BlokkadeOverzichtView — render', () => {
     const w = await mountOverzicht()
     expect(w.text()).toContain('Zaaksysteem')
     const link = w.find('[data-testid="blokkade-app-link"]')
-    expect(link.attributes('href')).toContain('/applicaties/app-b1')
+    expect(link.attributes('href')).toContain('/componenten/app-b1')
     // eerste call: default sort applicatie_naam asc + status actief
     expect(api.blokkades.overzicht).toHaveBeenLastCalledWith({
       limit: 25,
@@ -82,7 +82,7 @@ describe('BlokkadeOverzichtView — render', () => {
     })
   })
 
-  it('maakt het vraagnummer klikbaar → applicatie-detail met checklist-deeplink + markeer', async () => {
+  it('maakt het vraagnummer klikbaar → component-detail met checklist-deeplink + markeer', async () => {
     api.blokkades.overzicht.mockResolvedValue({
       items: [{ ..._item('Zaaksysteem', 'b1'), vraag_code: '2.7' }],
       volgende_cursor: null,
@@ -92,7 +92,7 @@ describe('BlokkadeOverzichtView — render', () => {
     expect(link.exists()).toBe(true)
     expect(link.text()).toContain('2.7')
     const href = link.attributes('href')
-    expect(href).toContain('/applicaties/app-b1')
+    expect(href).toContain('/componenten/app-b1')
     expect(href).toContain('tab=checklist')
     expect(href).toContain('cat=2')          // categorie uit "2.7"
     expect(href).toContain('markeer=2.7')

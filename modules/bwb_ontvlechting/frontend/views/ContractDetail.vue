@@ -197,7 +197,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
           <Column header="Componenten">
             <template #body="{ data }">
               <span class="flex flex-wrap gap-x-[var(--lk-space-sm)]">
-                <router-link v-for="a in data.applicaties" :key="a.id" :to="{ name: 'applicatie-detail', params: { id: a.id } }" :data-testid="`deel-app-${a.id}`" class="text-[var(--lk-color-primary)] hover:underline">{{ a.naam }}</router-link>
+                <router-link v-for="a in data.applicaties" :key="a.id" :to="{ name: 'component-detail', params: { id: a.id } }" :data-testid="`deel-app-${a.id}`" class="text-[var(--lk-color-primary)] hover:underline">{{ a.naam }}</router-link>
                 <span v-if="!data.applicaties?.length">—</span>
               </span>
             </template>
@@ -218,7 +218,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         <DataTable :value="gekoppeldeApps" data-testid="gekoppelde-apps-tabel">
           <Column header="Component">
             <template #body="{ data }">
-              <router-link :to="{ name: 'applicatie-detail', params: { id: data.applicatie_id } }" data-testid="app-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.applicatie_naam }}</router-link>
+              <router-link :to="{ name: 'component-detail', params: { id: data.applicatie_id } }" data-testid="app-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.applicatie_naam }}</router-link>
             </template>
           </Column>
           <Column header="Rol"><template #body="{ data }">{{ data.relatie_rol_label }}</template></Column>

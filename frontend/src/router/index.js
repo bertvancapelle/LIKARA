@@ -8,7 +8,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 // de platform-sectie, net als AppLayout voor de tenant-sectie).
 import BeheerLayout from '../layouts/BeheerLayout.vue'
 // Lazy (OP-19): zware routes als dynamische imports → eigen chunks, kleinere
-// initiële bundle. ApplicatieDetail trekt DataTable + de module-secties mee in
+// initiële bundle. ComponentDetail trekt DataTable + de module-secties mee in
 // zijn eigen async chunk. Module-loading (Optie A / @modules + cross-root-barrels)
 // en de guard blijven ongewijzigd; alleen het laadmoment verschuift.
 const DashboardView = () => import('../views/DashboardView.vue')
@@ -20,9 +20,6 @@ const LandschapskaartView = () => import('@modules/bwb_ontvlechting/frontend/vie
 const PlaatsingSignalenView = () => import('../views/PlaatsingSignalenView.vue')
 // ADR-035 — coherent Signalering-scherm (registratiegaten + plaatsing als tabs), lazy.
 const SignaleringView = () => import('../views/SignaleringView.vue')
-const ApplicatieDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ApplicatieDetail.vue')
-const ApplicatieFormulier = () =>
-  import('@modules/bwb_ontvlechting/frontend/views/ApplicatieFormulier.vue')
 // ADR-021 Fase D — componenten (technische laag), lazy (OP-19).
 const ComponentLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ComponentLijst.vue')
 const ComponentDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ComponentDetail.vue')
@@ -96,17 +93,13 @@ const routes = [
       // Componenten-lijst. `/applicaties` redirect (naam behouden zodat bestaande
       // navigaties/bookmarks niet breken) naar Componenten met typefilter=applicatie.
       // Het detail `/applicaties/:id` blijft de rijke subtype-view.
+      // LI059 Slice 4 — de aparte Applicatie-schermen zijn opgegaan in de generieke
+      // component-beleving. De oude routes blijven als REDIRECT bestaan zodat bookmarks/
+      // deep-links niet breken (naam behouden). `applicatie-lijst` → Componenten (typefilter).
       { path: 'applicaties', name: 'applicatie-lijst', redirect: { name: 'component-lijst', query: { type: 'applicatie' } } },
-      // Statische paden vóór de dynamische /:id (vue-router rankt static > param,
-      // maar expliciet vóór geplaatst voor leesbaarheid).
-      { path: 'applicaties/nieuw', name: 'applicatie-nieuw', component: ApplicatieFormulier },
-      { path: 'applicaties/:id', name: 'applicatie-detail', component: ApplicatieDetail, props: true },
-      {
-        path: 'applicaties/:id/bewerken',
-        name: 'applicatie-bewerken',
-        component: ApplicatieFormulier,
-        props: true,
-      },
+      { path: 'applicaties/nieuw', name: 'applicatie-nieuw', redirect: { name: 'component-nieuw' } },
+      { path: 'applicaties/:id', name: 'applicatie-detail', redirect: (to) => ({ name: 'component-detail', params: { id: to.params.id } }) },
+      { path: 'applicaties/:id/bewerken', name: 'applicatie-bewerken', redirect: (to) => ({ name: 'component-bewerken', params: { id: to.params.id } }) },
       // ADR-029 — gebruikersbeheer (beheerder-only via de backend; nav-affordance gegate).
       { path: 'gebruikers', name: 'gebruikersbeheer', component: GebruikersbeheerView },
       // ADR-029 Fase 3a — auditlog (beheerder/auditor; backend handhaaft AUDITLOG.LEZEN).

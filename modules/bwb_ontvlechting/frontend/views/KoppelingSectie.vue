@@ -41,7 +41,8 @@ const fout = ref(null)
 
 // Bron/doel-pickers: server-side zoeken (CD049). `dezeAppNaam` + bron/doel-initieel
 // leveren de weergavelabels voor de reeds-gekozen waarden (default-bron / bewerken).
-const zoekApplicaties = (params) => api.applicaties.lijst(params)
+// LI059 Slice 4 — applicaties zijn componenten met type 'applicatie' (geen /applicaties-facade meer).
+const zoekApplicaties = (params) => api.componenten.lijst({ ...params, componenttype: 'applicatie' })
 const dezeAppNaam = ref('')
 const bronInitieel = ref('')
 const doelInitieel = ref('')
@@ -53,7 +54,7 @@ const appNaam = (id) => appNamen.value?.[id] ?? ''
 async function _zorgAppNamen() {
   if (appNamen.value) return
   try {
-    const p = await api.applicaties.lijst({ limit: 100 })
+    const p = await api.componenten.lijst({ limit: 100, componenttype: 'applicatie' })
     appNamen.value = Object.fromEntries((p.items || []).map((a) => [a.id, a.naam]))
   } catch (e) {
     appNamen.value = {}

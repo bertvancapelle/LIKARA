@@ -69,11 +69,9 @@ async function laad() {
   }
 }
 
-// Buur-navigatie: subtype (type applicatie) → ApplicatieDetail; overige → ComponentDetail.
+// LI059 Slice 4 — één detailscherm voor élk type.
 function buurRoute(rij) {
-  return rij.componenttype === 'applicatie'
-    ? { name: 'applicatie-detail', params: { id: rij.component_id } }
-    : { name: 'component-detail', params: { id: rij.component_id } }
+  return { name: 'component-detail', params: { id: rij.component_id } }
 }
 
 function _reset() {

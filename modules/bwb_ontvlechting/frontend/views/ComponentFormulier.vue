@@ -1,20 +1,21 @@
 <script setup>
 /**
- * ComponentFormulier — aanmaken/bewerken van een component (ADR-021 W1 / CD054b).
+ * ComponentFormulier — aanmaken/bewerken van ELK componenttype (LI059 Slice 4).
  *
- * Convergente aanmaak: het type `applicatie` is wél kiesbaar — opslaan maakt atomair
- * het applicatie-subtype (backend) en leidt door naar ApplicatieDetail, waar de
- * checklist direct zichtbaar is. Overige typen → ComponentDetail. Componenttype-opties
- * komen uit /componenten/opties (catalogus); hostingmodel uit de enum. Naam + type zijn
- * verplicht; overige velden optioneel. Het TYPE wijzigen van/naar applicatie blijft
- * beschermd (backend SUBTYPE_BESCHERMD) — daarom redirect bewerken van een subtype hier
- * naar ApplicatieDetail.
+ * Eén formulier voor alle typen. De drie transitie-attributen (migratiepad/complexiteit/
+ * prioriteit) zijn component-breed (LI057) en dus voor élk type instelbaar; opties uit
+ * labels.js (defaults onbekend/midden/midden). Componenttype-opties komen uit
+ * /componenten/opties (catalogus); hostingmodel/migratiepad/complexiteit/prioriteit uit de
+ * enum-maps. Naam + type zijn verplicht; overige velden optioneel. Opslaan opent altijd het
+ * generieke ComponentDetail (ook voor type `applicatie` — convergente aanmaak). Het TYPE
+ * wijzigen van een component mét gegevens is server-side geblokkeerd (SUBTYPE_HEEFT_DATA):
+ * de select is dan vergrendeld met uitleg (verwijderen om het type te wijzigen).
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
-import { HOSTINGMODEL, REGISTER_FOUT, label } from '../labels'
+import { HOSTINGMODEL, MIGRATIEPAD, NIVEAU, REGISTER_FOUT, label } from '../labels'
 import ZoekSelect from './ZoekSelect.vue'
 
 // Eigenaar-organisatie: server-side zoeken, beperkt tot partijen met aard=organisatie (UX-B6-b).
@@ -40,10 +41,22 @@ const form = reactive({
   eigenaar_organisatie_id: null,
   eigenaar_organisatie_naam: '',  // initieel label voor de ZoekSelect (bewerken-modus)
   beschrijving: '',
+  // LI057/LI059 — component-brede transitie-attributen (élk type); defaults conform ComponentCreate.
+  migratiepad: 'onbekend',
+  complexiteit: 'midden',
+  prioriteit: 'midden',
 })
 const fouten = reactive({})
 
 const hosting = (c) => label(HOSTINGMODEL, c)
+
+// LI059 Slice 4 — de drie transitie-selects (opties uit de enum-maps; single source labels.js).
+const TRANSITIE_VELDEN = [
+  { veld: 'migratiepad', label: 'Migratiepad', opties: MIGRATIEPAD },
+  { veld: 'complexiteit', label: 'Complexiteit', opties: NIVEAU },
+  { veld: 'prioriteit', label: 'Prioriteit', opties: NIVEAU },
+]
+const transitieLabel = (map, code) => label(map, code)
 
 function _toastFout(e) {
   const detail =
@@ -62,13 +75,8 @@ async function init() {
     // Convergente aanmaak (CD054b W1): 'applicatie' is wél kiesbaar.
     typeOpties.value = opties.componenttype || []
     if (bewerken.value) {
+      // LI059 Slice 4 — élk type (incl. applicatie) wordt hier bewerkt; geen subtype-redirect meer.
       const c = await api.componenten.haal(props.id)
-      if (c.heeft_applicatie_subtype) {
-        // Subtypen bewerk je op de applicatie zelf — niet hier.
-        toast.add({ severity: 'info', summary: 'Applicatie-component', detail: 'Bewerk dit via de applicatie.', life: 4000 })
-        router.replace({ name: 'applicatie-detail', params: { id: props.id } })
-        return
-      }
       typeVergrendeld.value = c.type_wijzigbaar === false
       Object.assign(form, {
         naam: c.naam,
@@ -77,6 +85,9 @@ async function init() {
         eigenaar_organisatie_id: c.eigenaar_organisatie_id ?? null,
         eigenaar_organisatie_naam: c.eigenaar_organisatie_naam || '',
         beschrijving: c.beschrijving || '',
+        migratiepad: c.migratiepad ?? 'onbekend',
+        complexiteit: c.complexiteit ?? 'midden',
+        prioriteit: c.prioriteit ?? 'midden',
       })
     }
   } catch (e) {
@@ -105,6 +116,9 @@ function _payload() {
     hostingmodel: form.hostingmodel,
     eigenaar_organisatie_id: form.eigenaar_organisatie_id || null,
     beschrijving: form.beschrijving.trim() || null,
+    migratiepad: form.migratiepad,
+    complexiteit: form.complexiteit,
+    prioriteit: form.prioriteit,
   }
 }
 
@@ -131,18 +145,13 @@ async function opslaan() {
     const resultaat = bewerken.value
       ? await api.componenten.werkBij(props.id, data)
       : await api.componenten.maak(data)
-    // Convergentie: een applicatie-(sub)type opent op ApplicatieDetail (checklist direct
-    // zichtbaar); shared-PK ⇒ resultaat.id is zowel component- als applicatie-id.
-    const naarApplicatie = resultaat.heeft_applicatie_subtype || form.componenttype === 'applicatie'
+    // LI059 Slice 4 — één beleving: élk type (incl. applicatie) opent op het generieke ComponentDetail.
     toast.add({
       severity: 'success',
-      summary: bewerken.value ? 'Wijzigingen opgeslagen' : naarApplicatie ? 'Applicatie aangemaakt' : 'Component aangemaakt',
+      summary: bewerken.value ? 'Wijzigingen opgeslagen' : 'Component aangemaakt',
       life: 3000,
     })
-    router.push({
-      name: naarApplicatie ? 'applicatie-detail' : 'component-detail',
-      params: { id: resultaat.id },
-    })
+    router.push({ name: 'component-detail', params: { id: resultaat.id } })
   } catch (e) {
     if (!_serverveldfouten(e)) _toastFout(e)
   } finally {
@@ -206,6 +215,25 @@ onMounted(init)
           class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
         >
           <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
+        </select>
+      </div>
+
+      <!-- LI059 Slice 4 — transitie-attributen (component-breed, élk type). -->
+      <div
+        v-for="t in TRANSITIE_VELDEN"
+        :key="t.veld"
+        class="flex flex-col gap-[var(--lk-space-xs)]"
+      >
+        <label :for="`f-${t.veld}`" class="font-semibold">{{ t.label }}</label>
+        <select
+          :id="`f-${t.veld}`"
+          v-model="form[t.veld]"
+          :data-testid="`veld-${t.veld}`"
+          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+        >
+          <option v-for="code in Object.keys(t.opties)" :key="code" :value="code">
+            {{ transitieLabel(t.opties, code) }}
+          </option>
         </select>
       </div>
 

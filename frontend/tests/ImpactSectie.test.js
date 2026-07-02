@@ -77,13 +77,13 @@ describe('ImpactSectie', () => {
     expect(w.find('[data-testid="im-pad-app-2"]').text()).toContain('Oracle FIN-DB → Belastingsysteem → Zaaksysteem')
   })
 
-  it('subtype-rij linkt naar ApplicatieDetail', async () => {
+  it('elke rij linkt naar ComponentDetail (LI059)', async () => {
     api.componenten.impact.mockResolvedValueOnce(_impact())
     const w = await mountSectie()
     await w.find('[data-testid="im-analyseer"]').trigger('click')
     await flushPromises()
     const hrefs = w.find('[data-testid="im-tabel"]').findAll('a').map((a) => a.attributes('href'))
-    expect(hrefs.some((h) => h.includes('/applicaties/app-1'))).toBe(true)
+    expect(hrefs.some((h) => h.includes('/componenten/app-1'))).toBe(true)
   })
 
   it('toont de lege-staat als niets afhankelijk is', async () => {

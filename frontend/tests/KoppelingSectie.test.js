@@ -9,7 +9,7 @@ vi.mock('@/api', () => ({
   api: {
     // ADR-023: koppeling = flow-relatie → via het unified /relaties-endpoint.
     relaties: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
-    applicaties: { lijst: vi.fn() },
+    componenten: { lijst: vi.fn() },
   },
 }))
 
@@ -50,7 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.relaties.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
   // Voedt zowel de namenkaart (tegenpartij-kolom) als de ZoekSelect-pickers.
-  api.applicaties.lijst.mockResolvedValue({
+  api.componenten.lijst.mockResolvedValue({
     items: [
       { id: APP, naam: 'Deze App' },
       { id: ANDER, naam: 'Andere App' },

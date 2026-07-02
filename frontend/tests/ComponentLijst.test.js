@@ -92,7 +92,7 @@ describe('ComponentLijst', () => {
     expect(tekst).toContain('Belastingsysteem')
   })
 
-  it('subtype-rij linkt naar ApplicatieDetail, niet-subtype naar ComponentDetail', async () => {
+  it('elke rij (subtype én niet-subtype) linkt naar ComponentDetail (LI059)', async () => {
     api.componenten.lijst.mockResolvedValueOnce({
       items: [
         _comp('Oracle FIN-DB', 'db-1'),
@@ -104,7 +104,7 @@ describe('ComponentLijst', () => {
     const links = w.findAll('[data-testid="rij-link"]')
     const hrefs = links.map((l) => l.attributes('href'))
     expect(hrefs.some((h) => h.includes('/componenten/db-1'))).toBe(true)
-    expect(hrefs.some((h) => h.includes('/applicaties/app-1'))).toBe(true)
+    expect(hrefs.some((h) => h.includes('/componenten/app-1'))).toBe(true)
   })
 
   it('type-filter stuurt componenttype mee en reset de cursor', async () => {

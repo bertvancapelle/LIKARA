@@ -51,6 +51,7 @@ function maakRouter() {
     routes: [
       { path: '/', name: 'dashboard', component: DashboardView },
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
+      { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
       { path: '/blokkades', name: 'blokkades', component: { template: '<div/>' } },
       { path: '/componenten', name: 'component-lijst', component: { template: '<div/>' } },
     ],
@@ -166,7 +167,7 @@ describe('DashboardView — data', () => {
     const links = w.findAll('[data-testid="recent-link"]')
     expect(links).toHaveLength(2)
     expect(links[0].text()).toBe('Zaaksysteem')
-    expect(links[0].attributes('href')).toContain('/applicaties/a1')
+    expect(links[0].attributes('href')).toContain('/componenten/a1')
   })
 })
 

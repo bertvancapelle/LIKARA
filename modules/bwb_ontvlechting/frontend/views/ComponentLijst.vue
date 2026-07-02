@@ -143,9 +143,8 @@ function wisFilters() {
 }
 
 function rijRoute(rij) {
-  return rij.heeft_applicatie_subtype
-    ? { name: 'applicatie-detail', params: { id: rij.id } }
-    : { name: 'component-detail', params: { id: rij.id } }
+  // LI059 Slice 4 — één detailscherm voor élk type.
+  return { name: 'component-detail', params: { id: rij.id } }
 }
 
 const hosting = (c) => label(HOSTINGMODEL, c)

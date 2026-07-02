@@ -91,7 +91,7 @@ afterEach(() => {
 })
 
 describe('StructuurSectie', () => {
-  it('rendert beide richtingen; subtype-buur linkt naar ApplicatieDetail, infra naar ComponentDetail', async () => {
+  it('rendert beide richtingen; elke buur linkt naar ComponentDetail (LI059)', async () => {
     api.componenten.structuur.mockResolvedValueOnce({
       draait_op: [_draaitOp()],
       gebruikt_door: [_gebruiktDoor()],
@@ -104,9 +104,9 @@ describe('StructuurSectie', () => {
     const gebruikt = w.find('[data-testid="st-tabel-gebruikt-door"]')
     expect(gebruikt.text()).toContain('Belastingsysteem')
 
-    // De applicatie-subtype-buur navigeert naar ApplicatieDetail.
+    // De buur (élk type) navigeert naar ComponentDetail (LI059).
     const appLink = gebruikt.find('a')
-    expect(appLink.attributes('href')).toContain('/applicaties/app-9')
+    expect(appLink.attributes('href')).toContain('/componenten/app-9')
     // De database-buur navigeert naar ComponentDetail.
     const dbLink = draait.find('a')
     expect(dbLink.attributes('href')).toContain('/componenten/db-1')

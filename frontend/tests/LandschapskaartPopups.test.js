@@ -166,12 +166,12 @@ describe('Landschapskaart — koppeling-popup (master-detail, ADR-023a Fase 4)',
 })
 
 describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
-  it('applicatie → /applicaties met kern-velden', async () => {
-    api.applicaties.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem', lifecycle_status: 'migratieklaar', eigenaar_organisatie_naam: 'ICT', hostingmodel: 'saas', migratiepad: 'rehost', complexiteit: 'hoog', prioriteit: 'midden', beschrijving: 'Kernsysteem' })
+  it('applicatie → /componenten met kern-velden (LI059)', async () => {
+    api.componenten.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem', lifecycle_status: 'migratieklaar', eigenaar_organisatie_naam: 'ICT', hostingmodel: 'saas', migratiepad: 'rehost', complexiteit: 'hoog', prioriteit: 'midden', beschrijving: 'Kernsysteem' })
     const { w } = await mountView()
     await w.vm.openNodePopup('a1')
     await flushPromises()
-    expect(api.applicaties.haal).toHaveBeenCalledWith('a1')
+    expect(api.componenten.haal).toHaveBeenCalledWith('a1')
     expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Zaaksysteem')
     expect(veld(w, 'Eigenaar-organisatie')).toBe('ICT')
     expect(veld(w, 'Migratiepad')).toBeTruthy()
@@ -243,7 +243,7 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
 
   it('pre-fill toont meteen node-data terwijl de fetch nog loopt; 403 valt netjes terug', async () => {
     let los
-    api.applicaties.haal.mockReturnValue(new Promise((res) => { los = res }))
+    api.componenten.haal.mockReturnValue(new Promise((res) => { los = res }))
     const { w } = await mountView()
     w.vm.openNodePopup('a1') // niet awaiten: de fetch blijft hangen tot los()
     await flushPromises()
@@ -259,7 +259,7 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
 describe('Landschapskaart — enkele vs. dubbele klik', () => {
   it('enkele klik opent (na drempel) de popup; dubbelklik hercentreert en opent GEEN popup', async () => {
     vi.useFakeTimers()
-    api.applicaties.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem', lifecycle_status: 'migratieklaar' })
+    api.componenten.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem', lifecycle_status: 'migratieklaar' })
     const { w } = await mountView()
 
     // Dubbelklik: twee taps binnen de drempel → geen popup.
@@ -279,7 +279,7 @@ describe('Landschapskaart — enkele vs. dubbele klik', () => {
 
 describe('Landschapskaart — fullscreen-overlay', () => {
   it('toggelt fullscreen-classes en behoudt een open popup; Escape sluit', async () => {
-    api.applicaties.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem' })
+    api.componenten.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem' })
     const { w } = await mountView()
     await w.vm.openNodePopup('a1')
     await flushPromises()
