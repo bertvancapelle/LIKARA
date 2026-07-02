@@ -1,8 +1,9 @@
 """Service — Signalering registratiegaten (ADR-035, Slice 1). Puur read-only afgeleid.
 
-Twee KRITIEKE component-signalen (Slice 1, n≥2):
-- ``component_zonder_eigenaar``        — ``component.eigenaar_organisatie_id IS NULL``
+Drie KRITIEKE component-signalen:
+- ``component_zonder_eigenaar``          — ``component.eigenaar_organisatie_id IS NULL``
 - ``component_zonder_verantwoordelijke`` — geen ``roltoewijzing`` met ``object_id == component``
+- ``biv_classificatie_onvolledig``      — ≥1 van ``biv_{beschikbaarheid,integriteit,vertrouwelijkheid}`` IS NULL (ADR-028)
 
 Engine-invariant (machine-geborgd via de offline import-afwezigheidstest): bewust GEEN import van
 ``lifecycle_service`` / ``herbereken_lifecycle`` / ``bepaal_lifecycle`` / ``ComponentProfiel`` /
@@ -24,6 +25,8 @@ _profiel = table("component_profiel", column("id"), column("tenant_id"), column(
 
 _SIG_EIGENAAR = "component_zonder_eigenaar"
 _SIG_VERANTWOORDELIJKE = "component_zonder_verantwoordelijke"
+# ADR-028 slice 4 — kritiek: BIV pas compleet als B, I én V staan (één-of-meer-leeg = signaal).
+_SIG_BIV = "biv_classificatie_onvolledig"
 # Slice 2 — aandacht-signalen.
 _SIG_GG = "component_zonder_gebruikersgroep"
 _SIG_ISOLATIE = "component_geisoleerd"
@@ -103,6 +106,26 @@ async def component_zonder_verantwoordelijke(session: AsyncSession, tenant_id) -
     return [_item(r, _SIG_VERANTWOORDELIJKE) for r in rijen]
 
 
+def _biv_onvolledig():
+    """Predikaat: minstens één BIV-aspect leeg → classificatie onvolledig (ADR-028)."""
+    return or_(
+        Component.biv_beschikbaarheid.is_(None),
+        Component.biv_integriteit.is_(None),
+        Component.biv_vertrouwelijkheid.is_(None),
+    )
+
+
+async def component_biv_onvolledig(session: AsyncSession, tenant_id) -> list[dict]:
+    """Componenten met een onvolledige BIV-classificatie (≥1 aspect leeg). Read-only.
+
+    Een component telt pas als geclassificeerd wanneer beschikbaarheid, integriteit én
+    vertrouwelijkheid gevuld zijn. Puur registratief — raakt de engine niet."""
+    tid = _tenant_uuid(tenant_id)
+    stmt = _basis_select(tid).where(_biv_onvolledig())
+    rijen = (await session.execute(stmt)).all()
+    return [_item(r, _SIG_BIV) for r in rijen]
+
+
 async def badge_voor_component(session: AsyncSession, tenant_id, component_id: uuid.UUID) -> dict:
     """Badge-info voor één component (Slice 1: de twee kritieke component-signalen). Read-only.
 
@@ -149,6 +172,15 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
             )
         )
     ).first() is None
+    biv_onvolledig = (
+        await session.execute(
+            select(Component.id).where(
+                Component.tenant_id == tid,
+                Component.id == component_id,
+                _biv_onvolledig(),
+            )
+        )
+    ).first() is not None
 
     kritiek: list[str] = []
     aandacht: list[str] = []
@@ -156,6 +188,8 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
         kritiek.append(_SIG_EIGENAAR)
     if geen_rol:
         kritiek.append(_SIG_VERANTWOORDELIJKE)
+    if biv_onvolledig:
+        kritiek.append(_SIG_BIV)
     if geen_gg:
         aandacht.append(_SIG_GG)
     if geisoleerd:
@@ -257,6 +291,7 @@ async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
         "kritiek": {
             _SIG_EIGENAAR: await component_zonder_eigenaar(session, tenant_id),
             _SIG_VERANTWOORDELIJKE: await component_zonder_verantwoordelijke(session, tenant_id),
+            _SIG_BIV: await component_biv_onvolledig(session, tenant_id),
         },
         "aandacht": {
             _SIG_GG: await component_zonder_gebruikersgroep(session, tenant_id),

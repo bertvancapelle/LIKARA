@@ -19,6 +19,8 @@ const GROEPEN = {
   kritiek: [
     { key: 'component_zonder_eigenaar', label: 'Component zonder eigenaar', link: 'component', lc: true },
     { key: 'component_zonder_verantwoordelijke', label: 'Component zonder verantwoordelijke', link: 'component', lc: true },
+    // ADR-028 slice 4 — BIV pas compleet als B, I én V staan.
+    { key: 'biv_classificatie_onvolledig', label: 'BIV-classificatie onvolledig', link: 'component', lc: true },
   ],
   aandacht: [
     { key: 'component_zonder_gebruikersgroep', label: 'Component zonder gebruikersgroep', link: 'component' },

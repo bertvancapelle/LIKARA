@@ -314,3 +314,16 @@ export const REGISTER_FOUT = {
   ZELFVERWIJZING: 'Een component kan geen structuurrelatie met zichzelf hebben.',
   RELATIE_BESTAAT: 'Deze structuurrelatie bestaat al.',
 }
+
+// ADR-035 — leesbare labels per signaaltype (registratiegaten). Gedeelde bron voor de badge-
+// tooltip en (waar gewenst) het centrale scherm. ADR-028 slice 4: `biv_classificatie_onvolledig`.
+export const SIGNAAL_LABEL = {
+  component_zonder_eigenaar: 'Component zonder eigenaar',
+  component_zonder_verantwoordelijke: 'Component zonder verantwoordelijke',
+  biv_classificatie_onvolledig: 'BIV-classificatie onvolledig',
+  component_zonder_gebruikersgroep: 'Component zonder gebruikersgroep',
+  component_geisoleerd: 'Component zonder koppeling (geïsoleerd)',
+  contract_zonder_component: 'Contract zonder gekoppeld component',
+  gebruikersgroep_zonder_organisatie: 'Gebruikersgroep zonder organisatie',
+  object_zonder_roltoewijzing: 'Object zonder roltoewijzing',
+}

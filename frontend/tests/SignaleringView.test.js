@@ -17,6 +17,8 @@ const GATEN = () => ({
   kritiek: {
     component_zonder_eigenaar: [{ id: 'c1', naam: 'Zaaksysteem', lifecycle_status: 'concept' }],
     component_zonder_verantwoordelijke: [],
+    // ADR-028 slice 4 — nieuw kritiek signaal.
+    biv_classificatie_onvolledig: [{ id: 'c3', naam: 'BRP', lifecycle_status: 'in_inventarisatie' }],
   },
   aandacht: {
     component_zonder_gebruikersgroep: [],
@@ -71,6 +73,16 @@ describe('SignaleringView', () => {
     expect(w.find('[data-testid="sig-contract_zonder_component-k1"]').exists()).toBe(true)
     // lege groep rendert geen sectie
     expect(w.find('[data-testid="sig-groep-component_zonder_verantwoordelijke"]').exists()).toBe(false)
+  })
+
+  it('ADR-028: "BIV-classificatie onvolledig" staat in de kritieke sectie met teller + component-doorklik', async () => {
+    const w = await mountView()
+    const groep = w.find('[data-testid="sig-groep-biv_classificatie_onvolledig"]')
+    expect(groep.exists()).toBe(true)
+    expect(groep.text()).toContain('BIV-classificatie onvolledig')
+    expect(groep.text()).toContain('(1)') // teller
+    // doorklik naar het component-detail
+    expect(w.find('[data-testid="sig-biv_classificatie_onvolledig-c3"] a').attributes('href')).toContain('/componenten/c3')
   })
 
   it('contract-link wijst naar contract-detail; gebruikersgroep-rij heeft geen link', async () => {

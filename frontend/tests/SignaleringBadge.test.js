@@ -25,4 +25,16 @@ describe('SignaleringBadge', () => {
     const w = mount(SignaleringBadge, { props: { kritiek: 0, aandacht: 0 } })
     expect(w.find('[data-testid="signalering-badge"]').exists()).toBe(false)
   })
+
+  it('ADR-028: signalen-sleutels → sprekende tooltip met de signaalnamen', () => {
+    const w = mount(SignaleringBadge, {
+      props: { kritiek: 1, aandacht: 0, signalen: ['biv_classificatie_onvolledig'] },
+    })
+    expect(w.find('[data-testid="signalering-badge"]').attributes('title')).toBe('BIV-classificatie onvolledig')
+  })
+
+  it('zonder signalen valt de tooltip terug op de generieke telling', () => {
+    const w = mount(SignaleringBadge, { props: { kritiek: 2, aandacht: 0 } })
+    expect(w.find('[data-testid="signalering-badge"]').attributes('title')).toContain('2 kritiek')
+  })
 })

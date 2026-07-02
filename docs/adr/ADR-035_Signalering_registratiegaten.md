@@ -34,11 +34,12 @@ stelt: "LIKARA stimuleert volledigheid actief." Dit ADR vult die belofte in.
      waar het gat zit (component, contract, gebruikersgroep, blokkade)
    - **Centraal overzicht** — alle openstaande gaten op één plek, prioriteerbaar
 
-3. **Tien signaaltypen in twee niveaus:**
+3. **Elf signaaltypen in twee niveaus** (6 kritiek / 5 aandacht):
 
    🔴 **Kritiek** (governance direct geraakt):
    - Component zonder eigenaar (organisatie)
    - Component zonder verantwoordelijke persoon (rol)
+   - BIV-classificatie onvolledig (≥1 van beschikbaarheid/integriteit/vertrouwelijkheid leeg) — ADR-028 slice 4
    - Registratie onvolledig (score onder drempelwaarde)
    - Contract zonder leverancier
    - Blokkade zonder eigenaar

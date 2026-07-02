@@ -55,7 +55,7 @@ const bezig = ref(false)
 // ADR-022 Fase C: read-only "wat verdwijnt"-samenvatting in de bevestiging.
 const verwijderImpact = ref(null)
 // ADR-035 Slice 1 — registratiegaten-badge (read-only; faalt zacht, geen invloed op de detail-laad).
-const signaleringBadge = ref({ kritiek: 0, aandacht: 0 })
+const signaleringBadge = ref({ kritiek: 0, aandacht: 0, signalen: [] })
 
 async function openVerwijderDialog() {
   verwijderImpact.value = null
@@ -108,7 +108,7 @@ function _toastFout(e) {
 async function laad() {
   laden.value = true
   fout.value = null
-  signaleringBadge.value = { kritiek: 0, aandacht: 0 }
+  signaleringBadge.value = { kritiek: 0, aandacht: 0, signalen: [] }
   try {
     component.value = await api.componenten.haal(props.id)
     // Badge read-only + optioneel: een fout hierin mag de detail-laad niet breken.
@@ -259,7 +259,7 @@ watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immedia
           :value="label(LIFECYCLE, component.lifecycle_status)"
           :severity="LIFECYCLE_SEVERITY[component.lifecycle_status] || 'info'"
         />
-        <SignaleringBadge :kritiek="signaleringBadge.kritiek" :aandacht="signaleringBadge.aandacht" />
+        <SignaleringBadge :kritiek="signaleringBadge.kritiek" :aandacht="signaleringBadge.aandacht" :signalen="signaleringBadge.signalen || []" />
       </div>
 
       <p v-if="isChecklistDragend" data-testid="detail-voortgang" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">
