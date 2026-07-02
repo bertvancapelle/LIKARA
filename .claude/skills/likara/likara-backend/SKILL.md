@@ -525,3 +525,21 @@ projectie** — geen dubbele logica: deel de WHERE, splits de projectie.
 - **Engine-borging bij een module die de engine elders wél raakt** (zoals `contract_service` dat
   `ComponentProfiel` voor `applicaties` importeert): borg de nieuwe read-functie met een **function-
   bronscan met `ast`-docstring-strip** (zie likara-tests) i.p.v. de module-brede import-afwezigheidstest.
+
+## V028-patronen (ADR-028 componentclassificatie — filters + guard-les, geverifieerd)
+
+- **Ordinale drempel-filter (BIV "≥"):** vertaal een catalogus-sleutel naar zijn `volgorde` en
+  vergelijk "aspect-`volgorde` ≥ drempel" via een **correlated subquery** op de catalogus
+  (`select(BivSchaalOptie.volgorde).where(optie_sleutel == kolom).scalar_subquery()`). Een component
+  zónder waarde op dat aspect valt vanzelf weg (`NULL ≥ x` = NULL/false — precies de bedoeling:
+  "geen waarde voldoet niet aan een drempel"). Ongeldige drempel-sleutel → 422 (valideer tegen de
+  actieve catalogus). Multi-select rol-filter = `IN`; onbekende sleutel matcht simpelweg niets.
+- **Guard-les (default-pad byte-identiek) — niet-onderhandelbaar:** bouw een filter-clause/-blok
+  **uitsluitend achter `if (param)`**. Een **onvoorwaardelijk** opgebouwd filterblok op het
+  default-pad (bv. een `dict`/lijst met kolom-attributen als keys, óók als het niet in de query
+  landt) kan het **statement-cache-/sorteergedrag** verstoren → intermitterende sorteertest-flakiness
+  (deze sessie waargenomen; asc/desc-richting flipte). **Diagnose-recept:** `git stash` de wijziging
+  → vergelijk N runs stashed vs. mét-wijziging → guard het blok → hertest tot stabiel. Geen
+  filter-constructie zonder actieve filter.
+- **Additief opties-endpoint:** breid een bestaand `/opties`-endpoint read-only uit (rol-opties +
+  ordinale BIV-niveaus) zonder contractbreuk; response-model met defaults `[]`.

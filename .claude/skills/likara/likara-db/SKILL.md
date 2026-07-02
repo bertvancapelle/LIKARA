@@ -424,3 +424,17 @@ Er is **uitsluitend testdata**, geen productiedata. Daaruit volgt:
   (offline `hasattr`-import-afwezigheidstest) + een live test bewijst dat een statuswissel de
   `lifecycle_status` niet muteert. Geen schema-migratie nodig om er later read-only tellingen
   (dashboard) of een lijstfilter op te bouwen — dat is puur een join op bestaande kolommen.
+
+## V028-patronen (ADR-028 componentclassificatie — additieve catalogi + kolommen, geverifieerd)
+
+- **Twee single-purpose platform-catalogi** (`componentrol_optie`, `biv_schaal_optie`): zelfde vorm
+  als `partijsoort_optie` (id-PK, `optie_sleutel String(60)` UNIQUE, `label`, `volgorde`, `actief`;
+  GEEN RLS/tenant_id). Grants exact als `componentconfig_optie` (REVOKE ALL FROM lk_app; GRANT SELECT
+  lk_app; GRANT S/I/U lk_platform + sequence USAGE/SELECT; **geen DELETE**). Migratie zaait byte-gelijk
+  aan de `seed_*`-functie (idempotent `ON CONFLICT (optie_sleutel) DO NOTHING`); platform_init zaait
+  dezelfde stand. De BIV-schaal is **ordinaal via `volgorde`** — de rangdrager voor "≥"-filtering.
+- **Vier additieve component-kolommen** (migratie 0048): `componentrol` **NOT NULL,
+  server_default `'interne_applicatie'`** (bestaande rijen vullen zich vanzelf; geen datamigratie) +
+  drie **nullable** BIV-sleutel-kolommen (`String(60)`). App-side gevalideerd tegen de catalogi.
+- **Geen reseed nodig voor read-/frontend-slices** die alleen bestaande kolommen lezen; alleen de
+  schema-slice (nieuwe tabellen/kolommen) vereist een verse reseed.

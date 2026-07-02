@@ -74,6 +74,30 @@ maar uit de `componentconfig_optie`-catalogus (kolommen `archimate_element`, `la
   zinvolle mapping.
 - **RBAC**: typing bewerken = platformbeheerder (`PlatformEntiteit.COMPONENTCONFIG`).
 
+### Componenttype-set (LI060, V028 — 8 typen)
+
+`applicatie` (application_component/application) · `database` (system_software/technology) ·
+`server_compute` (node/technology; was `applicatieserver`) · `client_software`
+(system_software/technology) · `saas_dienst` (application_component/application) ·
+`integratievoorziening` (**system_software/technology** — eigen bindweefsel/ESB; was `middleware`) ·
+`fileshare` (node/technology) · `landelijke_voorziening` (**application_service/application** —
+extern afgenomen). **`checklist_dragend=True`** (krijgt profiel + ≥1 tenant-startvraag) voor:
+`applicatie`, `database`, `server_compute`, `integratievoorziening`, `landelijke_voorziening`;
+`client_software`/`saas_dienst`/`fileshare` = False. Startvragen leven in de tenant-checklist-
+baseline (`seed.py`), niet platform-breed.
+
+### Componentclassificatie (ADR-028, V028 — instance-eigenschap, engine onaangeroerd)
+
+Twee registratieve labels op **elk** component, los van het type (puur registratief; voedt de
+engine NIET):
+- **`componentrol`** — `String(60)`, **NOT NULL, server_default `interne_applicatie`**,
+  app-gevalideerd tegen `componentrol_optie` (intern / interne_dataprovider / externe_dataprovider /
+  koppelvlak). Elk component heeft altijd een rol (geen lege staat, geen rol-registratiegat).
+- **`biv_beschikbaarheid` / `biv_integriteit` / `biv_vertrouwelijkheid`** — `String(60)`, **nullable**
+  (leeg = registratiegat), app-gevalideerd tegen `biv_schaal_optie` (ordinaal via `volgorde`).
+- Read geeft rol + BIV + labels terug (labelresolutie ook voor gedeactiveerde sleutels).
+  Migratie 0048 additief; geen datamigratie.
+
 ### Wanneer een nieuw element-subtype?
 
 Alleen bij **type-eigen velden**. Een "kaal" type (alleen naam + ArchiMate-typing)
@@ -298,7 +322,15 @@ Alle andere catalogi zijn platform-breed. Dit is niet-onderhandelbaar.
 | Vraagbetekenis | `vraagbetekenis_optie` | Nee | Platformbeheerder | Betekenis-marker op checklistvraag |
 | Componentconfig | `componentconfig_optie` | Nee | Platformbeheerder | Componenttype-definitie incl. ArchiMate-typing |
 | Contractconfig | `contractconfig_optie` | Nee | Platformbeheerder | Contract-attributen (dekking, kostenmodel) |
+| Componentrol (ADR-028) | `componentrol_optie` | Nee | Platformbeheerder | Rol van een component (systeem-sleutel `interne_applicatie`) |
+| BIV-schaal (ADR-028) | `biv_schaal_optie` | Nee | Platformbeheerder | Gevoeligheidsschaal B/I/V — **ordinaal via `volgorde`** |
 | Checklistvraag | `checklistvraag`, `checklistvraag_optie` | Ja | Per tenant (kopie bij onboarding) | Beoordelingsvragen per componenttype |
+
+**ADR-028 (V028):** `componentrol_optie` + `biv_schaal_optie` zijn **single-purpose** (geen
+dimensie-discriminator; spiegel van `partijsoort_optie`). Grants exact als de andere platform-
+catalogi (lk_app SELECT; lk_platform S/I/U, géén DELETE). RBAC: `PlatformEntiteit.COMPONENTROLCONFIG`
++ `BIVSCHAALCONFIG` (beheerder LAW, operator L). Beide op `AUDIT_PLATFORM_ENTITEITEN`. De BIV-schaal
+is uitbreidbaar door de platformbeheerder; nieuwe niveaus krijgen hun rang via `volgorde`.
 
 ### Grants (platform-catalogi, alle gelijk)
 `lk_app` = SELECT only (validatie).
@@ -440,7 +472,16 @@ hebben. Ze raken de engine nooit.
 
 ### LandschapsNode
 `id, naam, element_type, laag, archimate_element, lifecycle_status, soort, domein,
-leverancier_naam, hosting_model, blokkades_open, plateau_naam, plateau_dispositie`
+leverancier_naam, hosting_model, blokkades_open, plateau_naam, plateau_dispositie` +
+(ADR-028) `componentrol, biv_beschikbaarheid, biv_integriteit, biv_vertrouwelijkheid`
+(read-only afgeleid; None op context-nodes).
+
+**Rol/BIV-filter (ADR-028, client-side):** rol (multi-select → alleen componenten mét die rol vallen
+weg) + BIV per aspect (**drempel op de ordinale `volgorde`** uit `biv_niveaus`; een component zónder
+waarde valt weg bij een drempel). **Filter-exemptie:** rol/BIV gelden UITSLUITEND voor nodes mét een
+`componentrol` — context-nodes (partij/contract/gebruikersgroep, incl. org-partijen in appNodes) zijn
+altijd exempt. **Randbehandeling:** `node[rol="externe_dataprovider"]` → gestippelde rand (géén nieuwe
+vulkleur; vorm=type, vulkleur=lifecycle blijven) + legenda-entry.
 
 ### LandschapsEdge
 `bron_id, doel_id, relatietype, label, ring, richting, protocol`
@@ -496,14 +537,17 @@ hasattr-test + bronscan-test.
   platform-breed/gedeeld, RBAC is één platform-brede matrix. RLS blijft technisch fundament,
   geen ontwerponderwerp tot er echt meerdere tenants zijn.
 
-## Signalering — registratiegaten (ADR-035, V024)
+## Signalering — registratiegaten (ADR-035, V024; +BIV V028)
 
-Tien signaaltypen op entiteiten in het domeinmodel. Puur read-only afgeleid.
+Elf signaaltypen (6 kritiek / 5 aandacht) op entiteiten in het domeinmodel. Puur read-only afgeleid.
+Nieuw signaal wordt config-gedreven in `SignaleringView.GROEPEN` gerenderd; de per-component
+`SignaleringBadge` toont via de optionele `signalen`-prop een sprekende tooltip (`SIGNAAL_LABEL`).
 
 | Signaal | Bron | Ernst |
 |---|---|---|
 | Component zonder eigenaar (organisatie) | `eigenaar_organisatie_id IS NULL` | 🔴 Kritiek |
 | Component zonder verantwoordelijke (rol) | geen `roltoewijzing` op component | 🔴 Kritiek |
+| BIV-classificatie onvolledig (ADR-028) | ≥1 van `biv_{beschikbaarheid,integriteit,vertrouwelijkheid}` IS NULL | 🔴 Kritiek |
 | Registratie onvolledig | score onder tenant-drempelwaarde | 🔴 Kritiek |
 | Contract zonder leverancier | `leverancier_id IS NULL` | 🔴 Kritiek |
 | Blokkade zonder eigenaar | geen roltoewijzing op blokkade | 🔴 Kritiek |

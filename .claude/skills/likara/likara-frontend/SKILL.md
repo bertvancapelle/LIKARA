@@ -948,3 +948,28 @@ In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landsch
 - Contract/infra/persoon/externe partij: altijd zichtbaar
 - Application-componenten: NOOIT weggefilterd in subgraaf-modus (de set IS de scope)
 "Biedt aan/Gebruikt"-toggle: v-if="actieveSet.size === 0" (alleen hele-landschap)
+
+## V028-patronen (ADR-028 componentclassificatie — rol + BIV, geverifieerd)
+
+- **Rol/BIV in het componentformulier**: rol = native `<select>` (4 opties, catalogus-gedreven —
+  OP-24-drempel geldt, géén ZoekSelect nu; default voorgeselecteerd op `interne_applicatie`). BIV =
+  gegroepeerd `<fieldset>` met drie native `<select>`s (Beschikbaarheid/Integriteit/Vertrouwelijkheid),
+  elk met eerste optie **"— Niet geclassificeerd —"** (leeg → payload `null`). Opties + niveaus komen
+  additief uit `GET /componenten/opties` (`componentrol_opties`, `biv_niveaus` — ordinaal).
+  Code-gebaseerde 422 (`ONGELDIGE_ROL`/`ONGELDIGE_BIV`) mapt op het juiste veld.
+- **Detail**: rol + BIV in het `<dl>`; leeg BIV-aspect toont expliciet **"Niet geclassificeerd"**
+  (geen leeg vakje).
+- **Twee catalogus-beheerschermen** (`RolConfigBeheer`/`BivConfigBeheer`, platform-shell): gespiegeld
+  op `ComponentConfigBeheer`. Rol: `interne_applicatie` beschermd (Systeem-Tag i.p.v. deactiveer-knop;
+  422 `SYSTEEM_SLEUTEL_BESCHERMD` afvangen). BIV: `volgorde` zichtbaar/beheerbaar (ordinaal — nieuw
+  niveau als "Zeer hoog" krijgt zijn plek via `volgorde`). Named routes in **beide** relevante routers
+  registreren (mount-gotcha).
+- **Componentlijst server-side filter**: rol (multi → herhaalde `componentrol`-param) + BIV per aspect
+  (`biv_*_min`, drempel op de ordinale `volgorde`). **API-client-filterconventie blijft
+  niet-onderhandelbaar**: elke param zowel in de `lijst`-aanroep als in de `_filterQuery`-allowlist
+  (snake_case, exact = backend); een typo (bv. `biv_vertrouwelijkheid` zonder `_min`) faalt LUID.
+- **Landschapskaart-filter**: rol/BIV met de **filter-exemptie-regel** — rol/BIV gelden uitsluitend
+  voor nodes mét `componentrol`; context-nodes altijd exempt. Rand + legenda voor `externe_dataprovider`
+  (géén nieuwe vulkleur). BIV-drempel client-side op de ordinale positie uit `biv_niveaus`.
+- **SignaleringBadge**: optionele `signalen`-prop (sleutels) → sprekende tooltip via de gedeelde
+  `SIGNAAL_LABEL`-map (labels.js); zonder `signalen` valt hij terug op de generieke telling.

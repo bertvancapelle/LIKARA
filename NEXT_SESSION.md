@@ -1,30 +1,36 @@
-# LIKARA — Next Session (V028)
+# LIKARA — Next Session (V029)
 
-> **Sessie LI059 (V028):** component-focus-herfundering **volledig afgerond** — `component` is de
-> enige bron in data/API/RBAC/audit.
-> - **Slice 3 (LI059, migratie 0047):** `applicatie`-subtabel gedropt; `applicatie_service` als dunne
->   facade over `component`; dual-write weg; byte-compat behouden. (`03360ea`)
-> - **Slice 4:** frontend-cutover — één `ComponentFormulier` (3 transitie-velden voor élk type) + één
->   rijk `ComponentDetail` (tab-IA, conditioneel); `ApplicatieFormulier`/`ApplicatieDetail` geretireerd;
->   `/applicaties*`-routes → redirects. (`6fa655e`)
-> - **FacadeOpruiming:** volledige purge — `routes/applicatie.py`/`schemas/applicatie.py`/
->   `applicatie_service.py` + `api.applicaties` verwijderd; `Entiteit.APPLICATIE`/audit-allowlist/
->   objecthistorie-tak weg (RBAC-matrix 23→22); validators → `schemas/_validators.py`; creatie-kern →
->   `component_service`. (`1c40814`)
-> - **Slice 5:** ADR-021/022 slotsecties "Eindstaat" + register + `likara-domeinmodel §1` bijgetrokken.
+> **Sessie LI060 + ADR-028 (V029):** componenttype-catalogus uitgebreid (8 typen, 3 extra
+> beoordeelbaar) én **componentclassificatie (ADR-028) end-to-end** — rol + BIV door data/API/
+> beheer/formulier/detail/lijst/kaart/signalering.
+> - **LI060 (`7c36b33`):** 8 componenttypen; `applicatieserver`→`server_compute`,
+>   `middleware`→`integratievoorziening` (system_software/technology), nieuw `landelijke_voorziening`.
+> - **ADR-028 slices 1–4** (`d61bddf`, `939dbf2`, `131b674`, `b351b59`): 2 platform-catalogi
+>   (`componentrol_optie`, `biv_schaal_optie`) + 4 component-kolommen (migratie 0048); beheerschermen;
+>   rol/BIV in formulier/detail/lijst/kaart (drempel op `volgorde`, filter-exemptie, rand voor
+>   externe dataprovider); kritiek signaal "BIV-classificatie onvolledig" (signalering nu 11 typen).
+> - **ADR-036 (nieuw, functioneel besloten — bouw uitgesteld):** organisatiegebruik van applicaties.
 >
-> Laatste commit: `1c40814`. Tests: backend **865/0** (2 skipped) · frontend **717**. Migratie-head **0047**.
+> Laatste commit: `b351b59`. Tests: backend **898/0** (2 skipped) · frontend **742**. Migratie-head **0048**.
 
 ## Top-5 prioriteiten (volgende sessie)
 
-1. **Componenttype-catalogus uitbreiden** (config, ADR-026 ArchiMate-typering): integratie-/
-   koppelvoorziening, landelijke voorziening/basisregistratie, server/compute; **consolidatie**
-   `applicatieserver`+`middleware` → systeemsoftware/middleware. Daarna beoordeelbare typen ná
-   database aanzetten (fileshare → SaaS-dienst; Bert vult de vragen in de UI).
+1. **ADR-036 bouwen** — organisatiegebruik (grof "organisatie gebruikt applicatie"-feit +
+   gebruikersgroep als fijne verfijning + read-only signaal "detaillering ontbreekt"). Schema-rakend,
+   meerdere gate-slices; **design-checkpoint first** (open bouwknopen in `docs/adr/ADR-036`).
 
-2. **Render-/orkestratielaag Impact-verkenner herbouwen** (ná component-focus) — één deterministische
-   render-eigenaar, géén cascade, met **echte** render-verificatie (headless-cytoscape/e2e) i.p.v.
-   mocks. De mislukte LI054/LI055-render-patches zijn nooit gecommit (schone basis).
+2. **GebruikersgroepDetail + BlokkadeDetail** — **ná** ADR-036 (de groep-pagina hangt aan de nieuwe
+   betekenislaag); grounding is gedaan. BlokkadeDetail-restpunten: detail-read verrijken met herkomst;
+   eigenaar = vrij tekstveld (geen structurele verantwoordelijke); `objecthistorie._TYPES` uitbreiden
+   met gebruikersgroep + blokkade voor het 'i'-paneel.
+
+3. **Render-/orkestratielaag Impact-verkenner herbouwen** — één deterministische render-eigenaar, géén
+   cascade, met **echte** render-verificatie (headless-cytoscape/e2e) i.p.v. mocks. Zwaarste item; verse
+   sessie. (Los test-hygiëne: ~30 Cytoscape-mock-consoleruis meenemen.)
+
+4. **ADR-035 slice 3** — configureerbare score-drempel voor "Registratie onvolledig".
+
+5. **Componenttype-vervolg / dode-code-opschoning.**
 
 ## Openstaande punten (volledig)
 

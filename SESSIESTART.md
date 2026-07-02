@@ -1,4 +1,4 @@
-# SESSIESTART — LIKARA V028
+# SESSIESTART — LIKARA V029
 
 **Datum**: 2026-07-02
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle likara-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V028 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V029 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,7 +40,7 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V028
+# SESSIE_BRIEFING.md — LIKARA V029
 
 **Gegenereerd**: 2026-07-02
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V028 |
+| Build | V029 |
 | Datum | July 2026 |
-| Commit | 1c40814 |
-| Tests | backend 865/2/0, frontend 717/717 |
-| TST-rapport | TST-V028-Validatierapport.md |
+| Commit | b351b59 |
+| Tests | backend 898/2/0, frontend 742/742 |
+| TST-rapport | TST-V029-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,44 +64,50 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
-1c40814 refactor(backend): LI059 FacadeOpruiming — applicatie-facade volledig verwijderd, component = enige bron
-6fa655e feat(frontend): LI059 Slice 4 — frontend-cutover naar één componentbeleving
-03360ea refactor(datamodel): LI059 Slice 3 — applicatie-subtabel opgeheven, component = enige bron
-ca97cf6 chore(release): sessie-afsluiting V027 — component-focus Slice 1+2 (LI057/LI058)
-73413d7 feat(engine): LI058 Slice 2 — scoring per type activeren + profiel-backfill bij togglen
+b351b59 feat: ADR-028 slice 4 — kritiek signaal "BIV-classificatie onvolledig"
+131b674 feat: ADR-028 slice 3 — rol/BIV-filter in lijst + kaart + rand externe dataprovider
+939dbf2 feat(frontend): ADR-028 slice 2 — componentrol + BIV in formulier/detail + twee beheerschermen
+d61bddf feat(datamodel): ADR-028 slice 1 — componentclassificatie (componentrol + BIV)
+7c36b33 feat(datamodel): LI060 — componenttype-catalogus 8 typen + drie typen beoordeelbaar
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# LIKARA — Next Session (V028)
+# LIKARA — Next Session (V029)
 
-> **Sessie LI059 (V028):** component-focus-herfundering **volledig afgerond** — `component` is de
-> enige bron in data/API/RBAC/audit.
-> - **Slice 3 (LI059, migratie 0047):** `applicatie`-subtabel gedropt; `applicatie_service` als dunne
->   facade over `component`; dual-write weg; byte-compat behouden. (`03360ea`)
-> - **Slice 4:** frontend-cutover — één `ComponentFormulier` (3 transitie-velden voor élk type) + één
->   rijk `ComponentDetail` (tab-IA, conditioneel); `ApplicatieFormulier`/`ApplicatieDetail` geretireerd;
->   `/applicaties*`-routes → redirects. (`6fa655e`)
-> - **FacadeOpruiming:** volledige purge — `routes/applicatie.py`/`schemas/applicatie.py`/
->   `applicatie_service.py` + `api.applicaties` verwijderd; `Entiteit.APPLICATIE`/audit-allowlist/
->   objecthistorie-tak weg (RBAC-matrix 23→22); validators → `schemas/_validators.py`; creatie-kern →
->   `component_service`. (`1c40814`)
-> - **Slice 5:** ADR-021/022 slotsecties "Eindstaat" + register + `likara-domeinmodel §1` bijgetrokken.
+> **Sessie LI060 + ADR-028 (V029):** componenttype-catalogus uitgebreid (8 typen, 3 extra
+> beoordeelbaar) én **componentclassificatie (ADR-028) end-to-end** — rol + BIV door data/API/
+> beheer/formulier/detail/lijst/kaart/signalering.
+> - **LI060 (`7c36b33`):** 8 componenttypen; `applicatieserver`→`server_compute`,
+>   `middleware`→`integratievoorziening` (system_software/technology), nieuw `landelijke_voorziening`.
+> - **ADR-028 slices 1–4** (`d61bddf`, `939dbf2`, `131b674`, `b351b59`): 2 platform-catalogi
+>   (`componentrol_optie`, `biv_schaal_optie`) + 4 component-kolommen (migratie 0048); beheerschermen;
+>   rol/BIV in formulier/detail/lijst/kaart (drempel op `volgorde`, filter-exemptie, rand voor
+>   externe dataprovider); kritiek signaal "BIV-classificatie onvolledig" (signalering nu 11 typen).
+> - **ADR-036 (nieuw, functioneel besloten — bouw uitgesteld):** organisatiegebruik van applicaties.
 >
-> Laatste commit: `1c40814`. Tests: backend **865/0** (2 skipped) · frontend **717**. Migratie-head **0047**.
+> Laatste commit: `b351b59`. Tests: backend **898/0** (2 skipped) · frontend **742**. Migratie-head **0048**.
 
 ## Top-5 prioriteiten (volgende sessie)
 
-1. **Componenttype-catalogus uitbreiden** (config, ADR-026 ArchiMate-typering): integratie-/
-   koppelvoorziening, landelijke voorziening/basisregistratie, server/compute; **consolidatie**
-   `applicatieserver`+`middleware` → systeemsoftware/middleware. Daarna beoordeelbare typen ná
-   database aanzetten (fileshare → SaaS-dienst; Bert vult de vragen in de UI).
+1. **ADR-036 bouwen** — organisatiegebruik (grof "organisatie gebruikt applicatie"-feit +
+   gebruikersgroep als fijne verfijning + read-only signaal "detaillering ontbreekt"). Schema-rakend,
+   meerdere gate-slices; **design-checkpoint first** (open bouwknopen in `docs/adr/ADR-036`).
 
-2. **Render-/orkestratielaag Impact-verkenner herbouwen** (ná component-focus) — één deterministische
-   render-eigenaar, géén cascade, met **echte** render-verificatie (headless-cytoscape/e2e) i.p.v.
-   mocks. De mislukte LI054/LI055-render-patches zijn nooit gecommit (schone basis).
+2. **GebruikersgroepDetail + BlokkadeDetail** — **ná** ADR-036 (de groep-pagina hangt aan de nieuwe
+   betekenislaag); grounding is gedaan. BlokkadeDetail-restpunten: detail-read verrijken met herkomst;
+   eigenaar = vrij tekstveld (geen structurele verantwoordelijke); `objecthistorie._TYPES` uitbreiden
+   met gebruikersgroep + blokkade voor het 'i'-paneel.
+
+3. **Render-/orkestratielaag Impact-verkenner herbouwen** — één deterministische render-eigenaar, géén
+   cascade, met **echte** render-verificatie (headless-cytoscape/e2e) i.p.v. mocks. Zwaarste item; verse
+   sessie. (Los test-hygiëne: ~30 Cytoscape-mock-consoleruis meenemen.)
+
+4. **ADR-035 slice 3** — configureerbare score-drempel voor "Registratie onvolledig".
+
+5. **Componenttype-vervolg / dode-code-opschoning.**
 
 ## Openstaande punten (volledig)
 
@@ -143,6 +149,6 @@ ca97cf6 chore(release): sessie-afsluiting V027 — component-focus Slice 1+2 (LI
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V028"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V029"
 4. Wacht op START: [naam] van Bert
 

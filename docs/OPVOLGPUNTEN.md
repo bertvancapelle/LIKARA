@@ -7,6 +7,47 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V029 (sessie-afsluiting LI060 + ADR-028, 2026-07-02)
+
+Build **V028 → V029**. Componenttype-catalogus uitgebreid (top-5 #1 geland) én
+**componentclassificatie (ADR-028) end-to-end** — rol + BIV door data/API/beheer/formulier/
+detail/lijst/kaart/signalering.
+
+**Geland:**
+- **LI060 (`7c36b33`):** componenttype-catalogus **8 typen** — `applicatieserver`→`server_compute`,
+  `middleware`→`integratievoorziening` (nu system_software/technology), nieuw `landelijke_voorziening`;
+  drie extra beoordeelbaar (elk 1 tenant-startvraag). Geen migratie (seed = single source; reseed).
+- **ADR-028 slice 1 (0048, `d61bddf`):** schema-fundament — 2 platform-catalogi (`componentrol_optie`,
+  `biv_schaal_optie`) + 4 component-kolommen (rol NOT NULL default `interne_applicatie`; 3× BIV nullable)
+  + RBAC (2 `PlatformEntiteit`) + audit. Engine-borging dubbel.
+- **ADR-028 slice 2 (`939dbf2`):** componentformulier + detail (rol + BIV) + `RolConfigBeheer`/
+  `BivConfigBeheer` + additief `/componenten/opties` (rol-opties + ordinale BIV-niveaus).
+- **ADR-028 slice 3 (`131b674`):** rol/BIV-filter in lijst (server-side, drempel op `volgorde`) + kaart
+  (client-side, filter-exemptie context-nodes) + gestippelde rand voor `externe_dataprovider`.
+- **ADR-028 slice 4 (`b351b59`):** kritiek signaal "BIV-classificatie onvolledig" (≥1 BIV-veld leeg) —
+  signalering nu **11 signaaltypen** (6 kritiek / 5 aandacht). ADR-035 bijgewerkt.
+
+**ADR-036 (nieuw — functioneel besloten, bouw uitgesteld):** organisatiegebruik van applicaties —
+grof "organisatie gebruikt applicatie"-feit + de gebruikersgroep als fijne verfijning (identiteit =
+afdeling + organisatie) + read-only signaal "gebruik bekend, detaillering ontbreekt". Schema-rakend,
+meerdere gate-slices; **design-checkpoint first** (open bouwknopen in `docs/adr/ADR-036`).
+
+**Detailpagina's (gebruikersgroep + blokkade) — grounding gedaan, geparkeerd tot ADR-036 beslist**
+(de groep-pagina hangt aan de nieuwe betekenislaag). BlokkadeDetail-restpunten: detail-read
+(`BlokkadeRead`) verrijken met **herkomst** (checklist-item `vraag_code`/`vraag`/score — zit nu alleen
+in het lijst-/overzicht-item); **eigenaar = vrij tekstveld** (bestaat + bewerkbaar; géén structurele/
+roltoewijzing-afgeleide verantwoordelijke — dat is geparkeerd); **objecthistorie-route-allowlist
+(`objecthistorie._TYPES`) uitbreiden** met `gebruikersgroep` + `blokkade` voor het 'i'-paneel
+(audit-data bestaat al; alleen de route-allowlist + `haal_op`-resolutie ontbreekt).
+
+**Nog open (ongewijzigd):** Impact-verkenner render-herbouw (top-5, echte cytoscape-render); ADR-035
+Slice 3 (configureerbare score-drempel); ADR-029 Fase 5; ADR-023 Fase F-rest; OP-30. **Test-hygiëne:**
+~30 Cytoscape-mock-consoleruis in `LandschapskaartView.test.js` (geen falende test) — bij render-herbouw.
+
+Tests: backend **898/0** (2 skipped) · frontend **742**. Migratie-head **0048**.
+
+---
+
 ### Stand V028 (sessie-afsluiting LI059, 2026-07-02)
 
 Build **V027 → V028**. Component-focus-herfundering **volledig afgerond** — `component` is de enige
