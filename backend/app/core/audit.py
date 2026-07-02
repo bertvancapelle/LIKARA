@@ -76,6 +76,8 @@ AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "tenant", "componentconfig_optie", "contractconfig_optie",
     # ADR-023 Fase E — relatie-kenmerk-vocabulaire-catalogus (platform-breed beheer).
     "relatiekenmerk_optie",
+    # ADR-028 — componentclassificatie-catalogi (platform-breed beheer).
+    "componentrol_optie", "biv_schaal_optie",
 })
 
 # Altijd systeem-afgeleid (Besluit 1): lifecycle leeft alleen als afgeleide → `derive`.

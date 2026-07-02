@@ -1,12 +1,36 @@
 # ADR-028 — Componentclassificatie: componentrol en BIV-classificatie
 
-**Status:** Voorstel (geparkeerd — te bouwen na ADR-027)
-**Datum:** 2026-06-19
+**Status:** Aanvaard — slice 1 (schema-fundament) gebouwd op 2026-07-02.
+**Datum:** 2026-06-19 (voorstel) · 2026-07-02 (besliste knopen + slice 1)
 **Relatie:** Bouwt voort op ADR-023 (componentmodel), ADR-026
 (componenttype-typering). Voegt twee instance-eigenschappen toe
 aan het component, los van het componenttype.
 **Invariant (ongewijzigd):** score blijft de enige lifecycle-driver —
 de engine wordt niet geraakt. Classificatie is puur registratief.
+
+## Besliste knopen (2026-07-02 — wijken bewust af van het oorspronkelijke voorstel)
+
+Bij de bouw zijn de open subknopen doorgehakt; deze beslissingen zijn LEIDEND en
+overschrijven de tekst hieronder waar die afwijkt:
+
+1. **Componentrol = platform-brede, beheerbare catalogus** (`componentrol_optie`,
+   spiegel van `partijsoort_optie`/`componentconfig_optie`), NIET een vaste enum in
+   code. Startset (4): `interne_applicatie` (beschermde systeem-sleutel + default) ·
+   `interne_dataprovider` · `externe_dataprovider` · `koppelvlak`. Uitbreidbaar door de
+   platformbeheerder (soft-deactivate, geen hard delete).
+2. **BIV-schaal = platform-brede, beheerbare catalogus** (`biv_schaal_optie`), NIET
+   tenant-scoped. Startset (3): `laag`/`midden`/`hoog`, **ordinaal via `volgorde`**
+   (0<1<2) zodat "hoog en hoger"-filtering op `volgorde` vergelijkt. Uitbreidbaar naar
+   vijf punten, alléén door de platformbeheerder.
+3. **Componentrol = NOT NULL + server_default `interne_applicatie`** op het component
+   (geen lege staat, geen rol-registratiegat). De drie BIV-velden zijn **nullable**
+   (optioneel; leeg = het registratiegat dat de signalering zichtbaar maakt).
+4. **Landschapskaart:** rol krijgt een **randbehandeling** voor niet-interne rollen
+   (geen nieuwe vulkleur; vorm=type, vulkleur=lifecycle blijven). **Geen BIV-kleuraccent**
+   — BIV is uitsluitend filter. Rol én BIV zijn filterbaar in componentlijst + kaart.
+5. **RBAC:** twee platform-entiteiten (`componentrolconfig`, `bivschaalconfig`) —
+   beheerder LAW, operator L, geen V. **Audit:** de twee catalogus-tabellen op de
+   platform-allowlist; de vier component-kolommen lopen via het bestaande component-spoor.
 
 ---
 

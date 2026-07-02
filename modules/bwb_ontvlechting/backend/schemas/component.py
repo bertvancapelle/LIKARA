@@ -12,7 +12,10 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from models.models import HostingModel, LifecycleStatus, Migratiepad, NiveauEnum
-from schemas._validators import _verplichte_tekst
+from schemas._validators import _optionele_tekst, _verplichte_tekst
+
+# ADR-028 — de beschermde default-componentrol (systeem-sleutel in `componentrol_optie`).
+_DEFAULT_ROL = "interne_applicatie"
 
 
 class ComponentSorteerveld(str, Enum):
@@ -55,6 +58,12 @@ class ComponentCreate(BaseModel):
     migratiepad: Migratiepad = Migratiepad.onbekend
     complexiteit: NiveauEnum = NiveauEnum.midden
     prioriteit: NiveauEnum = NiveauEnum.midden
+    # ADR-028 — componentclassificatie (app-side gevalideerd tegen de actieve catalogi in de
+    # service). `componentrol` heeft de beschermde default; de drie BIV-velden zijn optioneel.
+    componentrol: str = _DEFAULT_ROL
+    biv_beschikbaarheid: str | None = None
+    biv_integriteit: str | None = None
+    biv_vertrouwelijkheid: str | None = None
 
     @field_validator("naam")
     @classmethod
@@ -65,6 +74,16 @@ class ComponentCreate(BaseModel):
     @classmethod
     def _v_type(cls, v: str) -> str:
         return _verplichte_tekst(v, "componenttype", 60)
+
+    @field_validator("componentrol")
+    @classmethod
+    def _v_rol(cls, v: str) -> str:
+        return _verplichte_tekst(v, "componentrol", 60)
+
+    @field_validator("biv_beschikbaarheid", "biv_integriteit", "biv_vertrouwelijkheid")
+    @classmethod
+    def _v_biv(cls, v: str | None) -> str | None:
+        return _optionele_tekst(v, 60)
 
 
 class ComponentUpdate(BaseModel):
@@ -79,6 +98,12 @@ class ComponentUpdate(BaseModel):
     migratiepad: Migratiepad | None = None
     complexiteit: NiveauEnum | None = None
     prioriteit: NiveauEnum | None = None
+    # ADR-028 — componentclassificatie (PATCH). `componentrol` blijft NOT NULL: None = "niet
+    # meegegeven" (ongewijzigd), nooit gewist. Een BIV-veld mag wél expliciet op null (registratiegat).
+    componentrol: str | None = None
+    biv_beschikbaarheid: str | None = None
+    biv_integriteit: str | None = None
+    biv_vertrouwelijkheid: str | None = None
 
     @field_validator("naam")
     @classmethod
@@ -89,6 +114,16 @@ class ComponentUpdate(BaseModel):
     @classmethod
     def _v_type(cls, v: str | None) -> str | None:
         return v if v is None else _verplichte_tekst(v, "componenttype", 60)
+
+    @field_validator("componentrol")
+    @classmethod
+    def _v_rol(cls, v: str | None) -> str | None:
+        return v if v is None else _verplichte_tekst(v, "componentrol", 60)
+
+    @field_validator("biv_beschikbaarheid", "biv_integriteit", "biv_vertrouwelijkheid")
+    @classmethod
+    def _v_biv(cls, v: str | None) -> str | None:
+        return _optionele_tekst(v, 60)
 
 
 class ComponentRead(BaseModel):
@@ -105,6 +140,16 @@ class ComponentRead(BaseModel):
     migratiepad: Migratiepad
     complexiteit: NiveauEnum
     prioriteit: NiveauEnum
+    # ADR-028 — componentclassificatie (registratief): rol (+ label) en de drie BIV-velden
+    # (+ labels; null als niet geregistreerd). Labels resolven ook gedeactiveerde sleutels.
+    componentrol: str
+    rol_label: str
+    biv_beschikbaarheid: str | None = None
+    biv_beschikbaarheid_label: str | None = None
+    biv_integriteit: str | None = None
+    biv_integriteit_label: str | None = None
+    biv_vertrouwelijkheid: str | None = None
+    biv_vertrouwelijkheid_label: str | None = None
     heeft_applicatie_subtype: bool
     # ADR-023 Fase C: ArchiMate-typing uit de catalogus (read-only projectie) — laag-label
     # op het detail; null als het type geen mapping draagt.
@@ -150,6 +195,15 @@ class ComponentLijstItem(BaseModel):
     migratiepad: Migratiepad
     complexiteit: NiveauEnum
     prioriteit: NiveauEnum
+    # ADR-028 — componentclassificatie (registratief): rol + BIV (+ labels).
+    componentrol: str
+    rol_label: str
+    biv_beschikbaarheid: str | None = None
+    biv_beschikbaarheid_label: str | None = None
+    biv_integriteit: str | None = None
+    biv_integriteit_label: str | None = None
+    biv_vertrouwelijkheid: str | None = None
+    biv_vertrouwelijkheid_label: str | None = None
     lifecycle_status: LifecycleStatus | None = None
 
 

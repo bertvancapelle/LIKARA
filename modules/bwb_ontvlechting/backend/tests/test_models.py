@@ -87,10 +87,11 @@ def test_seed_idempotent():
 
 def test_platform_init_zaait_platform_catalogi_via_platform_session(monkeypatch):
     """ADR-022 W1: platform_init zaait op de geïnjecteerde platform-sessie (géén
-    RLS-/tenant-context) UITSLUITEND de platform-catalogi — de contractconfig
-    (ADR-020) en de componentconfig (ADR-021/012), in die volgorde. De
-    checklistvragen + antwoordconfiguratie zijn tenant-data geworden en worden
-    NIET meer platform-breed gezaaid. Retourneert het componentcatalogus-aantal (9)."""
+    RLS-/tenant-context) UITSLUITEND de platform-catalogi. De contractconfig (ADR-020)
+    loopt eerst, de componentconfig (ADR-021/012) daarna, en de ADR-028-classificatie-
+    catalogi (componentrol + BIV-schaal) volgen ná de componentconfig. De checklistvragen +
+    antwoordconfiguratie zijn tenant-data geworden en worden NIET meer platform-breed
+    gezaaid. Retourneert het componentcatalogus-aantal (9)."""
     import app.platform_init as pi
 
     volgorde = []
@@ -103,8 +104,18 @@ def test_platform_init_zaait_platform_catalogi_via_platform_session(monkeypatch)
         volgorde.append("componentconfig")
         return 9
 
+    async def fake_componentrol(session):
+        volgorde.append("componentrol")
+        return 4
+
+    async def fake_bivschaal(session):
+        volgorde.append("bivschaal")
+        return 3
+
     monkeypatch.setattr(pi, "seed_contractconfig", fake_contract)
     monkeypatch.setattr(pi, "seed_componentconfig", fake_component)
+    monkeypatch.setattr(pi, "seed_componentrol", fake_componentrol)
+    monkeypatch.setattr(pi, "seed_bivschaal", fake_bivschaal)
     # checklistvragen mogen NIET via platform_init lopen onder W1.
     assert not hasattr(pi, "seed_checklist_vragen")
 
@@ -115,8 +126,9 @@ def test_platform_init_zaait_platform_catalogi_via_platform_session(monkeypatch)
         yield session
 
     aantal = asyncio.run(pi.platform_init(session_factory=fake_platform_session))
+    # Retourneert de componentcatalogus-telling; de classificatie-catalogi lopen ná componentconfig.
     assert aantal == 9
-    assert volgorde == ["contractconfig", "componentconfig"]
+    assert volgorde == ["contractconfig", "componentconfig", "componentrol", "bivschaal"]
 
 
 def test_checklistseed_niet_via_platform_init():

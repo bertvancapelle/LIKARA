@@ -34,9 +34,13 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
     async def _lees(session, tid, comp):
         return {"id": comp.id, "heeft_applicatie_subtype": True}
 
+    async def _geen_classificatie_check(session, data):
+        return None  # ADR-028: catalogus-validatie is elders getest (buiten deze convergentie-scope).
+
     # LI059 facade-purge: de kern woont nu in component_service (was applicatie_service).
     monkeypatch.setattr(svc, "maak_applicatie_component", _kern)
     monkeypatch.setattr(svc, "_lees", _lees)
+    monkeypatch.setattr(svc, "_valideer_classificatie", _geen_classificatie_check)
 
     out = asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentCreate(naam="Nieuwe app", componenttype="applicatie")))
     assert out["heeft_applicatie_subtype"] is True
@@ -45,6 +49,8 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
     assert vastgelegd["migratiepad"] == Migratiepad.onbekend
     assert vastgelegd["complexiteit"] == NiveauEnum.midden
     assert vastgelegd["prioriteit"] == NiveauEnum.midden
+    # ADR-028 — de default-rol wordt door de convergente aanmaak doorgegeven aan de kern.
+    assert vastgelegd["componentrol"] == "interne_applicatie"
 
 
 def test_component_sort_allowlist_synchroon():

@@ -42,7 +42,9 @@ _LEVERANCIER_ROLLEN = ("technisch_beheer", "contractbeheer")
 # oriëntatie host→gehoste = bron→doel) en `aggregation` (maakt_deel_uit_van, deel→geheel).
 _STRUCTUUR_TYPES = ("assignment", "aggregation")
 from schemas.component import ComponentCreate, ComponentUpdate
+from services import bivschaal_catalog
 from services import componentconfig_catalog as catalog
+from services import componentrol_catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -53,6 +55,9 @@ from services.pagination import (
 
 _ENTITEIT = "component"
 _APPLICATIE_TYPE = "applicatie"
+# ADR-028 — de beschermde default-rol (systeem-sleutel in `componentrol_optie`).
+_DEFAULT_ROL = "interne_applicatie"
+_BIV_VELDEN = ("biv_beschikbaarheid", "biv_integriteit", "biv_vertrouwelijkheid")
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
 _LIKE_ESCAPE = "\\"
@@ -194,10 +199,24 @@ async def haal_op(session: AsyncSession, tenant_id, component_id) -> Component:
     return obj
 
 
+async def _valideer_classificatie(session: AsyncSession, data) -> None:
+    """ADR-028 — valideer `componentrol` + de drie BIV-velden tegen de actieve catalogi.
+
+    `componentrol` None ⇒ overslaan (server_default/bestaande waarde blijft); een opgegeven,
+    onbekende/inactieve rol ⇒ 422 `ONGELDIGE_ROL`. Elk opgegeven BIV-veld ⇒ 422 `ONGELDIGE_BIV`
+    bij een onbekende/inactieve waarde. Puur registratief — raakt de engine niet."""
+    await componentrol_catalog.valideer_rol(session, getattr(data, "componentrol", None))
+    for veld in _BIV_VELDEN:
+        await bivschaal_catalog.valideer_niveau(session, getattr(data, veld, None))
+
+
 async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
     # ADR-023 Fase C: ArchiMate-typing (laag/element) uit de catalogus — read-only projectie.
     typing = (await catalog.archimate_typing(session)).get(obj.componenttype, {})
+    # ADR-028 — classificatie-labels (resolvet ook gedeactiveerde sleutels; leespad).
+    rol_labels = await componentrol_catalog.labels(session)
+    biv_labels = await bivschaal_catalog.labels(session)
     return {
         "id": obj.id,
         "naam": obj.naam,
@@ -223,6 +242,16 @@ async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
         "migratiepad": obj.migratiepad,
         "complexiteit": obj.complexiteit,
         "prioriteit": obj.prioriteit,
+        # ADR-028 — componentclassificatie (registratief): rol (+ label) en de drie BIV-velden
+        # (+ labels). Labels resolven ook gedeactiveerde sleutels.
+        "componentrol": obj.componentrol,
+        "rol_label": componentrol_catalog.resolveer_een(obj.componentrol, rol_labels),
+        "biv_beschikbaarheid": obj.biv_beschikbaarheid,
+        "biv_beschikbaarheid_label": bivschaal_catalog.resolveer_een(obj.biv_beschikbaarheid, biv_labels),
+        "biv_integriteit": obj.biv_integriteit,
+        "biv_integriteit_label": bivschaal_catalog.resolveer_een(obj.biv_integriteit, biv_labels),
+        "biv_vertrouwelijkheid": obj.biv_vertrouwelijkheid,
+        "biv_vertrouwelijkheid_label": bivschaal_catalog.resolveer_een(obj.biv_vertrouwelijkheid, biv_labels),
         # LI059 Slice 3: "is-applicatie" = componenttype (er is geen subtabel meer).
         "heeft_applicatie_subtype": obj.componenttype == _APPLICATIE_TYPE,
         # ADR-022 Fase E: of dit componenttype checklist-dragend is (UI toont dan de
@@ -379,6 +408,9 @@ async def lijst(
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
+    # ADR-028 — classificatie-labels (één keer per pagina; resolvet ook gedeactiveerde sleutels).
+    rol_labels = await componentrol_catalog.labels(session)
+    biv_labels = await bivschaal_catalog.labels(session)
     out = [
         {
             "id": c.id, "naam": c.naam, "componenttype": c.componenttype,
@@ -394,6 +426,15 @@ async def lijst(
             "migratiepad": c.migratiepad,
             "complexiteit": c.complexiteit,
             "prioriteit": c.prioriteit,
+            # ADR-028 — componentclassificatie (registratief): rol + BIV (+ labels).
+            "componentrol": c.componentrol,
+            "rol_label": componentrol_catalog.resolveer_een(c.componentrol, rol_labels),
+            "biv_beschikbaarheid": c.biv_beschikbaarheid,
+            "biv_beschikbaarheid_label": bivschaal_catalog.resolveer_een(c.biv_beschikbaarheid, biv_labels),
+            "biv_integriteit": c.biv_integriteit,
+            "biv_integriteit_label": bivschaal_catalog.resolveer_een(c.biv_integriteit, biv_labels),
+            "biv_vertrouwelijkheid": c.biv_vertrouwelijkheid,
+            "biv_vertrouwelijkheid_label": bivschaal_catalog.resolveer_een(c.biv_vertrouwelijkheid, biv_labels),
             "lifecycle_status": lc,
         }
         for (c, lc, eig_naam) in items
@@ -421,13 +462,18 @@ async def maak_applicatie_component(
     migratiepad: Migratiepad,
     complexiteit: NiveauEnum,
     prioriteit: NiveauEnum,
+    componentrol: str = _DEFAULT_ROL,
+    biv_beschikbaarheid: str | None = None,
+    biv_integriteit: str | None = None,
+    biv_vertrouwelijkheid: str | None = None,
 ) -> Component:
     """Service-kern: maak element + applicatie-component + generiek profiel atomair (LI059).
 
     Eén implementatie achter de convergente aanmaak (`POST /componenten` met type=applicatie).
     Er is GEEN subtype-rij meer — de component met `componenttype='applicatie'` ÍS de applicatie.
     Elke applicatie krijgt atomair haar generieke profiel (engine-state `lifecycle_status`, start
-    `concept`). De aanroeper heeft de waarden al gevalideerd/gedefault."""
+    `concept`). De aanroeper heeft de waarden al gevalideerd/gedefault. ADR-028: `componentrol`
+    (default `interne_applicatie`) + de optionele BIV-velden zijn registratief (engine onaangeroerd)."""
     # ADR-023 Besluit 1: element-identiteit eerst (shared-PK), dan de component met dezelfde id.
     elem = Element(tenant_id=tid, element_type=ElementType.component)
     session.add(elem)
@@ -437,6 +483,8 @@ async def maak_applicatie_component(
         hostingmodel=hostingmodel, eigenaar_organisatie_id=eigenaar_organisatie_id,
         beschrijving=beschrijving,
         migratiepad=migratiepad, complexiteit=complexiteit, prioriteit=prioriteit,
+        componentrol=componentrol, biv_beschikbaarheid=biv_beschikbaarheid,
+        biv_integriteit=biv_integriteit, biv_vertrouwelijkheid=biv_vertrouwelijkheid,
     )
     session.add(comp)
     await session.flush()  # comp.id beschikbaar voor de shared-PK van het profiel
@@ -454,6 +502,8 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
     if data.eigenaar_organisatie_id is not None:
         from services import partij_service
         await partij_service.valideer_organisatie(session, tid, data.eigenaar_organisatie_id)
+    # ADR-028 — componentrol + BIV tegen de actieve catalogi (422 bij ongeldig).
+    await _valideer_classificatie(session, data)
     if data.componenttype == _APPLICATIE_TYPE:
         # Convergente aanmaak (CD054b W1): atomair de applicatie-component + profiel via de
         # service-kern. LI059: geen subtype-rij meer — de component ÍS de applicatie.
@@ -463,6 +513,11 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
             eigenaar_organisatie_id=data.eigenaar_organisatie_id,
             # LI057 (Slice 1) — component-brede velden (defaults uit ComponentCreate) honoreren.
             migratiepad=data.migratiepad, complexiteit=data.complexiteit, prioriteit=data.prioriteit,
+            # ADR-028 — classificatie meegeven (rol default `interne_applicatie`, BIV optioneel).
+            componentrol=data.componentrol,
+            biv_beschikbaarheid=data.biv_beschikbaarheid,
+            biv_integriteit=data.biv_integriteit,
+            biv_vertrouwelijkheid=data.biv_vertrouwelijkheid,
         )
         return await _lees(session, tid, comp)
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
@@ -477,6 +532,11 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
         beschrijving=data.beschrijving,
         # LI057 (Slice 1) — component-brede transitie-attributen (defaults uit ComponentCreate).
         migratiepad=data.migratiepad, complexiteit=data.complexiteit, prioriteit=data.prioriteit,
+        # ADR-028 — componentclassificatie (rol default `interne_applicatie`, BIV optioneel).
+        componentrol=data.componentrol,
+        biv_beschikbaarheid=data.biv_beschikbaarheid,
+        biv_integriteit=data.biv_integriteit,
+        biv_vertrouwelijkheid=data.biv_vertrouwelijkheid,
     )
     session.add(obj)
     await session.flush()  # obj.id beschikbaar voor een eventueel profiel
@@ -535,6 +595,9 @@ async def werk_bij(session: AsyncSession, tenant_id, component_id, data: Compone
     if velden.get("eigenaar_organisatie_id") is not None:
         from services import partij_service
         await partij_service.valideer_organisatie(session, tid, velden["eigenaar_organisatie_id"])
+    # ADR-028 — een opgegeven componentrol/BIV-waarde tegen de actieve catalogi (422 bij ongeldig);
+    # een expliciet gewiste BIV-waarde (None) is toegestaan (registratiegat).
+    await _valideer_classificatie(session, data)
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     # LI059 Slice 3: alle velden (incl. migratiepad/complexiteit/prioriteit) leven op het

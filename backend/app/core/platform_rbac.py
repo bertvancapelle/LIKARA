@@ -33,6 +33,9 @@ class PlatformEntiteit(str, Enum):
     # Catalogi-beheer-schuld dichten: vraagbetekenis-markers + partijsoort-catalogus.
     VRAAGBETEKENISCONFIG = "vraagbetekenisconfig"
     PARTIJSOORTCONFIG = "partijsoortconfig"
+    # ADR-028: componentclassificatie — componentrol- + BIV-schaal-catalogus.
+    COMPONENTROLCONFIG = "componentrolconfig"
+    BIVSCHAALCONFIG = "bivschaalconfig"
 
 
 KNOWN_PLATFORM_ROLES: frozenset[str] = frozenset(r.value for r in PlatformRol)
@@ -85,6 +88,16 @@ PLATFORM_PERMISSIES: dict[PlatformEntiteit, dict[PlatformRol, frozenset[Actie]]]
     },
     # Partijsoort-catalogus (platform-laag) — beheerder LAW (geen V), operator L (soft-deactivate).
     PlatformEntiteit.PARTIJSOORTCONFIG: {
+        PlatformRol.PLATFORMBEHEERDER: _LAW,
+        PlatformRol.PLATFORMOPERATOR: _L,
+    },
+    # ADR-028: componentrol-catalogus — beheerder LAW (geen V), operator L (soft-deactivate).
+    PlatformEntiteit.COMPONENTROLCONFIG: {
+        PlatformRol.PLATFORMBEHEERDER: _LAW,
+        PlatformRol.PLATFORMOPERATOR: _L,
+    },
+    # ADR-028: BIV-schaal-catalogus — beheerder LAW (geen V), operator L (soft-deactivate).
+    PlatformEntiteit.BIVSCHAALCONFIG: {
         PlatformRol.PLATFORMBEHEERDER: _LAW,
         PlatformRol.PLATFORMOPERATOR: _L,
     },

@@ -348,6 +348,18 @@ class Component(Base, TenantMixin, TimestampMixin):
     prioriteit: Mapped[NiveauEnum] = mapped_column(
         niveau_enum, nullable=False, server_default=text("'midden'")
     )
+    # ADR-028 — componentclassificatie (puur registratief; engine onaangeroerd). `componentrol`
+    # is een tekst-sleutel uit `componentrol_optie`, NOT NULL met server_default `interne_applicatie`
+    # (elk component heeft altijd een rol; geen lege staat, geen rol-registratiegat). De drie
+    # BIV-velden zijn tekst-sleutels uit `biv_schaal_optie`, nullable (optioneel; leeg = het
+    # registratiegat dat de signalering zichtbaar maakt). App-side gevalideerd tegen de actieve
+    # catalogus (zoals `componenttype`).
+    componentrol: Mapped[str] = mapped_column(
+        String(60), nullable=False, server_default=text("'interne_applicatie'")
+    )
+    biv_beschikbaarheid: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    biv_integriteit: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    biv_vertrouwelijkheid: Mapped[str | None] = mapped_column(String(60), nullable=True)
 
 
 # LI059 (Slice 3) — de `Applicatie`-subtype-class is opgeheven (migratie 0047). Een component
@@ -779,6 +791,45 @@ class PartijsoortOptie(Base):
     __tablename__ = "partijsoort_optie"
     __table_args__ = (
         UniqueConstraint("optie_sleutel", name="uq_partijsoort_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
+
+
+class ComponentrolOptie(Base):
+    """ADR-028 — platform-brede componentrol-catalogus (GEEN RLS, GEEN tenant_id). Enkel-doel
+    (geen dimensie-discriminator), spiegel van `partijsoort_optie`. De rol is een instance-
+    eigenschap op het component (intern / interne-dataprovider / externe-dataprovider /
+    koppelvlak) — puur registratief, voedt de engine NIET. `interne_applicatie` is de beschermde
+    systeem-sleutel (default; niet deactiveerbaar). Grants/soft-deactivate identiek aan
+    `partijsoort_optie`."""
+
+    __tablename__ = "componentrol_optie"
+    __table_args__ = (
+        UniqueConstraint("optie_sleutel", name="uq_componentrol_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
+
+
+class BivSchaalOptie(Base):
+    """ADR-028 — platform-brede BIV-schaal-catalogus (GEEN RLS, GEEN tenant_id). Enkel-doel,
+    spiegel van `partijsoort_optie`. ORDINALE schaal: `volgorde` is de rangdrager (laag<midden<
+    hoog) zodat "hoog en hoger"-filtering op `volgorde` klopt — géén apart rangnummer. Draagt de
+    drie BIV-velden (beschikbaarheid/integriteit/vertrouwelijkheid) op het component; puur
+    registratief, voedt de engine NIET. Geen systeem-sleutel (elke optie deactiveerbaar)."""
+
+    __tablename__ = "biv_schaal_optie"
+    __table_args__ = (
+        UniqueConstraint("optie_sleutel", name="uq_biv_schaal_optie"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

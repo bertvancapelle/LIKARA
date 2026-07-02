@@ -38,6 +38,9 @@ VERWACHT = {
     # Catalogi-beheer-schuld: vraagbetekenis + partijsoort — zelfde verdeling (geen V).
     PlatformEntiteit.VRAAGBETEKENISCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
     PlatformEntiteit.PARTIJSOORTCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
+    # ADR-028: componentrol- + BIV-schaal-catalogus — zelfde verdeling (geen V, soft-deactivate).
+    PlatformEntiteit.COMPONENTROLCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
+    PlatformEntiteit.BIVSCHAALCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
 }
 
 

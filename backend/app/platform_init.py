@@ -28,7 +28,9 @@ _MOD_BACKEND = (
 if str(_MOD_BACKEND) not in sys.path:
     sys.path.insert(0, str(_MOD_BACKEND))
 
+from services.seed_bivschaal import seed_bivschaal  # noqa: E402
 from services.seed_componentconfig import seed_componentconfig  # noqa: E402
+from services.seed_componentrol import seed_componentrol  # noqa: E402
 from services.seed_contractconfig import seed_contractconfig  # noqa: E402
 from services.seed_partijsoort import seed_partijsoort  # noqa: E402
 from services.seed_relatiekenmerk import seed_relatiekenmerk  # noqa: E402
@@ -39,10 +41,11 @@ async def platform_init(session_factory=None) -> int:
     """Zaait **platform-brede** referentiedata. Geeft het aantal componentcatalogus-
     opties terug.
 
-    Vier stappen op dezelfde platform-sessie: (1) de ADR-020-contractconfig-catalogus,
+    Stappen op dezelfde platform-sessie: (1) de ADR-020-contractconfig-catalogus,
     (2) de ADR-023-relatiekenmerk-catalogus (o.a. dispositie), (3) de ADR-023-Fase-F
-    vraagbetekenis-catalogus (technische_plaatsing), (4) de ADR-021/012-componentconfig-
-    catalogus. Alle platform-breed (geen tenant/RLS), idempotent.
+    vraagbetekenis-catalogus (technische_plaatsing), (4) de partijsoort-catalogus,
+    (5) de ADR-021/012-componentconfig-catalogus, en (6/7) de ADR-028-componentclassificatie-
+    catalogi (componentrol + BIV-schaal). Alle platform-breed (geen tenant/RLS), idempotent.
 
     ADR-022 W1: de checklistvragen + antwoordconfiguratie zijn **tenant-data** geworden
     en worden NIET meer platform-breed gezaaid — ze worden per tenant gekopieerd uit de
@@ -66,6 +69,9 @@ async def platform_init(session_factory=None) -> int:
             await seed_vraagbetekenis(session)
             await seed_partijsoort(session)
             aantal = await seed_componentconfig(session)
+            # ADR-028 — componentclassificatie-catalogi (na de componentcatalogus).
+            await seed_componentrol(session)
+            await seed_bivschaal(session)
             return aantal
     finally:
         reset_audit_context(audit_tokens)
