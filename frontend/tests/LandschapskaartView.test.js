@@ -111,6 +111,16 @@ beforeEach(() => {
       { optie_sleutel: 'applicatie', label: 'Applicatie' },
       { optie_sleutel: 'database', label: 'Database' },
     ],
+    // ADR-028 — rol-catalogus + ordinale BIV-niveaus voor de kaartfilters.
+    componentrol_opties: [
+      { optie_sleutel: 'interne_applicatie', label: 'Interne applicatie' },
+      { optie_sleutel: 'externe_dataprovider', label: 'Externe dataprovider' },
+    ],
+    biv_niveaus: [
+      { optie_sleutel: 'laag', label: 'Laag' },
+      { optie_sleutel: 'midden', label: 'Midden' },
+      { optie_sleutel: 'hoog', label: 'Hoog' },
+    ],
   })
   api.partijen.lijst.mockResolvedValue({ items: [{ id: 'l1', naam: 'SaaS BV', aard: 'externe_partij' }] })
   api.componenten.lijst.mockResolvedValue({ items: [] }) // LI052 — beginscherm-zoek default leeg
@@ -2169,6 +2179,41 @@ describe('LandschapskaartView v3', () => {
       w.vm.onNodeTap('a1') // eerste tap
       w.vm.onNodeTap('a1') // tweede tap binnen de drempel → dubbelklik
       expect(w.vm.legendaTypeFilter).toBe(null)
+    })
+  })
+
+  describe('ADR-028 — rol/BIV-filter + randbehandeling', () => {
+    it('externe_dataprovider krijgt de rol-rand in de node-data; overige nodes niet', async () => {
+      const { w } = await mountView()
+      const extern = w.vm._nodeData({ id: 'x', naam: 'BRP', element_type: 'applicatie', laag: 'application', componentrol: 'externe_dataprovider' })
+      expect(extern.rol).toBe('externe_dataprovider')
+      // een interne applicatie of een context-node draagt geen rol-rand
+      expect(w.vm._nodeData({ id: 'y', naam: 'Intern', element_type: 'applicatie', componentrol: 'interne_applicatie' }).rol).toBe(null)
+      expect(w.vm._nodeData({ id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business' }).rol).toBe(null)
+    })
+
+    it('rol-filter: app-component mét andere rol valt weg; context-nodes zijn exempt', async () => {
+      const { w } = await mountView()
+      w.vm.filterRollen = ['externe_dataprovider']
+      await flushPromises()
+      expect(w.vm._filterMatch({ element_type: 'applicatie', componentrol: 'externe_dataprovider' })).toBe(true)
+      expect(w.vm._filterMatch({ element_type: 'applicatie', componentrol: 'interne_applicatie' })).toBe(false)
+      // filter-exemptie: rolloze context-nodes (partij/contract/gebruikersgroep) nooit wegfilteren
+      expect(w.vm._filterMatch({ element_type: 'partij', soort: 'organisatie' })).toBe(true)
+      expect(w.vm._filterMatch({ element_type: 'contract' })).toBe(true)
+      expect(w.vm._filterMatch({ element_type: 'gebruikersgroep' })).toBe(true)
+    })
+
+    it('BIV-drempel: ordinaal (≥) op app-componenten; geen waarde valt weg; context exempt', async () => {
+      const { w } = await mountView()
+      w.vm.filterBivV = 'midden' // Vertrouwelijkheid ≥ midden (rang 1)
+      await flushPromises()
+      const app = (biv) => ({ element_type: 'applicatie', componentrol: 'interne_applicatie', biv_vertrouwelijkheid: biv })
+      expect(w.vm._filterMatch(app('hoog'))).toBe(true) // rang 2 ≥ 1
+      expect(w.vm._filterMatch(app('laag'))).toBe(false) // rang 0 < 1
+      expect(w.vm._filterMatch(app(null))).toBe(false) // geen waarde → valt weg bij drempel
+      // context-node zonder BIV blijft exempt (geen componentrol)
+      expect(w.vm._filterMatch({ element_type: 'partij', soort: 'organisatie' })).toBe(true)
     })
   })
 })

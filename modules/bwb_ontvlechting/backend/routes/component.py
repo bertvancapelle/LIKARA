@@ -54,6 +54,11 @@ async def lijst_componenten(
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     leverancier_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
+    # ADR-028 — componentrol (multi-select, herhaalbaar) + BIV-drempel per aspect (sleutel).
+    componentrol: list[str] = Query(default=[]),
+    biv_beschikbaarheid_min: str | None = Query(None, max_length=60),
+    biv_integriteit_min: str | None = Query(None, max_length=60),
+    biv_vertrouwelijkheid_min: str | None = Query(None, max_length=60),
     # ADR-027 slice 3 — dashboard-doorklik: klaarverklaring=klaar / afwijking=1 (allowlist).
     klaarverklaring: str | None = Query(None, pattern="^klaar$"),
     afwijking: bool = Query(False),
@@ -66,6 +71,9 @@ async def lijst_componenten(
             componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
             hostingmodel=hostingmodel.value if hostingmodel else None,
             eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id, zoek=zoek,
+            componentrol=componentrol or None,
+            biv_beschikbaarheid_min=biv_beschikbaarheid_min, biv_integriteit_min=biv_integriteit_min,
+            biv_vertrouwelijkheid_min=biv_vertrouwelijkheid_min,
             klaarverklaring=klaarverklaring, afwijking=afwijking,
         )
     except ValueError:

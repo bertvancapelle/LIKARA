@@ -63,6 +63,18 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).not.toContain('bron_id')
     expect(laatsteUrl).toContain('relatietype=flow')
   })
+
+  it('ADR-028: componenten.lijst zet componentrol (herhaald) + BIV-drempels in de URL', async () => {
+    await api.componenten.lijst({
+      componentrol: ['externe_dataprovider', 'koppelvlak'],
+      biv_beschikbaarheid_min: 'midden',
+      biv_vertrouwelijkheid_min: 'hoog',
+    })
+    expect(laatsteUrl).toContain('componentrol=externe_dataprovider')
+    expect(laatsteUrl).toContain('componentrol=koppelvlak')
+    expect(laatsteUrl).toContain('biv_beschikbaarheid_min=midden')
+    expect(laatsteUrl).toContain('biv_vertrouwelijkheid_min=hoog')
+  })
 })
 
 describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', () => {
@@ -76,5 +88,9 @@ describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', ()
 
   it('een willekeurige typo-key gooit i.p.v. stil te negeren', () => {
     expect(() => api.componenten.lijst({ statuss: 'concept' })).toThrow(/onbekende filter-parameter 'statuss'/)
+  })
+
+  it('ADR-028: een BIV-typo (biv_vertrouwelijkheid zonder _min) gooit LUID', () => {
+    expect(() => api.componenten.lijst({ biv_vertrouwelijkheid: 'hoog' })).toThrow(/onbekende filter-parameter 'biv_vertrouwelijkheid'/)
   })
 })

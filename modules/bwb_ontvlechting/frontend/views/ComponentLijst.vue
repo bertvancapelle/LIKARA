@@ -50,6 +50,19 @@ const filterHosting = ref('')
 // UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
 const filterEigenaarId = ref(null)
 const filterZoek = ref('')
+// ADR-028 — rol (multi-select) + BIV-drempel per aspect ("minimaal X"), ordinaal op de schaal.
+const rolOpties = ref([]) // [{ optie_sleutel, label }]
+const bivNiveaus = ref([]) // [{ optie_sleutel, label }] — ordinaal (laag → hoog)
+const filterRol = ref([])
+const filterBivB = ref('')
+const filterBivI = ref('')
+const filterBivV = ref('')
+const BIV_ASPECTEN = [
+  { veld: 'biv_beschikbaarheid_min', ref: filterBivB, label: 'Beschikbaarheid' },
+  { veld: 'biv_integriteit_min', ref: filterBivI, label: 'Integriteit' },
+  { veld: 'biv_vertrouwelijkheid_min', ref: filterBivV, label: 'Vertrouwelijkheid' },
+]
+const rolLabel = (sleutel) => rolOpties.value.find((o) => o.optie_sleutel === sleutel)?.label || sleutel
 // ADR-027 slice 3 — dashboard-doorklik-filters (geen dropdown; uit de route-query). Een
 // indicator-chip laat ze zien + wissen. `afwijking` impliceert server-side `klaarverklaring=klaar`.
 const filterKlaarverklaring = ref('') // '' | 'klaar'
@@ -85,7 +98,11 @@ const heeftFilters = computed(
     !!filterLaag.value ||
     !!filterHosting.value ||
     !!filterEigenaarId.value ||
-    !!filterZoek.value.trim(),
+    !!filterZoek.value.trim() ||
+    filterRol.value.length > 0 ||
+    !!filterBivB.value ||
+    !!filterBivI.value ||
+    !!filterBivV.value,
 )
 
 async function laad({ reset = false } = {}) {
@@ -99,6 +116,11 @@ async function laad({ reset = false } = {}) {
     if (filterHosting.value) params.hostingmodel = filterHosting.value
     if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
+    // ADR-028 — rol (array → herhaalde param) + BIV-drempel per aspect (leeg = geen clause).
+    if (filterRol.value.length) params.componentrol = filterRol.value
+    if (filterBivB.value) params.biv_beschikbaarheid_min = filterBivB.value
+    if (filterBivI.value) params.biv_integriteit_min = filterBivI.value
+    if (filterBivV.value) params.biv_vertrouwelijkheid_min = filterBivV.value
     if (filterAfwijking.value) params.afwijking = 1
     else if (filterKlaarverklaring.value) params.klaarverklaring = filterKlaarverklaring.value
     if (sortVeld.value) {
@@ -139,6 +161,10 @@ function wisFilters() {
   filterHosting.value = ''
   filterEigenaarId.value = null
   filterZoek.value = ''
+  filterRol.value = []
+  filterBivB.value = ''
+  filterBivI.value = ''
+  filterBivV.value = ''
   herfilter()
 }
 
@@ -168,7 +194,11 @@ onMounted(async () => {
   if (String(route.query.afwijking ?? '') === '1') filterAfwijking.value = true
   else if (String(route.query.klaarverklaring ?? '') === 'klaar') filterKlaarverklaring.value = 'klaar'
   try {
-    typeOpties.value = (await api.componenten.opties()).componenttype || []
+    const opties = await api.componenten.opties()
+    typeOpties.value = opties.componenttype || []
+    // ADR-028 — rol-opties + ordinale BIV-niveaus voor de filterbalk.
+    rolOpties.value = opties.componentrol_opties || []
+    bivNiveaus.value = opties.biv_niveaus || []
   } catch {
     /* filterlijst optioneel — het overzicht laadt sowieso */
   }
@@ -253,6 +283,37 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Rol</span>
+        <MultiSelectDropdown
+          v-model="filterRol"
+          :opties="rolOpties.map((o) => o.optie_sleutel)"
+          :weergave="rolLabel"
+          placeholder="Alle"
+          aria-label="Filter op componentrol"
+          testid="filter-rol"
+          @change="herfilter"
+        />
+      </label>
+
+      <label
+        v-for="a in BIV_ASPECTEN"
+        :key="a.veld"
+        class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
+      >
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">{{ a.label }} ≥</span>
+        <select
+          v-model="a.ref.value"
+          :data-testid="`filter-${a.veld}`"
+          :aria-label="`Filter op minimaal ${a.label}`"
+          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          @change="herfilter"
+        >
+          <option value="">— Alle —</option>
+          <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
         </select>
       </label>
 

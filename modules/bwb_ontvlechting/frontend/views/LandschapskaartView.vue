@@ -349,6 +349,35 @@ const lifecycleFilterOpties = computed(() => LIFECYCLE_OPTIES.map((lc) => ({ sle
 const zoekHosting = _zoekUitLijst(hostingFilterOpties)
 const zoekLifecycle = _zoekUitLijst(lifecycleFilterOpties)
 
+// ADR-028 — rol (multi-select, doorzoekbaar) + BIV-drempel per aspect (ordinaal). De rol-catalogus
+// + BIV-niveaus komen uit /componenten/opties; de BIV-drempel vergelijkt client-side op de ordinale
+// rang (positie in de al geordende `biv_niveaus`).
+const rolCatalogus = ref([]) // [{ optie_sleutel, label }]
+const rolLabelMap = computed(() => Object.fromEntries(rolCatalogus.value.map((o) => [o.optie_sleutel, o.label])))
+const zoekRollen = ({ zoek } = {}) => {
+  const q = (zoek || '').toLowerCase()
+  return rolCatalogus.value.filter((o) => !q || (o.label || '').toLowerCase().includes(q))
+}
+const bivNiveaus = ref([]) // [{ optie_sleutel, label }] — ordinaal (laag → hoog)
+const bivRangMap = computed(() => Object.fromEntries(bivNiveaus.value.map((o, i) => [o.optie_sleutel, i])))
+const filterRollen = ref([])
+const filterBivB = ref('')
+const filterBivI = ref('')
+const filterBivV = ref('')
+const BIV_ASPECTEN = [
+  { veld: 'biv_beschikbaarheid', ref: filterBivB, label: 'Beschikbaarheid' },
+  { veld: 'biv_integriteit', ref: filterBivI, label: 'Integriteit' },
+  { veld: 'biv_vertrouwelijkheid', ref: filterBivV, label: 'Vertrouwelijkheid' },
+]
+// BIV-drempel: leeg → geen filter; onbekende drempel → fail-open; node zónder waarde valt weg.
+function _bivVoldoet(waarde, minSleutel) {
+  if (!minSleutel) return true
+  const drempel = bivRangMap.value[minSleutel]
+  if (drempel == null) return true
+  const rang = bivRangMap.value[waarde]
+  return rang != null && rang >= drempel
+}
+
 // ── Zoeken + filteren ─────────────────────────────────────────────────────────
 // LI028 — `filterActief` stuurt UITSLUITEND het graafpad (zichtbareNodes). De vrije zoekterm hoort
 // hier BEWUST NIET bij: die voedt alleen de resultatenlijst (`_matcht` → `gefilterdeNodes`). Anders
@@ -360,7 +389,11 @@ const filterActief = computed(
       filterTypes.value.length ||
       filterLeveranciers.value.length ||
       filterHosting.value.length ||
-      filterLifecycle.value.length
+      filterLifecycle.value.length ||
+      filterRollen.value.length ||
+      filterBivB.value ||
+      filterBivI.value ||
+      filterBivV.value
     ),
 )
 // LI019 1c-v2 — attribuut-multifilters: OR binnen één filter, AND tussen filters, op de VOLLEDIGE
@@ -379,10 +412,21 @@ function _nodeVoldoet(n, f) {
   if (!_matchAttr(f.lev, n.leverancier_id)) return false
   if (!_matchAttr(f.host, n.hosting_model)) return false
   if (!_matchAttr(f.life, n.lifecycle_status)) return false
+  // ADR-028 — rol/BIV gelden UITSLUITEND voor componenten (nodes mét een `componentrol`).
+  // Context-nodes (partij/contract/gebruikersgroep — geen componentrol) zijn exempt: nooit
+  // wegfilteren op een rol/BIV-filter (org-partijen zitten via `_isOrg` óók in appNodes).
+  if (n.componentrol) {
+    if (f.rol.length && !f.rol.includes(n.componentrol)) return false
+    // BIV-drempel per aspect (AND); een component zónder waarde op een aspect valt weg bij een drempel.
+    if (!_bivVoldoet(n.biv_beschikbaarheid, f.bivB)) return false
+    if (!_bivVoldoet(n.biv_integriteit, f.bivI)) return false
+    if (!_bivVoldoet(n.biv_vertrouwelijkheid, f.bivV)) return false
+  }
   return true
 }
 const _huidigeFilters = () => ({
   types: filterTypes.value, lev: filterLeveranciers.value, host: filterHosting.value, life: filterLifecycle.value,
+  rol: filterRollen.value, bivB: filterBivB.value, bivI: filterBivI.value, bivV: filterBivV.value,
 })
 function _filterMatch(n) {
   return _nodeVoldoet(n, _huidigeFilters())
@@ -398,14 +442,15 @@ const gefilterdeNodes = computed(() => appNodes.value.filter(_matcht))
 // eerst om bevestiging. Annuleren herstelt de vorige filterstaat (snapshot); doorgaan bevestigt 'm.
 const egoFilterDialog = ref(false)
 let _filterRevert = false
-let _filterSnap = { types: [], lev: [], host: [], life: [] }
+let _filterSnap = { types: [], lev: [], host: [], life: [], rol: [], bivB: '', bivI: '', bivV: '' }
 function _commitFilterSnap() {
   _filterSnap = {
     types: [...filterTypes.value], lev: [...filterLeveranciers.value],
     host: [...filterHosting.value], life: [...filterLifecycle.value],
+    rol: [...filterRollen.value], bivB: filterBivB.value, bivI: filterBivI.value, bivV: filterBivV.value,
   }
 }
-watch([filterTypes, filterLeveranciers, filterHosting, filterLifecycle], () => {
+watch([filterTypes, filterLeveranciers, filterHosting, filterLifecycle, filterRollen, filterBivB, filterBivI, filterBivV], () => {
   if (_filterRevert) return
   // Bij een history-herstel niet de ego-filterdialog openen; wel de snapshot-baseline meenemen
   // zodat een láter echte filterwijziging tegen de juiste uitgangsstaat vergelijkt.
@@ -429,6 +474,10 @@ function egoFilterAnnuleer() {
   filterLeveranciers.value = [..._filterSnap.lev]
   filterHosting.value = [..._filterSnap.host]
   filterLifecycle.value = [..._filterSnap.life]
+  filterRollen.value = [..._filterSnap.rol]
+  filterBivB.value = _filterSnap.bivB
+  filterBivI.value = _filterSnap.bivI
+  filterBivV.value = _filterSnap.bivV
   egoFilterDialog.value = false
   nextTick(() => { _filterRevert = false })
 }
@@ -1513,6 +1562,9 @@ function _nodeData(n) {
   return {
     id: n.id, label, bg, border, txt: _txtColor(bg), shape: _vormVoorType(n),
     element_type: n.element_type, laag: n.laag, soort: n.soort,
+    // ADR-028 — randbehandeling: alléén externe dataproviders krijgen een afwijkende (gestippelde)
+    // rand (CY-selector node[rol="externe_dataprovider"]). Andere rollen dragen géén randsignaal.
+    rol: n.componentrol === 'externe_dataprovider' ? 'externe_dataprovider' : null,
   }
 }
 function _edgeData(e, i) {
@@ -1778,6 +1830,10 @@ const CY_STYLE = [
   { selector: 'node.rond', style: { 'padding-left': 18, 'padding-right': 18, 'padding-top': 12, 'padding-bottom': 12 } },
   // Veelhoeken (hexagon/octagon/pentagon) knijpen het label aan de hoeken → ruimere padding.
   { selector: 'node.veelhoek', style: { 'padding-left': 16, 'padding-right': 16, 'padding-top': 12, 'padding-bottom': 12 } },
+  // ADR-028 — externe dataprovider: afwijkende (gestippelde, dikkere) rand. Géén nieuwe vulkleur;
+  // vorm blijft = type, vulkleur blijft = lifecycle; de rand-KLEUR blijft data(border). Selectie/
+  // highlight-regels hieronder winnen (staan later en zetten border-style terug op solid).
+  { selector: 'node[rol="externe_dataprovider"]', style: { 'border-style': 'dashed', 'border-width': 3 } },
   {
     selector: 'edge',
     style: {
@@ -1849,7 +1905,11 @@ onMounted(async () => {
   // bepalen, dán pas de bijbehorende graaf laden (lege set → beginscherm, niets laden).
   // LI019 1b — componenttype-catalogus voor het type-filter (faalt zacht: leeg → niets te kiezen).
   try {
-    typeCatalogus.value = (await api.componenten.opties())?.componenttype || []
+    const _opties = await api.componenten.opties()
+    typeCatalogus.value = _opties?.componenttype || []
+    // ADR-028 — rol-catalogus + ordinale BIV-niveaus voor de kaartfilters.
+    rolCatalogus.value = _opties?.componentrol_opties || []
+    bivNiveaus.value = _opties?.biv_niveaus || []
   } catch {
     typeCatalogus.value = []
   }
@@ -1928,7 +1988,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup })
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup,
+  // ADR-028 — rol/BIV-filter (test-toegang).
+  filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
 // LI023 — generieke re-layout: herpositioneer zodra de WERKELIJK GETEKENDE node-samenstelling
 // wijzigt. De id-compositie van `getekendeNodes` vangt álle oorzaken (scope/ring/zoekfilter/nieuwe
@@ -2136,6 +2198,34 @@ const typeLabel = (t) => humaniseer(t)
             testid="lk-filter-lifecycle"
           />
         </label>
+        <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+          <span class="font-semibold">Rol</span>
+          <ZoekMultiSelect
+            v-model="filterRollen"
+            :zoek-functie="zoekRollen"
+            :weergave="(o) => o.label"
+            id-veld="optie_sleutel"
+            :chip-label="(v) => rolLabelMap[v] || v"
+            placeholder="Zoek rol…"
+            testid="lk-filter-rol"
+          />
+        </label>
+        <label
+          v-for="a in BIV_ASPECTEN"
+          :key="a.veld"
+          class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
+        >
+          <span class="font-semibold">{{ a.label }} ≥</span>
+          <select
+            v-model="a.ref.value"
+            :data-testid="`lk-filter-${a.veld}`"
+            :aria-label="`Filter op minimaal ${a.label}`"
+            class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1"
+          >
+            <option value="">— Alle —</option>
+            <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
+          </select>
+        </label>
 
         <label v-if="modus === 'geheel'" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
           <input type="checkbox" :checked="!opbouwModus" data-testid="lk-afpel-toggle" @change="opbouwModus = !opbouwModus" />Afpel-modus (begint vol)
@@ -2271,6 +2361,13 @@ const typeLabel = (t) => humaniseer(t)
                 <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: lcStyle(lc).bg, border: `1px solid ${lcStyle(lc).border}` }"></span>{{ lc === 'null' ? 'geen profiel' : typeLabel(lc) }}
               </span>
               <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">⚠ Open blokkade(s)</span>
+            </div>
+            <!-- ADR-028 — Rand = rol (externe dataprovider) -->
+            <div data-testid="lk-legenda-rol" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+              <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Rand = rol</p>
+              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+                <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dashed border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Externe dataprovider
+              </span>
             </div>
           </div>
         </div>

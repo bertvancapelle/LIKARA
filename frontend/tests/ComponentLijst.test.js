@@ -69,6 +69,16 @@ beforeEach(() => {
       { optie_sleutel: 'applicatie', label: 'Applicatie', laag: 'application', archimate_element: 'application_component' },
     ],
     structuurrelatie_type: [],
+    // ADR-028 — rol-opties + ordinale BIV-niveaus.
+    componentrol_opties: [
+      { optie_sleutel: 'interne_applicatie', label: 'Interne applicatie' },
+      { optie_sleutel: 'externe_dataprovider', label: 'Externe dataprovider' },
+    ],
+    biv_niveaus: [
+      { optie_sleutel: 'laag', label: 'Laag' },
+      { optie_sleutel: 'midden', label: 'Midden' },
+      { optie_sleutel: 'hoog', label: 'Hoog' },
+    ],
   })
 })
 
@@ -213,6 +223,37 @@ describe('ComponentLijst', () => {
     await w.find('[data-testid="filter-eigenaar-optie-org-1"]').trigger('mousedown')
     await flushPromises()
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ eigenaar_organisatie_id: 'org-1' }))
+  })
+
+  it('ADR-028: rol-multiselect + BIV-drempel belanden in de api-call en resetten de cursor', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    // Rol-multiselect (zelfde component als status): open + vink externe_dataprovider.
+    await w.find('[data-testid="filter-rol-trigger"]').trigger('click')
+    await w.find('[data-testid="filter-rol-checkbox-externe_dataprovider"]').trigger('change')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ componentrol: ['externe_dataprovider'], after: undefined }),
+    )
+    // BIV-drempel (native select) op Vertrouwelijkheid ≥ hoog.
+    await w.find('[data-testid="filter-biv_vertrouwelijkheid_min"]').setValue('hoog')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ componentrol: ['externe_dataprovider'], biv_vertrouwelijkheid_min: 'hoog' }),
+    )
+  })
+
+  it('ADR-028: wisFilters wist ook rol + BIV', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-biv_beschikbaarheid_min"]').setValue('midden')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ biv_beschikbaarheid_min: 'midden' }))
+    await w.find('[data-testid="filters-wissen"]').trigger('click')
+    await flushPromises()
+    const laatste = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(laatste.biv_beschikbaarheid_min).toBeUndefined()
+    expect(laatste.componentrol).toBeUndefined()
   })
 
   it('een ?type=applicatie-query preselecteert het typefilter (Applicaties-redirect)', async () => {

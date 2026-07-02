@@ -22,6 +22,13 @@ class LandschapsNode(BaseModel):
     leverancier_naam: str | None = None     # externe partij via roltoewijzing (technisch/contractbeheer)
     leverancier_id: UUID | None = None       # partij-id van die externe partij (eenduidige UI-filtering)
     hosting_model: str | None = None        # hostingmodel van de component (enum-waarde)
+    # ADR-028 — componentclassificatie (read-only afgeleid; alleen op component-nodes). Voedt
+    # het rol-/BIV-filter + de randbehandeling (externe_dataprovider) client-side. None op
+    # context-nodes (partij/contract/gebruikersgroep) → filter-exemptie.
+    componentrol: str | None = None
+    biv_beschikbaarheid: str | None = None
+    biv_integriteit: str | None = None
+    biv_vertrouwelijkheid: str | None = None
     blokkades_open: int = 0                 # aantal niet-opgeloste blokkades (read-only telling)
     # ADR-025 v4 — migratieplaatsing (eerste plateau via aggregation-lidmaatschap, met dispositie).
     plateau_naam: str | None = None

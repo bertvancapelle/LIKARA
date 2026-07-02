@@ -188,6 +188,9 @@ async def haal_grafdata_op(
             select(
                 Component.id, Component.naam, Component.componenttype, Component.hostingmodel,
                 Component.eigenaar_organisatie_id,
+                # ADR-028 — classificatie read-only mee (voor filter + randbehandeling).
+                Component.componentrol,
+                Component.biv_beschikbaarheid, Component.biv_integriteit, Component.biv_vertrouwelijkheid,
                 _profiel.c.lifecycle_status.label("lifecycle_status"),
             )
             .outerjoin(_profiel, and_(_profiel.c.id == Component.id, _profiel.c.tenant_id == tid))
@@ -208,6 +211,11 @@ async def haal_grafdata_op(
             leverancier_naam=lev_map.get(r.id, (None, None))[1],
             leverancier_id=lev_map.get(r.id, (None, None))[0],
             hosting_model=_val(r.hostingmodel),
+            # ADR-028 — classificatie (registratief; engine onaangeroerd).
+            componentrol=r.componentrol,
+            biv_beschikbaarheid=r.biv_beschikbaarheid,
+            biv_integriteit=r.biv_integriteit,
+            biv_vertrouwelijkheid=r.biv_vertrouwelijkheid,
             blokkades_open=blok_map.get(r.id, 0),
             plateau_naam=plaatsing.get("naam"),
             plateau_dispositie=plaatsing.get("dispositie"),

@@ -379,6 +379,109 @@ def test_create_ongeldige_rol_en_biv_422():
 
 
 @integratie
+def test_lijst_filter_rol_in_en_biv_drempel():
+    """ADR-028 slice 3 — server-side lijst-filter: rol-IN (multi-select) + BIV-drempel per aspect
+    (ordinaal op volgorde). Een component zónder waarde op een aspect valt weg bij een drempel."""
+    from schemas.component import ComponentCreate
+    from services import component_service as cs
+    from sqlalchemy import text as _t
+
+    sfx = f"F28{uuid.uuid4().hex[:8]}"
+
+    async def _flow(s):
+        ids = []
+        try:
+            # (a) externe dataprovider, vertrouwelijkheid hoog
+            a = await cs.maak_aan(s, _TID, ComponentCreate(
+                naam=f"{sfx}-a", componenttype="fileshare",
+                componentrol="externe_dataprovider", biv_vertrouwelijkheid="hoog"))
+            # (b) interne applicatie, vertrouwelijkheid laag
+            b = await cs.maak_aan(s, _TID, ComponentCreate(
+                naam=f"{sfx}-b", componenttype="fileshare",
+                componentrol="interne_applicatie", biv_vertrouwelijkheid="laag"))
+            # (c) externe dataprovider, GEEN vertrouwelijkheid
+            c = await cs.maak_aan(s, _TID, ComponentCreate(
+                naam=f"{sfx}-c", componenttype="fileshare", componentrol="externe_dataprovider"))
+            ids += [a["id"], b["id"], c["id"]]
+
+            async def _namen(**kw):
+                items, _ = await cs.lijst(s, _TID, zoek=sfx, limit=50, **kw)
+                return {i["naam"] for i in items}
+
+            # rol-IN: alleen de twee externe dataproviders
+            rol = await _namen(componentrol=["externe_dataprovider"])
+            # BIV-drempel vertrouwelijkheid >= midden: alleen 'a' (hoog); 'b' (laag) + 'c' (leeg) vallen weg
+            biv = await _namen(biv_vertrouwelijkheid_min="midden")
+            # combinatie AND
+            combi = await _namen(componentrol=["externe_dataprovider"], biv_vertrouwelijkheid_min="midden")
+            return rol, biv, combi
+        finally:
+            for i in ids:
+                await s.execute(_t("DELETE FROM element WHERE id=:i"), {"i": str(i)})
+            await s.commit()
+
+    rol, biv, combi = asyncio.run(_run_rls(_flow))
+    assert rol == {f"{sfx}-a", f"{sfx}-c"}
+    assert biv == {f"{sfx}-a"}
+    assert combi == {f"{sfx}-a"}
+
+
+@integratie
+def test_lijst_ongeldige_biv_drempel_422():
+    from services import component_service as cs
+    from services.errors import OngeldigeRegistratie
+
+    async def _flow(s):
+        await cs.lijst(s, _TID, biv_integriteit_min="bestaat_niet", limit=5)
+
+    with pytest.raises(OngeldigeRegistratie) as e:
+        asyncio.run(_run_rls(_flow))
+    assert e.value.code == "ONGELDIGE_BIV"
+
+
+def test_landschapskaart_projectie_read_only_bronscan():
+    """ADR-028 slice 3 — de kaartprojectie is read-only (geen DB-schrijf) en engine-vrij."""
+    import services.landschapskaart_service as lk
+
+    src = inspect.getsource(lk.haal_grafdata_op)
+    for verboden in ("session.add(", ".commit(", ".flush(", "session.delete("):
+        assert verboden not in src, f"kaartprojectie mag niet schrijven: {verboden}"
+    modbron = inspect.getsource(lk)
+    for naam in _ENGINE_NAMEN:
+        # alléén code (niet docstring/comments): grove check op import-/gebruik-vorm
+        assert f"import {naam}" not in modbron and f"{naam}(" not in modbron
+
+
+@integratie
+def test_landschapskaart_node_draagt_rol_en_biv():
+    from schemas.component import ComponentCreate
+    from services import component_service as cs
+    from services import landschapskaart_service as lk
+    from sqlalchemy import text as _t
+
+    naam = f"LK28-{uuid.uuid4().hex[:8]}"
+
+    async def _flow(s):
+        cid = None
+        try:
+            c = await cs.maak_aan(s, _TID, ComponentCreate(
+                naam=naam, componenttype="applicatie",
+                componentrol="externe_dataprovider", biv_vertrouwelijkheid="hoog"))
+            cid = c["id"]
+            resp = await lk.haal_grafdata_op(s, _TID, component_ids=[cid])
+            node = next(n for n in resp.nodes if str(n.id) == str(cid))
+            return node.componentrol, node.biv_vertrouwelijkheid
+        finally:
+            if cid is not None:
+                await s.execute(_t("DELETE FROM element WHERE id=:i"), {"i": str(cid)})
+                await s.commit()
+
+    rol, bivv = asyncio.run(_run_rls(_flow))
+    assert rol == "externe_dataprovider"
+    assert bivv == "hoog"
+
+
+@integratie
 def test_patch_rol_en_biv_wissen_en_engine_invariant():
     """Patch een geldige rol/BIV; wis een BIV-veld (registratiegat); en borg live dat rol/BIV
     op een niet-beoordeeld type (fileshare) GÉÉN profiel/lifecycle laat ontstaan."""

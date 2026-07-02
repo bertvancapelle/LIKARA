@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from models.models import (
+    BivSchaalOptie,
     Blokkade,
     BlokkadeStatus,
     Checklistscore,
@@ -310,6 +311,9 @@ async def lijst(
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
     zoek: str | None = None,
+    componentrol: list[str] | None = None,
+    biv_beschikbaarheid_min: str | None = None, biv_integriteit_min: str | None = None,
+    biv_vertrouwelijkheid_min: str | None = None,
     klaarverklaring: str | None = None, afwijking: bool = False,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
@@ -374,6 +378,33 @@ async def lijst(
         stmt = stmt.where(or_(_rt_lev, _ct_lev))
     if zoek:
         stmt = stmt.where(Component.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+    # ADR-028 — rol-filter (multi-select → IN; onbekende sleutel matcht simpelweg niets).
+    if componentrol:
+        stmt = stmt.where(Component.componentrol.in_(componentrol))
+    # ADR-028 — BIV-drempel per aspect: vertaal de gekozen sleutel naar de ORDINALE `volgorde` en
+    # houd componenten met `aspect-volgorde >= drempel`. Een component zonder waarde op dat aspect
+    # (NULL) valt weg (correlated subquery → NULL ≥ x is NULL/false). Ongeldige drempel ⇒ 422.
+    if biv_beschikbaarheid_min or biv_integriteit_min or biv_vertrouwelijkheid_min:
+        _biv_drempels = (
+            (Component.biv_beschikbaarheid, biv_beschikbaarheid_min),
+            (Component.biv_integriteit, biv_integriteit_min),
+            (Component.biv_vertrouwelijkheid, biv_vertrouwelijkheid_min),
+        )
+        for kolom, min_sleutel in _biv_drempels:
+            if not min_sleutel:
+                continue
+            await bivschaal_catalog.valideer_niveau(session, min_sleutel)  # 422 ONGELDIGE_BIV
+            drempel = (
+                select(BivSchaalOptie.volgorde)
+                .where(BivSchaalOptie.optie_sleutel == min_sleutel)
+                .scalar_subquery()
+            )
+            aspect_volgorde = (
+                select(BivSchaalOptie.volgorde)
+                .where(BivSchaalOptie.optie_sleutel == kolom)
+                .scalar_subquery()
+            )
+            stmt = stmt.where(aspect_volgorde >= drempel)
     # ADR-027 slice 3 — klaarverklaring-filters (doorklik vanaf het dashboard). `afwijking`
     # impliceert de klaar-join + lifecycle ∉ {migratieklaar, geblokkeerd} (de vragen-stand uit
     # de bestaande engine-status; geen tweede telling). Engine ongemoeid (read-only filter).
