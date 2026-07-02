@@ -95,6 +95,15 @@ const _component = (over = {}) => ({
   heeft_applicatie_subtype: false,
   checklist_dragend: false,
   lifecycle_status: null,
+  // ADR-028 — componentclassificatie (rol + BIV, met labels).
+  componentrol: 'interne_applicatie',
+  rol_label: 'Interne applicatie',
+  biv_beschikbaarheid: null,
+  biv_beschikbaarheid_label: null,
+  biv_integriteit: null,
+  biv_integriteit_label: null,
+  biv_vertrouwelijkheid: null,
+  biv_vertrouwelijkheid_label: null,
   ...over,
 })
 
@@ -156,6 +165,22 @@ describe('ComponentDetail', () => {
     const { w } = await mountDetail()
     expect(w.find('[data-testid="ct-tabel"]').text()).toContain('Oracle licentie')
     expect(api.componenten.contracten).toHaveBeenCalledWith(ID)
+  })
+
+  it('ADR-028: toont de rol en BIV — labels waar gezet, "Niet geclassificeerd" waar leeg', async () => {
+    api.componenten.haal.mockResolvedValue(
+      _component({
+        rol_label: 'Externe dataprovider',
+        biv_vertrouwelijkheid: 'hoog',
+        biv_vertrouwelijkheid_label: 'Hoog',
+      }),
+    )
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="comp-rol"]').text()).toBe('Externe dataprovider')
+    expect(w.find('[data-testid="comp-biv-v"]').text()).toBe('Hoog')
+    // Leeg aspect toont expliciet "Niet geclassificeerd" (geen leeg vakje).
+    expect(w.find('[data-testid="comp-biv-b"]').text()).toBe('Niet geclassificeerd')
+    expect(w.find('[data-testid="comp-biv-i"]').text()).toBe('Niet geclassificeerd')
   })
 
   it('toont de Verantwoordelijkheden-sectie (ADR-024 slice 2b)', async () => {

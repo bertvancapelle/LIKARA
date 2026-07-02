@@ -308,6 +308,24 @@ def test_catalogi_geseed_na_reseed():
 
 
 @integratie
+def test_opties_endpoint_levert_rol_en_biv_ordinaal():
+    """ADR-028 slice 2 — het component-opties-endpoint levert additief de actieve rol-opties
+    en de BIV-niveaus, ordinaal (laag → hoog) op `volgorde`."""
+    from services import component_service as cs
+
+    async def _flow(s):
+        return await cs.opties(s)
+
+    uit = asyncio.run(_run_rls(_flow))
+    rollen = [o["optie_sleutel"] for o in uit["componentrol_opties"]]
+    assert rollen == ["interne_applicatie", "interne_dataprovider", "externe_dataprovider", "koppelvlak"]
+    biv = [o["optie_sleutel"] for o in uit["biv_niveaus"]]
+    assert biv == ["laag", "midden", "hoog"]  # ordinaal op volgorde
+    # labels aanwezig voor het dropdown
+    assert all("label" in o for o in uit["componentrol_opties"] + uit["biv_niveaus"])
+
+
+@integratie
 def test_create_geldig_en_default_en_labels():
     from schemas.component import ComponentCreate
     from services import component_service as cs

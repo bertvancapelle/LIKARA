@@ -224,11 +224,22 @@ class ComponentKeuze(BaseModel):
     laag: str | None = None
 
 
+class OptieKeuze(BaseModel):
+    """Minimale (sleutel, label)-keuze voor een formulier-dropdown (ADR-028)."""
+
+    optie_sleutel: str
+    label: str
+
+
 class ComponentOpties(BaseModel):
     """Actieve catalogus-opties per dimensie (formulier-databron, CD052 §5)."""
 
     componenttype: list[ComponentKeuze] = []
     structuurrelatie_type: list[ComponentKeuze] = []
+    # ADR-028 — componentclassificatie (additief): actieve rol-opties + ordinale BIV-niveaus
+    # (`biv_niveaus` staat op `volgorde` van laag → hoog; de lijstvolgorde ís de ordinale schaal).
+    componentrol_opties: list[OptieKeuze] = []
+    biv_niveaus: list[OptieKeuze] = []
 
 
 class StructuurRelatieItem(BaseModel):

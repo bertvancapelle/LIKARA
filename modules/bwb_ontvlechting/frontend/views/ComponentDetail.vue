@@ -307,6 +307,20 @@ watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immedia
             <dd>{{ label(NIVEAU, component.prioriteit) }}</dd>
             <dt class="font-semibold">Beschrijving</dt>
             <dd class="whitespace-pre-wrap">{{ component.beschrijving || '—' }}</dd>
+            <!-- ADR-028 — componentclassificatie (registratief): rol + BIV. -->
+            <dt class="font-semibold">Rol</dt>
+            <dd data-testid="comp-rol">{{ component.rol_label }}</dd>
+            <dt class="font-semibold">BIV-classificatie</dt>
+            <dd data-testid="comp-biv">
+              <div class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-md)] gap-y-[var(--lk-space-xs)]">
+                <span class="text-[var(--lk-color-text-muted)]">Beschikbaarheid</span>
+                <span data-testid="comp-biv-b">{{ component.biv_beschikbaarheid_label || 'Niet geclassificeerd' }}</span>
+                <span class="text-[var(--lk-color-text-muted)]">Integriteit</span>
+                <span data-testid="comp-biv-i">{{ component.biv_integriteit_label || 'Niet geclassificeerd' }}</span>
+                <span class="text-[var(--lk-color-text-muted)]">Vertrouwelijkheid</span>
+                <span data-testid="comp-biv-v">{{ component.biv_vertrouwelijkheid_label || 'Niet geclassificeerd' }}</span>
+              </div>
+            </dd>
           </dl>
 
           <MigratiegereedheidSectie

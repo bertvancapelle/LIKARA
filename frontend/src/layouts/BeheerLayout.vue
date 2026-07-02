@@ -93,6 +93,20 @@ async function uitloggen() {
           >
             Partijsoort-catalogus
           </router-link>
+          <router-link
+            :to="{ name: 'beheer-componentrolconfig' }"
+            data-testid="nav-componentrolconfig"
+            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Componentrollen
+          </router-link>
+          <router-link
+            :to="{ name: 'beheer-bivschaalconfig' }"
+            data-testid="nav-bivschaalconfig"
+            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
+          >
+            BIV-schaal
+          </router-link>
         </nav>
       </aside>
 

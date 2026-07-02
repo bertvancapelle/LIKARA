@@ -27,6 +27,9 @@ const toast = useToast()
 
 const bewerken = computed(() => !!props.id)
 const typeOpties = ref([]) // [{ optie_sleutel, label }] — incl. 'applicatie' (convergent)
+// ADR-028 — rol-opties (kan groeien) + BIV-niveaus (ordinaal: laag → hoog), uit /componenten/opties.
+const rolOpties = ref([])
+const bivNiveaus = ref([])
 const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
 const laden = ref(false)
 const bezig = ref(false)
@@ -45,8 +48,20 @@ const form = reactive({
   migratiepad: 'onbekend',
   complexiteit: 'midden',
   prioriteit: 'midden',
+  // ADR-028 — rol staat standaard op Intern (server-default); BIV leeg = niet geclassificeerd.
+  componentrol: 'interne_applicatie',
+  biv_beschikbaarheid: '',
+  biv_integriteit: '',
+  biv_vertrouwelijkheid: '',
 })
 const fouten = reactive({})
+
+// ADR-028 — de drie BIV-aspecten (single source voor labels + template-loop).
+const BIV_VELDEN = [
+  { veld: 'biv_beschikbaarheid', label: 'Beschikbaarheid' },
+  { veld: 'biv_integriteit', label: 'Integriteit' },
+  { veld: 'biv_vertrouwelijkheid', label: 'Vertrouwelijkheid' },
+]
 
 const hosting = (c) => label(HOSTINGMODEL, c)
 
@@ -74,6 +89,9 @@ async function init() {
     const opties = await api.componenten.opties()
     // Convergente aanmaak (CD054b W1): 'applicatie' is wél kiesbaar.
     typeOpties.value = opties.componenttype || []
+    // ADR-028 — rol-opties + BIV-niveaus (ordinaal) voor de dropdowns.
+    rolOpties.value = opties.componentrol_opties || []
+    bivNiveaus.value = opties.biv_niveaus || []
     if (bewerken.value) {
       // LI059 Slice 4 — élk type (incl. applicatie) wordt hier bewerkt; geen subtype-redirect meer.
       const c = await api.componenten.haal(props.id)
@@ -88,6 +106,11 @@ async function init() {
         migratiepad: c.migratiepad ?? 'onbekend',
         complexiteit: c.complexiteit ?? 'midden',
         prioriteit: c.prioriteit ?? 'midden',
+        // ADR-028 — huidige rol + BIV (leeg = niet geclassificeerd).
+        componentrol: c.componentrol ?? 'interne_applicatie',
+        biv_beschikbaarheid: c.biv_beschikbaarheid ?? '',
+        biv_integriteit: c.biv_integriteit ?? '',
+        biv_vertrouwelijkheid: c.biv_vertrouwelijkheid ?? '',
       })
     }
   } catch (e) {
@@ -119,6 +142,11 @@ function _payload() {
     migratiepad: form.migratiepad,
     complexiteit: form.complexiteit,
     prioriteit: form.prioriteit,
+    // ADR-028 — rol altijd meegeven; een lege BIV-keuze → null (registratiegat).
+    componentrol: form.componentrol,
+    biv_beschikbaarheid: form.biv_beschikbaarheid || null,
+    biv_integriteit: form.biv_integriteit || null,
+    biv_vertrouwelijkheid: form.biv_vertrouwelijkheid || null,
   }
 }
 
@@ -133,6 +161,15 @@ function _serverveldfouten(e) {
       }
     }
     return toegepast
+  }
+  // ADR-028 — code-gebaseerde 422 (DB-lookup-validatie) op het juiste veld tonen.
+  if (e?.status === 422 && e?.code === 'ONGELDIGE_ROL') {
+    fouten.componentrol = e?.message || 'Kies een geldige rol.'
+    return true
+  }
+  if (e?.status === 422 && e?.code === 'ONGELDIGE_BIV') {
+    fouten.biv = e?.message || 'Kies een geldige BIV-waarde.'
+    return true
   }
   return false
 }
@@ -217,6 +254,42 @@ onMounted(init)
           <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
         </select>
       </div>
+
+      <!-- ADR-028 — componentrol (default Intern) + optionele BIV-classificatie. -->
+      <div class="flex flex-col gap-[var(--lk-space-xs)]">
+        <label for="f-componentrol" class="font-semibold">Rol</label>
+        <select
+          id="f-componentrol"
+          v-model="form.componentrol"
+          data-testid="veld-componentrol"
+          :aria-invalid="!!fouten.componentrol"
+          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+        >
+          <option v-for="o in rolOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
+        </select>
+        <span v-if="fouten.componentrol" role="alert" data-testid="fout-componentrol" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.componentrol }}</span>
+      </div>
+
+      <fieldset class="flex flex-col gap-[var(--lk-space-xs)] border border-[var(--lk-color-border)] rounded-[var(--lk-radius-input)] p-[var(--lk-space-sm)]" data-testid="biv-blok">
+        <legend class="font-semibold px-[var(--lk-space-xs)]">BIV-classificatie</legend>
+        <div
+          v-for="b in BIV_VELDEN"
+          :key="b.veld"
+          class="flex flex-col gap-[var(--lk-space-xs)]"
+        >
+          <label :for="`f-${b.veld}`">{{ b.label }}</label>
+          <select
+            :id="`f-${b.veld}`"
+            v-model="form[b.veld]"
+            :data-testid="`veld-${b.veld}`"
+            class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          >
+            <option value="">— Niet geclassificeerd —</option>
+            <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
+          </select>
+        </div>
+        <span v-if="fouten.biv" role="alert" data-testid="fout-biv" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.biv }}</span>
+      </fieldset>
 
       <!-- LI059 Slice 4 — transitie-attributen (component-breed, élk type). -->
       <div

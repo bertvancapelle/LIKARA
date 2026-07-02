@@ -484,4 +484,18 @@ export const api = {
     werkBij: (id, data) =>
       request(`/platform/partijsoortconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
+  // ADR-028 — platform-beheer componentrol-catalogus.
+  platformComponentrolconfig: {
+    lijst: () => request('/platform/componentrolconfig'),
+    maak: (data) => request('/platform/componentrolconfig', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) =>
+      request(`/platform/componentrolconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
+  // ADR-028 — platform-beheer BIV-schaal-catalogus.
+  platformBivschaalconfig: {
+    lijst: () => request('/platform/bivschaalconfig'),
+    maak: (data) => request('/platform/bivschaalconfig', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) =>
+      request(`/platform/bivschaalconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
 }

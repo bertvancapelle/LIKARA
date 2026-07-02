@@ -48,6 +48,9 @@ const RelatieKenmerkConfigBeheer = () => import('../views/RelatieKenmerkConfigBe
 // Catalogi-beheer-schuld dichten — platform-beheer vraagbetekenis + partijsoort, lazy.
 const VraagBetekenisConfigBeheer = () => import('../views/VraagBetekenisConfigBeheer.vue')
 const PartijsoortConfigBeheer = () => import('../views/PartijsoortConfigBeheer.vue')
+// ADR-028 — platform-beheer componentrol- + BIV-schaal-catalogus, lazy.
+const RolConfigBeheer = () => import('../views/RolConfigBeheer.vue')
+const BivConfigBeheer = () => import('../views/BivConfigBeheer.vue')
 // ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only), lazy.
 const PlateauLijstView = () => import('../views/migratie/PlateauLijstView.vue')
 const PlateauDetailView = () => import('../views/migratie/PlateauDetailView.vue')
@@ -164,6 +167,8 @@ const routes = [
       { path: 'relatiekenmerkconfig', name: 'beheer-relatiekenmerkconfig', component: RelatieKenmerkConfigBeheer },
       { path: 'vraagbetekenisconfig', name: 'beheer-vraagbetekenisconfig', component: VraagBetekenisConfigBeheer },
       { path: 'partijsoortconfig', name: 'beheer-partijsoortconfig', component: PartijsoortConfigBeheer },
+      { path: 'componentrolconfig', name: 'beheer-componentrolconfig', component: RolConfigBeheer },
+      { path: 'bivschaalconfig', name: 'beheer-bivschaalconfig', component: BivConfigBeheer },
     ],
   },
 

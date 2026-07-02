@@ -49,6 +49,16 @@ beforeEach(() => {
       { optie_sleutel: 'applicatie', label: 'Applicatie' },
     ],
     structuurrelatie_type: [],
+    // ADR-028 — rol-opties + BIV-niveaus (ordinaal).
+    componentrol_opties: [
+      { optie_sleutel: 'interne_applicatie', label: 'Interne applicatie' },
+      { optie_sleutel: 'externe_dataprovider', label: 'Externe dataprovider' },
+    ],
+    biv_niveaus: [
+      { optie_sleutel: 'laag', label: 'Laag' },
+      { optie_sleutel: 'midden', label: 'Midden' },
+      { optie_sleutel: 'hoog', label: 'Hoog' },
+    ],
   })
 })
 
@@ -151,6 +161,73 @@ describe('ComponentFormulier', () => {
     await flushPromises()
     expect(api.componenten.maak).toHaveBeenCalled()
     expect(w.find('[data-testid="fout-naam"]').exists()).toBe(false)
+  })
+
+  // ── ADR-028 — rol + BIV ──────────────────────────────────────────────────────
+  it('rol staat bij aanmaken standaard op Intern; BIV heeft een lege optie', async () => {
+    const { w } = await mountForm()
+    expect(w.find('[data-testid="veld-componentrol"]').element.value).toBe('interne_applicatie')
+    const bivB = w.find('[data-testid="veld-biv_beschikbaarheid"]')
+    expect(bivB.exists()).toBe(true)
+    expect(bivB.element.value).toBe('') // niet geclassificeerd
+    const legeOptie = bivB.findAll('option').find((o) => o.attributes('value') === '')
+    expect(legeOptie.text()).toContain('Niet geclassificeerd')
+  })
+
+  it('stuurt rol mee en zet lege BIV op null; een gekozen BIV gaat als sleutel mee', async () => {
+    api.componenten.maak.mockResolvedValueOnce({ id: 'c-biv' })
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-naam"]').setValue('Koppelbus')
+    await w.find('[data-testid="veld-componenttype"]').setValue('fileshare')
+    await w.find('[data-testid="veld-componentrol"]').setValue('externe_dataprovider')
+    await w.find('[data-testid="veld-biv_vertrouwelijkheid"]').setValue('hoog')
+    await w.find('[data-testid="component-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.componenten.maak).toHaveBeenCalledWith(
+      expect.objectContaining({
+        componentrol: 'externe_dataprovider',
+        biv_beschikbaarheid: null,
+        biv_integriteit: null,
+        biv_vertrouwelijkheid: 'hoog',
+      }),
+    )
+  })
+
+  it('foutmapping: 422 ONGELDIGE_ROL landt op het rol-veld, ONGELDIGE_BIV op het BIV-blok', async () => {
+    api.componenten.maak.mockRejectedValueOnce({ status: 422, code: 'ONGELDIGE_ROL', message: 'Kies een geldige rol.' })
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-naam"]').setValue('X')
+    await w.find('[data-testid="veld-componenttype"]').setValue('fileshare')
+    await w.find('[data-testid="component-form"]').trigger('submit')
+    await flushPromises()
+    expect(w.find('[data-testid="fout-componentrol"]').text()).toContain('Kies een geldige rol.')
+
+    api.componenten.maak.mockRejectedValueOnce({ status: 422, code: 'ONGELDIGE_BIV', message: 'Kies een geldige BIV-waarde.' })
+    await w.find('[data-testid="component-form"]').trigger('submit')
+    await flushPromises()
+    expect(w.find('[data-testid="fout-biv"]').text()).toContain('Kies een geldige BIV-waarde.')
+  })
+
+  it('bewerken laadt de bestaande rol + BIV in het formulier', async () => {
+    api.componenten.haal.mockResolvedValueOnce({
+      id: 'c-9', naam: 'Extern koppelpunt', componenttype: 'fileshare', hostingmodel: 'onbekend',
+      heeft_applicatie_subtype: false, migratiepad: 'onbekend', complexiteit: 'midden', prioriteit: 'midden',
+      eigenaar_organisatie_id: null, eigenaar_organisatie_naam: '', beschrijving: '',
+      componentrol: 'externe_dataprovider', biv_beschikbaarheid: 'laag', biv_integriteit: null, biv_vertrouwelijkheid: 'hoog',
+    })
+    const router = maakRouter()
+    await router.push('/componenten/c-9/bewerken')
+    await router.isReady()
+    const w = mount(ComponentFormulier, {
+      props: { id: 'c-9' },
+      attachTo: document.body,
+      global: { plugins: [createPinia(), [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } },
+    })
+    await flushPromises()
+    expect(w.find('[data-testid="veld-componentrol"]').element.value).toBe('externe_dataprovider')
+    expect(w.find('[data-testid="veld-biv_beschikbaarheid"]').element.value).toBe('laag')
+    expect(w.find('[data-testid="veld-biv_integriteit"]').element.value).toBe('') // niet geclassificeerd
+    expect(w.find('[data-testid="veld-biv_vertrouwelijkheid"]').element.value).toBe('hoog')
   })
 
   it('bewerken van een applicatie laadt in hetzelfde formulier (geen redirect, LI059)', async () => {

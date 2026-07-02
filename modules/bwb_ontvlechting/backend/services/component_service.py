@@ -621,8 +621,15 @@ async def verwijder(session: AsyncSession, tenant_id, component_id) -> None:
 
 
 async def opties(session: AsyncSession) -> dict:
-    """Actieve componentcatalogus-opties per dimensie (formulier-databron)."""
-    return await catalog.actieve_opties_per_dimensie(session)
+    """Actieve componentcatalogus-opties per dimensie (formulier-databron).
+
+    ADR-028 — additief: de actieve componentrol-opties (`componentrol_opties`) en de
+    ordinale BIV-niveaus (`biv_niveaus`, op `volgorde` van laag → hoog). `lk_app` mag beide
+    platform-catalogi lezen. Read-only; puur registratief."""
+    uit = await catalog.actieve_opties_per_dimensie(session)
+    uit["componentrol_opties"] = await componentrol_catalog.actieve_opties(session)
+    uit["biv_niveaus"] = await bivschaal_catalog.actieve_opties(session)
+    return uit
 
 
 async def structuur_overzicht(session: AsyncSession, tenant_id, component_id) -> dict:

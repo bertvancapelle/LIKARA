@@ -34,6 +34,9 @@ describe('BeheerLayout', () => {
     // Catalogi-beheer-schuld dichten — nieuwe platform-nav-items.
     expect(wrapper.find('[data-testid="nav-vraagbetekenisconfig"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-partijsoortconfig"]').exists()).toBe(true)
+    // ADR-028 — componentclassificatie-beheer.
+    expect(wrapper.find('[data-testid="nav-componentrolconfig"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="nav-bivschaalconfig"]').exists()).toBe(true)
   })
 
   it('uitloggen roept auth.logout aan', async () => {
