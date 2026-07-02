@@ -10,7 +10,7 @@ import re
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from models.models import ContractConfigDimensie
-from schemas.applicatie import _verplichte_tekst
+from schemas._validators import _verplichte_tekst
 
 # Stabiele sleutel: lowercase snake_case (start met letter; a-z, 0-9, _). Geen
 # hoofdletters/spaties — anders is de sleutel niet stabiel/herleidbaar.

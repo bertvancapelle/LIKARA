@@ -410,6 +410,44 @@ async def lijst(
     return out, volgende
 
 
+async def maak_applicatie_component(
+    session: AsyncSession,
+    tid: uuid.UUID,
+    *,
+    naam: str,
+    beschrijving: str | None,
+    hostingmodel: HostingModel,
+    eigenaar_organisatie_id: uuid.UUID | None,
+    migratiepad: Migratiepad,
+    complexiteit: NiveauEnum,
+    prioriteit: NiveauEnum,
+) -> Component:
+    """Service-kern: maak element + applicatie-component + generiek profiel atomair (LI059).
+
+    Eén implementatie achter de convergente aanmaak (`POST /componenten` met type=applicatie).
+    Er is GEEN subtype-rij meer — de component met `componenttype='applicatie'` ÍS de applicatie.
+    Elke applicatie krijgt atomair haar generieke profiel (engine-state `lifecycle_status`, start
+    `concept`). De aanroeper heeft de waarden al gevalideerd/gedefault."""
+    # ADR-023 Besluit 1: element-identiteit eerst (shared-PK), dan de component met dezelfde id.
+    elem = Element(tenant_id=tid, element_type=ElementType.component)
+    session.add(elem)
+    await session.flush()
+    comp = Component(
+        id=elem.id, tenant_id=tid, naam=naam, componenttype=_APPLICATIE_TYPE,
+        hostingmodel=hostingmodel, eigenaar_organisatie_id=eigenaar_organisatie_id,
+        beschrijving=beschrijving,
+        migratiepad=migratiepad, complexiteit=complexiteit, prioriteit=prioriteit,
+    )
+    session.add(comp)
+    await session.flush()  # comp.id beschikbaar voor de shared-PK van het profiel
+    session.add(
+        ComponentProfiel(id=comp.id, tenant_id=tid, lifecycle_status=LifecycleStatus.concept)
+    )
+    await session.commit()
+    await session.refresh(comp)
+    return comp
+
+
 async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
     # UX-B6-b — als een eigenaar-organisatie is opgegeven, valideer dat het een organisatie-partij is.
@@ -417,12 +455,9 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
         from services import partij_service
         await partij_service.valideer_organisatie(session, tid, data.eigenaar_organisatie_id)
     if data.componenttype == _APPLICATIE_TYPE:
-        # Convergente aanmaak (CD054b W1): atomair de applicatie-component + profiel, via
-        # dezelfde service-kern als het applicatie-pad. LI059 Slice 3: geen subtype-rij meer —
-        # de component ÍS de applicatie. Eigenaar-organisatie optioneel.
-        from services import applicatie_service
-
-        comp = await applicatie_service.maak_applicatie_component(
+        # Convergente aanmaak (CD054b W1): atomair de applicatie-component + profiel via de
+        # service-kern. LI059: geen subtype-rij meer — de component ÍS de applicatie.
+        comp = await maak_applicatie_component(
             session, tid,
             naam=data.naam, beschrijving=data.beschrijving, hostingmodel=data.hostingmodel,
             eigenaar_organisatie_id=data.eigenaar_organisatie_id,

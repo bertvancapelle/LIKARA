@@ -52,7 +52,9 @@ auditactie_enum = sa.Enum(AuditActie, name="auditactie_enum")
 # platform_audit_log. De audit-tabellen zelf staan hier NIET in (worden via core-INSERT
 # geschreven, nooit via ORM-flush) → ze auditeren zichzelf niet.
 AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
-    "element", "component", "applicatie", "component_profiel", "datatype",
+    # LI059 facade-purge: `applicatie` verwijderd — de subtabel is weg (0047) en applicatie-
+    # componenten worden als `component` geauditeerd.
+    "element", "component", "component_profiel", "datatype",
     "gebruikersgroep", "relatie", "checklistscore", "blokkade", "checklistvraag",
     "checklistvraag_optie", "partij", "contract", "contract_dekking",
     "contract_kostenmodel",

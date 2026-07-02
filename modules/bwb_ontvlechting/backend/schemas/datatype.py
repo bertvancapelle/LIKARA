@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from enum import Enum
 
 from models.models import DatatypeCategorie
-from schemas.applicatie import _optionele_tekst
+from schemas._validators import _optionele_tekst
 
 _VERPLICHTE_VELDEN = frozenset({"categorie"})
 

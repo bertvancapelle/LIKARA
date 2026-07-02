@@ -10,7 +10,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from models.models import ContractType, LifecycleStatus
-from schemas.applicatie import _verplichte_tekst
+from schemas._validators import _verplichte_tekst
 
 
 class ApplicatieContractCreate(BaseModel):

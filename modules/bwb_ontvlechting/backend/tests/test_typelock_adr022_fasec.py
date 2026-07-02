@@ -80,7 +80,7 @@ async def _eerste_applicatievraag(s):
 
 @integratie
 def test_drempel_leeg_vs_gevuld():
-    from services import applicatie_service, checklistscore_service, component_service as svc
+    from services import checklistscore_service, component_service as svc
     from schemas.checklistscore import ChecklistscoreCreate
 
     sfx = uuid.uuid4().hex[:8]
@@ -107,7 +107,7 @@ def test_drempel_leeg_vs_gevuld():
             app2 = await _maak(s, f"TL-app2-{sfx}", "applicatie")
             ids.append(app2["id"])
             assert (await svc.lees_detail(s, _TID, app2["id"]))["type_wijzigbaar"] is True
-            await applicatie_service.start_inventarisatie(s, _TID, app2["id"])  # → in_inventarisatie
+            await svc.start_beoordeling(s, _TID, app2["id"])  # → in_inventarisatie
             assert (await svc.lees_detail(s, _TID, app2["id"]))["type_wijzigbaar"] is False
         finally:
             await _opruimen(s, ids)

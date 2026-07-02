@@ -125,13 +125,13 @@ async def _run_rls(fn, tid=_TID):
 
 
 async def _maak_app(s, tid):
-    from schemas.applicatie import ApplicatieCreate
-    from services import applicatie_service
+    from schemas.component import ComponentCreate
+    from services import component_service
 
-    app = await applicatie_service.maak_aan(
-        s, tid, ApplicatieCreate(naam="WT-KV-App", hostingmodel="saas", migratiepad="onbekend",
+    app = await component_service.maak_aan(
+        s, tid, ComponentCreate(componenttype="applicatie", naam="WT-KV-App", hostingmodel="saas", migratiepad="onbekend",
                                  complexiteit="midden", prioriteit="midden"))
-    return app.id
+    return app["id"]
 
 
 @integratie

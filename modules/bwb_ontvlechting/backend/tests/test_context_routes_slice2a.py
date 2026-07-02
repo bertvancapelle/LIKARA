@@ -121,8 +121,8 @@ async def _ruim(s, ids):
 
 
 def _app_create(naam):
-    from schemas.applicatie import ApplicatieCreate
-    return ApplicatieCreate(naam=naam, hostingmodel="saas", migratiepad="onbekend",
+    from schemas.component import ComponentCreate
+    return ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad="onbekend",
                             complexiteit="midden", prioriteit="midden")
 
 
@@ -137,7 +137,7 @@ def test_contract_componenten_bevat_ook_kale_component():
     from schemas.partij import PartijCreate
     from models.models import PartijAard
     from services import (
-        applicatie_service, component_contract_service, contract_service, partij_service,
+        component_service, component_contract_service, contract_service, partij_service,
     )
 
     sfx = uuid.uuid4().hex[:8]
@@ -147,8 +147,8 @@ def test_contract_componenten_bevat_ook_kale_component():
         try:
             lev = await partij_service.maak_aan(s, _TID, PartijCreate(aard=PartijAard.externe_partij, naam=f"WT-S2a-Lev-{sfx}"))
             lev_id = lev.id
-            app = await applicatie_service.maak_aan(s, _TID, _app_create(f"WT-S2a-App-{sfx}"))
-            app_id = app.id
+            app = await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-App-{sfx}"))
+            app_id = app["id"]
             kaal = await component_service_maak(s, ComponentCreate(naam=f"WT-S2a-DB-{sfx}", componenttype="fileshare"))
             kaal_id = kaal["id"]
             con = await contract_service.maak_aan(s, _TID, ContractCreate(
@@ -189,7 +189,7 @@ def test_gebruiker_contexten_en_componenten():
     from schemas.gebruikersgroep import GebruikersgroepCreate
     from schemas.partij import PartijCreate
     from models.models import PartijAard
-    from services import applicatie_service, gebruikersgroep_service as gg, partij_service
+    from services import component_service, gebruikersgroep_service as gg, partij_service
 
     sfx = uuid.uuid4().hex[:8]
     afd_org = f"WT-S2a-Afd-{sfx}"
@@ -200,8 +200,8 @@ def test_gebruiker_contexten_en_componenten():
         try:
             org = await partij_service.maak_aan(s, _TID, PartijCreate(aard=PartijAard.organisatie, naam=f"WT-S2a-Org-{sfx}"))
             org_id = org.id
-            a_org = (await applicatie_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppOrg-{sfx}"))).id
-            a_burg = (await applicatie_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppBurg-{sfx}"))).id
+            a_org = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppOrg-{sfx}")))["id"]
+            a_burg = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppBurg-{sfx}")))["id"]
             g1 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(
                 applicatie_id=a_org, organisatie_id=org_id, afdeling=afd_org, aantal_gebruikers=10)))["id"]
             g2 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(

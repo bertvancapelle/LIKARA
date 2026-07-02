@@ -41,9 +41,9 @@ integratie = pytest.mark.skipif(not _db_bereikbaar(), reason="lk_app-DB niet ber
 def test_auditlog_naam_verrijking_en_filters():
     from app.core.database import _markeer_rls
     from models.models import GebruikerPersoon, PartijAard
-    from schemas.applicatie import ApplicatieCreate
+    from schemas.component import ComponentCreate
     from schemas.partij import PartijCreate
-    from services import actor_resolutie, applicatie_service, partij_service
+    from services import actor_resolutie, component_service, partij_service
     from services import auditlog_service as svc
 
     tid = uuid.UUID(_TID)
@@ -81,14 +81,14 @@ def test_auditlog_naam_verrijking_en_filters():
                 ids += [org.id, persoon.id]
 
                 # Mutatie als gekoppelde actor (→ audit-rows met sub_gek).
-                app_gek = await _muteer(sub_gek, "jan.kc@org.test", lambda s2: applicatie_service.maak_aan(
-                    s2, tid, ApplicatieCreate(naam=f"AudApp-gek-{merk}", hostingmodel="saas",
+                app_gek = await _muteer(sub_gek, "jan.kc@org.test", lambda s2: component_service.maak_aan(
+                    s2, tid, ComponentCreate(componenttype="applicatie", naam=f"AudApp-gek-{merk}", hostingmodel="saas",
                                               migratiepad="onbekend", complexiteit="midden", prioriteit="midden")))
                 # Mutatie als ongekoppelde actor (beheerder zonder persoon → e-mail-fallback).
-                app_ong = await _muteer(sub_ong, "beheerder@audit", lambda s2: applicatie_service.maak_aan(
-                    s2, tid, ApplicatieCreate(naam=f"AudApp-ong-{merk}", hostingmodel="saas",
+                app_ong = await _muteer(sub_ong, "beheerder@audit", lambda s2: component_service.maak_aan(
+                    s2, tid, ComponentCreate(componenttype="applicatie", naam=f"AudApp-ong-{merk}", hostingmodel="saas",
                                               migratiepad="onbekend", complexiteit="midden", prioriteit="midden")))
-                ids += [app_gek.id, app_ong.id]
+                ids += [app_gek["id"], app_ong["id"]]
 
                 # (1+2) Verrijking: gekoppeld → persoon.naam; ongekoppeld → e-mail-fallback.
                 gek, _ = await svc.lijst(s, tid, actor_naam=naam)

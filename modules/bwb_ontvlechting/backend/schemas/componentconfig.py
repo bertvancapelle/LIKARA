@@ -16,7 +16,7 @@ import re
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from models.models import ComponentConfigDimensie
-from schemas.applicatie import _verplichte_tekst
+from schemas._validators import _verplichte_tekst
 from services.archimate_typing import (
     TOEGESTANE_ASPECTEN,
     TOEGESTANE_ELEMENTEN,

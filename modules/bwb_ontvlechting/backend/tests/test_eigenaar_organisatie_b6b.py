@@ -72,9 +72,9 @@ def test_eigenaar_organisatie_component_en_applicatie_live():
     from sqlalchemy import text as _text
 
     from models.models import PartijAard
-    from schemas.applicatie import ApplicatieCreate
     from schemas.component import ComponentCreate
-    from services import applicatie_service, component_service
+    from schemas.component import ComponentCreate
+    from services import component_service
     from services.errors import OngeldigeRegistratie
 
     tid = uuid.UUID(_TID)
@@ -87,14 +87,14 @@ def test_eigenaar_organisatie_component_en_applicatie_live():
             await s.commit(); ids += [org_id, ext_id]
 
             # Applicatie: eigenaar-organisatie zetten → read levert de naam (transient attribuut).
-            app = await applicatie_service.maak_aan(
-                s, tid, ApplicatieCreate(naam="WT-B6b-App", hostingmodel="saas",
+            app = await component_service.maak_aan(
+                s, tid, ComponentCreate(componenttype="applicatie", naam="WT-B6b-App", hostingmodel="saas",
                                          eigenaar_organisatie_id=org_id, migratiepad="onbekend",
                                          complexiteit="midden", prioriteit="midden"),
             )
-            ids.append(app.id)
-            assert app.eigenaar_organisatie_id == org_id
-            assert app.eigenaar_organisatie_naam == "WT-B6b-Org"
+            ids.append(app["id"])
+            assert app["eigenaar_organisatie_id"] == org_id
+            assert app["eigenaar_organisatie_naam"] == "WT-B6b-Org"
 
             # Component (niet-applicatie): idem via _lees.
             comp = await component_service.maak_aan(
@@ -109,8 +109,8 @@ def test_eigenaar_organisatie_component_en_applicatie_live():
             for maak in (
                 lambda: component_service.maak_aan(
                     s, tid, ComponentCreate(naam="x", componenttype="database", eigenaar_organisatie_id=ext_id)),
-                lambda: applicatie_service.maak_aan(
-                    s, tid, ApplicatieCreate(naam="x", hostingmodel="saas", eigenaar_organisatie_id=ext_id,
+                lambda: component_service.maak_aan(
+                    s, tid, ComponentCreate(componenttype="applicatie", naam="x", hostingmodel="saas", eigenaar_organisatie_id=ext_id,
                                              migratiepad="onbekend", complexiteit="midden", prioriteit="midden")),
             ):
                 try:
@@ -121,11 +121,11 @@ def test_eigenaar_organisatie_component_en_applicatie_live():
                 await s.rollback()
 
             # Applicatie-lijst filtert op eigenaar_organisatie_id.
-            gefilterd, _ = await applicatie_service.lijst(s, _TID, eigenaar_organisatie_id=org_id, limit=100)
-            assert any(a.id == app.id for a in gefilterd)
+            gefilterd, _ = await component_service.lijst(s, _TID, eigenaar_organisatie_id=org_id, limit=100)
+            assert any(a["id"] == app["id"] for a in gefilterd)
 
             # ON DELETE SET NULL: verwijder de organisatie → verwijzingen worden null, tenant_id intact.
-            app_id = app.id
+            app_id = app["id"]
             await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(org_id)})
             await s.commit()
             # Beide componenten (kaal component én applicatie-component) → FK null, tenant_id intact.

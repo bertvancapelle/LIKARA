@@ -46,13 +46,14 @@ def _src_zonder_docstring(fn) -> str:
 
 
 def test_facade_schrijfpaden_drijven_de_engine_niet_aan():
-    from services import applicatie_service as asv
+    from services import component_service as asv
     from services import component_service as csv
 
     schrijfpaden = [
         asv.werk_bij,
         asv.maak_aan,
-        asv.maak_applicatie_component,
+        # LI059 facade-purge: de creatie-kern woont nu in component_service.
+        csv.maak_applicatie_component,
         csv.werk_bij,
     ]
     for fn in schrijfpaden:
@@ -66,7 +67,7 @@ def test_facade_schrijfpaden_drijven_de_engine_niet_aan():
 
 def test_facade_raakt_de_opgeheven_subtabel_niet():
     """De facade-service refereert nergens meer aan een `applicatie`-subtabel-CRUD."""
-    from services import applicatie_service as asv
+    from services import component_service as asv
 
     src = inspect.getsource(asv)
     for verboden in ("select(Applicatie)", "update(Applicatie)", "delete(Applicatie)", "Applicatie("):
@@ -116,8 +117,8 @@ def test_transitie_attribuut_edit_muteert_engine_niet():
     from sqlalchemy import text as _text
 
     from models.models import Migratiepad, NiveauEnum
-    from schemas.applicatie import ApplicatieCreate, ApplicatieUpdate
-    from services import applicatie_service as svc
+    from schemas.component import ComponentCreate, ComponentUpdate
+    from services import component_service as svc
 
     naam = f"LI059-fs-{uuid.uuid4().hex[:8]}"
 
@@ -136,12 +137,12 @@ def test_transitie_attribuut_edit_muteert_engine_niet():
     async def _flow(s):
         comp = await svc.maak_aan(
             s, _TID,
-            ApplicatieCreate(
+            ComponentCreate(componenttype="applicatie", 
                 naam=naam, hostingmodel="on_premise",
                 migratiepad="onbekend", complexiteit="midden", prioriteit="midden",
             ),
         )
-        cid = comp.id
+        cid = comp["id"]
         try:
             # Verse applicatie: profiel-status concept; geen scores/blokkades.
             assert await _lifecycle(s, cid) == "concept"
@@ -151,7 +152,7 @@ def test_transitie_attribuut_edit_muteert_engine_niet():
             # Transitie-attributen wijzigen via de facade — mag de engine NIET raken.
             await svc.werk_bij(
                 s, _TID, cid,
-                ApplicatieUpdate(
+                ComponentUpdate(
                     migratiepad=Migratiepad.uitfaseren,
                     complexiteit=NiveauEnum.hoog,
                     prioriteit=NiveauEnum.laag,
@@ -178,20 +179,20 @@ def test_geen_wees_element_na_facade_delete():
     """Na de facade-delete blijft geen wees-element achter (delete via het element-supertype)."""
     from sqlalchemy import text as _text
 
-    from schemas.applicatie import ApplicatieCreate
-    from services import applicatie_service as svc
+    from schemas.component import ComponentCreate
+    from services import component_service as svc
 
     naam = f"LI059-wees-{uuid.uuid4().hex[:8]}"
 
     async def _flow(s):
         comp = await svc.maak_aan(
             s, _TID,
-            ApplicatieCreate(
+            ComponentCreate(componenttype="applicatie", 
                 naam=naam, hostingmodel="on_premise",
                 migratiepad="onbekend", complexiteit="midden", prioriteit="midden",
             ),
         )
-        cid = comp.id
+        cid = comp["id"]
         await svc.verwijder(s, _TID, cid)
         await s.commit()
         # element-rij weg (cascade), geen wees.

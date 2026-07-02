@@ -22,23 +22,23 @@ from app.middleware.auth import AuthenticatedUser, get_current_user
 from app.middleware.authz import OnvoldoendeRechten
 from app.middleware.tenant import get_tenant_session
 from schemas.auditlog import AuditLogPagina
-from services import applicatie_service, auditlog_service as svc
+from services import auditlog_service as svc
 from services import component_service, contract_service, partij_service
 from services import deliverable_service, gap_service, plateau_service, work_package_service
 
 router = APIRouter(prefix="/objecthistorie", tags=["bwb:objecthistorie"])
 
 # Per entiteit-type: (lees-permissie, object-resolutie voor de toegangscheck/404, audit-filtermodus).
-# Élk type met een eigen detailscherm + `haal_op` + eigen leespermissie is opgenomen. 'component'/
-# 'applicatie' → het rijke component_id-pad (incl. afgeleide profiel/score/blokkade-records via
-# jsonb-diff); de overige → een generiek entiteit_id-filter op de directe object-records.
+# Élk type met een eigen detailscherm + `haal_op` + eigen leespermissie is opgenomen. 'component'
+# → het rijke component_id-pad (incl. afgeleide profiel/score/blokkade-records via jsonb-diff);
+# de overige → een generiek entiteit_id-filter op de directe object-records. LI059: applicaties zijn
+# componenten (type 'applicatie') → hun historie loopt via 'component'; de aparte 'applicatie'-tak is weg.
 # NIET opgenomen (sub-/afgeleide entiteit zonder eigen scherm — verschijnt in de historie van de
 # ouder): component_profiel, checklistscore, blokkade (→ component); contract_dekking/-kostenmodel
-# (→ contract); datatype (→ applicatie); relatie, roltoewijzing, gebruikersgroep, gebruiker_persoon,
+# (→ contract); datatype, relatie, roltoewijzing, gebruikersgroep, gebruiker_persoon,
 # component_klaarverklaring (geen eigen detailscherm / geen eigenstandige object-read).
 _TYPES = {
     "component": (Entiteit.COMPONENT, component_service.haal_op, "component"),
-    "applicatie": (Entiteit.APPLICATIE, applicatie_service.haal_op, "component"),
     "contract": (Entiteit.CONTRACT, contract_service.haal_op, "entiteit"),
     "partij": (Entiteit.PARTIJ, partij_service.haal_op, "entiteit"),
     "plateau": (Entiteit.PLATEAU, plateau_service.haal_op, "entiteit"),

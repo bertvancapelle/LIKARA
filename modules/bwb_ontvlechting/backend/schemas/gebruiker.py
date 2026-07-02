@@ -12,7 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from schemas.applicatie import _verplichte_tekst
+from schemas._validators import _verplichte_tekst
 
 _EMAIL_PATROON = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 

@@ -139,9 +139,9 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
     checklist-dragend; `applicatie` is het enige dragende type. Elke `_worker` krijgt een
     verse correlatie-id, dus de 88-ja-setup lekt niet in de gemeten correlatie.)"""
     from models.models import AuditLog, ChecklistVraag
-    from schemas.applicatie import ApplicatieCreate
+    from schemas.component import ComponentCreate
     from schemas.checklistscore import ChecklistscoreCreate
-    from services import applicatie_service, checklistscore_service
+    from services import component_service, checklistscore_service
 
     naam = f"AUDIT-SRV-{uuid.uuid4().hex[:8]}"
 
@@ -149,13 +149,13 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
         app_id = None
         try:
             async with _worker(DEV_TENANT) as s:
-                app = await applicatie_service.maak_aan(
+                app = await component_service.maak_aan(
                     s, DEV_TENANT,
-                    ApplicatieCreate(naam=naam, hostingmodel="saas",
+                    ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas",
                                      migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
                 )
-                app_id = app.id
-                await applicatie_service.start_inventarisatie(s, DEV_TENANT, app_id)
+                app_id = app["id"]
+                await component_service.start_beoordeling(s, DEV_TENANT, app_id)
                 vraag_ids = [
                     r for (r,) in (await s.execute(
                         select(ChecklistVraag.id)
@@ -209,22 +209,22 @@ def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
     """v3-splitsing: een zelfstandige handmatige blokkade-wissel (open→in_behandeling)
     zónder score-driver in dezelfde transactie ⇒ actie=`update` (geen `derive`)."""
     from models.models import AuditLog, Blokkade, BlokkadeStatus, ChecklistVraag
-    from schemas.applicatie import ApplicatieCreate
+    from schemas.component import ComponentCreate
     from schemas.blokkade import BlokkadeUpdate
     from schemas.checklistscore import ChecklistscoreCreate
-    from services import applicatie_service, blokkade_service, checklistscore_service
+    from services import component_service, blokkade_service, checklistscore_service
 
     naam = f"AUDIT-BLK-{uuid.uuid4().hex[:8]}"
 
     async def _run():
         async with _worker(DEV_TENANT) as s:
-            app = await applicatie_service.maak_aan(
+            app = await component_service.maak_aan(
                 s, DEV_TENANT,
-                ApplicatieCreate(naam=naam, hostingmodel="saas",
+                ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas",
                                  migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
             )
-            app_id = app.id
-            await applicatie_service.start_inventarisatie(s, DEV_TENANT, app_id)
+            app_id = app["id"]
+            await component_service.start_beoordeling(s, DEV_TENANT, app_id)
             vraag_id = (await s.execute(
                 select(ChecklistVraag.id).where(ChecklistVraag.componenttype == "applicatie").limit(1)
             )).scalar_one()

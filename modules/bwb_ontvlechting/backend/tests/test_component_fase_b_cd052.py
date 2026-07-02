@@ -22,19 +22,20 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
     # maakt atomair het subtype met defaults via dezelfde service-kern.
     from models.models import Migratiepad, NiveauEnum
     from schemas.component import ComponentCreate
-    from services import applicatie_service, component_service as svc
+    from services import component_service as svc
 
     vastgelegd = {}
 
     async def _kern(session, tid, **kw):
         vastgelegd.update(kw)
-        # LI059 Slice 3: de kern levert het component zélf terug (geen subtype-wrapper meer).
+        # LI059: de creatie-kern levert het component zélf terug (geen subtype-wrapper).
         return SimpleNamespace(id=uuid.uuid4())
 
     async def _lees(session, tid, comp):
         return {"id": comp.id, "heeft_applicatie_subtype": True}
 
-    monkeypatch.setattr(applicatie_service, "maak_applicatie_component", _kern)
+    # LI059 facade-purge: de kern woont nu in component_service (was applicatie_service).
+    monkeypatch.setattr(svc, "maak_applicatie_component", _kern)
     monkeypatch.setattr(svc, "_lees", _lees)
 
     out = asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentCreate(naam="Nieuwe app", componenttype="applicatie")))

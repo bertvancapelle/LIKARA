@@ -12,7 +12,7 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from models.models import ChecklistScore
-from schemas.applicatie import _optionele_tekst
+from schemas._validators import _optionele_tekst
 
 _VERPLICHTE_VELDEN = frozenset({"score"})
 

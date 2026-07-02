@@ -12,7 +12,7 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from models.models import HostingModel, LifecycleStatus, Migratiepad, NiveauEnum
-from schemas.applicatie import _verplichte_tekst
+from schemas._validators import _verplichte_tekst
 
 
 class ComponentSorteerveld(str, Enum):
@@ -28,6 +28,18 @@ class ComponentSorteerveld(str, Enum):
     complexiteit = "complexiteit"
     prioriteit = "prioriteit"
     lifecycle_status = "lifecycle_status"
+
+
+class ComponentStatusFilter(str, Enum):
+    """Allowlist voor het `?status=`-filter (CD017) — de 4 reële lifecycle-statussen.
+    LI059: verhuisd uit `schemas/applicatie.py` (facade-purge). De transiënte
+    `checklist_compleet` (ADR-013 B4) ontbreekt bewust (wordt nooit opgeslagen).
+    Onbekende waarde ⇒ 422 (API-rand); multi-select → `IN`-clause."""
+
+    concept = "concept"
+    in_inventarisatie = "in_inventarisatie"
+    geblokkeerd = "geblokkeerd"
+    migratieklaar = "migratieklaar"
 
 
 class ComponentCreate(BaseModel):

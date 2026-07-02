@@ -303,12 +303,11 @@ def test_functietitel_in_partij_schema():
 
 
 def test_component_schema_zonder_eigenaar_naam_leverancier():
-    """De vrije-tekstvelden zijn verwijderd uit component- én applicatie-schemas (ADR-024)."""
-    from schemas.applicatie import ApplicatieCreate, ApplicatieRead, ApplicatieUpdate
+    """De vrije-tekstvelden zijn verwijderd uit de component-schemas (ADR-024). LI059: de
+    aparte applicatie-schemas bestaan niet meer (applicaties zijn componenten)."""
     from schemas.component import ComponentCreate, ComponentRead, ComponentUpdate
 
-    for model in (ComponentCreate, ComponentUpdate, ComponentRead,
-                  ApplicatieCreate, ApplicatieUpdate, ApplicatieRead):
+    for model in (ComponentCreate, ComponentUpdate, ComponentRead):
         assert "eigenaar_naam" not in model.model_fields
         assert "leverancier" not in model.model_fields
         # de partij-FK blijft bestaan

@@ -14,7 +14,6 @@ from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
 from models.models import HostingModel
-from schemas.applicatie import ApplicatieStatusFilter
 from schemas.component import (
     ComponentCreate,
     ComponentImpact,
@@ -22,6 +21,7 @@ from schemas.component import (
     ComponentPagina,
     ComponentRead,
     ComponentSorteerveld,
+    ComponentStatusFilter,
     ComponentStructuurOverzicht,
     ComponentUpdate,
     ComponentVerwijderImpact,
@@ -49,7 +49,7 @@ async def lijst_componenten(
     order: Sorteerrichting = Query(Sorteerrichting.asc),
     componenttype: str | None = Query(None, max_length=60),
     laag: str | None = Query(None, max_length=40),
-    status: list[ApplicatieStatusFilter] = Query(default=[]),
+    status: list[ComponentStatusFilter] = Query(default=[]),
     hostingmodel: HostingModel | None = Query(None),
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     leverancier_id: uuid.UUID | None = Query(None),

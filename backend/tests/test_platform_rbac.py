@@ -110,8 +110,8 @@ def _app():
     async def _pc(u=Depends(vereist_platform_permissie(PlatformEntiteit.TENANT, Actie.AANMAKEN))):
         return {"roles": u.roles}
 
-    @app.delete("/tenant/applicatie")
-    async def _td(u=Depends(vereist_permissie(Entiteit.APPLICATIE, Actie.VERWIJDEREN))):
+    @app.delete("/tenant/component")
+    async def _td(u=Depends(vereist_permissie(Entiteit.COMPONENT, Actie.VERWIJDEREN))):
         return {"roles": u.roles}
 
     return app
@@ -156,5 +156,5 @@ def test_kruis_tenantrol_op_platform_endpoint_403(monkeypatch):
 
 def test_kruis_platformrol_op_tenant_endpoint_403(monkeypatch):
     # platform-account heeft geen tenant_id ⇒ get_current_user weigert (403)
-    r = _client(monkeypatch, _PB).delete("/tenant/applicatie")
+    r = _client(monkeypatch, _PB).delete("/tenant/component")
     assert r.status_code == 403

@@ -109,10 +109,10 @@ async def _maak_org(s, tid, naam, aard=None):
 
 async def _maak_app(s, tid):
     from models.models import HostingModel, Migratiepad, NiveauEnum
-    from services import applicatie_service
+    from services import component_service
 
-    # LI059 Slice 3: de kern heet `maak_applicatie_component` en levert het component (geen subtype).
-    comp = await applicatie_service.maak_applicatie_component(
+    # LI059 facade-purge: de creatie-kern woont in component_service (component = enige bron).
+    comp = await component_service.maak_applicatie_component(
         s, tid, naam="WT-B6a-App", beschrijving=None, hostingmodel=HostingModel.on_premise,
         eigenaar_organisatie_id=None,
         migratiepad=Migratiepad.onbekend, complexiteit=NiveauEnum.midden, prioriteit=NiveauEnum.midden,

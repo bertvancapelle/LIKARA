@@ -122,23 +122,8 @@ export const api = {
       request(`/objecthistorie/${entiteitType}/${entiteitId}${_filterQuery('objecthistorie.lijst', rest, ['limit', 'after'])}`),
   },
 
-  applicaties: {
-    // sort/order/filters optioneel — alles weggelaten → server-default
-    // (created_at asc, geen filters), exact backwards-compatible (ADR-017/CD017).
-    // `status` is een array (herhaalde param); lege array → geen statusfilter.
-    lijst: (params = {}) =>
-      request(
-        `/applicaties${_filterQuery('applicaties.lijst', params, ['limit', 'after', 'sort', 'order', 'status', 'hostingmodel', 'eigenaar_organisatie_id', 'zoek'])}`,
-      ),
-    haal: (id) => request(`/applicaties/${id}`),
-    maak: (data) => request('/applicaties', { method: 'POST', body: JSON.stringify(data) }),
-    werkBij: (id, data) =>
-      request(`/applicaties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-    startInventarisatie: (id) =>
-      request(`/applicaties/${id}/start-inventarisatie`, { method: 'POST' }),
-    verwijder: (id) => request(`/applicaties/${id}`, { method: 'DELETE' }),
-    opties: () => request('/applicaties/opties'),
-  },
+  // LI059 facade-purge — de aparte `/applicaties`-API is opgeheven; applicaties zijn
+  // componenten (type 'applicatie') en lopen via `api.componenten`.
 
   datatypes: {
     // sort/order optioneel (CD020) — weglaten = server-default (created_at asc).

@@ -27,7 +27,7 @@ describe('api.request — 401 (status-gebaseerd)', () => {
     vi.stubGlobal('fetch', vi.fn(() =>
       Promise.resolve(_resp({ status: 401, body: { fout: { code: 'NIET_GEAUTHENTICEERD', http_status: 401, bericht: 'x' } } })),
     ))
-    await expect(api.applicaties.lijst()).rejects.toMatchObject({
+    await expect(api.componenten.lijst()).rejects.toMatchObject({
       message: 'NIET_GEAUTHENTICEERD',
       status: 401,
       code: 'NIET_GEAUTHENTICEERD',
@@ -39,7 +39,7 @@ describe('api.request — 401 (status-gebaseerd)', () => {
       Promise.resolve(_resp({ status: 401, body: { fout: { code: 'ID_TOKEN_ONGELDIG', http_status: 401, bericht: 'x' } } })),
     ))
     // Zelfde signaal (message), status 401 — alleen de code verschilt.
-    await expect(api.applicaties.haal('id')).rejects.toMatchObject({
+    await expect(api.componenten.haal('id')).rejects.toMatchObject({
       message: 'NIET_GEAUTHENTICEERD',
       status: 401,
       code: 'ID_TOKEN_ONGELDIG',
@@ -52,7 +52,7 @@ describe('api.request — 422 (bewust native detail)', () => {
     const detail = [{ loc: ['body', 'naam'], msg: 'verplicht', type: 'missing' }]
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(_resp({ status: 422, body: { detail } }))))
     await expect(
-      api.applicaties.maak({ naam: '' }),
+      api.componenten.maak({ naam: '' }),
     ).rejects.toMatchObject({ status: 422, detail })
   })
 })
@@ -95,7 +95,7 @@ describe('api.request — single-flight refresh-on-401 (ADR-015 B6)', () => {
           : _resp({ status: 200, body: { items: [], volgende_cursor: null } }),
       )
     }))
-    const res = await api.applicaties.lijst()
+    const res = await api.componenten.lijst()
     expect(refreshCalls).toBe(1)
     expect(res).toEqual({ items: [], volgende_cursor: null })
   })
@@ -111,7 +111,7 @@ describe('api.request — single-flight refresh-on-401 (ADR-015 B6)', () => {
       dataCalls++
       return Promise.resolve(_resp({ status: 401, body: { fout: { code: 'NIET_GEAUTHENTICEERD' } } }))
     }))
-    await expect(api.applicaties.lijst()).rejects.toMatchObject({
+    await expect(api.componenten.lijst()).rejects.toMatchObject({
       status: 401,
       code: 'NIET_GEAUTHENTICEERD',
     })
@@ -134,7 +134,7 @@ describe('api.request — single-flight refresh-on-401 (ADR-015 B6)', () => {
           : _resp({ status: 200, body: { ok: true } }),
       )
     }))
-    const [a, b] = await Promise.all([api.applicaties.haal('1'), api.applicaties.haal('2')])
+    const [a, b] = await Promise.all([api.componenten.haal('1'), api.componenten.haal('2')])
     expect(refreshCalls).toBe(1) // één refresh voor beide gelijktijdige 401's
     expect(a).toEqual({ ok: true })
     expect(b).toEqual({ ok: true })

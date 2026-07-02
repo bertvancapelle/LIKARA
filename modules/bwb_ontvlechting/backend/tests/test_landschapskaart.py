@@ -176,9 +176,9 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
         Contract, ContractType, Element, ElementType, HostingModel, Migratiepad,
         NiveauEnum, Partij, PartijAard, Plateau, Relatie, RelatieKenmerkDimensie, Roltoewijzing,
     )
-    from schemas.applicatie import ApplicatieCreate
     from schemas.component import ComponentCreate
-    from services import applicatie_service, component_service, landschapskaart_service as svc
+    from schemas.component import ComponentCreate
+    from services import component_service, landschapskaart_service as svc
     from services import partij_service
     from services import relatiekenmerk_catalog as rk
 
@@ -188,12 +188,12 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
         ids = []
         try:
             # Applicatie (krijgt een profiel → lifecycle_status) + een database-component.
-            app = await applicatie_service.maak_aan(
-                s, tid, ApplicatieCreate(
+            app = await component_service.maak_aan(
+                s, tid, ComponentCreate(componenttype="applicatie", 
                     naam="WT-LK-App", hostingmodel="saas", migratiepad="onbekend",
                     complexiteit="midden", prioriteit="midden"))
             comp = await component_service.maak_aan(s, tid, ComponentCreate(naam="WT-LK-DB", componenttype="database"))
-            app_id, comp_id = app.id, comp["id"]
+            app_id, comp_id = app["id"], comp["id"]
             ids += [app_id, comp_id]
 
             # Organisatie-partij + contract (leverancier = de organisatie).
@@ -524,28 +524,28 @@ def test_landschapskaart_blokkades_open_telling_live():
     from sqlalchemy import select as _select, text as _text
 
     from models.models import ChecklistVraag
-    from schemas.applicatie import ApplicatieCreate
+    from schemas.component import ComponentCreate
     from schemas.checklistscore import ChecklistscoreCreate
-    from services import applicatie_service, checklistscore_service, landschapskaart_service as svc
+    from services import component_service, checklistscore_service, landschapskaart_service as svc
 
     tid = uuid.UUID(_TID)
 
     async def _flow(s):
         ids = []
         try:
-            app = await applicatie_service.maak_aan(
-                s, tid, ApplicatieCreate(naam="WT-LK-Blok", hostingmodel="saas", migratiepad="onbekend",
+            app = await component_service.maak_aan(
+                s, tid, ComponentCreate(componenttype="applicatie", naam="WT-LK-Blok", hostingmodel="saas", migratiepad="onbekend",
                                          complexiteit="midden", prioriteit="midden"))
-            ids.append(app.id)
-            await applicatie_service.start_inventarisatie(s, tid, app.id)
+            ids.append(app["id"])
+            await component_service.start_beoordeling(s, tid, app["id"])
             vraag_id = (await s.execute(
                 _select(ChecklistVraag.id).where(ChecklistVraag.componenttype == "applicatie").limit(1)
             )).scalar_one()
             # Score 'nee' → de engine genereert een open blokkade (read-only geteld door de kaart).
             await checklistscore_service.maak_aan(
-                s, tid, ChecklistscoreCreate(component_id=app.id, checklistvraag_id=vraag_id, score="nee"))
+                s, tid, ChecklistscoreCreate(component_id=app["id"], checklistvraag_id=vraag_id, score="nee"))
             graf = await svc.haal_grafdata_op(s, _TID)
-            return next(n for n in graf.nodes if n.id == app.id)
+            return next(n for n in graf.nodes if n.id == app["id"])
         finally:
             for eid in ids:
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
@@ -590,8 +590,8 @@ def test_eigenaar_edge_is_context_geen_impact():
 
 
 def _ac(naam):
-    from schemas.applicatie import ApplicatieCreate
-    return ApplicatieCreate(naam=naam, hostingmodel="saas", migratiepad="onbekend",
+    from schemas.component import ComponentCreate
+    return ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad="onbekend",
                             complexiteit="midden", prioriteit="midden")
 
 
@@ -602,25 +602,25 @@ def test_subgraaf_set_scoped_s_plus_1hop_live():
     from sqlalchemy import text as _text
 
     from models.models import Relatie
-    from services import applicatie_service, landschapskaart_service as svc
+    from services import component_service, landschapskaart_service as svc
 
     tid = uuid.UUID(_TID)
 
     async def _flow(s):
         ids = []
         try:
-            a1 = await applicatie_service.maak_aan(s, tid, _ac("WT-SUB-A1"))
-            a2 = await applicatie_service.maak_aan(s, tid, _ac("WT-SUB-A2"))
-            a3 = await applicatie_service.maak_aan(s, tid, _ac("WT-SUB-A3-ISOL"))
-            ids += [a1.id, a2.id, a3.id]
+            a1 = await component_service.maak_aan(s, tid, _ac("WT-SUB-A1"))
+            a2 = await component_service.maak_aan(s, tid, _ac("WT-SUB-A2"))
+            a3 = await component_service.maak_aan(s, tid, _ac("WT-SUB-A3-ISOL"))
+            ids += [a1["id"], a2["id"], a3["id"]]
             # a1 → a2 (flow): a2 is een 1-hop-buur van a1; a3 staat los.
-            s.add(Relatie(tenant_id=tid, bron_id=a1.id, doel_id=a2.id, relatietype="flow",
+            s.add(Relatie(tenant_id=tid, bron_id=a1["id"], doel_id=a2["id"], relatietype="flow",
                           kenmerken={"richting": "eenrichting", "protocol": "rest"}))
             await s.commit()
-            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[a1.id])
+            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[a1["id"]])
             vol = await svc.haal_grafdata_op(s, _TID)
             return ({n.id for n in sub.nodes}, {n.id for n in vol.nodes},
-                    a1.id, a2.id, a3.id, sub.edges)
+                    a1["id"], a2["id"], a3["id"], sub.edges)
         finally:
             for eid in ids:
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
@@ -642,7 +642,7 @@ def test_subgraaf_organisatiestructuur_alleen_s_rol_personen_live():
     from models.models import (
         Element, ElementType, Partij, PartijAard, RelatieKenmerkDimensie, Roltoewijzing,
     )
-    from services import applicatie_service, landschapskaart_service as svc
+    from services import component_service, landschapskaart_service as svc
     from services import relatiekenmerk_catalog as rk
 
     tid = uuid.UUID(_TID)
@@ -650,9 +650,9 @@ def test_subgraaf_organisatiestructuur_alleen_s_rol_personen_live():
     async def _flow(s):
         ids = []
         try:
-            a1 = await applicatie_service.maak_aan(s, tid, _ac("WT-OS-A1"))
-            a2 = await applicatie_service.maak_aan(s, tid, _ac("WT-OS-A2"))
-            ids += [a1.id, a2.id]
+            a1 = await component_service.maak_aan(s, tid, _ac("WT-OS-A1"))
+            a2 = await component_service.maak_aan(s, tid, _ac("WT-OS-A2"))
+            ids += [a1["id"], a2["id"]]
 
             async def _org(naam):
                 e = Element(tenant_id=tid, element_type=ElementType.partij); s.add(e); await s.flush()
@@ -669,11 +669,11 @@ def test_subgraaf_organisatiestructuur_alleen_s_rol_personen_live():
             p1 = await _pers("WT-OS-P1", o1)
             p2 = await _pers("WT-OS-P2", o2)
             rol = sorted(await rk.actieve_sleutels(s, RelatieKenmerkDimensie.beheerrol))[0]
-            s.add(Roltoewijzing(tenant_id=tid, partij_id=p1, object_id=a1.id, rol=rol))
-            s.add(Roltoewijzing(tenant_id=tid, partij_id=p2, object_id=a2.id, rol=rol))
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=p1, object_id=a1["id"], rol=rol))
+            s.add(Roltoewijzing(tenant_id=tid, partij_id=p2, object_id=a2["id"], rol=rol))
             await s.commit()
             ids += [p1, p2, o1, o2]  # personen vóór organisaties (FK-volgorde bij opruim)
-            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[a1.id])
+            sub = await svc.haal_grafdata_op(s, _TID, component_ids=[a1["id"]])
             return ({n.id for n in sub.nodes},
                     [e for e in sub.edges if e.ring == "organisatiestructuur"], p1, o1, p2, o2)
         finally:

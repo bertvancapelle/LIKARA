@@ -34,7 +34,7 @@ _GEEN: set = set()
 _INHOUD = {Rol.VIEWER: _L, Rol.MEDEWERKER: _LAW, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _L}
 
 VERWACHT = {
-    Entiteit.APPLICATIE: _INHOUD,
+    # LI059 facade-purge: `APPLICATIE` verwijderd — applicaties vallen onder `COMPONENT`.
     Entiteit.DATATYPE: _INHOUD,
     Entiteit.GEBRUIKERSGROEP: _INHOUD,
     Entiteit.KOPPELING: _INHOUD,
@@ -74,7 +74,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (23×4×4 = 368 combinaties) tegen de spec."""
+    """Elke entiteit × rol × actie (22×4×4 = 352 combinaties) tegen de spec (LI059: -APPLICATIE)."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist
     for entiteit, per_rol in VERWACHT.items():
         for rol in Rol:
@@ -88,8 +88,8 @@ def test_matrix_volledig_inclusief_negatief():
 
 def test_kernregels_expliciet():
     # Medewerker mag NIET verwijderen (V is uitsluitend Beheerder)
-    assert not heeft_permissie(["medewerker"], Entiteit.APPLICATIE, Actie.VERWIJDEREN)
-    assert heeft_permissie(["beheerder"], Entiteit.APPLICATIE, Actie.VERWIJDEREN)
+    assert not heeft_permissie(["medewerker"], Entiteit.COMPONENT, Actie.VERWIJDEREN)
+    assert heeft_permissie(["beheerder"], Entiteit.COMPONENT, Actie.VERWIJDEREN)
     # Viewer en Auditor muteren nooit
     for rol in ("viewer", "auditor"):
         for actie in (Actie.AANMAKEN, Actie.WIJZIGEN, Actie.VERWIJDEREN):
@@ -122,9 +122,9 @@ def test_kernregels_expliciet():
 
 
 def test_fail_secure_geen_of_onbekende_rol():
-    assert not heeft_permissie([], Entiteit.APPLICATIE, Actie.LEZEN)
-    assert not heeft_permissie(["root"], Entiteit.APPLICATIE, Actie.LEZEN)
-    assert not heeft_permissie(["Viewer"], Entiteit.APPLICATIE, Actie.LEZEN)  # hoofdletter ≠ canoniek
+    assert not heeft_permissie([], Entiteit.COMPONENT, Actie.LEZEN)
+    assert not heeft_permissie(["root"], Entiteit.COMPONENT, Actie.LEZEN)
+    assert not heeft_permissie(["Viewer"], Entiteit.COMPONENT, Actie.LEZEN)  # hoofdletter ≠ canoniek
 
 
 # ── Keycloak-rolmapping ────────────────────────────────────────────────────────
@@ -162,10 +162,10 @@ def _maak_test_app():
     app.add_exception_handler(OnvoldoendeRechten, onvoldoende_rechten_handler)
     app.add_exception_handler(NietGeauthenticeerd, niet_geauthenticeerd_handler)
 
-    @app.get("/verwijder-applicatie")
+    @app.get("/verwijder-component")
     async def _verwijder(
         user: AuthenticatedUser = Depends(
-            vereist_permissie(Entiteit.APPLICATIE, Actie.VERWIJDEREN)
+            vereist_permissie(Entiteit.COMPONENT, Actie.VERWIJDEREN)
         ),
     ):
         return {"ok": True, "roles": user.roles}
@@ -179,7 +179,7 @@ def _payload(rollen):
 
 def test_guard_401_zonder_sessie():
     c = TestClient(_maak_test_app())
-    r = c.get("/verwijder-applicatie")
+    r = c.get("/verwijder-component")
     assert r.status_code == 401
     # Canoniek fout-envelope (ADR-014 B1): geen detail meer.
     assert r.json()["fout"]["code"] == "NIET_GEAUTHENTICEERD"
@@ -191,7 +191,7 @@ def test_guard_403_onvoldoende_rechten(monkeypatch):
     monkeypatch.setattr("app.middleware.auth.decode_token", lambda t: _payload(["medewerker"]))
     c = TestClient(_maak_test_app())
     c.cookies.set(settings.cookie_name, "tok")
-    r = c.get("/verwijder-applicatie")
+    r = c.get("/verwijder-component")
     assert r.status_code == 403
     assert r.json() == {
         "fout": {
@@ -206,6 +206,6 @@ def test_guard_200_voldoende_rechten(monkeypatch):
     monkeypatch.setattr("app.middleware.auth.decode_token", lambda t: _payload(["beheerder"]))
     c = TestClient(_maak_test_app())
     c.cookies.set(settings.cookie_name, "tok")
-    r = c.get("/verwijder-applicatie")
+    r = c.get("/verwijder-component")
     assert r.status_code == 200
     assert "beheerder" in r.json()["roles"]

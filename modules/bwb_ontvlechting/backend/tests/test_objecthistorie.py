@@ -188,9 +188,9 @@ def test_objecthistorie_component_live_met_naam():
 
     from app.core.database import _markeer_rls
     from models.models import GebruikerPersoon, PartijAard
-    from schemas.applicatie import ApplicatieCreate, ApplicatieUpdate
+    from schemas.component import ComponentCreate, ComponentUpdate
     from schemas.partij import PartijCreate
-    from services import applicatie_service, partij_service
+    from services import component_service, partij_service
     from services import auditlog_service as svc
 
     tid = uuid.UUID(TENANT_A)
@@ -210,13 +210,13 @@ def test_objecthistorie_component_live_met_naam():
                     persoon = await partij_service.maak_aan(s, tid, PartijCreate(
                         aard=PartijAard.persoon, naam=f"Jan OH {merk}", email=f"j.{merk}@org.test", organisatie_id=org.id))
                     s.add(GebruikerPersoon(tenant_id=tid, keycloak_sub=f"oh:jan:{merk}", persoon_id=persoon.id))
-                    app_obj = await applicatie_service.maak_aan(s, tid, ApplicatieCreate(
+                    app_obj = await component_service.maak_aan(s, tid, ComponentCreate(componenttype="applicatie", 
                         naam=f"OHApp-{merk}", hostingmodel="saas", migratiepad="onbekend",
                         complexiteit="midden", prioriteit="midden"))
-                    await applicatie_service.werk_bij(s, tid, app_obj.id, ApplicatieUpdate(beschrijving="gewijzigd"))
-                    ids += [org.id, persoon.id, app_obj.id]
+                    await component_service.werk_bij(s, tid, app_obj["id"], ComponentUpdate(beschrijving="gewijzigd"))
+                    ids += [org.id, persoon.id, app_obj["id"]]
 
-                    items, _ = await svc.lijst(s, tid, component_id=app_obj.id)
+                    items, _ = await svc.lijst(s, tid, component_id=app_obj["id"])
                     # De objecthistorie toont de gebeurtenissen van dít component, met geresolveerde naam.
                     assert items, "verwacht ≥1 gebeurtenis voor het component"
                     naam = f"Jan OH {merk}"

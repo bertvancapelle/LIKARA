@@ -1,8 +1,8 @@
 """HTTP-route voor het tenant-brede dashboard (CD014, #9).
 
-Dunne handler: autorisatie via `vereist_permissie(Entiteit.APPLICATIE, LEZEN)`
-(viewer-niveau — een dashboard is een lees-overzicht over applicaties),
-tenant-sessie via `get_tenant_session` (RLS), aggregatie in de service.
+Dunne handler: autorisatie via `vereist_permissie(Entiteit.COMPONENT, LEZEN)`
+(viewer-niveau — een dashboard is een lees-overzicht over componenten; LI059: applicaties
+zijn componenten), tenant-sessie via `get_tenant_session` (RLS), aggregatie in de service.
 
 Plaatsing — bewust in de **module** (niet platform): de getoonde data is
 BWB-ontvlechtingsspecifiek (lifecycle-statussen, blokkades). Een toekomstig
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/dashboard", tags=["bwb:dashboard"])
 
 @router.get("", response_model=DashboardRead)
 async def haal_dashboard(
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.APPLICATIE, Actie.LEZEN)),
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     """Tenant-breed overzicht: lifecycle-telling, open blokkades, recent gewijzigd."""

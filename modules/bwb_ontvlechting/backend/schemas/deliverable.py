@@ -9,7 +9,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from schemas.applicatie import _optionele_tekst, _verplichte_tekst
+from schemas._validators import _optionele_tekst, _verplichte_tekst
 
 
 class DeliverableCreate(BaseModel):

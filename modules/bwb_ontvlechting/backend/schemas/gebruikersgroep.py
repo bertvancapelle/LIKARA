@@ -10,7 +10,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from schemas.applicatie import _optionele_tekst
+from schemas._validators import _optionele_tekst
 
 
 class GebruikersgroepSorteerveld(str, Enum):

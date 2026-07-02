@@ -218,9 +218,9 @@ def test_maak_gebruiker_live_happy_en_geen_mutatie(monkeypatch):
     klopt, en de lifecycle van een los component blijft ongewijzigd (engine onaangeroerd)."""
     from sqlalchemy import text as _text
 
-    from schemas.applicatie import ApplicatieCreate
+    from schemas.component import ComponentCreate
     from schemas.partij import PartijCreate
-    from services import applicatie_service, gebruiker_service, partij_service
+    from services import component_service, gebruiker_service, partij_service
     from models.models import PartijAard
 
     # KC-provisioning mocken (geen live IAM): vaste sub.
@@ -238,12 +238,12 @@ def test_maak_gebruiker_live_happy_en_geen_mutatie(monkeypatch):
             org = await partij_service.maak_aan(s, tid, PartijCreate(aard=PartijAard.organisatie, naam="WT-Org"))
             afd = await partij_service.maak_aan(s, tid, PartijCreate(
                 aard=PartijAard.organisatie_eenheid, naam="WT-Afd", organisatie_id=org.id))
-            app = await applicatie_service.maak_aan(s, tid, ApplicatieCreate(
+            app = await component_service.maak_aan(s, tid, ComponentCreate(componenttype="applicatie", 
                 naam="WT-GebrApp", hostingmodel="saas", migratiepad="onbekend",
                 complexiteit="midden", prioriteit="midden"))
-            ids += [org.id, afd.id, app.id]
+            ids += [org.id, afd.id, app["id"]]
             lc_voor = (await s.execute(
-                _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app.id)}
+                _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app["id"])}
             )).scalar_one()
 
             read, wachtwoord = await gebruiker_service.maak_gebruiker(
@@ -259,7 +259,7 @@ def test_maak_gebruiker_live_happy_en_geen_mutatie(monkeypatch):
             assert n == 1
 
             lc_na = (await s.execute(
-                _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app.id)}
+                _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app["id"])}
             )).scalar_one()
             assert lc_na == lc_voor  # engine onaangeroerd
 

@@ -20,7 +20,8 @@ class Rol(str, Enum):
 
 
 class Entiteit(str, Enum):
-    APPLICATIE = "applicatie"
+    # LI059 facade-purge: `APPLICATIE` verwijderd — applicaties zijn componenten (type
+    # 'applicatie') en vallen onder het `COMPONENT`-recht.
     DATATYPE = "datatype"
     GEBRUIKERSGROEP = "gebruikersgroep"
     KOPPELING = "koppeling"
@@ -102,7 +103,6 @@ _EIGEN_BEHEER = {
 }
 
 PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
-    Entiteit.APPLICATIE: dict(_INHOUD),
     Entiteit.DATATYPE: dict(_INHOUD),
     Entiteit.GEBRUIKERSGROEP: dict(_INHOUD),
     Entiteit.KOPPELING: dict(_INHOUD),

@@ -137,13 +137,13 @@ async def _run_rls(fn, tid=_TID, actor_sub="view:makerA"):
 
 
 async def _maak_app(s, tid, naam):
-    from schemas.applicatie import ApplicatieCreate
-    from services import applicatie_service
+    from schemas.component import ComponentCreate
+    from services import component_service
 
-    app = await applicatie_service.maak_aan(
-        s, tid, ApplicatieCreate(naam=naam, hostingmodel="saas", migratiepad="onbekend",
+    app = await component_service.maak_aan(
+        s, tid, ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad="onbekend",
                                  complexiteit="midden", prioriteit="midden"))
-    return app.id
+    return app["id"]
 
 
 async def _wis(tid, view_ids, app_ids):

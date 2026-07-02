@@ -10,7 +10,7 @@ import re
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from models.models import RelatieKenmerkDimensie
-from schemas.applicatie import _verplichte_tekst
+from schemas._validators import _verplichte_tekst
 
 _SLEUTEL_PATROON = re.compile(r"^[a-z][a-z0-9_]*$")
 

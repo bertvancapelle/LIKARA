@@ -61,7 +61,6 @@ from models.models import (  # noqa: E402
     PartijAard,
     Relatie,
 )
-from schemas.applicatie import ApplicatieCreate  # noqa: E402
 from schemas.component import ComponentCreate  # noqa: E402
 from schemas.component_contract import ComponentContractCreate  # noqa: E402
 from schemas.blokkade import BlokkadeUpdate  # noqa: E402
@@ -73,7 +72,6 @@ from schemas.gebruikersgroep import GebruikersgroepCreate  # noqa: E402
 from services import (  # noqa: E402
     component_contract_service,
     component_service,
-    applicatie_service,
     blokkade_service,
     checklistscore_service,
     contract_service,
@@ -284,9 +282,10 @@ async def _seed_applicatie(session, app: dict, bestaande: dict) -> "uuid_like":
         print(f"  = {naam}: bestaat al — overgeslagen")
         return bestaande[naam]
 
-    obj = await applicatie_service.maak_aan(
+    obj = await component_service.maak_aan(
         session, DEV_TENANT,
-        ApplicatieCreate(
+        ComponentCreate(
+            componenttype="applicatie",
             naam=naam, beschrijving=app["beschrijving"], hostingmodel=app["host"],
             # ADR-024 B6-b: eigenaar-organisatie is nu een optionele partij-verwijzing
             # (`eigenaar_organisatie_id`); de vrije-tekst-velden `eigenaar_naam`/`leverancier`
@@ -294,7 +293,7 @@ async def _seed_applicatie(session, app: dict, bestaande: dict) -> "uuid_like":
             **APP_DEFAULTS,
         ),
     )
-    app_id = obj.id
+    app_id = obj["id"]
 
     # e-Depot blijft `concept`: niet starten, niet scoren.
     if app["scored"] == 0 and not app["post"]:
@@ -303,7 +302,7 @@ async def _seed_applicatie(session, app: dict, bestaande: dict) -> "uuid_like":
 
     # Verlaat de `concept`-vloer via de legitieme handmatige start (ADR-013):
     # herbereken vanuit `concept` blijft anders `concept`.
-    await applicatie_service.start_inventarisatie(session, DEV_TENANT, app_id)
+    await component_service.start_beoordeling(session, DEV_TENANT, app_id)
 
     for i in range(app["scored"]):
         await checklistscore_service.maak_aan(
@@ -853,18 +852,18 @@ async def seed_landschapskaart_demo(session, tenant_id) -> dict:
             naam_naar_id[naam] = bestaande_apps[naam]
             print(f"  = applicatie {naam}: bestaat al — overgeslagen (scores ongewijzigd)")
             continue
-        obj = await applicatie_service.maak_aan(
+        obj = await component_service.maak_aan(
             session, tenant_id,
-            ApplicatieCreate(naam=naam, beschrijving=f"Demo-applicatie {naam}", hostingmodel=app["host"], **APP_DEFAULTS))
-        naam_naar_id[naam] = obj.id
+            ComponentCreate(componenttype="applicatie", naam=naam, beschrijving=f"Demo-applicatie {naam}", hostingmodel=app["host"], **APP_DEFAULTS))
+        naam_naar_id[naam] = obj["id"]
         scores = _lk_scores(app["plan"], n_vragen)
         if scores:
             # Verlaat de concept-vloer via de legitieme start; daarna scoren (engine herberekent).
-            await applicatie_service.start_inventarisatie(session, tenant_id, obj.id)
+            await component_service.start_beoordeling(session, tenant_id, obj["id"])
             for i, score in enumerate(scores):
                 await checklistscore_service.maak_aan(
                     session, tenant_id,
-                    ChecklistscoreCreate(component_id=obj.id, checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
+                    ChecklistscoreCreate(component_id=obj["id"], checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
         print(f"  + applicatie {naam} (plan={app['plan']}, {len(scores)}/{n_vragen} gescoord)")
 
     # --- Partijen (organisatie → afdeling → persoon + twee externe partijen) ---
@@ -1141,17 +1140,17 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     for naam, oms, host, gescoord, blokkerend, eigenaar in applicaties:
         if naam in app_id:
             continue
-        obj = await applicatie_service.maak_aan(session, tid, ApplicatieCreate(
-            naam=naam, beschrijving=oms, hostingmodel=host,
+        obj = await component_service.maak_aan(session, tid, ComponentCreate(
+            componenttype="applicatie", naam=naam, beschrijving=oms, hostingmodel=host,
             eigenaar_organisatie_id=(partij_id[eigenaar] if eigenaar else None), **APP_DEFAULTS))
-        app_id[naam] = obj.id
+        app_id[naam] = obj["id"]
         telling["applicaties"] += 1
         if gescoord > 0:
-            await applicatie_service.start_inventarisatie(session, tid, obj.id)
+            await component_service.start_beoordeling(session, tid, obj["id"])
             for i in range(gescoord):
                 score = "nee" if i < blokkerend else "ja"
                 await checklistscore_service.maak_aan(session, tid, ChecklistscoreCreate(
-                    component_id=obj.id, checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
+                    component_id=obj["id"], checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
                 telling["scores"] += 1
 
     # ── 10. Contracten (mantel vóór deelcontract) ── (naam, type, leverancier, van, tot, mantel, oms)
@@ -1440,10 +1439,10 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     }
     for deel_naam in ("Aangiften", "Reisdocumenten", "Verkiezingen"):
         if deel_naam not in app_id:
-            obj = await applicatie_service.maak_aan(session, tid, ApplicatieCreate(
-                naam=deel_naam, beschrijving=f"Onderdeel van de Burgerzaken-suite — {deel_naam}",
+            obj = await component_service.maak_aan(session, tid, ComponentCreate(
+                componenttype="applicatie", naam=deel_naam, beschrijving=f"Onderdeel van de Burgerzaken-suite — {deel_naam}",
                 hostingmodel="on_premise", eigenaar_organisatie_id=partij_id["BvoWB"], **APP_DEFAULTS))
-            app_id[deel_naam] = obj.id
+            app_id[deel_naam] = obj["id"]
             telling["applicaties"] += 1
         paar = (app_id["Burgerzaken-suite"], app_id[deel_naam])
         if paar not in bestaande_aggr:
