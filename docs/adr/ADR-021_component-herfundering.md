@@ -189,3 +189,33 @@ walkthrough. De tenant-UI hanteert nu één **verenigde Componenten-ingang**:
 
 Checklist-per-componenttype (beoordelingsprofielen voor niet-applicatie-typen) volgt als
 eigen ontwerpblok in **ADR-022** en valt buiten deze wijziging.
+
+## Eindstaat — LI057–LI059 (subtype ontbonden, component = enige bron)
+
+De component-focus-herfundering (LI057–LI059) heeft de shared-PK-subtype-realisatie hierboven
+**ontbonden**. De gerealiseerde eindstaat is:
+
+- **Transitie-attributen component-breed** (LI057, migratie `0045`): `migratiepad`/`complexiteit`/
+  `prioriteit` leven op het basis-`component` (élk componenttype), NOT NULL met defaults
+  (`onbekend`/`midden`/`midden`). De engine leest ze niet — score blijft de enige lifecycle-driver
+  (dubbel geborgd: `test_engine_borging_li057`).
+- **Applicatie-subtabel gedropt** (LI059 Slice 3, migratie `0047`): een component met
+  `componenttype='applicatie'` **ÍS** de applicatie. Er is **geen `applicatie`-subtype/-tabel**
+  en **geen eigen `element_type`** meer — applicatie-componenten dragen `element_type='component'`
+  en hun ArchiMate-typing komt via de componenttype-catalogus (ADR-026). De read-only proxy-
+  properties en de shared-PK-subtype-class zijn vervallen.
+- **Facade volledig verwijderd** (LI059 Slice 3 + FacadeOpruiming): geen `/applicaties`-routes,
+  `schemas/applicatie.py`, `applicatie_service` of `api.applicaties`-client meer; geen
+  `Entiteit.APPLICATIE` (RBAC), geen `applicatie`-entry in `AUDIT_TENANT_ENTITEITEN`, geen
+  `applicatie`-tak in de objecthistorie-resolver. Applicaties lopen overal via `component`/
+  `/componenten`; de creatie-kern (`maak_applicatie_component`) woont in `component_service`.
+- **Frontend-cutover** (LI059 Slice 4): één `ComponentFormulier` (met de drie transitie-velden voor
+  élk type) en één rijk `ComponentDetail` (tab-IA; applicatie-eigen tabs conditioneel). De aparte
+  `ApplicatieFormulier`/`ApplicatieDetail` zijn geretireerd; de routes `/applicaties*` blijven als
+  **redirect** → `/componenten*` (bookmarks werken).
+
+**Gevolg voor dit ADR:** de kernkeuze (supertype `component` + landschapsgraaf + relatiemodel) blijft
+staan; de **subtype-realisatie voor `applicatie` is opgeheven** ten gunste van één component-bron.
+`SUBTYPE_BESCHERMD` (typewissel van/naar applicatie met data) blijft via de toestand-gebaseerde
+type-lock (ADR-022 Fase C). Status: **Aanvaard — gerealiseerd t/m LI059** (component = enige bron in
+data/API/RBAC/audit).

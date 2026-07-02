@@ -5,33 +5,34 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V027 · 2026-07-01
-- **Commit:** 73413d7 (LI058 Slice 2) — sessie-afsluiting LI057+LI058 volgt
-- **Tests:** backend 944 / 2 skipped / 0 failed · frontend 745 groen (65 files) · 0 kritieken
-- **Migratie-head:** `0046_database_beoordeeld`
-- **TST-rapport:** `docs/TST-V027-Validatierapport.md`
+- **Build:** V028 · 2026-07-02
+- **Commit:** 1c40814 (LI059 FacadeOpruiming) — sessie-afsluiting V028 volgt
+- **Tests:** backend 865 / 2 skipped / 0 failed · frontend 717 groen (63 files) · 0 kritieken
+- **Migratie-head:** `0047_li059_drop_applicatie`
+- **TST-rapport:** `docs/TST-V028-Validatierapport.md`
 
-## Deze sessie (LI057 + LI058) — component-focus-herfundering Slice 1 + 2
-**Besloten kader (Variant A):** applicatie wordt één van de componenttypen; beheer blijft
-tenant-scoped; engine blijft generiek; score = enige lifecycle-driver.
-- **Slice 1 (LI057, migratie 0045):** `migratiepad`/`complexiteit`/`prioriteit` **component-breed**
-  (basis-`component`, NOT NULL + defaults); enum `tijdelijk_gedeeld → gedeeld`. **Expand** met
-  dual-write naar de behouden applicatie-subtabel (drop = contract-slice).
-- **Slice 2 (LI058, migratie 0046):** scoren **per type** via de `checklist_dragend`-vlag; `database`
-  beoordeeld + 6-vragen startset; **profiel-backfill** bij False→True (platform-toggle → per-tenant
-  RLS-scoped worker-sessie, idempotent; True→False = profielen **inert**). Engine al generiek.
-- **OP-30:** env-afhankelijke auth-cookie-test deterministisch gemaakt.
-- **Engine-invariant dubbel geborgd** (offline `test_engine_borging_li057`/`test_backfill…li058` +
-  live lifecycle/backfill-tests).
-- **Docdrift rechtgezet:** dagre → fcose/concentric (frontend-skill); `ChecklistVraag` = **tenant-scoped**
-  (niet platform-referentiedata; likara-db-skill); `LOKAAL-TESTEN.md` gemoderniseerd (reset zonder `down -v`).
+## Deze sessie (LI059) — component-focus-herfundering AFGEROND (`component` = enige bron)
+**Kader:** applicatie is één van de componenttypen; er is **geen** `applicatie`-subtype/-facade meer —
+een component met `componenttype='applicatie'` ÍS de applicatie. Engine generiek; score = enige driver.
+- **Slice 3 (0047, `03360ea`):** `applicatie`-subtabel gedropt; `applicatie_service` als dunne facade;
+  dual-write weg; byte-compat behouden; dubbele engine-borging + verse reseed.
+- **Slice 4 (`6fa655e`):** frontend-cutover — één `ComponentFormulier` (3 transitie-velden voor élk type)
+  + één rijk `ComponentDetail` (tab-IA, conditioneel per type); `ApplicatieFormulier`/`ApplicatieDetail`
+  geretireerd; `/applicaties*` → redirects. Geen functie verloren.
+- **FacadeOpruiming (`1c40814`):** volledige purge — routes/service/schema + `api.applicaties` weg;
+  `Entiteit.APPLICATIE` (RBAC 23→22 = 352), audit-allowlist, objecthistorie-tak weg; validators →
+  `schemas/_validators.py`; creatie-kern `maak_applicatie_component` → `component_service`.
+- **Slice 5:** ADR-021/022 slotsecties "Eindstaat" + ADR-register-notitie + `likara-domeinmodel §1`
+  bijgetrokken (applicatie = componenttype, geen eigen element_type).
+- **Engine-invariant dubbel geborgd** (`test_engine_borging_li057`/`_li059` + live).
 
-## Top-5 prioriteiten volgende sessie (LI059)
-1. **Slice 3 (contract)** — applicatie-subtabel droppen + `applicatie_service`/routes/schemas opheffen
-2. **Slice 4 (frontend)** — één `ComponentFormulier`; `ApplicatieFormulier`/`ApplicatieDetail` retireren
-3. **Slice 5** — tests + TST + ADR-021/022 afronding
-4. **Componenttype-catalogus uitbreiden** (config + ArchiMate-typering); daarna fileshare→SaaS beoordeelbaar
-5. **Impact-verkenner render-herbouw** — deterministische render-eigenaar + echte render-verificatie
+## Top-5 prioriteiten volgende sessie
+1. **Componenttype-catalogus uitbreiden** (config + ArchiMate-typering); daarna fileshare→SaaS beoordeelbaar
+2. **Impact-verkenner render-herbouw** — deterministische render-eigenaar + echte render-verificatie
+   (incl. het losse Cytoscape-mock-console­ruispunt in `LandschapskaartView.test.js`)
+3. **ADR-035 Slice 3** — "Registratie onvolledig" (configureerbare score-drempelwaarde)
+4. **ADR-029 Fase 5** (`gereedmeld_recht`) + **ADR-023 Fase F-rest**
+5. **OP-30** env-auth-test (omgevingsgebonden) — resterend administratief punt
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

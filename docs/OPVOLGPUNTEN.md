@@ -7,6 +7,32 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V028 (sessie-afsluiting LI059, 2026-07-02)
+
+Build **V027 → V028**. Component-focus-herfundering **volledig afgerond** — `component` is de enige
+bron in data/API/RBAC/audit. (Slice 3/4/5 uit de V027-backlog zijn hiermee geland.)
+
+**Geland:**
+- **LI059 Slice 3 (0047, `03360ea`):** `applicatie`-subtabel gedropt; `applicatie_service` als dunne
+  facade over `component`; dual-write weg; byte-compat behouden; dubbele engine-borging + verse reseed.
+- **LI059 Slice 4 (`6fa655e`):** frontend-cutover — één `ComponentFormulier` (3 transitie-velden voor
+  élk type) + één rijk `ComponentDetail` (tab-IA, conditioneel); `ApplicatieFormulier`/`ApplicatieDetail`
+  geretireerd; `/applicaties*` → redirects. Geen functie verloren.
+- **LI059 FacadeOpruiming (`1c40814`):** volledige purge — `routes/applicatie.py`/`schemas/applicatie.py`/
+  `applicatie_service.py` + `api.applicaties` weg; `Entiteit.APPLICATIE`/audit-allowlist/objecthistorie-tak
+  weg (RBAC-matrix 23→22 = 352); validators → `schemas/_validators.py`; creatie-kern → `component_service`.
+- **LI059 Slice 5:** ADR-021/022 slotsecties "Eindstaat" + ADR-register + `likara-domeinmodel §1` bijgetrokken.
+
+**Nog open (niet-LI059, ongewijzigd):** componenttype-catalogus uitbreiden (top-5 #1); Impact-verkenner
+render-herbouw (top-5 #2; edges-onzichtbaar-bug zit in de echte cytoscape-render); ADR-035 Slice 3
+(configureerbare score-drempel); ADR-029 Fase 5 (`gereedmeld_recht`); ADR-023 Fase F-rest; OP-30 (env-
+auth-test, omgevingsgebonden). **Los test-hygiëne-punt:** ~29 Cytoscape-mock-console­ruis in
+`LandschapskaartView.test.js` (geen falende test) — bij de render-herbouw meenemen.
+
+Tests: backend **865/0** (2 skipped) · frontend **717**. Migratie-head **0047**.
+
+---
+
 ### Stand V027 (sessie-afsluiting LI057+LI058, 2026-07-01)
 
 Build **V026 → V027**. Component-focus-herfundering **Slice 1 + Slice 2** geland (+ OP-30 afgerond).

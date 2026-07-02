@@ -139,3 +139,24 @@ type-lock), Besluit 5 (generiek profiel-construct; `applicatie` behoudt zijn eig
 ## Openstaand
 
 - Foutcode-keuze: `SUBTYPE_BESCHERMD` (bestaand) versus preciezere `SUBTYPE_HEEFT_DATA` — t.z.t.
+
+## Eindstaat — gerealiseerd t/m LI058/LI059
+
+De ADR is volledig geïmplementeerd:
+
+- **Scoren per componenttype** (LI058, migratie `0046`): de `checklist_dragend`-vlag op
+  `componentconfig_optie` (platform, togglebaar) bepaalt of een type een `ComponentProfiel` +
+  checklist krijgt. Bij `False→True` loopt een **profiel-backfill** (per tenant, RLS-scoped worker-
+  sessie → ontbrekende profielen + `herbereken_type`); `True→False` laat profielen inert (nooit
+  scoringsdata vernietigen). `database` is als tweede beoordeeld type geactiveerd (6 vragen).
+- **Generiek profiel zonder subtype** (LI059): Besluit 5 wordt aangescherpt — het generieke
+  `component_profiel` (shared-PK met `component`) is nu de **enige** engine-state-drager voor élk
+  checklist-dragend type, óók `applicatie`. De oude formulering "`applicatie` behoudt zijn eigen
+  subtype-tabel" is **achterhaald**: de `applicatie`-subtabel is gedropt (0047) — een component met
+  `componenttype='applicatie'` is de applicatie (zie ADR-021 "Eindstaat — LI057–LI059").
+- **Type-lock (Besluit 2)** blijft: een gevuld component kan niet van type wisselen
+  (`SUBTYPE_BESCHERMD`/`SUBTYPE_HEEFT_DATA`, toestand-gebaseerd).
+
+Borging: `test_engine_borging_li057`/`_li059` (score = enige lifecycle-driver),
+`test_backfill_beoordeeld_li058` (backfill), verse reseed (16 applicaties + database-scoring).
+Status: **Aanvaard — gerealiseerd t/m LI059**.

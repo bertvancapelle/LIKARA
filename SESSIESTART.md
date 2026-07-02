@@ -1,6 +1,6 @@
-# SESSIESTART — LIKARA V027
+# SESSIESTART — LIKARA V028
 
-**Datum**: 2026-07-01
+**Datum**: 2026-07-02
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle likara-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V027 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V028 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V027
+# SESSIE_BRIEFING.md — LIKARA V028
 
-**Gegenereerd**: 2026-07-01
+**Gegenereerd**: 2026-07-02
 
 ---
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V027 |
+| Build | V028 |
 | Datum | July 2026 |
-| Commit | 73413d7 |
-| Tests | backend 944/2/0, frontend 745/745 |
-| TST-rapport | TST-V027-Validatierapport.md |
+| Commit | 1c40814 |
+| Tests | backend 865/2/0, frontend 717/717 |
+| TST-rapport | TST-V028-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,63 +64,61 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
+1c40814 refactor(backend): LI059 FacadeOpruiming — applicatie-facade volledig verwijderd, component = enige bron
+6fa655e feat(frontend): LI059 Slice 4 — frontend-cutover naar één componentbeleving
+03360ea refactor(datamodel): LI059 Slice 3 — applicatie-subtabel opgeheven, component = enige bron
+ca97cf6 chore(release): sessie-afsluiting V027 — component-focus Slice 1+2 (LI057/LI058)
 73413d7 feat(engine): LI058 Slice 2 — scoring per type activeren + profiel-backfill bij togglen
-a7c4b1d feat(datamodel): LI057 Slice 1 — transitie-attributen component-breed + migratiepad-rename
-b99b901 test(auth): OP-30 — cookie_secure expliciet in test, env-onafhankelijk
-4f25ba2 feat(frontend): scope → "Organisaties in beeld" (overlay, default aan) + dode-code-opruiming (LI053)
-9643919 fix(frontend): Impact-verkenner — volledige reset + telling/modus op geresolveerde leden (LI052)
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# LIKARA — Next Session (LI059)
+# LIKARA — Next Session (V028)
 
-> **Sessie LI057+LI058 (V027):** component-focus-herfundering Slice 1 + Slice 2 geland.
-> - **Slice 1 (LI057):** `migratiepad`/`complexiteit`/`prioriteit` component-breed (basis-`component`,
->   NOT NULL + defaults); enum `tijdelijk_gedeeld → gedeeld`. Expand met dual-write naar de behouden
->   applicatie-subtabel. Migratie 0045.
-> - **Slice 2 (LI058):** scoren per type via `checklist_dragend`; `database` beoordeeld (migratie 0046
->   + seed + 6-vragen startset); **profiel-backfill** bij `checklist_dragend` False→True (platform-toggle
->   → per-tenant RLS-scoped backfill, idempotent; True→False = profielen inert). Engine al generiek.
-> - **OP-30:** env-afhankelijke auth-cookie-test deterministisch gemaakt (afgerond).
+> **Sessie LI059 (V028):** component-focus-herfundering **volledig afgerond** — `component` is de
+> enige bron in data/API/RBAC/audit.
+> - **Slice 3 (LI059, migratie 0047):** `applicatie`-subtabel gedropt; `applicatie_service` als dunne
+>   facade over `component`; dual-write weg; byte-compat behouden. (`03360ea`)
+> - **Slice 4:** frontend-cutover — één `ComponentFormulier` (3 transitie-velden voor élk type) + één
+>   rijk `ComponentDetail` (tab-IA, conditioneel); `ApplicatieFormulier`/`ApplicatieDetail` geretireerd;
+>   `/applicaties*`-routes → redirects. (`6fa655e`)
+> - **FacadeOpruiming:** volledige purge — `routes/applicatie.py`/`schemas/applicatie.py`/
+>   `applicatie_service.py` + `api.applicaties` verwijderd; `Entiteit.APPLICATIE`/audit-allowlist/
+>   objecthistorie-tak weg (RBAC-matrix 23→22); validators → `schemas/_validators.py`; creatie-kern →
+>   `component_service`. (`1c40814`)
+> - **Slice 5:** ADR-021/022 slotsecties "Eindstaat" + register + `likara-domeinmodel §1` bijgetrokken.
 >
-> Laatste commit: `73413d7`. Tests: backend **944/0** (2 skipped) · frontend **745**. Migratie-head **0046**.
+> Laatste commit: `1c40814`. Tests: backend **865/0** (2 skipped) · frontend **717**. Migratie-head **0047**.
 
 ## Top-5 prioriteiten (volgende sessie)
 
-1. **Slice 3 (contract)** — `applicatie`-subtabel droppen (`migratiepad/complexiteit/prioriteit`) +
-   `applicatie_service`/routes/schemas opheffen in `component_service`. GATE, engine-rakend,
-   dubbele borging + reseed. (Dual-write vervalt; component wordt de enige bron.)
-
-2. **Slice 4 (frontend)** — één uniform `ComponentFormulier` (de drie velden voor álle typen) +
-   type-wissel-UX met data-waarschuwing; `ApplicatieFormulier`/`ApplicatieDetail` retireren.
-
-3. **Slice 5** — tests + TST + **ADR-021/022 afronding** (herfundering formeel sluiten).
-
-4. **Componenttype-catalogus uitbreiden** (config, ADR-026 ArchiMate-typering): integratie-/
+1. **Componenttype-catalogus uitbreiden** (config, ADR-026 ArchiMate-typering): integratie-/
    koppelvoorziening, landelijke voorziening/basisregistratie, server/compute; **consolidatie**
    `applicatieserver`+`middleware` → systeemsoftware/middleware. Daarna beoordeelbare typen ná
    database aanzetten (fileshare → SaaS-dienst; Bert vult de vragen in de UI).
 
-5. **Render-/orkestratielaag Impact-verkenner herbouwen** (ná component-focus) — één deterministische
+2. **Render-/orkestratielaag Impact-verkenner herbouwen** (ná component-focus) — één deterministische
    render-eigenaar, géén cascade, met **echte** render-verificatie (headless-cytoscape/e2e) i.p.v.
    mocks. De mislukte LI054/LI055-render-patches zijn nooit gecommit (schone basis).
 
 ## Openstaande punten (volledig)
 
-### Component-focus-herfundering (Variant A besloten)
+### Component-focus-herfundering — ✅ AFGEROND (LI057–LI059, migraties 0045–0047)
 - Q1 per-type configureerbaar (`checklist_dragend`), Q2 velden component-breed NOT NULL + defaults,
-  Q3 subtabel droppen (Slice 3), Q4 type vrij wijzigbaar met data-safety, Q5 enum-rename gedaan.
+  Q3 subtabel gedropt (0047), Q4 type vrij wijzigbaar met data-safety, Q5 enum-rename gedaan.
 - Checklist-beheer is **tenant-scoped** (ADR-022 W1) — geen platform-brede checklist-baseline (bewust);
   platformbeheerder togglet `checklist_dragend` + baseline-inhoud in de seed.
 
 ### Impact-verkenner
 - **Render-bug** (edges onzichtbaar op preset-pad; `nodes:visible` inzakking) — onopgelost, geagendeerd
-  voor de render-herbouw (top-5 #5). Logica/model bewezen correct; zit in de echte cytoscape-render.
+  voor de render-herbouw (top-5 #2). Logica/model bewezen correct; zit in de echte cytoscape-render.
 - Modus ego→impact ontkoppelen van set-grootte (ADR-033-revisie) — nog niet opgepakt.
 - Swimlane (ADR-034, geparkeerd); Saved views als permanente hoofdingang (Fase D).
+- **Los test-hygiëne-punt (pre-existing):** `LandschapskaartView.test.js` meldt ~29 unhandled-rejection-
+  console­ruis uit de Cytoscape-mock (async teardown) — **geen falende test** (frontend 717/717). Bij de
+  render-herbouw meenemen (schonere mock/teardown).
 
 ### ADR-035 Signalering
 - Slice 3: "Registratie onvolledig" (configureerbare score-drempelwaarde) — uitgesteld.
@@ -145,6 +143,6 @@ b99b901 test(auth): OP-30 — cookie_secure expliciet in test, env-onafhankelijk
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V027"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V028"
 4. Wacht op START: [naam] van Bert
 

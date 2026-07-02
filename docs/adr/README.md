@@ -32,10 +32,16 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-012 Addendum A | `PlatformEntiteit.CHECKLISTCONFIG` | Aanvaard |
 | ADR-020 | Leverancier- en contractregister (registratief; koppeling applicatie ↔ contract) | Aanvaard |
 | ADR-012 Addendum B | `PlatformEntiteit.CONTRACTCONFIG` | Aanvaard |
-| ADR-021 | Component-herfundering: supertype Component, subtype Applicatie, landschapsgraaf | Aanvaard |
+| ADR-021 | Component-herfundering: supertype Component + landschapsgraaf (subtype `Applicatie` ontbonden in LI059 — applicatie = componenttype) | Aanvaard — gerealiseerd t/m LI059 |
 | ADR-012 Addendum C | `PlatformEntiteit.COMPONENTCONFIG` | Aanvaard |
-| ADR-022 | Beoordelingsprofiel / checklist per componenttype (incl. Wijziging W1 — tenant-eigendom vragenset) | Aanvaard (besluit), implementatie openstaand |
+| ADR-022 | Beoordelingsprofiel / checklist per componenttype (incl. Wijziging W1 — tenant-eigendom vragenset) | Aanvaard — gerealiseerd t/m LI059 |
 | ADR-023 | ArchiMate-uitlijning: element-identiteit, getypeerd relatiemodel, migratielaag | Aanvaard (besluit), implementatie in deze opdracht |
+
+> **Component-focus-herfundering (LI057–LI059, migraties 0045–0047):** `migratiepad/complexiteit/prioriteit`
+> zijn component-breed, de `applicatie`-subtabel is gedropt en de applicatie-**facade** (routes/service/
+> schema + `Entiteit.APPLICATIE`/audit-allowlist/objecthistorie-tak) is volledig opgeheven. Een component
+> met `componenttype='applicatie'` ÍS de applicatie — `component` is de enige bron in data/API/RBAC/audit.
+> Zie de slotsecties "Eindstaat" in ADR-021 en ADR-022.
 
 ADR-002 t/m ADR-005, ADR-007, ADR-008 en ADR-010 zijn gereserveerd (zie `CLAUDE.md` →
 ADR-referentie) en worden geschreven wanneer de betreffende beslissing speelt.

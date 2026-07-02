@@ -9,7 +9,7 @@ description: >
   ankerpunten, en harde architectuurregels. De HOE (implementatiepatronen) staat
   in likara-db en likara-backend; dit bestand beschrijft het WAT.
 stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026
-bijgewerkt: V024
+bijgewerkt: V028
 ---
 
 # LIKARA Domeinmodel — Kaart
@@ -32,8 +32,7 @@ ON DELETE CASCADE. (Subtype-bouwrecept: zie likara-db V009/V010-patronen.)
 
 | `element_type` | Eigen tabel | `archimate_element` | `laag` | `aspect` | Noot |
 |---|---|---|---|---|---|
-| `component` | `component` | via componenttype-catalogus | via catalogus | via catalogus | Supertype voor `applicatie` |
-| `applicatie` | `applicatie` | (idem component) | (idem) | (idem) | Subtype van `component` (shared-PK) |
+| `component` | `component` | via componenttype-catalogus | via catalogus | via catalogus | élk componenttype (incl. `applicatie`) |
 | `datatype` | `datatype` | `data_object` | `application` | `passive` | |
 | `gebruikersgroep` | `gebruikersgroep` | `business_role` | `business` | `active` | |
 | `contract` | `contract` | `contract` | `business` | `passive` | |
@@ -46,6 +45,14 @@ ON DELETE CASCADE. (Subtype-bouwrecept: zie likara-db V009/V010-patronen.)
 ① `work_package` heeft `aspect = behavior` — bewuste, gedocumenteerde afwijking van
 OK-3 ("behavior leeg in gecureerde subset"); volgt de ArchiMate-standaard voor
 implementation migration work packages.
+
+> **LI059 — `applicatie` is GEEN element_type/subtype (meer).** De `applicatie`-subtabel is gedropt
+> (migratie 0047) en `ElementType` heeft **geen** `applicatie`-waarde. Een applicatie is **een component
+> met `componenttype='applicatie'`** — `element_type='component'`, ArchiMate-typing via de
+> componenttype-catalogus (ADR-026). Er is geen aparte `/applicaties`-API/-service/-schema, geen
+> `Entiteit.APPLICATIE` (RBAC) en geen `applicatie`-audit-ingang meer: **`component` is de enige bron**
+> in data/API/RBAC/audit. De convergente creatie-kern is `component_service.maak_applicatie_component`.
+> (Historie: t/m V027 was `applicatie` een shared-PK-subtype van `component` — ADR-021.)
 
 **Partitietest**: `test_archimate_fase_a` / `test_archimate_fase_d` bewaken dat
 `ELEMENT_ARCHIMATE_TYPING`, `ELEMENT_TYPEN_VIA_COMPONENTTYPE` en (als die leeg is)
