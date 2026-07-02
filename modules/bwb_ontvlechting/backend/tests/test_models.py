@@ -64,7 +64,9 @@ def test_seed_geeft_89_terug():
 
     session = AsyncMock()
     aantal = asyncio.run(seed_checklist_vragen(session, uuid.uuid4()))
-    assert aantal == 95  # LI058 — 89 applicatie + 6 database
+    # LI058/LI060 — 89 applicatie + 6 database + 3 startset-typen (server_compute /
+    # integratievoorziening / landelijke_voorziening, elk 1 vraag).
+    assert aantal == 98
     session.execute.assert_awaited_once()
     session.commit.assert_awaited_once()
 
@@ -80,7 +82,7 @@ def test_seed_idempotent():
     session = AsyncMock()
     eerste = asyncio.run(seed_checklist_vragen(session, tid))
     tweede = asyncio.run(seed_checklist_vragen(session, tid))
-    assert eerste == tweede == 95  # LI058 — 89 applicatie + 6 database
+    assert eerste == tweede == 98  # LI058/LI060 — 89 applicatie + 6 database + 3 startset-typen
 
 
 def test_platform_init_zaait_platform_catalogi_via_platform_session(monkeypatch):

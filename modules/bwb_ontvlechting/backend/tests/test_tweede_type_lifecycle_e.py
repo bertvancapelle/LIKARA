@@ -135,7 +135,7 @@ def test_tweede_type_lifecycle_end_to_end():
 
             # checklist_dragend=false type: geen profiel, geen lifecycle, start → 404.
             m = await comp.maak_aan(
-                s, _TID, ComponentCreate(naam=f"E-mw-{sfx}", componenttype="middleware")
+                s, _TID, ComponentCreate(naam=f"E-fs-{sfx}", componenttype="fileshare")
             )
             comp_ids.append(m["id"])
             assert m["checklist_dragend"] is False

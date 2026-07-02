@@ -112,9 +112,30 @@ CHECKLIST_VRAGEN_DATABASE = [
     {"code": "1.6", "categorie_nr": 1, "categorie_naam": "Database-migratiegereedheid (startset)", "vraag": "Is de database exclusief voor één organisatie of gedeeld (ontvlechtingsrelevant)?", "prioriteit": "hoog"},
 ]
 
+# LI060 — STARTSETS (1 vraag) voor de drie nieuw-beoordeelbare componenttypen, exact hetzelfde stramien
+# als de database-startset (betekenis=None; antwoordtype via server_default `geen`; stabiele code in de
+# type-namespace; actief=True). Te verfijnen door de tenant in het beheerscherm.
+CHECKLIST_VRAGEN_SERVER_COMPUTE = [
+    {"code": "1.1", "categorie_nr": 1, "categorie_naam": "Server/compute-migratiegereedheid (startset)", "vraag": "Is bekend en vastgelegd waar deze server/compute draait (locatie/omgeving) en wie hem beheert?", "prioriteit": "hoog"},
+]
+CHECKLIST_VRAGEN_INTEGRATIEVOORZIENING = [
+    {"code": "1.1", "categorie_nr": 1, "categorie_naam": "Integratie-/koppelvoorziening-migratiegereedheid (startset)", "vraag": "Zijn de koppelingen die via deze voorziening lopen in kaart gebracht (welke systemen, welk protocol)?", "prioriteit": "hoog"},
+]
+CHECKLIST_VRAGEN_LANDELIJKE_VOORZIENING = [
+    {"code": "1.1", "categorie_nr": 1, "categorie_naam": "Landelijke voorziening-migratiegereedheid (startset)", "vraag": "Is de aansluiting op deze landelijke voorziening vastgelegd (aansluitvorm en afhankelijkheid)?", "prioriteit": "hoog"},
+]
+
+# (componenttype-sleutel, startset) — de niet-applicatie beoordeelbare typen; per type gekopieerd.
+_STARTSETS_PER_TYPE: list[tuple[str, list[dict]]] = [
+    ("database", CHECKLIST_VRAGEN_DATABASE),
+    ("server_compute", CHECKLIST_VRAGEN_SERVER_COMPUTE),
+    ("integratievoorziening", CHECKLIST_VRAGEN_INTEGRATIEVOORZIENING),
+    ("landelijke_voorziening", CHECKLIST_VRAGEN_LANDELIJKE_VOORZIENING),
+]
+
 
 async def seed_checklist_vragen(session, tenant_id) -> int:
-    """Voegt de baseline van 89 checklist-vragen idempotent toe **voor één tenant**.
+    """Voegt de baseline (89 applicatie + startsets per beoordeeld type) idempotent toe **voor één tenant**.
     Geeft het aantal vragen terug.
 
     ADR-022 W1: `checklistvraag` is tenant-scoped — de baseline wordt per tenant
@@ -133,21 +154,23 @@ async def seed_checklist_vragen(session, tenant_id) -> int:
         }
         for v in CHECKLIST_VRAGEN
     ]
-    # LI058 — database-startset (componenttype `database`), zelfde patroon (betekenis=None; antwoordtype
-    # via server_default `geen`). Aparte conflict-scope: (tenant, componenttype, code) is per type uniek.
-    db_rows = [
+    # LI058/LI060 — startsets per niet-applicatie beoordeelbaar type (database + de drie LI060-typen),
+    # zelfde patroon (betekenis=None; antwoordtype via server_default `geen`). Aparte conflict-scope:
+    # (tenant, componenttype, code) is per type uniek.
+    type_rows = [
         {
             **v,
             "tenant_id": tenant_id,
-            "componenttype": "database",
+            "componenttype": sleutel,
             "prioriteit": ChecklistPrioriteit(v["prioriteit"]),
             "betekenis": None,
         }
-        for v in CHECKLIST_VRAGEN_DATABASE
+        for sleutel, startset in _STARTSETS_PER_TYPE
+        for v in startset
     ]
-    stmt = pg_insert(ChecklistVraag).values(rows + db_rows).on_conflict_do_nothing(
+    stmt = pg_insert(ChecklistVraag).values(rows + type_rows).on_conflict_do_nothing(
         index_elements=["tenant_id", "componenttype", "code"]
     )
     await session.execute(stmt)
     await session.commit()
-    return len(CHECKLIST_VRAGEN) + len(CHECKLIST_VRAGEN_DATABASE)
+    return len(CHECKLIST_VRAGEN) + len(type_rows)

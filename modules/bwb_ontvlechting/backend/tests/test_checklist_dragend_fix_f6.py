@@ -3,7 +3,7 @@
 Offline: de seed (expand) zet de vlag expliciet en correct (applicatie=true, overige=false);
 de reconcile-migratie (contract) raakt uitsluitend de catalogus (geen engine/profiel/score).
 Live (skip-if-no-DB): de gemeten vlag-stand na reconcile, en het gedrag van het generieke
-component-pad (applicatieserver → géén profiel; applicatie → wél, via het hardgecodeerde
+component-pad (saas_dienst → géén profiel; applicatie → wél, via het hardgecodeerde
 convergente pad). Live-tests ruimen hun element-rijen structureel op.
 """
 import asyncio
@@ -38,11 +38,12 @@ def test_seed_zet_checklist_dragend_expliciet():
     rijen = bouw_componentconfig()
     typen = {r["optie_sleutel"]: r["checklist_dragend"]
              for r in rijen if r["dimensie"].value == "componenttype"}
-    # Beoogde eindstand (LI058): applicatie + database = true; overige (incl. applicatieserver) = false.
-    _beoordeeld = {"applicatie", "database"}
+    # Beoogde eindstand (LI058/LI060): beoordeeld = applicatie + database + de drie LI060-typen;
+    # overige (client_software/saas_dienst/fileshare) = false.
+    _beoordeeld = {"applicatie", "database", "server_compute", "integratievoorziening", "landelijke_voorziening"}
     assert typen["applicatie"] is True
     assert typen["database"] is True
-    assert typen["applicatieserver"] is False
+    assert typen["saas_dienst"] is False  # nog niet-beoordeeld voorbeeldtype
     assert all(v is True for k, v in typen.items() if k in _beoordeeld)
     assert all(v is False for k, v in typen.items() if k not in _beoordeeld)
     # Niet-componenttype-dimensies dragen de vlag false (kolom is alleen zinvol voor types).
@@ -123,7 +124,7 @@ def test_vlag_stand_kernfix_live():
     dev-DB staat daarnaast bewust het demo-type `client_software` op true (zie hieronder)."""
     stand = asyncio.run(_run_rls(_TID, "test:bert", _vlag_stand))
     assert stand.get("applicatie") is True, stand
-    assert stand.get("applicatieserver") is False, stand
+    assert stand.get("saas_dienst") is False, stand  # LI060 — nog niet-beoordeeld type
     assert stand.get("database") is True, stand  # LI058 — database is nu beoordeeld
 
 
@@ -136,14 +137,14 @@ def test_dev_reseed_duurzaamheid_live():
     stand = asyncio.run(_run_rls(_TID, "test:bert", _vlag_stand))
     if stand.get("client_software") is not True:
         pytest.skip("dev-seed-demo (client_software) niet geladen op deze DB")
-    assert stand.get("applicatieserver") is False, stand
+    assert stand.get("saas_dienst") is False, stand  # LI060 — nog niet-beoordeeld type
     assert stand.get("database") is True, stand  # LI058 — database is nu beoordeeld
     assert stand.get("applicatie") is True, stand
 
 
 @integratie
 def test_generiek_pad_profiel_volgt_vlag_live():
-    """Na de fix: een generiek `applicatieserver`-component krijgt GÉÉN component_profiel
+    """Na de fix: een generiek `saas_dienst`-component krijgt GÉÉN component_profiel
     (vlag=false); een `applicatie` (convergent/hardgecodeerd pad) krijgt er WÉL een."""
     from sqlalchemy import text as _text
     from schemas.component import ComponentCreate
@@ -153,7 +154,7 @@ def test_generiek_pad_profiel_volgt_vlag_live():
         ids = []
         try:
             srv = await comp.maak_aan(s, _TID, ComponentCreate(
-                naam="WT-F6-srv", componenttype="applicatieserver"))
+                naam="WT-F6-srv", componenttype="saas_dienst"))
             app = await comp.maak_aan(s, _TID, ComponentCreate(
                 naam="WT-F6-app", componenttype="applicatie"))
             ids += [srv["id"], app["id"]]

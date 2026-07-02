@@ -22,11 +22,19 @@ from models.models import ComponentConfigDimensie, ComponentConfigOptie
 _COMPONENTTYPE: list[tuple[str, str, str, str, str, bool]] = [
     ("applicatie", "Applicatie", "application_component", "application", "active", True),
     ("database", "Database", "system_software", "technology", "active", True),  # LI058 — beoordeeld type
-    ("applicatieserver", "Applicatieserver", "node", "technology", "active", False),
+    # LI060 — `applicatieserver` hernoemd naar `server_compute` (Server / compute), nu beoordeeld;
+    # typing (node/technology/active) ongewijzigd. Volgorde-slot behouden (stabiele lijst).
+    ("server_compute", "Server / compute", "node", "technology", "active", True),
     ("client_software", "Client-software", "system_software", "technology", "active", False),
     ("saas_dienst", "SaaS-dienst", "application_component", "application", "active", False),
-    ("middleware", "Middleware", "system_software", "technology", "active", False),
+    # LI060 — `middleware` hernoemd naar `integratievoorziening` (Integratie-/koppelvoorziening),
+    # nu beoordeeld. Typing → system_software/technology/active: eigen bindweefsel (ESB/broker) dat de
+    # organisatie zélf draait → hoort in de technology-band (naast servers/databases/fileshares),
+    # niet bij de afgenomen application-diensten.
+    ("integratievoorziening", "Integratie-/koppelvoorziening", "system_software", "technology", "active", True),
     ("fileshare", "Fileshare", "node", "technology", "active", False),
+    # LI060 — nieuw beoordeeld type (basisregistratie valt hieronder — geen apart type).
+    ("landelijke_voorziening", "Landelijke voorziening", "application_service", "application", "active", True),
 ]
 _STRUCTUURRELATIE: list[tuple[str, str]] = [
     ("draait_op", "Draait op"),
@@ -97,7 +105,7 @@ def bouw_componentconfig() -> list[dict]:
 
 async def seed_componentconfig(session) -> int:
     """Zaai de default-componentcatalogus (idempotent). Geeft het aantal optie-rijen terug
-    (vast 17: 7 componenttypen + 2 structuurrelaties + 8 ArchiMate-relatietypes)."""
+    (vast 18: 8 componenttypen + 2 structuurrelaties + 8 ArchiMate-relatietypes)."""
     rijen = bouw_componentconfig()
     stmt = pg_insert(ComponentConfigOptie).values(rijen).on_conflict_do_nothing(
         index_elements=["dimensie", "optie_sleutel"]

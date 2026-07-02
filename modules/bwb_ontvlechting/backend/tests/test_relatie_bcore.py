@@ -169,7 +169,7 @@ def test_relatie_crud_en_integriteit_live():
     async def _comp(s, tid, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component)
         s.add(elem); await s.flush()
-        c = Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        c = Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                       hostingmodel="on_premise")
         s.add(c); await s.flush()
         return c.id
@@ -303,7 +303,7 @@ def test_relatie_paar_filter_symmetrie_live():
     async def _comp(s, tid, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component)
         s.add(elem); await s.flush()
-        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                         hostingmodel="on_premise"))
         await s.flush()
         return elem.id
@@ -399,7 +399,7 @@ def test_lijst_naam_sort_v2n_live():
 
     async def _comp(s, tid, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
-        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                         hostingmodel="on_premise")); await s.flush()
         return elem.id
 

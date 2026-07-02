@@ -284,7 +284,7 @@ def test_landschapskaart_flows_gegroepeerd_per_paar_live():
 
     async def _comp(s, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
-        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                         hostingmodel="on_premise")); await s.flush()
         return elem.id
 
@@ -336,7 +336,7 @@ def test_landschapskaart_samenstelling_edge_live():
 
     async def _comp(s, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
-        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                         hostingmodel="on_premise")); await s.flush()
         return elem.id
 
@@ -388,7 +388,7 @@ def test_landschapskaart_organisatiestructuur_edges_live():
 
     async def _comp(s, naam):
         elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
-        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                         hostingmodel="on_premise")); await s.flush()
         return elem.id
 
@@ -460,7 +460,7 @@ def test_landschapskaart_organisatie_scope_live():
 
     async def _comp(s, naam, *, eigenaar=None):
         elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
-        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="middleware",
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="integratievoorziening",
                         hostingmodel="on_premise", eigenaar_organisatie_id=eigenaar)); await s.flush()
         return elem.id
 

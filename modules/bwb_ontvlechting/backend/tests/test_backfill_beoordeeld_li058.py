@@ -73,21 +73,24 @@ def test_backfill_geeft_bestaand_niet_beoordeeld_component_profiel_en_score():
     from services import checklistconfig_service as ccs
     from services import component_service as cs
 
-    naam = f"LI058-fs-{uuid.uuid4().hex[:8]}"
+    naam = f"LI058-cs-{uuid.uuid4().hex[:8]}"
 
     async def _flow(s):
-        # 'applicatieserver' is niet-beoordeeld → create geeft GÉÉN profiel.
-        comp = await cs.maak_aan(s, _TID, ComponentCreate(naam=naam, componenttype="applicatieserver"))
+        # 'client_software' is niet-beoordeeld én heeft géén dev-seed-componenten → de tenant-brede
+        # backfill raakt alléén het hier aangemaakte component (geen vervuiling van gedeelde infra
+        # zoals de saas_dienst/fileshare-demo's, die wél in de dev-seed voorkomen). Create geeft
+        # nog GÉÉN profiel.
+        comp = await cs.maak_aan(s, _TID, ComponentCreate(naam=naam, componenttype="client_software"))
         cid = comp["id"]
         assert comp["lifecycle_status"] is None
         # Backfill (activatie): bestaande componenten van dit type krijgen een profiel + herberekening.
-        n = await ccs.backfill_profielen(s, _TID, "applicatieserver")
+        n = await ccs.backfill_profielen(s, _TID, "client_software")
         await s.commit()
         assert n >= 1
         detail = await cs.lees_detail(s, _TID, cid)
         assert detail["lifecycle_status"] is not None  # profiel nu aanwezig, status afgeleid
         # Idempotent: opnieuw → 0 nieuwe profielen.
-        assert await ccs.backfill_profielen(s, _TID, "applicatieserver") == 0
+        assert await ccs.backfill_profielen(s, _TID, "client_software") == 0
         await s.commit()
         await cs.verwijder(s, _TID, cid)
         await s.commit()
@@ -101,12 +104,13 @@ def test_backfill_raakt_alleen_het_geactiveerde_type():
     from services import checklistconfig_service as ccs
     from services import component_service as cs
 
-    naam = f"LI058-fs2-{uuid.uuid4().hex[:8]}"
+    naam = f"LI058-cs2-{uuid.uuid4().hex[:8]}"
 
     async def _flow(s):
-        fs = await cs.maak_aan(s, _TID, ComponentCreate(naam=naam, componenttype="applicatieserver"))
-        # Backfill van een ANDER type mag dit component niet raken (geen ongewenste mutatie).
-        await ccs.backfill_profielen(s, _TID, "middleware")
+        fs = await cs.maak_aan(s, _TID, ComponentCreate(naam=naam, componenttype="client_software"))
+        # Backfill van een ANDER type (server_compute — beoordeeld maar zonder dev-seed-componenten,
+        # dus een schone no-op) mag dit component niet raken (geen ongewenste mutatie).
+        await ccs.backfill_profielen(s, _TID, "server_compute")
         await s.commit()
         detail = await cs.lees_detail(s, _TID, fs["id"])
         assert detail["lifecycle_status"] is None

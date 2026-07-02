@@ -99,11 +99,14 @@ def test_ok3_resterende_type_mappings():
         for r in bouw_componentconfig() if r["dimensie"].value == "componenttype"
     }
     assert mapping["client_software"] == "system_software"
-    assert mapping["middleware"] == "system_software"
+    # LI060 — middleware → integratievoorziening (system_software, technology-band: eigen ESB/broker);
+    # applicatieserver → server_compute (node).
+    assert mapping["integratievoorziening"] == "system_software"
     assert mapping["applicatie"] == "application_component"
-    assert mapping["applicatieserver"] == "node"
+    assert mapping["server_compute"] == "node"
     assert mapping["database"] == "system_software"
     assert mapping["fileshare"] == "node"
+    assert mapping["landelijke_voorziening"] == "application_service"  # LI060 — nieuw type
     assert mapping["saas_dienst"] == "application_component"
 
 

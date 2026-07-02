@@ -50,8 +50,11 @@ def test_laag_grouping_uit_seed_is_basis_van_het_filter():
     technology = {t for t, r in typing.items() if r["laag"] == "technology"}
     application = {t for t, r in typing.items() if r["laag"] == "application"}
 
-    assert technology == {"database", "client_software", "middleware", "applicatieserver", "fileshare"}
-    assert application == {"applicatie", "saas_dienst"}
+    # LI060 — applicatieserver→server_compute (blijft technology); middleware→integratievoorziening
+    # (system_software, technology-band: eigen ESB/broker); nieuw landelijke_voorziening
+    # (application_service, application-band: extern afgenomen).
+    assert technology == {"database", "client_software", "server_compute", "fileshare", "integratievoorziening"}
+    assert application == {"applicatie", "saas_dienst", "landelijke_voorziening"}
     # saas_dienst valt bewust BUITEN de technologielaag (applicatielaag).
     assert "saas_dienst" not in technology
 

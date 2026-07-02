@@ -98,10 +98,10 @@ def test_seed_componentconfig_17_opties():
     from services.seed_componentconfig import bouw_componentconfig
 
     rijen = bouw_componentconfig()
-    # ADR-023: 7 componenttypen + 2 structuurrelaties + 8 ArchiMate-relatietypes.
-    assert len(rijen) == 17
+    # ADR-023 + LI060: 8 componenttypen + 2 structuurrelaties + 8 ArchiMate-relatietypes.
+    assert len(rijen) == 18
     typen = [r["optie_sleutel"] for r in rijen if r["dimensie"].value == "componenttype"]
-    assert len(typen) == 7 and "applicatie" in typen  # systeem-sleutel aanwezig
+    assert len(typen) == 8 and "applicatie" in typen  # systeem-sleutel aanwezig
     rels = {r["optie_sleutel"] for r in rijen if r["dimensie"].value == "structuurrelatie_type"}
     assert rels == {"draait_op", "maakt_deel_uit_van"}
     archi = {r["optie_sleutel"] for r in rijen if r["dimensie"].value == "archimate_relatie"}
