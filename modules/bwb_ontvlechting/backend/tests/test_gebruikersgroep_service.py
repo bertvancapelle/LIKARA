@@ -18,13 +18,14 @@ def _create_data(applicatie_id):
 
 
 def test_maak_aan_ouder_ontbreekt_geeft_nietgevonden(monkeypatch):
-    from services import applicatie_service, gebruikersgroep_service as svc
+    # LI059 Slice 3: de ouder-check loopt via component_service.haal_op (geen subtabel meer).
+    from services import component_service, gebruikersgroep_service as svc
     from services.errors import NietGevonden
 
     async def _raise(*a, **k):
-        raise NietGevonden("applicatie", "x")
+        raise NietGevonden("component", "x")
 
-    monkeypatch.setattr(applicatie_service, "haal_op", _raise)
+    monkeypatch.setattr(component_service, "haal_op", _raise)
     session = AsyncMock()
 
     with pytest.raises(NietGevonden):
@@ -34,13 +35,16 @@ def test_maak_aan_ouder_ontbreekt_geeft_nietgevonden(monkeypatch):
 
 def test_maak_aan_ouder_bestaat(monkeypatch):
     # ADR-023 slice 4: element + gebruikersgroep + serving-relatie (applicatie → groep).
+    # LI059 Slice 3: de ouder-check verifieert componenttype='applicatie' via component_service.
+    from types import SimpleNamespace
+
     from models.models import Element, Relatie
-    from services import applicatie_service, gebruikersgroep_service as svc
+    from services import component_service, gebruikersgroep_service as svc
 
     async def _ok(*a, **k):
-        return object()
+        return SimpleNamespace(componenttype="applicatie")
 
-    monkeypatch.setattr(applicatie_service, "haal_op", _ok)
+    monkeypatch.setattr(component_service, "haal_op", _ok)
     session = AsyncMock()
     toegevoegd = []
     session.add = lambda obj: toegevoegd.append(obj)

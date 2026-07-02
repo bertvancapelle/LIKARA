@@ -67,22 +67,21 @@ def test_check_en_unieke_constraints():
     )
 
 
-def test_shared_pk_subtypegrens():
+def test_component_is_enige_bron_na_li059():
     from models import models as m
 
-    # applicatie.id is FK→component, CASCADE (1-op-1, structureel afgedwongen).
-    fk = next(iter(m.Applicatie.__table__.c.id.foreign_keys))
+    # LI059 Slice 3: het `Applicatie`-subtype-model bestaat niet meer — een component met
+    # componenttype='applicatie' ÍS de applicatie (domeinmodel §9-7).
+    assert not hasattr(m, "Applicatie")
+    # Identiteit + transitie-attributen leven op het basis-component (LI057).
+    for veld in ("naam", "migratiepad", "complexiteit", "prioriteit"):
+        assert veld in m.Component.__table__.columns
+    # ADR-022 Fase A: de engine-state (lifecycle_status) leeft op het generieke ComponentProfiel
+    # (shared-PK: id = PK én FK→component, CASCADE).
+    assert "lifecycle_status" in m.ComponentProfiel.__table__.columns
+    fk = next(iter(m.ComponentProfiel.__table__.c.id.foreign_keys))
     assert fk.column.table.name == "component"
     assert (fk.ondelete or "").upper() == "CASCADE"
-    # naam verhuisde naar component; het subtype draagt het engine-apparaat.
-    assert "naam" not in m.Applicatie.__table__.columns
-    assert "naam" in m.Component.__table__.columns
-    # ADR-022 Fase A: lifecycle_status verhuisde naar het generieke ComponentProfiel
-    # (shared-PK); op Applicatie is het nu een read-only proxy-property.
-    assert "lifecycle_status" not in m.Applicatie.__table__.columns
-    assert "lifecycle_status" in m.ComponentProfiel.__table__.columns
-    for veld in ("migratiepad", "complexiteit", "prioriteit"):
-        assert veld in m.Applicatie.__table__.columns
 
 
 def test_relatie_endpoint_fk_ondelete():

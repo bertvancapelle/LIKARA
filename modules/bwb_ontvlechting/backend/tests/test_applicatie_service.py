@@ -26,9 +26,10 @@ def _create_data():
 # ── maak_aan: default lifecycle = concept ───────────────────────────────────
 
 def test_maak_aan_zet_lifecycle_concept():
-    # ADR-021: maak_aan creëert component (naam/identiteit) + applicatie-subtype
-    # (lifecycle) atomair — shared-PK class-table.
-    from models.models import Applicatie, Component, ComponentProfiel, LifecycleStatus
+    # LI059 Slice 3: maak_aan creëert element + applicatie-component (naam/identiteit +
+    # transitie-attributen) + generiek profiel (lifecycle) atomair — GÉÉN subtype-rij meer;
+    # een component met componenttype='applicatie' ÍS de applicatie.
+    from models.models import Component, ComponentProfiel, Element, LifecycleStatus
     from services import applicatie_service as svc
 
     session = AsyncMock()
@@ -39,18 +40,18 @@ def test_maak_aan_zet_lifecycle_concept():
     asyncio.run(svc.maak_aan(session, tid, _create_data()))
 
     comp = next(o for o in toegevoegd if isinstance(o, Component))
-    sub = next(o for o in toegevoegd if isinstance(o, Applicatie))
     # ADR-022 Fase A: lifecycle_status leeft op het generieke ComponentProfiel (shared-PK).
     profiel = next(o for o in toegevoegd if isinstance(o, ComponentProfiel))
     assert comp.naam == "Zaaksysteem"
     assert comp.componenttype == "applicatie"
     assert str(comp.tenant_id) == tid
     assert profiel.lifecycle_status == LifecycleStatus.concept
-    assert str(sub.tenant_id) == tid
+    assert str(profiel.tenant_id) == tid
+    # LI059 Slice 3: er wordt GÉÉN Applicatie-subtype-rij meer aangemaakt
+    # (klasse-naam-check → blijft geldig ná de model-drop in Fase B).
+    assert not any(type(o).__name__ == "Applicatie" for o in toegevoegd)
     # ADR-023: element-identiteit eerst (element-pk + subtype-grens) → component is een
     # subtype van `element` (shared-PK). Twee flushes: elem.id, daarna comp.id.
-    from models.models import Element
-
     assert any(isinstance(o, Element) for o in toegevoegd)
     assert session.flush.await_count == 2
     session.commit.assert_awaited_once()

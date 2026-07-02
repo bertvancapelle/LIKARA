@@ -10,10 +10,13 @@ def test_modellen_importeerbaar():
 
     for naam in [
         # ADR-023: Koppeling vervangen door het `Relatie`-model (flow).
-        "Applicatie", "Datatype", "Gebruikersgroep", "Element", "Relatie",
+        # LI059 Slice 3: het `Applicatie`-subtype-model is opgeheven (component ÍS de applicatie).
+        "Component", "Datatype", "Gebruikersgroep", "Element", "Relatie",
         "ChecklistVraag", "ChecklistVraagOptie", "Checklistscore", "Blokkade",
     ]:
         assert hasattr(m, naam), f"ontbrekend model: {naam}"
+    # LI059 Slice 3: er bestaat geen `Applicatie`-model meer.
+    assert not hasattr(m, "Applicatie")
 
 
 def test_enum_waarden():

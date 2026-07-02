@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import Datatype, DatatypeCategorie, Element, ElementType, Relatie
 from schemas.datatype import DatatypeCreate, DatatypeUpdate
-from services import applicatie_service
+from services import component_service
+
+_APPLICATIE_TYPE = "applicatie"
 from services.errors import NietGevonden
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -140,7 +142,11 @@ async def lees_detail(session: AsyncSession, tenant_id, datatype_id) -> dict:
 
 async def maak_aan(session: AsyncSession, tenant_id, data: DatatypeCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
-    await applicatie_service.haal_op(session, tenant_id, data.applicatie_id)  # ouder 404 buiten tenant
+    # LI059 Slice 3: ouder is een component met type 'applicatie' (geen subtabel meer).
+    # Zelfde 404-no-leak: buiten tenant / niet-applicatie ⇒ NietGevonden.
+    _ouder = await component_service.haal_op(session, tenant_id, data.applicatie_id)
+    if _ouder.componenttype != _APPLICATIE_TYPE:
+        raise NietGevonden(_APPLICATIE_TYPE, data.applicatie_id)
     velden = data.model_dump(exclude={"applicatie_id"})
     # ADR-023: element-identiteit eerst (shared-PK), dan datatype, dan de access-relatie.
     elem = Element(tenant_id=tid, element_type=ElementType.datatype)

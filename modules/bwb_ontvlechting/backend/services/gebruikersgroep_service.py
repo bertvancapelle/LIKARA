@@ -15,7 +15,9 @@ from sqlalchemy.orm import aliased
 
 from models.models import Component, Element, ElementType, Gebruikersgroep, Partij, Relatie
 from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepUpdate
-from services import applicatie_service
+from services import component_service
+
+_APPLICATIE_TYPE = "applicatie"
 from services.errors import NietGevonden
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -235,7 +237,11 @@ async def lees_detail(session: AsyncSession, tenant_id, gebruikersgroep_id) -> d
 
 async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
-    await applicatie_service.haal_op(session, tenant_id, data.applicatie_id)  # ouder 404 buiten tenant
+    # LI059 Slice 3: ouder is een component met type 'applicatie' (geen subtabel meer).
+    # Zelfde 404-no-leak: buiten tenant / niet-applicatie ⇒ NietGevonden.
+    _ouder = await component_service.haal_op(session, tenant_id, data.applicatie_id)
+    if _ouder.componenttype != _APPLICATIE_TYPE:
+        raise NietGevonden(_APPLICATIE_TYPE, data.applicatie_id)
     # UX-B6-a — valideer dat een opgegeven organisatie een organisatie-partij is (optioneel).
     if data.organisatie_id is not None:
         from services import partij_service

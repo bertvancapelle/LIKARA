@@ -288,10 +288,11 @@ class _FakeSession:
 
 
 def _rij(i):
-    # UX-B6-b: de lijst-query levert nu (Applicatie, eigenaar_organisatie_naam)-rijen.
+    # LI059 Slice 3: de facade-lijst levert (Component, lifecycle_status, eigenaar_organisatie_naam)-rijen.
     return (
         SimpleNamespace(created_at=datetime(2026, 6, 6, 12, 0, i, tzinfo=timezone.utc), id=uuid.uuid4()),
-        None,
+        None,  # lifecycle_status
+        None,  # eigenaar_organisatie_naam
     )
 
 
@@ -322,36 +323,34 @@ def test_lijst_laatste_pagina_zonder_cursor():
 # ── Cascade-contract (offline: structurele verificatie van ON DELETE CASCADE) ─
 
 def test_kind_fks_cascaden_op_applicatie():
-    """De DB dwingt cascade af; offline verifiëren we het FK-contract (ADR-021).
+    """De DB dwingt cascade af; offline verifiëren we het FK-contract (ADR-021/ADR-022).
 
-    Engine-kinderen (datatype/gebruikersgroep) FK'en op `applicatie.id` (CASCADE);
-    checklistscore/blokkade ankeren ná ADR-022 Fase A op het generieke
-    `component_profiel.id` (CASCADE, shared-PK). `koppeling` herankerde naar
-    `component` (CASCADE) en `applicatie.id` is zelf een FK→component (CASCADE).
-    Verwijderen van een applicatie loopt via de component → cascade over alles."""
+    LI059 Slice 3: er is geen `applicatie`-subtabel meer. De engine-kinderen
+    (checklistscore/blokkade) ankeren op het generieke `component_profiel.id` (CASCADE,
+    shared-PK); `component_profiel.id` is zelf FK→`component` (CASCADE). Verwijderen van een
+    applicatie loopt via het element → component → profiel/scores/blokkades (cascade)."""
     from models.models import (
-        Applicatie,
         Blokkade,
         Checklistscore,
         Component,  # noqa: F401
+        ComponentProfiel,
     )
 
     # ADR-022 Fase A: het engine-anker is het generieke component_profiel (shared-PK).
     # ADR-023 slice 4 (Besluit 13): datatype/gebruikersgroep zijn GEEN engine-kind meer —
     # ze hangen via access/serving-relaties aan de applicatie en blijven bij delete bestaan.
     engine_kinderen = [Checklistscore, Blokkade]
-    _ANKER_TABELLEN = {"applicatie", "component_profiel"}
-    fks_naar_app = 0
+    _ANKER_TABELLEN = {"component_profiel"}
+    fks_naar_anker = 0
     for model in engine_kinderen:
         for kolom in model.__table__.columns:
             for fk in kolom.foreign_keys:
                 if fk.column.table.name in _ANKER_TABELLEN:
-                    fks_naar_app += 1
+                    fks_naar_anker += 1
                     assert fk.ondelete == "CASCADE", f"{model.__name__}.{kolom.name}"
-    assert fks_naar_app >= 2
+    assert fks_naar_anker >= 2
 
-    # ADR-023: Koppeling vervangen door flow-relaties (Relatie) — endpoints cascaden via
-    # de element-supertype-FK (composiet (tenant_id, bron/doel_id) → element).
-    app_id_fk = next(iter(Applicatie.__table__.c.id.foreign_keys))
-    assert app_id_fk.column.table.name == "component"
-    assert app_id_fk.ondelete == "CASCADE"
+    # LI059 Slice 3: het profiel deelt de PK met de component (id = FK→component, CASCADE).
+    profiel_id_fk = next(iter(ComponentProfiel.__table__.c.id.foreign_keys))
+    assert profiel_id_fk.column.table.name == "component"
+    assert profiel_id_fk.ondelete == "CASCADE"

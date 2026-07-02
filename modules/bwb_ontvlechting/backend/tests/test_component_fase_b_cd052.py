@@ -28,12 +28,13 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
 
     async def _kern(session, tid, **kw):
         vastgelegd.update(kw)
-        return SimpleNamespace(component=SimpleNamespace(id=uuid.uuid4()))
+        # LI059 Slice 3: de kern levert het component zélf terug (geen subtype-wrapper meer).
+        return SimpleNamespace(id=uuid.uuid4())
 
     async def _lees(session, tid, comp):
         return {"id": comp.id, "heeft_applicatie_subtype": True}
 
-    monkeypatch.setattr(applicatie_service, "maak_applicatie_subtype", _kern)
+    monkeypatch.setattr(applicatie_service, "maak_applicatie_component", _kern)
     monkeypatch.setattr(svc, "_lees", _lees)
 
     out = asyncio.run(svc.maak_aan(AsyncMock(), _TID, ComponentCreate(naam="Nieuwe app", componenttype="applicatie")))
@@ -65,9 +66,10 @@ def test_sorteer_waarde_mapt_eigenaar_en_hostingmodel():
     from models.models import HostingModel
     from services.component_service import _sorteer_waarde
 
+    # LI059 Slice 3: signatuur `_sorteer_waarde(comp, lifecycle, eig_naam, sort)` (geen subtype-arg meer).
     comp = SimpleNamespace(hostingmodel=HostingModel.saas)
-    assert _sorteer_waarde(comp, None, None, "Gemeente X", "eigenaar") == "Gemeente X"
-    assert _sorteer_waarde(comp, None, None, None, "hostingmodel") == HostingModel.saas
+    assert _sorteer_waarde(comp, None, "Gemeente X", "eigenaar") == "Gemeente X"
+    assert _sorteer_waarde(comp, None, None, "hostingmodel") == HostingModel.saas
 
 
 # De statische SUBTYPE_BESCHERMD-type-guard is vervangen door de toestand-gebaseerde
@@ -161,31 +163,30 @@ def test_component_crud_roundtrip():
     asyncio.run(_sessie_run(_flow))
 
 
-def test_subtype_component_delete_convergeert(monkeypatch):
-    # ADR-023 (Besluit 13): structurele relaties (assignment/aggregation) blokkeren een
-    # delete NIET meer — ze cascaden via het element. Een subtype-delete delegeert daarom
-    # altijd naar het applicatie-delete-pad (geen onderlegger-409 meer).
-    from services import applicatie_service, component_service as svc
+def test_component_delete_via_element(monkeypatch):
+    # LI059 Slice 3: één delete-pad voor élk component (applicatie of kaal) — verwijderen via
+    # het element-supertype (cascade element → component → engine-kinderen). Geen subtype-tak
+    # / applicatie-delegatie meer. ADR-023 (Besluit 13): relaties blokkeren de delete niet.
+    from services import component_service as svc
 
     cid = uuid.uuid4()
 
     async def _haal(*a, **k):
         return SimpleNamespace(id=cid)
 
-    async def _subtype(*a, **k):
-        return True
-
     monkeypatch.setattr(svc, "haal_op", _haal)
-    monkeypatch.setattr(svc, "_heeft_subtype", _subtype)
 
-    gedelegeerd = {}
+    uitgevoerd = []
+    session = AsyncMock()
 
-    async def _verwijder(session, tenant_id, aid):
-        gedelegeerd["id"] = aid
+    async def _execute(stmt):
+        uitgevoerd.append(str(stmt))
 
-    monkeypatch.setattr(applicatie_service, "verwijder", _verwijder)
-    asyncio.run(svc.verwijder(AsyncMock(), _TID, cid))
-    assert gedelegeerd["id"] == cid
+    session.execute = _execute
+    asyncio.run(svc.verwijder(session, _TID, cid))
+    assert len(uitgevoerd) == 1
+    assert uitgevoerd[0].lower().startswith("delete from element")
+    session.commit.assert_awaited_once()
 
 
 @integratie

@@ -67,7 +67,8 @@ def test_default_pad_ordening_en_seek_v2n():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, after=cursor))
     sql = _sql(sess)
-    assert "ORDER BY applicatie.created_at ASC NULLS LAST, applicatie.id ASC" in sql
+    # LI059 Slice 3: de lijst draait op `component` (facade); tiebreaker = component.id.
+    assert "ORDER BY component.created_at ASC NULLS LAST, component.id ASC" in sql
     assert "IS NULL" in sql  # NULLS-LAST keyset-seek
 
 
@@ -76,7 +77,7 @@ def test_default_pad_ordening_en_seek_v2n():
 def test_sort_naam_asc_zonder_cursor():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, sort="naam", order="asc"))
-    assert "ORDER BY component.naam ASC NULLS LAST, applicatie.id ASC" in _sql(sess)
+    assert "ORDER BY component.naam ASC NULLS LAST, component.id ASC" in _sql(sess)
 
 
 def test_sort_naam_desc_seek_v2n():
@@ -84,7 +85,7 @@ def test_sort_naam_desc_seek_v2n():
     sess = _CaptureSession()
     asyncio.run(svc.lijst(sess, TENANT_A, limit=10, after=cursor, sort="naam", order="desc"))
     sql = _sql(sess)
-    assert "ORDER BY component.naam DESC NULLS LAST, applicatie.id DESC" in sql
+    assert "ORDER BY component.naam DESC NULLS LAST, component.id DESC" in sql
     assert "IS NULL" in sql  # NULLS-LAST keyset-seek
 
 

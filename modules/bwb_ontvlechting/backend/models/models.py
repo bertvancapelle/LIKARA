@@ -350,72 +350,11 @@ class Component(Base, TenantMixin, TimestampMixin):
     )
 
 
-class Applicatie(Base, TenantMixin, TimestampMixin):
-    """ADR-021 — subtype van Component (CD051 Optie 2: shared-PK class-table).
-
-    `id` is tegelijk PK én FK → `component.id` (1-op-1; een applicatie-rij kan niet
-    bestaan zonder component-rij — de subtype-grens is structureel). Draagt exclusief
-    het applicatie-apparaat (engine-relevant): lifecycle/migratiepad/complexiteit/
-    prioriteit. De naam en overige identiteit staan op de component."""
-
-    __tablename__ = "applicatie"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("component.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    migratiepad: Mapped[Migratiepad] = mapped_column(migratiepad_enum, nullable=False)
-    complexiteit: Mapped[NiveauEnum] = mapped_column(niveau_enum, nullable=False)
-    prioriteit: Mapped[NiveauEnum] = mapped_column(niveau_enum, nullable=False)
-
-    # Shared-PK relatie naar het supertype (eager): de component draagt de identiteit.
-    component: Mapped["Component"] = relationship("Component", lazy="joined")
-    # ADR-022 Fase A: de engine-state (lifecycle_status) verhuist naar het generieke
-    # ComponentProfiel (shared-PK). Elke applicatie heeft precies één profiel; eager
-    # geladen zodat de `lifecycle_status`-proxy zonder async lazy-IO werkt. Geen
-    # directe FK applicatie↔profiel (beide delen de component-PK) → expliciete
-    # shared-PK-primaryjoin met `foreign()`; viewonly (persist gaat via de service).
-    profiel: Mapped["ComponentProfiel"] = relationship(
-        "ComponentProfiel",
-        primaryjoin="Applicatie.id == foreign(ComponentProfiel.id)",
-        uselist=False,
-        lazy="joined",
-        viewonly=True,
-    )
-
-    @property
-    def lifecycle_status(self) -> "LifecycleStatus":
-        """Read-only proxy → het generieke profiel (ADR-022). Schrijven gaat via
-        `obj.profiel.lifecycle_status` (service-laag)."""
-        return self.profiel.lifecycle_status
-
-    # Read-only proxy-properties → API-byte-compat (§5): de bestaande ApplicatieRead-
-    # velden (naam/hosting/eigenaar/leverancier/beschrijving) lezen door naar de
-    # component. Mutaties lopen via de service naar `obj.component.<veld>`.
-    @property
-    def naam(self) -> str:
-        return self.component.naam
-
-    @property
-    def beschrijving(self) -> str | None:
-        return self.component.beschrijving
-
-    @property
-    def hostingmodel(self) -> "HostingModel":
-        return self.component.hostingmodel
-
-    @property
-    def eigenaar_organisatie_id(self) -> "uuid.UUID | None":
-        return self.component.eigenaar_organisatie_id
-
-    @property
-    def eigenaar_naam(self) -> str | None:
-        return self.component.eigenaar_naam
-
-    @property
-    def leverancier(self) -> str | None:
-        return self.component.leverancier
+# LI059 (Slice 3) — de `Applicatie`-subtype-class is opgeheven (migratie 0047). Een component
+# met `componenttype='applicatie'` ÍS de applicatie (domeinmodel §9-7: een subtype zonder
+# type-eigen velden vervalt). De transitie-attributen leven op `Component` (LI057); de
+# engine-state (`lifecycle_status`) op `ComponentProfiel`. `applicatie_service` is een dunne
+# facade over `component` geworden; de oude `/applicaties`-API blijft byte-identiek.
 
 
 class ComponentProfiel(Base, TenantMixin, TimestampMixin):

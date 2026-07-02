@@ -111,12 +111,13 @@ async def _maak_app(s, tid):
     from models.models import HostingModel, Migratiepad, NiveauEnum
     from services import applicatie_service
 
-    app = await applicatie_service.maak_applicatie_subtype(
+    # LI059 Slice 3: de kern heet `maak_applicatie_component` en levert het component (geen subtype).
+    comp = await applicatie_service.maak_applicatie_component(
         s, tid, naam="WT-B6a-App", beschrijving=None, hostingmodel=HostingModel.on_premise,
         eigenaar_organisatie_id=None,
         migratiepad=Migratiepad.onbekend, complexiteit=NiveauEnum.midden, prioriteit=NiveauEnum.midden,
     )
-    return app.id
+    return comp.id
 
 
 @integratie

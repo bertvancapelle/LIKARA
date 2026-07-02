@@ -44,7 +44,6 @@ from sqlalchemy.exc import IntegrityError  # noqa: E402
 from app.core.database import get_worker_session  # noqa: E402
 from models.models import (  # noqa: E402
     AntwoordType,
-    Applicatie,
     Blokkade,
     BlokkadeStatus,
     ChecklistScore,
@@ -845,7 +844,8 @@ async def seed_landschapskaart_demo(session, tenant_id) -> dict:
         naam_naar_id[naam] = c["id"]
         print(f"  + component {naam} ({type_})")
 
-    bestaande_apps = {r.naam: r.id for r in (await session.execute(select(Applicatie))).scalars().all()}
+    bestaande_apps = {r.naam: r.id for r in (await session.execute(
+        select(Component).where(Component.componenttype == "applicatie"))).scalars().all()}
     n_vragen = len(CODES)
     for app in LK_APPS:
         naam = app["naam"]
@@ -991,7 +991,8 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     )}
 
     partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
-    app_id = {r.naam: r.id for r in (await session.execute(select(Applicatie))).scalars().all()}
+    app_id = {r.naam: r.id for r in (await session.execute(
+        select(Component).where(Component.componenttype == "applicatie"))).scalars().all()}
     contract_id = {r.contractnaam: r.id for r in (await session.execute(select(Contract))).scalars().all()}
 
     async def _partij(aard, naam, cat, **velden):

@@ -55,11 +55,13 @@ def test_escape_like_escapet_wildcards_en_escapeteken():
 
 def test_default_pad_zonder_filters_v2n():
     sql = _sql(limit=25)
-    assert "ORDER BY applicatie.created_at ASC NULLS LAST, applicatie.id ASC" in sql
+    # LI059 Slice 3: de lijst draait op `component` (facade); tiebreaker = component.id.
+    assert "ORDER BY component.created_at ASC NULLS LAST, component.id ASC" in sql
     assert " IN " not in sql  # geen statusfilter
     assert "LIKE" not in sql  # geen ilike-contains
-    # alleen de tenant-filter in de WHERE
-    assert "applicatie.tenant_id =" in sql
+    # geen gebruikersfilters: enkel de tenant- + structurele componenttype='applicatie'-clause
+    assert "component.tenant_id =" in sql
+    assert "component.componenttype =" in sql
 
 
 def test_lege_statuslijst_is_geen_filter():
@@ -107,7 +109,7 @@ def test_alle_filters_and_gecombineerd():
 def test_filter_met_sortering_behoudt_order_by():
     sql = _sql(zoek="zaak", sort="naam", order="desc")
     assert "lower(component.naam) LIKE" in sql
-    assert "ORDER BY component.naam DESC NULLS LAST, applicatie.id DESC" in sql
+    assert "ORDER BY component.naam DESC NULLS LAST, component.id DESC" in sql
 
 
 # ── Escaping is echt actief: een wildcard wordt letterlijk gebonden ─────────

@@ -8,12 +8,11 @@ componentcatalogus gevalideerd.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, case, delete, func, or_, select, update
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, lazyload
+from sqlalchemy.orm import aliased
 
 from models.models import (
-    Applicatie,
     Blokkade,
     BlokkadeStatus,
     Checklistscore,
@@ -94,14 +93,6 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
 
 def _escape_like(term: str) -> str:
     return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
-
-
-async def _heeft_subtype(session: AsyncSession, tid: uuid.UUID, component_id) -> bool:
-    return (
-        await session.execute(
-            select(Applicatie.id).where(Applicatie.tenant_id == tid, Applicatie.id == component_id)
-        )
-    ).scalar_one_or_none() is not None
 
 
 async def _toestand_tellingen(
@@ -232,7 +223,8 @@ async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
         "migratiepad": obj.migratiepad,
         "complexiteit": obj.complexiteit,
         "prioriteit": obj.prioriteit,
-        "heeft_applicatie_subtype": await _heeft_subtype(session, tid, obj.id),
+        # LI059 Slice 3: "is-applicatie" = componenttype (er is geen subtabel meer).
+        "heeft_applicatie_subtype": obj.componenttype == _APPLICATIE_TYPE,
         # ADR-022 Fase E: of dit componenttype checklist-dragend is (UI toont dan de
         # checklist-sectie + start-knop ook voor niet-`applicatie`-componenten).
         "checklist_dragend": await catalog.is_checklist_dragend(session, obj.componenttype),
@@ -271,14 +263,13 @@ async def lees_detail(session: AsyncSession, tenant_id, component_id) -> dict:
     return await _lees(session, tid, await haal_op(session, tenant_id, component_id))
 
 
-def _sorteer_waarde(comp: Component, app: Applicatie | None, lifecycle, eig_naam, sort: str):
-    """Sleutelwaarde voor de cursor: subtype-kolommen van het (mogelijk afwezige) subtype,
-    `lifecycle_status` van het profiel, `eigenaar` = de organisatie-naam (gejoind), overige
-    van de component."""
+def _sorteer_waarde(comp: Component, lifecycle, eig_naam, sort: str):
+    """Sleutelwaarde voor de cursor: `lifecycle_status` van het profiel, `eigenaar` = de
+    organisatie-naam (gejoind), overige van de component (LI057/LI059 — alles op component)."""
     if sort == "lifecycle_status":
         return lifecycle
     if sort in ("complexiteit", "prioriteit"):
-        return getattr(comp, sort)  # LI057 — nu op het basis-component (altijd aanwezig)
+        return getattr(comp, sort)  # LI057 — op het basis-component (altijd aanwezig)
     if sort == "eigenaar":
         return eig_naam  # UX-B6-b: sorteren op de naam van de gekoppelde organisatie-partij
     return getattr(comp, sort)  # naam / componenttype / hostingmodel / created_at
@@ -313,16 +304,13 @@ async def lijst(
     kolom = eig.naam if sort == "eigenaar" else _SORTEERBARE_KOLOMMEN[sort]
 
     stmt = (
-        # ADR-022 Fase A: lifecycle_status komt expliciet uit het profiel; de
-        # Applicatie-eager-load van `profiel` wordt onderdrukt (`lazyload`) zodat de
-        # query één join naar component_profiel houdt. UX-B6-b: LEFT JOIN de eigenaar-org-partij
-        # voor naam-in-read + sortering op naam.
-        select(Component, Applicatie, ComponentProfiel.lifecycle_status.label("lifecycle_status"),
+        # ADR-022 Fase A: lifecycle_status komt uit het profiel (LEFT JOIN — null voor
+        # niet-checklist-dragende componenten). UX-B6-b: LEFT JOIN de eigenaar-org-partij
+        # voor naam-in-read + sortering op naam. LI059 Slice 3: geen subtabel-join meer.
+        select(Component, ComponentProfiel.lifecycle_status.label("lifecycle_status"),
                eig.naam.label("eigenaar_organisatie_naam"))
-        .outerjoin(Applicatie, and_(Applicatie.id == Component.id, Applicatie.tenant_id == tid))
         .outerjoin(ComponentProfiel, and_(ComponentProfiel.id == Component.id, ComponentProfiel.tenant_id == tid))
         .outerjoin(eig, and_(eig.id == Component.eigenaar_organisatie_id, eig.tenant_id == tid))
-        .options(lazyload(Applicatie.profiel))
         .where(Component.tenant_id == tid)
     )
     # ADR-023 Fase C: ArchiMate-typing voor het laag-filter (read-only) + per-rij projectie.
@@ -387,7 +375,7 @@ async def lijst(
         )
     stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Component.id, order)).limit(limit + 1)
 
-    rijen = list((await session.execute(stmt)).all())  # (Component, Applicatie|None, lifecycle|None, eigenaar_org_naam|None)
+    rijen = list((await session.execute(stmt)).all())  # (Component, lifecycle|None, eigenaar_org_naam|None)
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
     type_labels = await catalog.labels(session, ComponentConfigDimensie.componenttype)
@@ -398,7 +386,8 @@ async def lijst(
             "archimate_element": typing.get(c.componenttype, {}).get("archimate_element"),
             "laag": typing.get(c.componenttype, {}).get("laag"),
             "hostingmodel": c.hostingmodel,
-            "heeft_applicatie_subtype": a is not None,
+            # LI059 Slice 3: "is-applicatie" = componenttype (er is geen subtabel meer).
+            "heeft_applicatie_subtype": c.componenttype == _APPLICATIE_TYPE,
             "eigenaar_organisatie_id": c.eigenaar_organisatie_id,
             "eigenaar_organisatie_naam": eig_naam,
             # LI057 (Slice 1) — nu op het basis-component (was applicatie-LEFT-JOIN → null voor infra).
@@ -407,13 +396,13 @@ async def lijst(
             "prioriteit": c.prioriteit,
             "lifecycle_status": lc,
         }
-        for (c, a, lc, eig_naam) in items
+        for (c, lc, eig_naam) in items
     ]
     if heeft_meer:
-        laatste_comp, laatste_app, laatste_lc, laatste_eig = items[-1]
+        laatste_comp, laatste_lc, laatste_eig = items[-1]
         volgende = encode_sort_cursor_nullable(
             sort=sort, order=order,
-            waarde=_sorteer_waarde(laatste_comp, laatste_app, laatste_lc, laatste_eig, sort),
+            waarde=_sorteer_waarde(laatste_comp, laatste_lc, laatste_eig, sort),
             id=laatste_comp.id,
         )
     else:
@@ -428,18 +417,19 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
         from services import partij_service
         await partij_service.valideer_organisatie(session, tid, data.eigenaar_organisatie_id)
     if data.componenttype == _APPLICATIE_TYPE:
-        # Convergente aanmaak (CD054b W1): atomair het applicatie-subtype met defaults,
-        # via dezelfde service-kern als het applicatie-pad. Eigenaar-organisatie optioneel.
+        # Convergente aanmaak (CD054b W1): atomair de applicatie-component + profiel, via
+        # dezelfde service-kern als het applicatie-pad. LI059 Slice 3: geen subtype-rij meer —
+        # de component ÍS de applicatie. Eigenaar-organisatie optioneel.
         from services import applicatie_service
 
-        obj = await applicatie_service.maak_applicatie_subtype(
+        comp = await applicatie_service.maak_applicatie_component(
             session, tid,
             naam=data.naam, beschrijving=data.beschrijving, hostingmodel=data.hostingmodel,
             eigenaar_organisatie_id=data.eigenaar_organisatie_id,
             # LI057 (Slice 1) — component-brede velden (defaults uit ComponentCreate) honoreren.
             migratiepad=data.migratiepad, complexiteit=data.complexiteit, prioriteit=data.prioriteit,
         )
-        return await _lees(session, tid, obj.component)
+        return await _lees(session, tid, comp)
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
     # ADR-023: element-identiteit eerst (shared-PK), daarna de component met dezelfde id.
     elem = Element(tenant_id=tid, element_type=ElementType.component)
@@ -482,29 +472,17 @@ async def _wissel_type(session: AsyncSession, tid: uuid.UUID, obj: Component, ni
     if t["gevuld"]:
         raise OngeldigeRegistratie("SUBTYPE_HEEFT_DATA", _heeft_data_bericht(t))
 
-    # Leeg: ruim een eventueel (leeg) profiel én applicatie-subtype op — onafhankelijk
-    # van elkaar, want een niet-`applicatie` checklist-dragend type heeft wél een profiel
-    # maar géén subtype. Profiel-delete cascadeert niet-beantwoorde scores/blokkades;
-    # subtype-delete cascadeert (afwezige) datatypes/gebruikersgroepen.
+    # Leeg: ruim een eventueel (leeg) profiel op. LI059 Slice 3: er is geen applicatie-
+    # subtabel meer — "applicatie" is enkel het componenttype. Profiel-delete cascadeert
+    # niet-beantwoorde scores/blokkades.
     await session.execute(delete(ComponentProfiel).where(ComponentProfiel.id == obj.id))
-    await session.execute(delete(Applicatie).where(Applicatie.id == obj.id))
     await session.flush()
 
     obj.componenttype = nieuw
 
-    if nieuw == _APPLICATIE_TYPE:
-        # Promotie naar `applicatie`: subtype-rij (spiegelt de component-brede transitie-attributen,
-        # LI057) + generiek profiel. De component draagt migratiepad/complexiteit/prioriteit al.
-        session.add(Applicatie(
-            id=obj.id, tenant_id=tid,
-            migratiepad=obj.migratiepad, complexiteit=obj.complexiteit, prioriteit=obj.prioriteit,
-        ))
-        session.add(
-            ComponentProfiel(id=obj.id, tenant_id=tid, lifecycle_status=LifecycleStatus.concept)
-        )
-        await session.flush()
-    elif await catalog.is_checklist_dragend(session, nieuw):
-        # Promotie naar een ander checklist-dragend type: alléén het generieke profiel.
+    # `applicatie` krijgt altijd een profiel (systeem-sleutel, checklist-dragend); een ander
+    # checklist-dragend type eveneens. Geen subtype-rij meer (component ÍS de applicatie).
+    if nieuw == _APPLICATIE_TYPE or await catalog.is_checklist_dragend(session, nieuw):
         session.add(
             ComponentProfiel(id=obj.id, tenant_id=tid, lifecycle_status=LifecycleStatus.concept)
         )
@@ -524,13 +502,8 @@ async def werk_bij(session: AsyncSession, tenant_id, component_id, data: Compone
         await partij_service.valideer_organisatie(session, tid, velden["eigenaar_organisatie_id"])
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
-    # LI057 (Slice 1) — spiegel de transitie-attributen naar een eventuele applicatie-subtabel
-    # (dual-write; de subtabel wordt in de contract-slice gedropt). 0 rijen bij een niet-applicatie.
-    _spiegel = {k: velden[k] for k in ("migratiepad", "complexiteit", "prioriteit") if k in velden}
-    if _spiegel:
-        await session.execute(
-            update(Applicatie).where(Applicatie.id == obj.id, Applicatie.tenant_id == tid).values(**_spiegel)
-        )
+    # LI059 Slice 3: alle velden (incl. migratiepad/complexiteit/prioriteit) leven op het
+    # component — enige bron van waarheid; geen subtabel-dual-write meer.
     await session.commit()
     await session.refresh(obj)
     return await _lees(session, tid, obj)
@@ -540,19 +513,11 @@ async def verwijder(session: AsyncSession, tenant_id, component_id) -> None:
     tid = _tenant_uuid(tenant_id)
     await haal_op(session, tenant_id, component_id)
 
-    if await _heeft_subtype(session, tid, component_id):
-        # Convergent (CD054b W1): een subtype verwijdert via het applicatie-delete-pad.
-        # ADR-023 B-mig-2 slice 2 (Besluit 13): structurele relaties (assignment/aggregation)
-        # blokkeren een delete NIET meer — ze cascaden via het element. Geen onderlegger-check.
-        from services import applicatie_service
-
-        await applicatie_service.verwijder(session, tenant_id, component_id)
-        return
-
-    # Kaal component: ADR-023 (Besluit 13) — álle relaties (flow/assignment/aggregation/
-    # association) cascaden via het element en blokkeren een delete niet meer.
-    # ADR-023: verwijder via het element-supertype (cascade element → component → kinderen);
-    # de losse component-rij zou een wees-element achterlaten.
+    # LI059 Slice 3: één delete-pad voor élk component (applicatie of kaal) — er is geen
+    # subtype-rij meer. ADR-023 (Besluit 13): álle relaties (flow/assignment/aggregation/
+    # association) cascaden via het element en blokkeren een delete niet. Verwijder via het
+    # element-supertype (cascade element → component → engine-kinderen); de losse
+    # component-rij zou een wees-element achterlaten.
     await session.execute(delete(Element).where(Element.tenant_id == tid, Element.id == component_id))
     await session.commit()
 
@@ -702,7 +667,7 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
             volgende.append((r.dep_id, pad, eerste_rel))
         frontier = volgende
 
-    # Applicatie-verrijking (alleen subtypen): lifecycle + open-blokkade-telling.
+    # Profiel-verrijking (alleen componenten mét profiel): lifecycle + open-blokkade-telling.
     ids = list(geraakt.keys())
     if ids:
         for aid, lc in (

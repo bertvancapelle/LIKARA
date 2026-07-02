@@ -169,10 +169,14 @@ def test_start_inventarisatie_herberekent_na_transitie(monkeypatch):
 
     # ADR-022 Fase E: start_inventarisatie delegeert naar de type-generieke
     # lifecycle_service.start_beoordeling (concept → in_inventarisatie + herberekening).
-    app_obj = SimpleNamespace(profiel=SimpleNamespace(lifecycle_status=LifecycleStatus.concept), eigenaar_organisatie_id=None)
+    # LI059 Slice 3: de facade levert een component-object; `lifecycle_status` is een
+    # transient attribuut (via `_verrijk` uit het profiel), niet meer `.profiel.lifecycle_status`.
+    from services import componentconfig_catalog
+
+    comp = SimpleNamespace(id=_APP, eigenaar_organisatie_id=None)
 
     async def _haal(session, tenant_id, app_id):
-        return app_obj
+        return comp
 
     monkeypatch.setattr(svc, "haal_op", _haal)
 
@@ -181,12 +185,24 @@ def test_start_inventarisatie_herberekent_na_transitie(monkeypatch):
     async def _start(session, tenant_id, component_id):
         aangeroepen["yes"] = True
         # Simuleer: vóór de start al alles gescoord, geen open blokkade → migratieklaar.
-        app_obj.profiel.lifecycle_status = LifecycleStatus.migratieklaar
         return LifecycleStatus.migratieklaar
 
     monkeypatch.setattr(lifecycle_service, "start_beoordeling", _start)
 
-    obj = asyncio.run(svc.start_inventarisatie(AsyncMock(), _TID, _APP))
+    async def _dragend(session, sleutel):
+        return True
+
+    monkeypatch.setattr(componentconfig_catalog, "is_checklist_dragend", _dragend)
+
+    # `_verrijk` her-queryt de lifecycle uit het profiel → voed het mock-resultaat
+    # (expliciete MagicMock zodat `.scalar_one_or_none()` synchroon de status teruggeeft).
+    _res = MagicMock()
+    _res.scalar_one_or_none.return_value = LifecycleStatus.migratieklaar
+    session = AsyncMock()
+    session.execute.return_value = _res
+
+    obj = asyncio.run(svc.start_inventarisatie(session, _TID, _APP))
 
     assert aangeroepen.get("yes") is True
-    assert obj.profiel.lifecycle_status == LifecycleStatus.migratieklaar
+    assert obj is comp
+    assert obj.lifecycle_status == LifecycleStatus.migratieklaar
