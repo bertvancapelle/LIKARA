@@ -52,10 +52,12 @@ const registerFout = ref(null)
 const isDeel = computed(() => form.contracttype === 'deelcontract')
 
 // ZoekSelect-koppelingen (CD049): server-side zoeken i.p.v. volledige dropdowns.
-// ADR-024: de leverancier-picker (contractpartij) put uit de partijen — elke aard behalve
-// `persoon`. Geen aard-param: alle aarden komen in de resultaten; de backend weigert een
-// persoon server-side (422 ONGELDIGE_PARTIJ). Term "leverancier" blijft in het contract-domein.
-const zoekLeveranciers = (params) => api.partijen.lijst(params)
+// ADR-024: de leverancier-picker (contractpartij) put uit de partijen met een TOEGESTANE aard —
+// organisatie / organisatie_eenheid / externe_partij, nooit `persoon`/`burger`. Spiegelt exact de
+// backend-regel (contract_service.TOEGESTANE_LEVERANCIER_AARDEN, 422 ONGELDIGE_PARTIJ): zo kan de
+// gebruiker geen keuze maken die het systeem verwerpt. Term "leverancier" blijft in het contract-domein.
+const LEVERANCIER_AARDEN = ['organisatie', 'organisatie_eenheid', 'externe_partij']
+const zoekLeveranciers = (params) => api.partijen.lijst({ ...params, aard_in: LEVERANCIER_AARDEN })
 const zoekMantels = (params) => api.contracten.lijst(params)
 // Mantel client-side gespiegeld op type+leverancier (I1/I2); de backend blijft de waarheid.
 const mantelFilters = computed(() => ({

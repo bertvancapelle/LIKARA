@@ -91,6 +91,19 @@ describe('ContractFormulier', () => {
     expect(w.find('[data-testid="veld-mantelcontract-input"]').exists()).toBe(false)
   })
 
+  it('leverancier-picker put alleen uit geldige aarden (organisatie/organisatie_eenheid/externe_partij; geen persoon/burger)', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-leverancier-input"]').trigger('focus')
+    await flushPromises()
+    expect(api.partijen.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({ aard_in: ['organisatie', 'organisatie_eenheid', 'externe_partij'] }),
+    )
+    // Spiegelt de backend-regel (contract_service.TOEGESTANE_LEVERANCIER_AARDEN): nooit persoon/burger.
+    const call = api.partijen.lijst.mock.calls.at(-1)[0]
+    expect(call.aard_in).not.toContain('persoon')
+    expect(call.aard_in).not.toContain('burger')
+  })
+
   it('checkbox-groepen sturen een declaratieve set (dekking/kostenmodel)', async () => {
     api.contracten.maak.mockResolvedValueOnce({ id: 'c1' })
     const { w } = await mountForm()
