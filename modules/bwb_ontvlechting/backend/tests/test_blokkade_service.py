@@ -63,10 +63,12 @@ def test_werk_bij_terug_naar_open_leegt_tijd(monkeypatch):
     from services import blokkade_service as svc, lifecycle_service
 
     blok = SimpleNamespace(
-        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", component_id=_APP
+        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", component_id=_APP,
+        checklistscore_id=uuid.uuid4(),
     )
     session = AsyncMock()
-    session.execute.return_value = _result(blok)
+    # 1) haal_op → blok; 2) ADR-037 _verrijk: verantwoordelijke_id-lookup → None (resolve overslaan).
+    session.execute.side_effect = [_result(blok), _result(None)]
 
     async def _herb(*a, **k):
         return None
@@ -87,10 +89,12 @@ def test_werk_bij_toelichting_only_behoudt_opgelost_op(monkeypatch):
     from services import blokkade_service as svc, lifecycle_service
 
     blok = SimpleNamespace(
-        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", component_id=_APP
+        status=BlokkadeStatus.opgelost, opgelost_op="2026-01-01", component_id=_APP,
+        checklistscore_id=uuid.uuid4(),
     )
     session = AsyncMock()
-    session.execute.return_value = _result(blok)
+    # 1) haal_op → blok; 2) ADR-037 _verrijk: verantwoordelijke_id-lookup → None (resolve overslaan).
+    session.execute.side_effect = [_result(blok), _result(None)]
 
     async def _herb(*a, **k):
         return None
@@ -148,7 +152,8 @@ def _row(**kw):
         component_id=_APP,
         status="open",
         toelichting=None,
-        eigenaar=None,
+        verantwoordelijke_naam=None,
+        verantwoordelijke_afdeling=None,
         opgelost_op=None,
         created_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
         updated_at=datetime(2026, 6, 6, tzinfo=timezone.utc),

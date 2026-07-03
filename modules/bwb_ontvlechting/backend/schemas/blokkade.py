@@ -2,8 +2,12 @@
 
 Blokkades zijn systeem-afgeleid (Model A): er is **geen** Create — ze ontstaan
 automatisch uit een blokkerende Checklistscore. De gebruiker beheert alleen de
-opvolging via Update (`status`, `toelichting`, `eigenaar`). `opgelost_op` is
-server-beheerd (afgeleid uit `status`) en zit niet in Update.
+opvolging via Update (`status`, `toelichting`). `opgelost_op` is server-beheerd
+(afgeleid uit `status`) en zit niet in Update.
+
+ADR-037 — de eigenaar is geen eigen (vrije-tekst) veld meer: de blokkade-verantwoordelijke
+wordt in de leeslaag AFGELEID van de verantwoordelijke van het onderliggende antwoord
+(`checklistscore_id` → `Checklistscore.verantwoordelijke_id`), read-only (geen overschrijven in v1).
 """
 import uuid
 from datetime import datetime
@@ -36,15 +40,16 @@ class BlokkadeSorteerveld(str, Enum):
 
     Dekt alle getoonde kolommen. NOT NULL: `applicatie_naam`/`vraag_code` (join),
     `status`, `gewijzigd_op`. Nullable (NULLS LAST, ADR-017 B5): `toelichting`,
-    `eigenaar`, `opgelost_op`. De service mapt deze namen 1-op-1 op een kolom; een
-    test borgt de synchroniteit.
+    `verantwoordelijke_naam`, `opgelost_op`. De service mapt deze namen 1-op-1 op een
+    kolom; een test borgt de synchroniteit. (ADR-037: `eigenaar` → afgeleide
+    `verantwoordelijke_naam`, sorteerbaar op de gejoinde partij-naam.)
     """
 
     applicatie_naam = "applicatie_naam"
     vraag_code = "vraag_code"
     status = "status"
     toelichting = "toelichting"
-    eigenaar = "eigenaar"
+    verantwoordelijke_naam = "verantwoordelijke_naam"
     opgelost_op = "opgelost_op"
     gewijzigd_op = "gewijzigd_op"
 
@@ -55,13 +60,14 @@ class BlokkadeLijstSorteerveld(str, Enum):
     join-only velden (`applicatie_naam`/`vraag_code`) — die zijn betekenisloos in
     een sectie van één applicatie (de per-app `lijst` joint niet). NOT NULL:
     `status`, `gewijzigd_op`, `created_at`. Nullable (NULLS LAST): `toelichting`,
-    `eigenaar`, `opgelost_op`. `gewijzigd_op` mapt op `updated_at`.
+    `verantwoordelijke_naam`, `opgelost_op`. `gewijzigd_op` mapt op `updated_at`.
+    (ADR-037: `eigenaar` → afgeleide `verantwoordelijke_naam`.)
     """
 
     created_at = "created_at"
     status = "status"
     toelichting = "toelichting"
-    eigenaar = "eigenaar"
+    verantwoordelijke_naam = "verantwoordelijke_naam"
     opgelost_op = "opgelost_op"
     gewijzigd_op = "gewijzigd_op"
 
@@ -73,17 +79,11 @@ class BlokkadeUpdate(BaseModel):
 
     status: BlokkadeStatus | None = None
     toelichting: str | None = None
-    eigenaar: str | None = None
 
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 10_000)
-
-    @field_validator("eigenaar")
-    @classmethod
-    def _v_eigenaar(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 255)
 
     @model_validator(mode="after")
     def _verbied_null_op_verplicht(self) -> "BlokkadeUpdate":
@@ -101,7 +101,10 @@ class BlokkadeRead(BaseModel):
     component_id: uuid.UUID
     status: BlokkadeStatus
     toelichting: str | None
-    eigenaar: str | None
+    # ADR-037 — afgeleide verantwoordelijke van het onderliggende antwoord (leeslaag, read-only).
+    # `verantwoordelijke_afdeling` alleen gevuld bij aard=persoon (de partij draagt z'n afdeling zelf).
+    verantwoordelijke_naam: str | None = None
+    verantwoordelijke_afdeling: str | None = None
     opgelost_op: datetime | None
     created_at: datetime
     updated_at: datetime
@@ -147,7 +150,9 @@ class BlokkadeOverzichtItem(BaseModel):
     vraag_code: str
     status: BlokkadeStatus
     toelichting: str | None
-    eigenaar: str | None
+    # ADR-037 — afgeleide verantwoordelijke van het onderliggende antwoord (leeslaag, read-only).
+    verantwoordelijke_naam: str | None = None
+    verantwoordelijke_afdeling: str | None = None
     opgelost_op: datetime | None
     gewijzigd_op: datetime
 

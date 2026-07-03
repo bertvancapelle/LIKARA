@@ -28,7 +28,8 @@ const _item = (naam, id, { componenttype = 'applicatie', componenttype_label = '
   vraag_code: 'A1',
   status: 'open',
   toelichting: null,
-  eigenaar: null,
+  verantwoordelijke_naam: null,
+  verantwoordelijke_afdeling: null,
   opgelost_op: null,
   gewijzigd_op: '2026-06-07T10:00:00Z',
 })

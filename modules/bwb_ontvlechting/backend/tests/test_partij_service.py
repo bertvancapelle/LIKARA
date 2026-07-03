@@ -312,3 +312,41 @@ def test_component_schema_zonder_eigenaar_naam_leverancier():
         assert "leverancier" not in model.model_fields
         # de partij-FK blijft bestaan
         assert "eigenaar_organisatie_id" in model.model_fields
+
+
+# ── ADR-037: aard-validatie van de antwoord-verantwoordelijke ────────────────────
+
+def test_valideer_verantwoordelijke_persoon_en_afdeling_ok():
+    """Aard persoon én organisatie_eenheid (afdeling) worden geaccepteerd (geen raise)."""
+    from models.models import PartijAard
+    from services import partij_service as svc
+
+    for aard in (PartijAard.persoon, PartijAard.organisatie_eenheid):
+        session = AsyncMock()
+        session.execute.return_value = _result(aard)
+        asyncio.run(svc.valideer_verantwoordelijke(session, uuid.uuid4(), uuid.uuid4()))
+
+
+def test_valideer_verantwoordelijke_verkeerde_aard_422():
+    """Aard organisatie (geen afdeling/persoon) ⇒ 422 ONGELDIGE_VERANTWOORDELIJKE."""
+    from models.models import PartijAard
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    session = AsyncMock()
+    session.execute.return_value = _result(PartijAard.organisatie)
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc.valideer_verantwoordelijke(session, uuid.uuid4(), uuid.uuid4()))
+    assert ei.value.code == "ONGELDIGE_VERANTWOORDELIJKE"
+
+
+def test_valideer_verantwoordelijke_onbekend_422():
+    """Onbekende partij (buiten tenant) ⇒ 422 (no-leak; zelfde foutcode)."""
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    session = AsyncMock()
+    session.execute.return_value = _result(None)
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc.valideer_verantwoordelijke(session, uuid.uuid4(), uuid.uuid4()))
+    assert ei.value.code == "ONGELDIGE_VERANTWOORDELIJKE"

@@ -720,6 +720,15 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
             ["checklistvraag.tenant_id", "checklistvraag.id"],
             name="fk_checklistscore_vraag",
         ),
+        # ADR-037 — verantwoordelijke per antwoord (vervangt het vrije-tekstveld `eigenaar`):
+        # composiet-FK naar een partij-element (aard organisatie_eenheid/persoon, app-side geborgd).
+        # Optioneel; ON DELETE SET NULL (kolom-specifiek op verantwoordelijke_id in de migratie —
+        # een kale SET NULL zou óók de gedeelde tenant_id nullen). Spiegel van
+        # `component.eigenaar_organisatie_id`. Puur registratief: de engine leest dit NOOIT.
+        ForeignKeyConstraint(
+            ["tenant_id", "verantwoordelijke_id"], ["element.tenant_id", "element.id"],
+            name="fk_checklistscore_verantwoordelijke", ondelete="SET NULL",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
@@ -732,7 +741,8 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
     checklistvraag_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     score: Mapped[ChecklistScore | None] = mapped_column(checklist_score_enum, nullable=True)
     bevinding: Mapped[str | None] = mapped_column(Text, nullable=True)
-    eigenaar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # ADR-037 — verantwoordelijke (afdeling-dan-persoon) via composiet-FK (zie __table_args__).
+    verantwoordelijke_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     actie: Mapped[str | None] = mapped_column(Text, nullable=True)
     # ADR-019: gestructureerd antwoord (jsonb, nullable). Envelope per antwoordtype:
     # {"optie": "<sleutel>"} / {"opties": ["<sleutel>", …]} / {"getal": <int>}.
@@ -758,7 +768,9 @@ class Blokkade(Base, TenantMixin, TimestampMixin):
         blokkade_status_enum, nullable=False, server_default=text("'open'")
     )
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
-    eigenaar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # ADR-037 — de blokkade-eigenaar is niet langer een eigen (vrije-tekst) veld: hij wordt in de
+    # leeslaag AFGELEID van de verantwoordelijke van het onderliggende antwoord
+    # (`checklistscore_id` → `Checklistscore.verantwoordelijke_id`). Geen kolom, geen schrijfpad.
     opgelost_op: Mapped[datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )

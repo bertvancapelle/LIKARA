@@ -13,6 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from models.models import Component, Contract, Element, ElementType, Partij, PartijAard, Relatie
 from schemas.partij import PartijCreate, PartijUpdate
@@ -117,6 +118,43 @@ async def valideer_organisatie(session: AsyncSession, tenant_id, partij_id) -> N
         raise OngeldigeRegistratie(
             "ONGELDIGE_ORGANISATIE", "De gekozen organisatie moet een bestaande organisatie zijn."
         )
+
+
+async def valideer_verantwoordelijke(session: AsyncSession, tenant_id, partij_id) -> None:
+    """ADR-037 — een antwoord-verantwoordelijke moet een bestaande partij binnen de tenant zijn met
+    aard ∈ {organisatie_eenheid (afdeling), persoon} (anders 422 `ONGELDIGE_VERANTWOORDELIJKE`).
+    `None` = optioneel (leeg mag), handelt de caller af. Spiegelt `valideer_organisatie` /
+    `_valideer_lidmaatschap` — structurele aard-borging op de plek waar de aard kan leven."""
+    tid = _tenant_uuid(tenant_id)
+    aard = (
+        await session.execute(
+            select(Partij.aard).where(Partij.id == partij_id, Partij.tenant_id == tid)
+        )
+    ).scalar_one_or_none()
+    if aard is None or aard not in (PartijAard.organisatie_eenheid, PartijAard.persoon):
+        raise OngeldigeRegistratie(
+            "ONGELDIGE_VERANTWOORDELIJKE",
+            "De verantwoordelijke moet een bestaande afdeling of persoon zijn.",
+        )
+
+
+async def resolve_verantwoordelijken(session: AsyncSession, tenant_id, ids) -> dict:
+    """ADR-037 — resolveer verantwoordelijke-partij-ids → `{id: {"naam", "afdeling"}}` voor de
+    leeslaag. `afdeling` = naam van de afdeling-partij (alleen bij aard=persoon; een afdeling-partij
+    draagt zelf geen afdeling → None). Onbekende/`None` id's zitten niet in de dict. Read-only."""
+    tid = _tenant_uuid(tenant_id)
+    unieke = {i for i in ids if i is not None}
+    if not unieke:
+        return {}
+    afd = aliased(Partij)
+    rijen = (
+        await session.execute(
+            select(Partij.id, Partij.naam, afd.naam.label("afdeling"))
+            .join(afd, and_(afd.id == Partij.afdeling_id, afd.tenant_id == tid), isouter=True)
+            .where(Partij.id.in_(unieke), Partij.tenant_id == tid)
+        )
+    ).all()
+    return {r.id: {"naam": r.naam, "afdeling": r.afdeling} for r in rijen}
 
 
 async def lijst(

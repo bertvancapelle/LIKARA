@@ -4,11 +4,14 @@
  *
  * GEEN "Toevoegen"/"Verwijderen": blokkades ontstaan/lossen automatisch op bij
  * een Checklistscore. De gebruiker beheert alleen de opvolging via PATCH
- * (status/toelichting/eigenaar). Na een PATCH emit de sectie 'gewijzigd' zodat de
- * ouder de lifecycle-indicator herlaadt (geblokkeerd ↔ migratieklaar kan schuiven).
+ * (status/toelichting). Na een PATCH emit de sectie 'gewijzigd' zodat de ouder de
+ * lifecycle-indicator herlaadt (geblokkeerd ↔ migratieklaar kan schuiven).
+ *
+ * ADR-037: de eigenaar is geen bewerkbaar veld meer — de blokkade toont de AFGELEIDE
+ * verantwoordelijke van het onderliggende antwoord (read-only; geen overschrijven in v1).
  */
 import { computed, reactive, ref } from 'vue'
-import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast } from '@/primevue'
+import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, SCORE, label } from '../labels'
@@ -59,7 +62,7 @@ const dialogOpen = ref(false)
 const bewerkenId = ref(null)
 const bewerkenOpgelost = ref(false) // ADR-016: opgelost = read-only, niet handmatig
 const bezig = ref(false)
-const form = reactive({ status: '', toelichting: '', eigenaar: '' })
+const form = reactive({ status: '', toelichting: '' })
 const fouten = reactive({})
 let laatsteTrigger = null
 
@@ -113,7 +116,7 @@ async function openBewerken(e, rij) {
   bewerkenId.value = rij.id
   bewerkenOpgelost.value = rij.status === 'opgelost'
   Object.keys(fouten).forEach((k) => delete fouten[k])
-  Object.assign(form, { status: rij.status, toelichting: rij.toelichting || '', eigenaar: rij.eigenaar || '' })
+  Object.assign(form, { status: rij.status, toelichting: rij.toelichting || '' })
   await _laadOptiesEenmalig()
   dialogOpen.value = true
 }
@@ -121,7 +124,7 @@ async function openBewerken(e, rij) {
 function focusEerste() {
   // Bij een opgeloste blokkade is er geen status-select → focus het eerste editbare veld.
   setTimeout(
-    () => (document.getElementById('bk-status') || document.getElementById('bk-eigenaar'))?.focus?.(),
+    () => (document.getElementById('bk-status') || document.getElementById('bk-toelichting'))?.focus?.(),
     0,
   )
 }
@@ -148,7 +151,6 @@ async function opslaan() {
   Object.keys(fouten).forEach((k) => delete fouten[k])
   const payload = {
     toelichting: form.toelichting.trim() || null,
-    eigenaar: form.eigenaar.trim() || null,
   }
   // Opgeloste blokkade: status NIET meesturen (read-only; backend-guard ADR-016).
   if (!bewerkenOpgelost.value) {
@@ -212,7 +214,15 @@ laad({ reset: true })
         </template>
       </Column>
       <Column field="toelichting" header="Toelichting" sortable />
-      <Column field="eigenaar" header="Eigenaar" sortable />
+      <!-- ADR-037: afgeleide verantwoordelijke van het antwoord (read-only; "persoon — afdeling"). -->
+      <Column header="Verantwoordelijke">
+        <template #body="{ data }">
+          <span v-if="data.verantwoordelijke_naam" :data-testid="`bk-verantw-${data.id}`">
+            {{ data.verantwoordelijke_naam }}<template v-if="data.verantwoordelijke_afdeling"> — {{ data.verantwoordelijke_afdeling }}</template>
+          </span>
+          <span v-else class="text-[var(--lk-color-text-muted)]">—</span>
+        </template>
+      </Column>
       <Column header="">
         <template #body="{ data }">
           <Button v-if="mag" label="Bewerken" severity="secondary" :data-testid="`bk-bewerk-${data.id}`" @click="(e) => openBewerken(e, data)" />
@@ -239,11 +249,6 @@ laad({ reset: true })
             <option v-for="s in handmatigeStatusOpties" :key="s" :value="s">{{ label(BLOKKADE_STATUS, s) }}</option>
           </select>
           <span v-if="fouten.status" id="bk-fout-status" role="alert" data-testid="bk-fout-status" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.status }}</span>
-        </div>
-        <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="bk-eigenaar" class="font-semibold">Eigenaar</label>
-          <InputText id="bk-eigenaar" v-model="form.eigenaar" data-testid="bk-veld-eigenaar" :aria-invalid="!!fouten.eigenaar" aria-describedby="bk-fout-eigenaar" />
-          <span v-if="fouten.eigenaar" id="bk-fout-eigenaar" role="alert" data-testid="bk-fout-eigenaar" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.eigenaar }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="bk-toelichting" class="font-semibold">Toelichting</label>

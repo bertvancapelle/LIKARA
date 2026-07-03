@@ -83,9 +83,11 @@ def test_join_en_default_sortering():
 
 
 def test_nullable_kolom_desc_nulls_last():
-    sess, _, _ = _run(sort="eigenaar", order="desc")
+    # ADR-037 — sorteren op de afgeleide (gejoinde) verantwoordelijke-naam, NULLS LAST.
+    sess, _, _ = _run(sort="verantwoordelijke_naam", order="desc")
     sql = _sql(sess)
-    assert "ORDER BY blokkade.eigenaar DESC NULLS LAST" in sql
+    assert "DESC NULLS LAST" in sql
+    assert "verantwoordelijke_naam" in sql
     assert "blokkade.id DESC" in sql
 
 
@@ -135,7 +137,7 @@ def test_onbekend_sortveld_geeft_valueerror():
 
 # ── Respons-vorm + vervolgcursor ────────────────────────────────────────────
 
-def _rij(naam, eigenaar):
+def _rij(naam, verantwoordelijke_naam=None, verantwoordelijke_afdeling=None):
     return SimpleNamespace(
         id=uuid.uuid4(),
         component_id=uuid.uuid4(),
@@ -145,18 +147,20 @@ def _rij(naam, eigenaar):
         vraag_code="A1",
         status="open",
         toelichting=None,
-        eigenaar=eigenaar,
+        verantwoordelijke_naam=verantwoordelijke_naam,
+        verantwoordelijke_afdeling=verantwoordelijke_afdeling,
         opgelost_op=None,
         gewijzigd_op=datetime(2026, 6, 7, tzinfo=timezone.utc),
     )
 
 
 def test_vorm_en_vervolgcursor():
-    rows = [_rij(f"App {i}", None) for i in range(26)]  # limit 25 → 26 ⇒ meer
+    rows = [_rij(f"App {i}") for i in range(26)]  # limit 25 → 26 ⇒ meer
     sess, items, cursor = _run(rows=rows, limit=25)
     assert len(items) == 25
     assert set(items[0]) == {
         "id", "component_id", "applicatie_naam", "componenttype", "componenttype_label",
-        "vraag_code", "status", "toelichting", "eigenaar", "opgelost_op", "gewijzigd_op",
+        "vraag_code", "status", "toelichting", "verantwoordelijke_naam",
+        "verantwoordelijke_afdeling", "opgelost_op", "gewijzigd_op",
     }
     assert cursor is not None  # vervolgcursor want er was meer

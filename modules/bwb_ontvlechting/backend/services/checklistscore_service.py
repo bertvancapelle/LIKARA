@@ -31,6 +31,7 @@ from models.models import (
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate
 from services import componentconfig_catalog as comp_catalog
 from services import lifecycle_service
+from services import partij_service
 from services.errors import (
     ChecklistscoreConflict,
     NietGevonden,
@@ -57,13 +58,11 @@ _SORTEERBARE_KOLOMMEN = {
     "created_at": Checklistscore.created_at,
     "checklistvraag_id": Checklistscore.checklistvraag_id,
     "score": Checklistscore.score,
-    "eigenaar": Checklistscore.eigenaar,
 }
 _WAARDE_PARSERS = {
     "created_at": datetime.fromisoformat,
     "checklistvraag_id": uuid.UUID,
     "score": ChecklistScore,
-    "eigenaar": str,
 }
 
 # Scores die een actieve blokkade vereisen (ADR-013 B2).
@@ -73,6 +72,29 @@ _BLOKKADE_ACTIEF = (BlokkadeStatus.open, BlokkadeStatus.in_behandeling)
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
+
+
+async def _verrijk(session: AsyncSession, tid: uuid.UUID, obj: Checklistscore) -> Checklistscore:
+    """ADR-037 — zet de afgeleide read-velden (`verantwoordelijke_naam`/`-afdeling`) op de rij.
+    Read-only join op de partij (leeslaag); raakt de engine niet. Transient attrs — niet gemapt,
+    niet persistent — die `ChecklistscoreRead` (from_attributes) uitleest."""
+    info = (
+        await partij_service.resolve_verantwoordelijken(session, tid, [obj.verantwoordelijke_id])
+    ).get(obj.verantwoordelijke_id)
+    obj.verantwoordelijke_naam = info["naam"] if info else None
+    obj.verantwoordelijke_afdeling = info["afdeling"] if info else None
+    return obj
+
+
+async def _verrijk_lijst(session: AsyncSession, tid: uuid.UUID, items: list[Checklistscore]) -> None:
+    """Batch-variant van `_verrijk` (één partij-query voor de hele pagina)."""
+    info_map = await partij_service.resolve_verantwoordelijken(
+        session, tid, [o.verantwoordelijke_id for o in items]
+    )
+    for o in items:
+        info = info_map.get(o.verantwoordelijke_id)
+        o.verantwoordelijke_naam = info["naam"] if info else None
+        o.verantwoordelijke_afdeling = info["afdeling"] if info else None
 
 
 def enum_opties() -> dict[str, list[str]]:
@@ -295,6 +317,7 @@ async def lijst(
         if heeft_meer
         else None
     )
+    await _verrijk_lijst(session, tid, items)  # ADR-037: afgeleide verantwoordelijke-velden
     return items, volgende
 
 
@@ -308,6 +331,13 @@ async def haal_op(session: AsyncSession, tenant_id, checklistscore_id) -> Checkl
     if obj is None:
         raise NietGevonden(_ENTITEIT, checklistscore_id)
     return obj
+
+
+async def lees_detail(session: AsyncSession, tenant_id, checklistscore_id) -> Checklistscore:
+    """Read-pad voor de route: haal_op + afgeleide verantwoordelijke-velden (ADR-037)."""
+    tid = _tenant_uuid(tenant_id)
+    obj = await haal_op(session, tenant_id, checklistscore_id)
+    return await _verrijk(session, tid, obj)
 
 
 async def maak_aan(
@@ -337,6 +367,9 @@ async def maak_aan(
 
     # ADR-019: antwoord_waarde semantisch valideren (los van score/engine).
     await _valideer_antwoord_waarde(session, data.checklistvraag_id, data.antwoord_waarde)
+    # ADR-037: verantwoordelijke aard-valideren (afdeling/persoon) — registratief, raakt de engine niet.
+    if data.verantwoordelijke_id is not None:
+        await partij_service.valideer_verantwoordelijke(session, tid, data.verantwoordelijke_id)
 
     obj = Checklistscore(tenant_id=tid, **data.model_dump())
     session.add(obj)
@@ -350,7 +383,7 @@ async def maak_aan(
     await lifecycle_service.herbereken_lifecycle(session, tid, obj.component_id)
     await session.commit()
     await session.refresh(obj)
-    return obj
+    return await _verrijk(session, tid, obj)
 
 
 async def werk_bij(
@@ -364,6 +397,9 @@ async def werk_bij(
     # ADR-019: alleen valideren als antwoord_waarde wérd meegestuurd (los van score).
     if "antwoord_waarde" in data.model_fields_set:
         await _valideer_antwoord_waarde(session, obj.checklistvraag_id, data.antwoord_waarde)
+    # ADR-037: verantwoordelijke aard-valideren als hij (niet-leeg) wérd meegestuurd.
+    if "verantwoordelijke_id" in data.model_fields_set and data.verantwoordelijke_id is not None:
+        await partij_service.valideer_verantwoordelijke(session, tid, data.verantwoordelijke_id)
     oude_score = obj.score  # vóór de update — bepaalt de transitie
     for veld, waarde in data.model_dump(exclude_unset=True).items():
         setattr(obj, veld, waarde)
@@ -373,7 +409,7 @@ async def werk_bij(
     await lifecycle_service.herbereken_lifecycle(session, tid, obj.component_id)
     await session.commit()
     await session.refresh(obj)
-    return obj
+    return await _verrijk(session, tid, obj)
 
 
 async def verwijder(session: AsyncSession, tenant_id, checklistscore_id) -> None:

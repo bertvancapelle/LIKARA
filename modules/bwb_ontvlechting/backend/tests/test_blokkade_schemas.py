@@ -12,7 +12,7 @@ def test_geen_create_schema():
 def test_update_happy_path():
     from schemas.blokkade import BlokkadeUpdate
 
-    m = BlokkadeUpdate(status="in_behandeling", eigenaar="Team Migratie")
+    m = BlokkadeUpdate(status="in_behandeling", toelichting="Team Migratie")
     assert m.status.value == "in_behandeling"
 
 

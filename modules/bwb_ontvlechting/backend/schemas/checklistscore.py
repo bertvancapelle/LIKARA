@@ -57,15 +57,15 @@ class ChecklistscoreSorteerveld(str, Enum):
 
     API-only retrofit (zie route-docstring): de frontend-sectie is bewust een
     vraag-gedreven invulformulier, geen sorteerbare tabel. NOT NULL:
-    `checklistvraag_id`, `created_at`. Nullable (NULLS LAST, ADR-017 B5): `score`,
-    `eigenaar`. De service mapt deze namen 1-op-1 op een kolom; een test borgt de
-    synchroniteit.
+    `checklistvraag_id`, `created_at`. Nullable (NULLS LAST, ADR-017 B5): `score`.
+    De service mapt deze namen 1-op-1 op een kolom; een test borgt de synchroniteit.
+    (ADR-037: het vrije-tekstveld `eigenaar` verviel — de verantwoordelijke is een
+    partij-FK, geen sorteerbare tekstkolom in deze vraag-gedreven sectie.)
     """
 
     created_at = "created_at"
     checklistvraag_id = "checklistvraag_id"
     score = "score"
-    eigenaar = "eigenaar"
 
 
 class ChecklistscoreCreate(BaseModel):
@@ -75,7 +75,8 @@ class ChecklistscoreCreate(BaseModel):
     checklistvraag_id: uuid.UUID
     score: ChecklistScore  # verplicht (geen default)
     bevinding: str | None = None
-    eigenaar: str | None = None
+    # ADR-037 — verantwoordelijke (afdeling of persoon); aard-borging in de service (422).
+    verantwoordelijke_id: uuid.UUID | None = None
     actie: str | None = None
     antwoord_waarde: dict | None = None
 
@@ -83,11 +84,6 @@ class ChecklistscoreCreate(BaseModel):
     @classmethod
     def _v_lange_tekst(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 10_000)
-
-    @field_validator("eigenaar")
-    @classmethod
-    def _v_eigenaar(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 255)
 
     @field_validator("antwoord_waarde")
     @classmethod
@@ -105,7 +101,8 @@ class ChecklistscoreUpdate(BaseModel):
 
     score: ChecklistScore | None = None
     bevinding: str | None = None
-    eigenaar: str | None = None
+    # ADR-037 — verantwoordelijke wijzigen/leegmaken (None = wissen); aard-borging in de service.
+    verantwoordelijke_id: uuid.UUID | None = None
     actie: str | None = None
     # Mag wél op null (antwoord wissen) — niet in _VERPLICHTE_VELDEN.
     antwoord_waarde: dict | None = None
@@ -114,11 +111,6 @@ class ChecklistscoreUpdate(BaseModel):
     @classmethod
     def _v_lange_tekst(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 10_000)
-
-    @field_validator("eigenaar")
-    @classmethod
-    def _v_eigenaar(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 255)
 
     @field_validator("antwoord_waarde")
     @classmethod
@@ -142,7 +134,11 @@ class ChecklistscoreRead(BaseModel):
     # Kolom is nullable in de DB; defensief getypeerd hoewel Create score afdwingt.
     score: ChecklistScore | None
     bevinding: str | None
-    eigenaar: str | None
+    # ADR-037 — verantwoordelijke: de FK + de afgeleide leesvelden (naam altijd; afdeling alleen
+    # bij aard=persoon — de partij draagt z'n afdeling zelf, ADR-036a). Door de service gezet.
+    verantwoordelijke_id: uuid.UUID | None = None
+    verantwoordelijke_naam: str | None = None
+    verantwoordelijke_afdeling: str | None = None
     actie: str | None
     antwoord_waarde: dict | None
     created_at: datetime

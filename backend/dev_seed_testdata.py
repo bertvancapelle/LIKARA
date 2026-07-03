@@ -391,11 +391,13 @@ async def _vul_velden(session, score_obj, eigenaar: str, *, met_actie: bool) -> 
     if score_obj.bevinding:  # reeds gevuld (tweede run) → niets doen
         return False
     code = _ID_TO_CODE[score_obj.checklistvraag_id]
+    # ADR-037 — het vrije-tekstveld `eigenaar` verviel; de verantwoordelijke wordt als partij-FK
+    # gezet (zie `_seed_bvowb_scenario`, verantwoordelijke-stap). Deze helper is legacy/ongebruikt
+    # (geen caller) en vult enkel nog bevinding/actie.
     velden = {
         "bevinding": BEVINDING_PER_CODE.get(
             code, f"De bevinding voor checklistvraag {code} is vastgelegd."
         ),
-        "eigenaar": eigenaar,
     }
     if met_actie:
         velden["actie"] = ACTIE_PER_CODE.get(code, "Vervolgactie afstemmen en vastleggen.")
@@ -1488,6 +1490,44 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             await relatie_service.maak_aan(session, tid, RelatieCreate(
                 bron_id=paar[0], doel_id=paar[1], relatietype="aggregation"))
             bestaande_aggr.add(paar)
+
+    # ── ADR-037 — verantwoordelijke per checklistantwoord (afdeling-dan-persoon), demonstratief ──
+    # Maakt de UX zichtbaar: één blokkerend antwoord mét PERSOON-verantwoordelijke (de bijbehorende
+    # OPEN blokkade toont die afgeleid, "persoon — afdeling"), één niet-blokkerend antwoord met een
+    # AFDELING, één met een PERSOON, en de overige antwoorden BEWUST LEEG (voedt het Pass 2-signaal).
+    # Registratief: `werk_bij` stuurt géén score mee → engine no-op. Idempotent (alleen lege rijen).
+    pers_id = partij_id.get("J. de Vries")           # persoon; draagt afdeling "Informatievoorziening"
+    afd_id = partij_id.get("Informatievoorziening")  # afdeling (organisatie_eenheid)
+    if pers_id and afd_id:
+        actieve_blok = {
+            sid for (sid,) in (await session.execute(
+                select(Blokkade.checklistscore_id).where(
+                    Blokkade.tenant_id == tid,
+                    Blokkade.status.in_([BlokkadeStatus.open, BlokkadeStatus.in_behandeling]),
+                )
+            )).all()
+        }
+        leeg = (await session.execute(
+            select(Checklistscore).where(
+                Checklistscore.tenant_id == tid,
+                Checklistscore.verantwoordelijke_id.is_(None),
+            ).order_by(Checklistscore.created_at)
+        )).scalars().all()
+        blok_rij = next((s for s in leeg if s.id in actieve_blok), None)
+        nonblok = [s for s in leeg if s.id not in actieve_blok]
+        toewijzingen = []
+        if blok_rij is not None:                       # blokkerend antwoord → PERSOON
+            toewijzingen.append((blok_rij.id, pers_id))
+        if len(nonblok) >= 1:                           # niet-blokkerend → AFDELING
+            toewijzingen.append((nonblok[0].id, afd_id))
+        if len(nonblok) >= 2:                           # niet-blokkerend → PERSOON
+            toewijzingen.append((nonblok[1].id, pers_id))
+        for score_id, verantw_id in toewijzingen:
+            await checklistscore_service.werk_bij(
+                session, tid, score_id, ChecklistscoreUpdate(verantwoordelijke_id=verantw_id)
+            )
+        await session.commit()
+        telling["verantwoordelijken"] = len(toewijzingen)
 
     return telling
 

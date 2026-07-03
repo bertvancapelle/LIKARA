@@ -17,7 +17,9 @@ const APP = 'app-1'
 
 function _blok(id, status = 'open') {
   return {
-    id, status, toelichting: 'iets', eigenaar: 'Team',
+    id, status, toelichting: 'iets',
+    // ADR-037: afgeleide verantwoordelijke van het antwoord (read-only).
+    verantwoordelijke_naam: 'J. de Vries', verantwoordelijke_afdeling: 'Informatievoorziening',
     // Herkomst-verrijking (per-component lijst → BlokkadeLijstItem).
     checklistvraag_id: `v-${id}`, vraag_code: '2.7', vraag: 'Gedeelde infra?', score: 'deels',
   }
@@ -86,15 +88,24 @@ describe('BlokkadeSectie', () => {
     expect(opties.length).toBe(2)
     expect(opties.map((o) => o.element.value)).toEqual(['open', 'in_behandeling'])
     await w.find('[data-testid="bk-veld-status"]').setValue('in_behandeling')
-    await w.find('[data-testid="bk-veld-eigenaar"]').setValue('Migratieteam')
+    await w.find('[data-testid="bk-veld-toelichting"]').setValue('Nieuwe toelichting')
     await w.find('[data-testid="bk-form"]').trigger('submit')
     await flushPromises()
+    // ADR-037: geen eigenaar-veld meer in de PATCH — alleen status/toelichting.
     expect(api.blokkades.werkBij).toHaveBeenCalledWith('b1', {
       status: 'in_behandeling',
-      toelichting: 'iets',
-      eigenaar: 'Migratieteam',
+      toelichting: 'Nieuwe toelichting',
     })
     expect(w.emitted('gewijzigd')).toBeTruthy()
+  })
+
+  it('toont de afgeleide verantwoordelijke (persoon — afdeling), read-only', async () => {
+    const w = await mountSectie()
+    const cel = w.find('[data-testid="bk-verantw-b1"]')
+    expect(cel.exists()).toBe(true)
+    expect(cel.text()).toContain('J. de Vries — Informatievoorziening')
+    // Geen bewerk-affordance voor de verantwoordelijke (afgeleid, geen overschrijven in v1).
+    expect(w.find('[data-testid="bk-veld-eigenaar"]').exists()).toBe(false)
   })
 
   it('opgeloste blokkade: status read-only badge, geen select, status niet meegestuurd', async () => {
@@ -104,26 +115,25 @@ describe('BlokkadeSectie', () => {
     // read-only weergave i.p.v. een keuze
     expect(w.find('[data-testid="bk-status-readonly"]').exists()).toBe(true)
     expect(w.find('[data-testid="bk-veld-status"]').exists()).toBe(false)
-    await w.find('[data-testid="bk-veld-eigenaar"]').setValue('Nieuw Team')
+    await w.find('[data-testid="bk-veld-toelichting"]').setValue('Aangepast')
     await w.find('[data-testid="bk-form"]').trigger('submit')
     await flushPromises()
-    // PATCH zonder status (anders 409 backend-guard)
+    // PATCH zonder status (anders 409 backend-guard); ADR-037: geen eigenaar-veld meer.
     expect(api.blokkades.werkBij).toHaveBeenCalledWith('b2', {
-      toelichting: 'iets',
-      eigenaar: 'Nieuw Team',
+      toelichting: 'Aangepast',
     })
   })
 
   it('toont 422-veldfout in de Dialog op het juiste veld', async () => {
     const err = new Error('val')
     err.status = 422
-    err.detail = [{ loc: ['body', 'eigenaar'], msg: 'te lang' }]
+    err.detail = [{ loc: ['body', 'status'], msg: 'te lang' }]
     api.blokkades.werkBij.mockRejectedValueOnce(err)
     const w = await mountSectie()
     await w.find('[data-testid="bk-bewerk-b1"]').trigger('click')
     await flushPromises()
     await w.find('[data-testid="bk-form"]').trigger('submit')
     await flushPromises()
-    expect(w.find('[data-testid="bk-fout-eigenaar"]').text()).toContain('te lang')
+    expect(w.find('[data-testid="bk-fout-status"]').text()).toContain('te lang')
   })
 })

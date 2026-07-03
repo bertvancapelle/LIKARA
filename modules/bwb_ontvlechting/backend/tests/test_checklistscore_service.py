@@ -204,7 +204,7 @@ def test_haal_op_niet_gevonden():
 # ── FASE-1-invariant: velden-update zonder score raakt lifecycle/blokkade niet ──
 
 def test_werk_bij_zonder_score_raakt_blokkade_en_lifecycle_niet(monkeypatch):
-    """Een `ChecklistscoreUpdate` met enkel bevinding/eigenaar/actie (géén `score`)
+    """Een `ChecklistscoreUpdate` met enkel bevinding/actie (géén `score`)
     mag de score-afgeleide blokkade en lifecycle NIET wijzigen.
 
     Mechanisme (vastgelegd): omdat `score` niet in de update zit, blijft
@@ -218,7 +218,7 @@ def test_werk_bij_zonder_score_raakt_blokkade_en_lifecycle_niet(monkeypatch):
 
     score_obj = SimpleNamespace(
         id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.nee,
-        bevinding=None, eigenaar=None, actie=None,
+        bevinding=None, verantwoordelijke_id=None, actie=None,
     )
 
     async def _haal(*a, **k):
@@ -249,12 +249,12 @@ def test_werk_bij_zonder_score_raakt_blokkade_en_lifecycle_niet(monkeypatch):
     asyncio.run(
         svc.werk_bij(
             session, uuid.uuid4(), score_obj.id,
-            ChecklistscoreUpdate(bevinding="Onderbouwing.", eigenaar="Applicatiebeheerder"),
+            ChecklistscoreUpdate(bevinding="Onderbouwing.", actie="Herstelplan"),
         )
     )
 
     assert score_obj.bevinding == "Onderbouwing."   # veld toegepast
-    assert score_obj.eigenaar == "Applicatiebeheerder"
+    assert score_obj.actie == "Herstelplan"
     assert score_obj.score == ChecklistScore.nee     # score ongewijzigd
     assert herb.get("called") is True                # herbereken aangeroepen (no-op qua feiten)
 
@@ -358,7 +358,7 @@ def test_werk_bij_met_antwoord_zonder_score_raakt_engine_niet(monkeypatch):
 
     score_obj = SimpleNamespace(
         id=uuid.uuid4(), component_id=_APP, checklistvraag_id=_VRAAG,
-        score=ChecklistScore.ja, antwoord_waarde=None,
+        score=ChecklistScore.ja, antwoord_waarde=None, verantwoordelijke_id=None,
     )
 
     async def _haal(*a, **k):

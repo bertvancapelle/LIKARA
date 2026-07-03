@@ -10,10 +10,10 @@
  * lifecycle herberekenen (backend) → de sectie emit 'gewijzigd' zodat de ouder
  * de lifecycle-indicator én de blokkadelijst herlaadt.
  *
- * Uitklaprij (CD026): per vraag een toggle die `bevinding`/`eigenaar`/`actie`
+ * Uitklaprij (CD026): per vraag een toggle die `bevinding`/`actie`
  * (kolommen op Checklistscore) toont en — voor medewerker/beheerder — bewerkbaar
  * maakt met één expliciete "Opslaan"-knop. Die slaat de drie velden samen op via
- * werkBij(id, {bevinding, eigenaar, actie}) — **zonder `score`**, zodat de
+ * werkBij(id, {bevinding, actie}) — **zonder `score`**, zodat de
  * score-afgeleide lifecycle/blokkade ongemoeid blijft (ADR-013/016). De drie
  * velden zijn pas bewerkbaar zodra de vraag gescoord is (er moet een
  * Checklistscore-rij zijn om op te PATCHen).
@@ -51,7 +51,7 @@ const mag = computed(() => magRol.value && props.bewerkbaar)
 const toonGeslotenMelding = computed(() => magRol.value && !props.bewerkbaar)
 
 const vragen = ref([])
-const scoreMap = reactive({}) // vraag_code -> { id, score, bevinding, eigenaar, actie }
+const scoreMap = reactive({}) // vraag_code -> { id, score, bevinding, actie }
 const opties = ref({ score: [] })
 const laden = ref(false)
 const fout = ref(null)
@@ -60,7 +60,7 @@ const rijFout = reactive({}) // vraag_code -> melding
 
 // Uitklaprij-state (CD026)
 const uitgeklapt = reactive({}) // vraag_code -> bool
-const bewerk = reactive({}) // vraag_code -> { bevinding, eigenaar, actie } (lokale buffer)
+const bewerk = reactive({}) // vraag_code -> { bevinding, actie } (lokale buffer)
 const veldStatus = reactive({}) // vraag_code -> 'bezig' | 'opgeslagen' | 'fout'
 const veldFout = reactive({}) // vraag_code -> melding
 
@@ -125,14 +125,13 @@ function _toastFout(e) {
 }
 
 // Sla de volledige score-rij op in de lokale map (de respons/lijst draagt óók
-// bevinding/eigenaar/actie — single source, voorkomt verlies van die velden bij
-// een score-wijziging).
+// bevinding/actie — single source, voorkomt verlies van die velden bij een
+// score-wijziging). ADR-037: het vrije-tekstveld `eigenaar` verviel (verantwoordelijke = Pass 2).
 function _zetScore(code, r) {
   scoreMap[code] = {
     id: r.id,
     score: r.score,
     bevinding: r.bevinding ?? '',
-    eigenaar: r.eigenaar ?? '',
     actie: r.actie ?? '',
     antwoord_waarde: r.antwoord_waarde ?? null,
   }
@@ -268,7 +267,7 @@ async function onScoreChange(code, nieuweScore) {
   }
 }
 
-// ── Uitklaprij: bevinding/eigenaar/actie (CD026) ─────────────────────────────
+// ── Uitklaprij: bevinding/actie (CD026) ─────────────────────────────
 
 function toggleDetail(code) {
   const open = !uitgeklapt[code]
@@ -278,7 +277,6 @@ function toggleDetail(code) {
     // Verse buffer uit de huidige waarden — bewerken muteert scoreMap niet.
     bewerk[code] = {
       bevinding: s?.bevinding ?? '',
-      eigenaar: s?.eigenaar ?? '',
       actie: s?.actie ?? '',
       antwoord_optie: aw.optie ?? '',
       antwoord_opties: Array.isArray(aw.opties) ? [...aw.opties] : [],
@@ -298,7 +296,8 @@ async function opslaanVelden(code) {
   try {
     const b = bewerk[code]
     // BEWUST géén `score` → backend laat lifecycle/blokkade ongemoeid (ADR-013/016).
-    const payload = { bevinding: b.bevinding, eigenaar: b.eigenaar, actie: b.actie }
+    // ADR-037: het vrije-tekstveld `eigenaar` verviel; de verantwoordelijke-picker volgt in Pass 2.
+    const payload = { bevinding: b.bevinding, actie: b.actie }
     // Alleen waar geconfigureerd: het gestructureerde antwoord (envelope of null).
     if (antwoordType(code) !== 'geen') payload.antwoord_waarde = _antwoordEnvelope(code)
     const r = await api.checklistscores.werkBij(s.id, payload)
@@ -436,7 +435,7 @@ laad()
                 :data-testid="`cs-detail-hint-${v.code}`"
                 class="text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]"
               >
-                Scoor eerst deze vraag om bevinding, eigenaar en actie vast te leggen.
+                Scoor eerst deze vraag om bevinding en actie vast te leggen.
               </p>
               <div v-else class="flex flex-col gap-[var(--lk-space-sm)]">
                 <!-- ADR-019: gestructureerd antwoordveld, alleen waar geconfigureerd -->
@@ -498,17 +497,6 @@ laad()
                     rows="2"
                     class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
                   ></textarea>
-                </div>
-                <div class="flex flex-col gap-[var(--lk-space-xs)]">
-                  <label :for="`cs-eigenaar-${v.code}`" class="text-[length:var(--lk-text-sm)] font-medium">Eigenaar</label>
-                  <input
-                    :id="`cs-eigenaar-${v.code}`"
-                    :data-testid="`cs-eigenaar-${v.code}`"
-                    v-model="bewerk[v.code].eigenaar"
-                    :disabled="!mag"
-                    type="text"
-                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
-                  />
                 </div>
                 <div class="flex flex-col gap-[var(--lk-space-xs)]">
                   <label :for="`cs-actie-${v.code}`" class="text-[length:var(--lk-text-sm)] font-medium">Actie</label>

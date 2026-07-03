@@ -70,7 +70,7 @@ _CONFIG = [
     (checklistscore_service, "checklistscore", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "checklistscore.created_at", "score", "checklistscore.score"),
     (blokkade_service, "blokkade", "_LIJST_KOLOMMEN", "_LIJST_PARSERS",
-     "blokkade.created_at", "eigenaar", "blokkade.eigenaar"),
+     "blokkade.created_at", "verantwoordelijke_naam", "verantwoordelijke_naam"),
 ]
 
 _IDS = [c[1] for c in _CONFIG]

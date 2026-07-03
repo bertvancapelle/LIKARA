@@ -24,7 +24,9 @@ def _fake_score():
         checklistvraag_id=uuid.UUID(_VRAAG_ID),
         score="nee",
         bevinding=None,
-        eigenaar=None,
+        verantwoordelijke_id=None,
+        verantwoordelijke_naam=None,
+        verantwoordelijke_afdeling=None,
         actie=None,
         antwoord_waarde=None,
         created_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
@@ -56,11 +58,15 @@ def _maak_app(monkeypatch, payload):
     async def _ok_none(*a, **k):
         return None
 
+    async def _verrijk_noop(session, tid, obj):  # ADR-037: lees_detail verrijkt via _verrijk
+        return obj
+
     monkeypatch.setattr(svc, "lijst", _ok_lijst)
     monkeypatch.setattr(svc, "haal_op", _ok_obj)
     monkeypatch.setattr(svc, "maak_aan", _ok_obj)
     monkeypatch.setattr(svc, "werk_bij", _ok_obj)
     monkeypatch.setattr(svc, "verwijder", _ok_none)
+    monkeypatch.setattr(svc, "_verrijk", _verrijk_noop)
 
     app = FastAPI()
     app.add_exception_handler(OnvoldoendeRechten, onvoldoende_rechten_handler)

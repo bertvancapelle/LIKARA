@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from models.models import (
     ACTIEVE_BLOKKADE_STATUSSEN,
@@ -22,10 +23,35 @@ from models.models import (
     BlokkadeStatus,
     ChecklistVraag,
     Checklistscore,
+    Partij,
 )
 from schemas.blokkade import BlokkadeUpdate
 from services import lifecycle_service
+from services import partij_service
 from services.errors import NietGevonden, OngeldigeStatusovergang
+
+# ADR-037 — afgeleide verantwoordelijke van het onderliggende antwoord (leeslaag, read-only):
+# Blokkade → Checklistscore.verantwoordelijke_id → partij (afdeling/persoon), en bij een persoon de
+# afdeling-partij. Module-level aliassen zodat dezelfde gelabelde kolom in select én sorteer-allowlist
+# gebruikt wordt (`kolom.key` == label → keyset-cursor blijft kloppen). Geen engine-raakvlak.
+_VERANTW = aliased(Partij, name="verantw")
+_VERANTW_AFD = aliased(Partij, name="verantw_afd")
+_VERANTW_NAAM = _VERANTW.naam.label("verantwoordelijke_naam")
+_VERANTW_AFD_NAAM = _VERANTW_AFD.naam.label("verantwoordelijke_afdeling")
+
+
+def _join_verantwoordelijke(stmt, tid):
+    """LEFT JOIN naar de verantwoordelijke-partij (via de reeds-gejoinde Checklistscore) + de
+    afdeling-partij bij een persoon. Read-only; verandert het aantal blokkade-rijen niet (outer)."""
+    return stmt.join(
+        _VERANTW,
+        and_(_VERANTW.id == Checklistscore.verantwoordelijke_id, _VERANTW.tenant_id == tid),
+        isouter=True,
+    ).join(
+        _VERANTW_AFD,
+        and_(_VERANTW_AFD.id == _VERANTW.afdeling_id, _VERANTW_AFD.tenant_id == tid),
+        isouter=True,
+    )
 from services.pagination import (
     decode_sort_cursor_nullable,
     encode_sort_cursor_nullable,
@@ -50,7 +76,7 @@ _OVERZICHT_KOLOMMEN = {
     "vraag_code": ChecklistVraag.code,
     "status": Blokkade.status,
     "toelichting": Blokkade.toelichting,
-    "eigenaar": Blokkade.eigenaar,
+    "verantwoordelijke_naam": _VERANTW_NAAM,
     "opgelost_op": Blokkade.opgelost_op,
     "gewijzigd_op": Blokkade.updated_at,
 }
@@ -61,7 +87,7 @@ _OVERZICHT_PARSERS = {
     "vraag_code": str,
     "status": BlokkadeStatus,
     "toelichting": str,
-    "eigenaar": str,
+    "verantwoordelijke_naam": str,
     "opgelost_op": datetime.fromisoformat,
     "gewijzigd_op": datetime.fromisoformat,
 }
@@ -80,7 +106,7 @@ _LIJST_KOLOMMEN = {
     "created_at": Blokkade.created_at,
     "status": Blokkade.status,
     "toelichting": Blokkade.toelichting,
-    "eigenaar": Blokkade.eigenaar,
+    "verantwoordelijke_naam": _VERANTW_NAAM,
     "opgelost_op": Blokkade.opgelost_op,
     "gewijzigd_op": Blokkade.updated_at,
 }
@@ -88,7 +114,7 @@ _LIJST_PARSERS = {
     "created_at": datetime.fromisoformat,
     "status": BlokkadeStatus,
     "toelichting": str,
-    "eigenaar": str,
+    "verantwoordelijke_naam": str,
     "opgelost_op": datetime.fromisoformat,
     "gewijzigd_op": datetime.fromisoformat,
 }
@@ -143,7 +169,8 @@ async def lijst(
             Blokkade.component_id.label("component_id"),
             Blokkade.status.label("status"),
             Blokkade.toelichting.label("toelichting"),
-            Blokkade.eigenaar.label("eigenaar"),
+            _VERANTW_NAAM,
+            _VERANTW_AFD_NAAM,
             Blokkade.opgelost_op.label("opgelost_op"),
             Blokkade.created_at.label("created_at"),
             Blokkade.updated_at.label("updated_at"),
@@ -156,6 +183,7 @@ async def lijst(
         .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
         .where(Blokkade.tenant_id == tid)
     )
+    stmt = _join_verantwoordelijke(stmt, tid)
     if component_id is not None:
         stmt = stmt.where(Blokkade.component_id == component_id)
     if status is not None:
@@ -183,7 +211,8 @@ async def lijst(
             "component_id": r.component_id,
             "status": r.status,
             "toelichting": r.toelichting,
-            "eigenaar": r.eigenaar,
+            "verantwoordelijke_naam": r.verantwoordelijke_naam,
+            "verantwoordelijke_afdeling": r.verantwoordelijke_afdeling,
             "opgelost_op": r.opgelost_op,
             "created_at": r.created_at,
             "updated_at": r.updated_at,
@@ -226,7 +255,7 @@ async def lijst_overzicht(
     """Tenant-breed blokkadesoverzicht over alle applicaties (CD016, ADR-017).
 
     Join op `Component` (naam) en `Checklistscore` (vraag_code). Server-side
-    sorteerbaar met NULLS-LAST-keyset (nullable: `toelichting`/`eigenaar`/
+    sorteerbaar met NULLS-LAST-keyset (nullable: `toelichting`/`verantwoordelijke_naam`/
     `opgelost_op`); `Blokkade.id` is de stabiele tiebreaker. Tenant-scoped via RLS
     + expliciete `tenant_id`-filter (dubbele bescherming). Een `after` die niet bij
     `sort`/`order` past ⇒ `ValueError` (route ⇒ 400).
@@ -253,7 +282,8 @@ async def lijst_overzicht(
             ChecklistVraag.code.label("vraag_code"),
             Blokkade.status.label("status"),
             Blokkade.toelichting.label("toelichting"),
-            Blokkade.eigenaar.label("eigenaar"),
+            _VERANTW_NAAM,
+            _VERANTW_AFD_NAAM,
             Blokkade.opgelost_op.label("opgelost_op"),
             Blokkade.updated_at.label("gewijzigd_op"),
         )
@@ -273,6 +303,7 @@ async def lijst_overzicht(
         )
         .where(Blokkade.tenant_id == tid)
     )
+    stmt = _join_verantwoordelijke(stmt, tid)
     stmt = _pas_statusfilter_toe(stmt, status_filter)
 
     if after:
@@ -302,7 +333,8 @@ async def lijst_overzicht(
             "vraag_code": r.vraag_code,
             "status": r.status,
             "toelichting": r.toelichting,
-            "eigenaar": r.eigenaar,
+            "verantwoordelijke_naam": r.verantwoordelijke_naam,
+            "verantwoordelijke_afdeling": r.verantwoordelijke_afdeling,
             "opgelost_op": r.opgelost_op,
             "gewijzigd_op": r.gewijzigd_op,
         }
@@ -318,6 +350,24 @@ async def lijst_overzicht(
     return items, volgende
 
 
+async def _verrijk(session: AsyncSession, tid: uuid.UUID, obj: Blokkade) -> Blokkade:
+    """ADR-037 — zet de afgeleide verantwoordelijke (`verantwoordelijke_naam`/`-afdeling`) op de
+    blokkade, herleid uit het onderliggende antwoord (`checklistscore_id` →
+    `Checklistscore.verantwoordelijke_id`). Read-only; geen schrijfpad naar blokkade/engine.
+    Transient attrs die `BlokkadeRead` (from_attributes) uitleest."""
+    vid = (
+        await session.execute(
+            select(Checklistscore.verantwoordelijke_id).where(
+                Checklistscore.id == obj.checklistscore_id, Checklistscore.tenant_id == tid
+            )
+        )
+    ).scalar_one_or_none()
+    info = (await partij_service.resolve_verantwoordelijken(session, tid, [vid])).get(vid)
+    obj.verantwoordelijke_naam = info["naam"] if info else None
+    obj.verantwoordelijke_afdeling = info["afdeling"] if info else None
+    return obj
+
+
 async def haal_op(session: AsyncSession, tenant_id, blokkade_id) -> Blokkade:
     tid = _tenant_uuid(tenant_id)
     stmt = select(Blokkade).where(
@@ -328,6 +378,13 @@ async def haal_op(session: AsyncSession, tenant_id, blokkade_id) -> Blokkade:
     if obj is None:
         raise NietGevonden(_ENTITEIT, blokkade_id)
     return obj
+
+
+async def lees_detail(session: AsyncSession, tenant_id, blokkade_id) -> Blokkade:
+    """Read-pad voor de route: haal_op + afgeleide verantwoordelijke-velden (ADR-037)."""
+    tid = _tenant_uuid(tenant_id)
+    obj = await haal_op(session, tenant_id, blokkade_id)
+    return await _verrijk(session, tid, obj)
 
 
 async def werk_bij(
@@ -361,4 +418,4 @@ async def werk_bij(
     await lifecycle_service.herbereken_lifecycle(session, tid, obj.component_id)
     await session.commit()
     await session.refresh(obj)
-    return obj
+    return await _verrijk(session, tid, obj)

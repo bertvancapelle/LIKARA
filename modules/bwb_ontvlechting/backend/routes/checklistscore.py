@@ -87,7 +87,7 @@ async def haal_checklistscore(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.CHECKLISTSCORE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    return await svc.haal_op(session, user.tenant_id, checklistscore_id)
+    return await svc.lees_detail(session, user.tenant_id, checklistscore_id)
 
 
 @router.post("", response_model=ChecklistscoreRead, status_code=201)

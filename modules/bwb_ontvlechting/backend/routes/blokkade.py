@@ -117,7 +117,7 @@ async def haal_blokkade(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.BLOKKADE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    return await svc.haal_op(session, user.tenant_id, blokkade_id)
+    return await svc.lees_detail(session, user.tenant_id, blokkade_id)
 
 
 @router.patch("/{blokkade_id}", response_model=BlokkadeRead)

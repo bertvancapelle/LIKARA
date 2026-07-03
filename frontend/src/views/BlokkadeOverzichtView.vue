@@ -192,8 +192,14 @@ onMounted(() => laad({ reset: true }))
           </span>
         </template>
       </Column>
-      <Column header="Eigenaar" sort-field="eigenaar" sortable>
-        <template #body="{ data }">{{ data.eigenaar || '—' }}</template>
+      <!-- ADR-037: afgeleide verantwoordelijke van het antwoord (read-only; "persoon — afdeling"). -->
+      <Column header="Verantwoordelijke" sort-field="verantwoordelijke_naam" sortable>
+        <template #body="{ data }">
+          <span v-if="data.verantwoordelijke_naam">
+            {{ data.verantwoordelijke_naam }}<template v-if="data.verantwoordelijke_afdeling"> — {{ data.verantwoordelijke_afdeling }}</template>
+          </span>
+          <span v-else>—</span>
+        </template>
       </Column>
       <Column header="Opgelost op" sort-field="opgelost_op" sortable>
         <template #body="{ data }">{{ formatDatum(data.opgelost_op) }}</template>

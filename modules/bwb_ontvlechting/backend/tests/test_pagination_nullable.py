@@ -27,9 +27,9 @@ from services.pagination import (
 
 def test_nullable_cursor_roundtrip_nietnull():
     ident = uuid.uuid4()
-    cursor = encode_sort_cursor_nullable(sort="eigenaar", order="asc", waarde="Jan", id=ident)
+    cursor = encode_sort_cursor_nullable(sort="toelichting", order="asc", waarde="Jan", id=ident)
     sort, order, is_null, waarde_str, got_id = decode_sort_cursor_nullable(cursor)
-    assert (sort, order, is_null) == ("eigenaar", "asc", False)
+    assert (sort, order, is_null) == ("toelichting", "asc", False)
     assert waarde_str == "Jan"
     assert got_id == ident
 
@@ -57,7 +57,7 @@ def test_nullable_cursor_misvormd_en_versie():
     with pytest.raises(ValueError):
         decode_sort_cursor_nullable("")
     # v2 (zonder null-vlag) is geen geldige v2n-cursor
-    v2 = base64.urlsafe_b64encode(f"v2|eigenaar|asc|Jan|{uuid.uuid4()}".encode()).decode("ascii")
+    v2 = base64.urlsafe_b64encode(f"v2|toelichting|asc|Jan|{uuid.uuid4()}".encode()).decode("ascii")
     with pytest.raises(ValueError):
         decode_sort_cursor_nullable(v2)
 
@@ -80,15 +80,15 @@ def test_v2_decode_blijft_werken_naast_v2n():
 # ── keyset-helpers: SQL-vorm ─────────────────────────────────────────────────
 
 def test_order_by_nulls_last_beide_richtingen():
-    asc = keyset_order_by_nulls_last(Blokkade.eigenaar, Blokkade.id, "asc")
-    desc = keyset_order_by_nulls_last(Blokkade.eigenaar, Blokkade.id, "desc")
+    asc = keyset_order_by_nulls_last(Blokkade.toelichting, Blokkade.id, "asc")
+    desc = keyset_order_by_nulls_last(Blokkade.toelichting, Blokkade.id, "desc")
     assert "NULLS LAST" in str(asc[0]) and "ASC" in str(asc[0])
     assert "NULLS LAST" in str(desc[0]) and "DESC" in str(desc[0])
 
 
 def test_seek_nietnull_asc_bevat_isnull_tak_en_groter_dan():
     clause = keyset_seek_nulls_last(
-        Blokkade.eigenaar, Blokkade.id, order="asc", is_null=False, waarde="Jan", cursor_id=uuid.uuid4()
+        Blokkade.toelichting, Blokkade.id, order="asc", is_null=False, waarde="Jan", cursor_id=uuid.uuid4()
     )
     sql = str(clause)
     assert "IS NULL" in sql  # de hele null-staart hoort er nog bij
@@ -97,7 +97,7 @@ def test_seek_nietnull_asc_bevat_isnull_tak_en_groter_dan():
 
 def test_seek_nietnull_desc_gebruikt_kleiner_dan():
     clause = keyset_seek_nulls_last(
-        Blokkade.eigenaar, Blokkade.id, order="desc", is_null=False, waarde="Jan", cursor_id=uuid.uuid4()
+        Blokkade.toelichting, Blokkade.id, order="desc", is_null=False, waarde="Jan", cursor_id=uuid.uuid4()
     )
     sql = str(clause)
     assert "IS NULL" in sql

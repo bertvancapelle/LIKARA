@@ -151,14 +151,14 @@ describe('ChecklistscoreSectie', () => {
     expect(w.find('[data-testid="cs-score-1.1"]').attributes('disabled')).toBeDefined()
   })
 
-  // ── CD026: uitklaprij bevinding/eigenaar/actie ─────────────────────────────
-  it('klapt een gescoorde rij uit en toont de drie velden', async () => {
+  // ── CD026: uitklaprij bevinding/actie (ADR-037: eigenaar verviel) ────────────
+  it('klapt een gescoorde rij uit en toont de velden', async () => {
     const w = await mountSectie()
     expect(w.find('[data-testid="cs-detail-1.2"]').exists()).toBe(false)
     await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
     expect(w.find('[data-testid="cs-detail-1.2"]').exists()).toBe(true)
     expect(w.find('[data-testid="cs-bevinding-1.2"]').exists()).toBe(true)
-    expect(w.find('[data-testid="cs-eigenaar-1.2"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cs-eigenaar-1.2"]').exists()).toBe(false)
     expect(w.find('[data-testid="cs-actie-1.2"]').exists()).toBe(true)
     expect(w.find('[data-testid="cs-toggle-1.2"]').attributes('aria-expanded')).toBe('true')
   })
@@ -171,20 +171,18 @@ describe('ChecklistscoreSectie', () => {
     expect(w.find('[data-testid="cs-velden-opslaan-1.1"]').exists()).toBe(false)
   })
 
-  it('slaat bevinding/eigenaar/actie op zonder score mee te sturen', async () => {
+  it('slaat bevinding/actie op zonder score mee te sturen', async () => {
     api.checklistscores.werkBij.mockResolvedValue({
-      id: 's1', score: 'ja', bevinding: 'Onderbouwing.', eigenaar: 'Applicatiebeheerder', actie: 'Actie.',
+      id: 's1', score: 'ja', bevinding: 'Onderbouwing.', actie: 'Actie.',
     })
     const w = await mountSectie()
     await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
     await w.find('[data-testid="cs-bevinding-1.2"]').setValue('Onderbouwing.')
-    await w.find('[data-testid="cs-eigenaar-1.2"]').setValue('Applicatiebeheerder')
     await w.find('[data-testid="cs-actie-1.2"]').setValue('Actie.')
     await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
     await flushPromises()
     expect(api.checklistscores.werkBij).toHaveBeenCalledWith('s1', {
       bevinding: 'Onderbouwing.',
-      eigenaar: 'Applicatiebeheerder',
       actie: 'Actie.',
     })
     // geen score in de payload van de velden-opslag
@@ -197,7 +195,7 @@ describe('ChecklistscoreSectie', () => {
     const w = await mountSectie({ rollen: ['viewer'] })
     await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
     expect(w.find('[data-testid="cs-bevinding-1.2"]').attributes('disabled')).toBeDefined()
-    expect(w.find('[data-testid="cs-eigenaar-1.2"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-testid="cs-actie-1.2"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').exists()).toBe(false)
   })
 
