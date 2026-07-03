@@ -137,7 +137,7 @@ def test_onbekend_sortveld_geeft_valueerror():
 
 # ── Respons-vorm + vervolgcursor ────────────────────────────────────────────
 
-def _rij(naam, verantwoordelijke_naam=None, verantwoordelijke_afdeling=None):
+def _rij(naam, verantwoordelijke_naam=None, verantwoordelijke_afdeling=None, verantwoordelijke_organisatie=None):
     return SimpleNamespace(
         id=uuid.uuid4(),
         component_id=uuid.uuid4(),
@@ -149,6 +149,7 @@ def _rij(naam, verantwoordelijke_naam=None, verantwoordelijke_afdeling=None):
         toelichting=None,
         verantwoordelijke_naam=verantwoordelijke_naam,
         verantwoordelijke_afdeling=verantwoordelijke_afdeling,
+        verantwoordelijke_organisatie=verantwoordelijke_organisatie,
         opgelost_op=None,
         gewijzigd_op=datetime(2026, 6, 7, tzinfo=timezone.utc),
     )
@@ -161,6 +162,6 @@ def test_vorm_en_vervolgcursor():
     assert set(items[0]) == {
         "id", "component_id", "applicatie_naam", "componenttype", "componenttype_label",
         "vraag_code", "status", "toelichting", "verantwoordelijke_naam",
-        "verantwoordelijke_afdeling", "opgelost_op", "gewijzigd_op",
+        "verantwoordelijke_afdeling", "verantwoordelijke_organisatie", "opgelost_op", "gewijzigd_op",
     }
     assert cursor is not None  # vervolgcursor want er was meer

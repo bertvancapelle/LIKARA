@@ -83,6 +83,7 @@ async def _verrijk(session: AsyncSession, tid: uuid.UUID, obj: Checklistscore) -
     ).get(obj.verantwoordelijke_id)
     obj.verantwoordelijke_naam = info["naam"] if info else None
     obj.verantwoordelijke_afdeling = info["afdeling"] if info else None
+    obj.verantwoordelijke_organisatie = info["organisatie"] if info else None
     return obj
 
 
@@ -95,6 +96,7 @@ async def _verrijk_lijst(session: AsyncSession, tid: uuid.UUID, items: list[Chec
         info = info_map.get(o.verantwoordelijke_id)
         o.verantwoordelijke_naam = info["naam"] if info else None
         o.verantwoordelijke_afdeling = info["afdeling"] if info else None
+        o.verantwoordelijke_organisatie = info["organisatie"] if info else None
 
 
 def enum_opties() -> dict[str, list[str]]:

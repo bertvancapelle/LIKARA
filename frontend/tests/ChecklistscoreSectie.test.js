@@ -9,6 +9,7 @@ vi.mock('@/api', () => ({
   api: {
     checklistvragen: { lijst: vi.fn() },
     checklistscores: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), opties: vi.fn() },
+    partijen: { lijst: vi.fn() },
   },
 }))
 
@@ -49,6 +50,19 @@ beforeEach(() => {
   api.checklistscores.opties.mockResolvedValue({ score: ['ja', 'deels', 'nee', 'nvt'] })
   api.checklistscores.maak.mockResolvedValue({ id: 's2', score: 'nee' })
   api.checklistscores.werkBij.mockResolvedValue({ id: 's1', score: 'nee' })
+  // ADR-037 — gemengde afdeling/persoon-lijst met organisatie-context (ontdubbeling).
+  // pers-2 = persoon rechtstreeks onder een gemeente (géén afdeling) → "persoon — organisatie".
+  api.partijen.lijst.mockResolvedValue({
+    items: [
+      { id: 'afd-1', naam: 'Informatievoorziening', aard: 'organisatie_eenheid',
+        organisatie_naam: 'Tiel', afdeling_naam: null },
+      { id: 'pers-1', naam: 'J. de Vries', aard: 'persoon',
+        organisatie_naam: 'Tiel', afdeling_naam: 'Informatievoorziening' },
+      { id: 'pers-2', naam: 'A. Janssen', aard: 'persoon',
+        organisatie_naam: 'Gemeente Tiel', afdeling_naam: null },
+    ],
+    volgende_cursor: null,
+  })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -184,6 +198,7 @@ describe('ChecklistscoreSectie', () => {
     expect(api.checklistscores.werkBij).toHaveBeenCalledWith('s1', {
       bevinding: 'Onderbouwing.',
       actie: 'Actie.',
+      verantwoordelijke_id: null,
     })
     // geen score in de payload van de velden-opslag
     const payload = api.checklistscores.werkBij.mock.calls.at(-1)[1]
@@ -197,6 +212,110 @@ describe('ChecklistscoreSectie', () => {
     expect(w.find('[data-testid="cs-bevinding-1.2"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-testid="cs-actie-1.2"]').attributes('disabled')).toBeDefined()
     expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').exists()).toBe(false)
+  })
+
+  // ── ADR-037: verantwoordelijke-picker + aandacht-signaal ────────────────────
+  it('kiest een afdeling in de picker en stuurt verantwoordelijke_id mee (zonder score)', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-verantw-1.2-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="cs-verantw-1.2-optie-afd-1"]').trigger('mousedown')
+    await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
+    await flushPromises()
+    const payload = api.checklistscores.werkBij.mock.calls.at(-1)[1]
+    expect(payload.verantwoordelijke_id).toBe('afd-1')
+    expect(payload).not.toHaveProperty('score')
+  })
+
+  it('lijst-item toont de identiteit (met organisatie) links en aard-suffix rechts', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-verantw-1.2-input"]').trigger('focus')
+    await flushPromises()
+    const afd = w.find('[data-testid="cs-verantw-1.2-optie-afd-1"]')
+    const pers = w.find('[data-testid="cs-verantw-1.2-optie-pers-1"]')
+    // Afdeling: "afdeling — organisatie"; persoon: "persoon — afdeling — organisatie".
+    expect(afd.text()).toContain('Informatievoorziening — Tiel')
+    expect(afd.text()).toContain('afdeling')
+    expect(pers.text()).toContain('J. de Vries — Informatievoorziening — Tiel')
+    expect(pers.text()).toContain('persoon')
+  })
+
+  it('bij een persoon toont het de identiteit persoon — afdeling — organisatie ná opslaan (uit de read)', async () => {
+    api.checklistscores.werkBij.mockResolvedValue({
+      id: 's1', score: 'ja', verantwoordelijke_id: 'pers-1',
+      verantwoordelijke_naam: 'J. de Vries', verantwoordelijke_afdeling: 'Informatievoorziening',
+      verantwoordelijke_organisatie: 'Tiel',
+    })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-verantw-1.2-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="cs-verantw-1.2-optie-pers-1"]').trigger('mousedown')
+    await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="cs-verantw-identiteit-1.2"]').text()).toContain('J. de Vries — Informatievoorziening — Tiel')
+  })
+
+  it('voorvullen bij bewerken: het veld toont de volledige identiteit (persoon — afdeling — organisatie)', async () => {
+    api.checklistscores.lijst.mockResolvedValue({
+      items: [{ id: 's1', component_id: APP, checklistvraag_id: 2, score: 'ja',
+        verantwoordelijke_id: 'pers-1', verantwoordelijke_naam: 'J. de Vries',
+        verantwoordelijke_afdeling: 'Informatievoorziening', verantwoordelijke_organisatie: 'BvoWB' }],
+      volgende_cursor: null,
+    })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    expect(w.find('[data-testid="cs-verantw-1.2-input"]').element.value).toBe('J. de Vries — Informatievoorziening — BvoWB')
+    // Geen signaal wanneer er wél een verantwoordelijke staat.
+    expect(w.find('[data-testid="cs-verantw-signaal-1.2"]').exists()).toBe(false)
+  })
+
+  it('veld == lijst: ná selectie toont het veld dezelfde volledige identiteit als het lijst-item', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-verantw-1.2-input"]').trigger('focus')
+    await flushPromises()
+    // Persoon MÉT afdeling → "persoon — afdeling — organisatie".
+    await w.find('[data-testid="cs-verantw-1.2-optie-pers-1"]').trigger('mousedown')
+    expect(w.find('[data-testid="cs-verantw-1.2-input"]').element.value).toBe('J. de Vries — Informatievoorziening — Tiel')
+    // Persoon ZONDER afdeling (org-only) → "persoon — organisatie" (org blijft zichtbaar in het veld).
+    await w.find('[data-testid="cs-verantw-1.2-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="cs-verantw-1.2-optie-pers-2"]').trigger('mousedown')
+    expect(w.find('[data-testid="cs-verantw-1.2-input"]').element.value).toBe('A. Janssen — Gemeente Tiel')
+  })
+
+  it('wissen zet verantwoordelijke_id op null in de PATCH', async () => {
+    api.checklistscores.lijst.mockResolvedValue({
+      items: [{ id: 's1', component_id: APP, checklistvraag_id: 2, score: 'ja',
+        verantwoordelijke_id: 'pers-1', verantwoordelijke_naam: 'J. de Vries' }],
+      volgende_cursor: null,
+    })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-verantw-wissen-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
+    await flushPromises()
+    expect(api.checklistscores.werkBij.mock.calls.at(-1)[1].verantwoordelijke_id).toBe(null)
+  })
+
+  it('aandacht-signaal: gescoord antwoord zonder verantwoordelijke toont de hint', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    expect(w.find('[data-testid="cs-verantw-signaal-1.2"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cs-verantw-signaal-1.2"]').text()).toContain('Antwoord zonder verantwoordelijke')
+  })
+
+  it('leesbaarheid: de Opslaan-knop draagt de primaire stijl (niet het onleesbare accent)', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    const knop = w.find('[data-testid="cs-velden-opslaan-1.2"]')
+    expect(knop.exists()).toBe(true)
+    // Primaire (leesbare) achtergrond; niet het bijna-witte accent-token onder witte tekst.
+    expect(knop.classes()).toContain('bg-[var(--lk-color-primary)]')
+    expect(knop.classes()).not.toContain('bg-[var(--lk-color-accent)]')
   })
 
   // ── CD029 (ADR-019): gestructureerd antwoordveld per type ──────────────────

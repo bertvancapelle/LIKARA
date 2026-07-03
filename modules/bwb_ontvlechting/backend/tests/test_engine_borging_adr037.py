@@ -172,3 +172,58 @@ def test_verantwoordelijke_edit_muteert_engine_niet():
             await s.commit()
 
     asyncio.run(_sessie_run(_flow))
+
+
+# ── ADR-037 aandacht-signaal: engine-veilig + correct op het seed-scenario ──────
+
+def test_signaal_query_drijft_de_engine_niet_aan():
+    """De nieuwe signaal-query leest `checklistscore` via een table()-handle (géén ORM) en
+    refereert geen engine-(her)afleiding."""
+    from services import registratiegaten_service as reg
+
+    src = _src_zonder_docstring(reg.antwoord_zonder_verantwoordelijke)
+    for sym in _VERBODEN:
+        assert sym not in src
+    # Engine-tabellen worden nooit als ORM-klasse aangesproken vanuit deze service.
+    for orm in ("ComponentProfiel", "Blokkade", "Checklistscore"):
+        assert not hasattr(reg, orm), f"verboden engine-symbool aanwezig: {orm}"
+
+
+@integratie
+def test_signaal_antwoord_zonder_verantwoordelijke_op_seed():
+    """Op het dev-seed-scenario vuurt het signaal op de gescoorde antwoorden ZONDER
+    verantwoordelijke, en NIET op de antwoorden met een gezette verantwoordelijke."""
+    from sqlalchemy import text as _text
+
+    from services import registratiegaten_service as reg
+
+    async def _flow(s):
+        gescoord = (await s.execute(
+            _text("SELECT count(*) FROM checklistscore WHERE tenant_id=:t AND score IS NOT NULL"),
+            {"t": _TID},
+        )).scalar_one()
+        met_verantw_ids = {
+            r[0] for r in (await s.execute(
+                _text("SELECT id FROM checklistscore WHERE tenant_id=:t AND score IS NOT NULL "
+                      "AND verantwoordelijke_id IS NOT NULL"),
+                {"t": _TID},
+            )).all()
+        }
+        assert len(met_verantw_ids) >= 1  # de seed zet er ≥1 (persoon/afdeling/blokkade)
+
+        items = await reg.antwoord_zonder_verantwoordelijke(s, _TID)
+        signaal_ids = {it["id"] for it in items}
+
+        # Telt exact de gescoorde antwoorden zonder verantwoordelijke.
+        assert len(items) == gescoord - len(met_verantw_ids)
+        # De ingevulde antwoorden vuren NIET.
+        assert signaal_ids.isdisjoint(met_verantw_ids)
+        # Elk item is een aandacht-signaal met de juiste sleutel + een "component — vraag"-label.
+        assert items and all(
+            it["signaal"] == "antwoord_zonder_verantwoordelijke"
+            and it["niveau"] == "aandacht"
+            and " — " in it["naam"]
+            for it in items
+        )
+
+    asyncio.run(_sessie_run(_flow))

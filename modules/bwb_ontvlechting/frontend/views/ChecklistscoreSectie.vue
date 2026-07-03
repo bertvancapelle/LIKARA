@@ -22,8 +22,24 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { SCORE, label, scoreKleur } from '../labels'
+import { PARTIJ_AARD, SCORE, SIGNAAL_LABEL, gebruikersgroepIdentiteit, label, scoreKleur } from '../labels'
 import VeldUitleg from './VeldUitleg.vue'
+import ZoekSelect from './ZoekSelect.vue'
+
+// ADR-037 — verantwoordelijke-picker: één gemengde lijst afdelingen + personen (aard_in).
+const zoekVerantwoordelijken = (params) =>
+  api.partijen.lijst({ ...params, aard_in: ['organisatie_eenheid', 'persoon'] })
+// Gedempte aard-hint rechts in de lijst-regel ("afdeling"/"persoon").
+const aardSuffix = (p) => (p?.aard ? label(PARTIJ_AARD, p.aard).toLowerCase() : '')
+// ADR-037 — identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie", zodat
+// gelijknamige afdelingen van verschillende organisaties onderscheidbaar zijn. Sleutelt op
+// afdeling-aanwezigheid (een afdeling-partij draagt zelf geen afdeling → 2-delig; een persoon draagt
+// z'n afdeling → 3-delig) en hergebruikt de gebruikersgroep-string-helper (ADR-036a).
+function verantwIdentiteit(naam, afdeling, organisatie) {
+  if (!naam) return ''
+  if (afdeling) return `${naam} — ${gebruikersgroepIdentiteit(afdeling, organisatie)}`
+  return gebruikersgroepIdentiteit(naam, organisatie)
+}
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
@@ -134,6 +150,11 @@ function _zetScore(code, r) {
     bevinding: r.bevinding ?? '',
     actie: r.actie ?? '',
     antwoord_waarde: r.antwoord_waarde ?? null,
+    // ADR-037: verantwoordelijke (id) + afgeleide leesvelden uit de read.
+    verantwoordelijke_id: r.verantwoordelijke_id ?? null,
+    verantwoordelijke_naam: r.verantwoordelijke_naam ?? '',
+    verantwoordelijke_afdeling: r.verantwoordelijke_afdeling ?? '',
+    verantwoordelijke_organisatie: r.verantwoordelijke_organisatie ?? '',
   }
 }
 
@@ -278,6 +299,12 @@ function toggleDetail(code) {
     bewerk[code] = {
       bevinding: s?.bevinding ?? '',
       actie: s?.actie ?? '',
+      // ADR-037: verantwoordelijke-id (bewerkbaar) + de VOLLEDIGE identiteit als voorvul-weergave
+      // (gelijk aan de lijst), zodat het veld bij bewerken "persoon — afdeling — organisatie" toont.
+      verantwoordelijke_id: s?.verantwoordelijke_id ?? null,
+      verantwoordelijke_weergave: verantwIdentiteit(
+        s?.verantwoordelijke_naam, s?.verantwoordelijke_afdeling, s?.verantwoordelijke_organisatie,
+      ),
       antwoord_optie: aw.optie ?? '',
       antwoord_opties: Array.isArray(aw.opties) ? [...aw.opties] : [],
       antwoord_getal: aw.getal ?? '',
@@ -296,8 +323,8 @@ async function opslaanVelden(code) {
   try {
     const b = bewerk[code]
     // BEWUST géén `score` → backend laat lifecycle/blokkade ongemoeid (ADR-013/016).
-    // ADR-037: het vrije-tekstveld `eigenaar` verviel; de verantwoordelijke-picker volgt in Pass 2.
-    const payload = { bevinding: b.bevinding, actie: b.actie }
+    // ADR-037: verantwoordelijke_id (afdeling/persoon of null = leeg) gaat mee; score niet.
+    const payload = { bevinding: b.bevinding, actie: b.actie, verantwoordelijke_id: b.verantwoordelijke_id ?? null }
     // Alleen waar geconfigureerd: het gestructureerde antwoord (envelope of null).
     if (antwoordType(code) !== 'geen') payload.antwoord_waarde = _antwoordEnvelope(code)
     const r = await api.checklistscores.werkBij(s.id, payload)
@@ -498,6 +525,55 @@ laad()
                     class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
                   ></textarea>
                 </div>
+                <!-- ADR-037: verantwoordelijke-picker (afdeling of persoon; leeg mag). -->
+                <div class="flex flex-col gap-[var(--lk-space-xs)]">
+                  <div class="flex items-center gap-[var(--lk-space-xs)]">
+                    <label :for="`cs-verantw-${v.code}`" class="text-[length:var(--lk-text-sm)] font-medium">Verantwoordelijke</label>
+                    <VeldUitleg :veld="'verantwoordelijke'" :testid="`uitleg-verantw-${v.code}`" />
+                  </div>
+                  <ZoekSelect
+                    :id="`cs-verantw-${v.code}`"
+                    :testid="`cs-verantw-${v.code}`"
+                    :model-value="bewerk[v.code].verantwoordelijke_id"
+                    :zoek-functie="zoekVerantwoordelijken"
+                    :initieel-weergave="bewerk[v.code].verantwoordelijke_weergave"
+                    :weergave="(p) => verantwIdentiteit(p.naam, p.afdeling_naam, p.organisatie_naam)"
+                    :disabled="!mag"
+                    placeholder="Zoek een afdeling of persoon (optioneel)…"
+                    @update:model-value="(id) => (bewerk[v.code].verantwoordelijke_id = id)"
+                  >
+                    <template #optie="{ item }">
+                      <span class="flex items-center justify-between gap-[var(--lk-space-sm)]">
+                        <span class="truncate">{{ verantwIdentiteit(item.naam, item.afdeling_naam, item.organisatie_naam) }}</span>
+                        <span class="shrink-0 text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-xs)]">{{ aardSuffix(item) }}</span>
+                      </span>
+                    </template>
+                  </ZoekSelect>
+                  <div class="flex items-center gap-[var(--lk-space-md)] text-[length:var(--lk-text-xs)]">
+                    <!-- Afgeleide identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie"
+                         (uit de read; verschijnt ná opslaan). Ontdubbelt gelijknamige afdelingen. -->
+                    <span v-if="scoreMap[v.code]?.verantwoordelijke_naam" :data-testid="`cs-verantw-identiteit-${v.code}`" class="text-[var(--lk-color-text-muted)]">
+                      {{ verantwIdentiteit(scoreMap[v.code].verantwoordelijke_naam, scoreMap[v.code].verantwoordelijke_afdeling, scoreMap[v.code].verantwoordelijke_organisatie) }}
+                    </span>
+                    <button
+                      v-if="mag && bewerk[v.code].verantwoordelijke_id"
+                      type="button"
+                      :data-testid="`cs-verantw-wissen-${v.code}`"
+                      class="text-[var(--lk-color-primary)] hover:underline"
+                      @click="bewerk[v.code].verantwoordelijke_id = null"
+                    >
+                      Wissen
+                    </button>
+                    <!-- Aandacht-signaal in de checklist-context: gescoord maar geen verantwoordelijke. -->
+                    <span
+                      v-if="scoreMap[v.code] && !scoreMap[v.code].verantwoordelijke_id"
+                      :data-testid="`cs-verantw-signaal-${v.code}`"
+                      class="text-[var(--lk-color-warning)]"
+                    >
+                      🟡 {{ SIGNAAL_LABEL.antwoord_zonder_verantwoordelijke }}
+                    </span>
+                  </div>
+                </div>
                 <div class="flex flex-col gap-[var(--lk-space-xs)]">
                   <label :for="`cs-actie-${v.code}`" class="text-[length:var(--lk-text-sm)] font-medium">Actie</label>
                   <textarea
@@ -513,7 +589,7 @@ laad()
                   <button
                     type="button"
                     :data-testid="`cs-velden-opslaan-${v.code}`"
-                    class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-accent)] text-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)]"
+                    class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-primary)] text-white font-semibold px-[var(--lk-space-md)] py-[var(--lk-space-xs)] hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
                     @click="opslaanVelden(v.code)"
                   >
                     Opslaan

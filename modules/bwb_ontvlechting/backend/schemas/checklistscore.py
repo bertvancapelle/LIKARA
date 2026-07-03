@@ -139,6 +139,9 @@ class ChecklistscoreRead(BaseModel):
     verantwoordelijke_id: uuid.UUID | None = None
     verantwoordelijke_naam: str | None = None
     verantwoordelijke_afdeling: str | None = None
+    # ADR-037 — organisatie van de verantwoordelijke (identiteit "afdeling — organisatie" /
+    # "persoon — afdeling — organisatie"); ontdubbelt gelijknamige afdelingen van andere organisaties.
+    verantwoordelijke_organisatie: str | None = None
     actie: str | None
     antwoord_waarde: dict | None
     created_at: datetime

@@ -105,6 +105,7 @@ class BlokkadeRead(BaseModel):
     # `verantwoordelijke_afdeling` alleen gevuld bij aard=persoon (de partij draagt z'n afdeling zelf).
     verantwoordelijke_naam: str | None = None
     verantwoordelijke_afdeling: str | None = None
+    verantwoordelijke_organisatie: str | None = None
     opgelost_op: datetime | None
     created_at: datetime
     updated_at: datetime
@@ -153,6 +154,7 @@ class BlokkadeOverzichtItem(BaseModel):
     # ADR-037 — afgeleide verantwoordelijke van het onderliggende antwoord (leeslaag, read-only).
     verantwoordelijke_naam: str | None = None
     verantwoordelijke_afdeling: str | None = None
+    verantwoordelijke_organisatie: str | None = None
     opgelost_op: datetime | None
     gewijzigd_op: datetime
 

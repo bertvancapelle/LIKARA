@@ -19,6 +19,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
+    ChecklistVraag,
     Component,
     Contract,
     Gebruikersgroep,
@@ -32,6 +33,14 @@ from models.models import (
 # lifecycle_status zonder ComponentProfiel te importeren, zodat de engine-borging groen blijft.
 _profiel = table("component_profiel", column("id"), column("tenant_id"), column("lifecycle_status"))
 
+# ADR-037 — lichtgewicht handle op `checklistscore` (géén Checklistscore-ORM, zelfde reden als
+# `_profiel`): leest het gescoorde antwoord + de verantwoordelijke-FK voor het aandacht-signaal.
+_checklistscore = table(
+    "checklistscore",
+    column("id"), column("tenant_id"), column("component_id"),
+    column("checklistvraag_id"), column("score"), column("verantwoordelijke_id"),
+)
+
 _SIG_EIGENAAR = "component_zonder_eigenaar"
 _SIG_VERANTWOORDELIJKE = "component_zonder_verantwoordelijke"
 # ADR-028 slice 4 — kritiek: BIV pas compleet als B, I én V staan (één-of-meer-leeg = signaal).
@@ -44,6 +53,9 @@ _SIG_GG_ORG = "gebruikersgroep_zonder_organisatie"
 _SIG_OBJ_ROL = "object_zonder_roltoewijzing"
 # ADR-036 stap C — grof gebruiksfeit zónder afdeling-verfijning eronder ("detaillering ontbreekt").
 _SIG_GEBRUIK_GEEN_VERFIJNING = "gebruiksfeit_zonder_verfijning"
+# ADR-037 — gescoord antwoord zonder verantwoordelijke (aandacht). Bewust ONDERSCHEIDEN van
+# `component_zonder_verantwoordelijke` (beheerrol op een component) — andere sleutel, andere entiteit.
+_SIG_ANTW_VERANTW = "antwoord_zonder_verantwoordelijke"
 _KRITIEK = "kritiek"
 _AANDACHT = "aandacht"
 
@@ -339,6 +351,37 @@ async def gebruiksfeit_zonder_verfijning(session: AsyncSession, tenant_id) -> li
     ]
 
 
+async def antwoord_zonder_verantwoordelijke(session: AsyncSession, tenant_id) -> list[dict]:
+    """Gescoorde checklistantwoorden (``score IS NOT NULL``) zónder ``verantwoordelijke_id`` — de
+    bron staat er nog niet bij (ADR-037). Lege placeholder-rijen (geen score) vuren bewust NIET.
+
+    Engine-veilig: leest ``checklistscore`` via de ``table()``-handle (géén Checklistscore-ORM),
+    zoals ``lifecycle_status`` via ``_profiel``. Label = "component — vraag_code"; het item draagt
+    ``component_id`` voor de doorklik naar de checklist-context. Puur read-only."""
+    tid = _tenant_uuid(tenant_id)
+    cs = _checklistscore
+    stmt = (
+        select(
+            cs.c.id,
+            cs.c.component_id.label("component_id"),
+            Component.naam.label("comp_naam"),
+            ChecklistVraag.code.label("vraag_code"),
+        )
+        .join(Component, and_(Component.id == cs.c.component_id, Component.tenant_id == tid))
+        .join(ChecklistVraag, and_(ChecklistVraag.id == cs.c.checklistvraag_id, ChecklistVraag.tenant_id == tid))
+        .where(cs.c.tenant_id == tid, cs.c.score.isnot(None), cs.c.verantwoordelijke_id.is_(None))
+        .order_by(Component.naam.asc(), ChecklistVraag.code.asc(), cs.c.id.asc())
+    )
+    return [
+        {
+            "id": r.id, "component_id": r.component_id,
+            "naam": f"{r.comp_naam} — {r.vraag_code}",
+            "signaal": _SIG_ANTW_VERANTW, "niveau": _AANDACHT,
+        }
+        for r in (await session.execute(stmt)).all()
+    ]
+
+
 async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
     """Alle actieve signaaltypen, gegroepeerd per ernst (kritiek/aandacht). Read-only."""
     return {
@@ -354,5 +397,6 @@ async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
             _SIG_GG_ORG: await gebruikersgroep_zonder_organisatie(session, tenant_id),
             _SIG_GEBRUIK_GEEN_VERFIJNING: await gebruiksfeit_zonder_verfijning(session, tenant_id),
             _SIG_OBJ_ROL: await object_zonder_roltoewijzing(session, tenant_id),
+            _SIG_ANTW_VERANTW: await antwoord_zonder_verantwoordelijke(session, tenant_id),
         },
     }

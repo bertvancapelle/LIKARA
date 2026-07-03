@@ -180,6 +180,11 @@ class PartijRead(BaseModel):
     soort: str | None
     organisatie_id: uuid.UUID | None
     afdeling_id: uuid.UUID | None
+    # ADR-037 — optionele afgeleide namen voor identiteit "afdeling — organisatie" /
+    # "persoon — afdeling — organisatie" (bv. in de verantwoordelijke-picker). Alleen de lijst-read
+    # vult ze (via joins); overige paden laten ze None (backward-compatible).
+    organisatie_naam: str | None = None
+    afdeling_naam: str | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -36,13 +36,16 @@ from services.errors import NietGevonden, OngeldigeStatusovergang
 # gebruikt wordt (`kolom.key` == label → keyset-cursor blijft kloppen). Geen engine-raakvlak.
 _VERANTW = aliased(Partij, name="verantw")
 _VERANTW_AFD = aliased(Partij, name="verantw_afd")
+_VERANTW_ORG = aliased(Partij, name="verantw_org")
 _VERANTW_NAAM = _VERANTW.naam.label("verantwoordelijke_naam")
 _VERANTW_AFD_NAAM = _VERANTW_AFD.naam.label("verantwoordelijke_afdeling")
+_VERANTW_ORG_NAAM = _VERANTW_ORG.naam.label("verantwoordelijke_organisatie")
 
 
 def _join_verantwoordelijke(stmt, tid):
     """LEFT JOIN naar de verantwoordelijke-partij (via de reeds-gejoinde Checklistscore) + de
-    afdeling-partij bij een persoon. Read-only; verandert het aantal blokkade-rijen niet (outer)."""
+    afdeling-partij (persoon) + de organisatie-partij (ADR-037 identiteit "… — organisatie").
+    Read-only; verandert het aantal blokkade-rijen niet (outer)."""
     return stmt.join(
         _VERANTW,
         and_(_VERANTW.id == Checklistscore.verantwoordelijke_id, _VERANTW.tenant_id == tid),
@@ -50,6 +53,10 @@ def _join_verantwoordelijke(stmt, tid):
     ).join(
         _VERANTW_AFD,
         and_(_VERANTW_AFD.id == _VERANTW.afdeling_id, _VERANTW_AFD.tenant_id == tid),
+        isouter=True,
+    ).join(
+        _VERANTW_ORG,
+        and_(_VERANTW_ORG.id == _VERANTW.organisatie_id, _VERANTW_ORG.tenant_id == tid),
         isouter=True,
     )
 from services.pagination import (
@@ -171,6 +178,7 @@ async def lijst(
             Blokkade.toelichting.label("toelichting"),
             _VERANTW_NAAM,
             _VERANTW_AFD_NAAM,
+            _VERANTW_ORG_NAAM,
             Blokkade.opgelost_op.label("opgelost_op"),
             Blokkade.created_at.label("created_at"),
             Blokkade.updated_at.label("updated_at"),
@@ -213,6 +221,7 @@ async def lijst(
             "toelichting": r.toelichting,
             "verantwoordelijke_naam": r.verantwoordelijke_naam,
             "verantwoordelijke_afdeling": r.verantwoordelijke_afdeling,
+            "verantwoordelijke_organisatie": r.verantwoordelijke_organisatie,
             "opgelost_op": r.opgelost_op,
             "created_at": r.created_at,
             "updated_at": r.updated_at,
@@ -284,6 +293,7 @@ async def lijst_overzicht(
             Blokkade.toelichting.label("toelichting"),
             _VERANTW_NAAM,
             _VERANTW_AFD_NAAM,
+            _VERANTW_ORG_NAAM,
             Blokkade.opgelost_op.label("opgelost_op"),
             Blokkade.updated_at.label("gewijzigd_op"),
         )
@@ -335,6 +345,7 @@ async def lijst_overzicht(
             "toelichting": r.toelichting,
             "verantwoordelijke_naam": r.verantwoordelijke_naam,
             "verantwoordelijke_afdeling": r.verantwoordelijke_afdeling,
+            "verantwoordelijke_organisatie": r.verantwoordelijke_organisatie,
             "opgelost_op": r.opgelost_op,
             "gewijzigd_op": r.gewijzigd_op,
         }
@@ -365,6 +376,7 @@ async def _verrijk(session: AsyncSession, tid: uuid.UUID, obj: Blokkade) -> Blok
     info = (await partij_service.resolve_verantwoordelijken(session, tid, [vid])).get(vid)
     obj.verantwoordelijke_naam = info["naam"] if info else None
     obj.verantwoordelijke_afdeling = info["afdeling"] if info else None
+    obj.verantwoordelijke_organisatie = info["organisatie"] if info else None
     return obj
 
 

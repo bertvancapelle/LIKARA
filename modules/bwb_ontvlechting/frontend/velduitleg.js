@@ -18,6 +18,16 @@ const _BIV_VUISTREGEL =
   'op burgers, continuïteit of een wettelijke plicht.'
 
 export const VELD_UITLEG = {
+  // ── Checklistantwoord (ADR-037) ──────────────────────────────────────────────
+  verantwoordelijke: {
+    uitleg:
+      'De verantwoordelijke is de afdeling of persoon uit het register die voor dít antwoord ' +
+      'instaat — degene die de bron kent of het aanlevert. Kies je een persoon, dan wordt zijn ' +
+      'afdeling er automatisch bij getoond.',
+    vuistregel:
+      'Leeg laten mag: dan wordt zichtbaar dat de bron nog ontbreekt (een aandacht-signaal, geen ' +
+      'blokkade). Vul in zodra je weet wie ervoor instaat.',
+  },
   // ── Component (ADR-028 / LI057-060) ──────────────────────────────────────────
   rol: {
     uitleg:

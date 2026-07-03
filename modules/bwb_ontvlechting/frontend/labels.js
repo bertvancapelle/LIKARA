@@ -337,4 +337,7 @@ export const SIGNAAL_LABEL = {
   gebruikersgroep_zonder_organisatie: 'Gebruikersgroep zonder organisatie',
   gebruiksfeit_zonder_verfijning: 'Gebruik bekend, detaillering ontbreekt',
   object_zonder_roltoewijzing: 'Object zonder roltoewijzing',
+  // ADR-037 — aandacht: antwoord gescoord, maar niemand staat er (nog) voor in. Bewust
+  // onderscheiden van `component_zonder_verantwoordelijke` (dat gaat over een beheerrol op een component).
+  antwoord_zonder_verantwoordelijke: 'Antwoord zonder verantwoordelijke',
 }

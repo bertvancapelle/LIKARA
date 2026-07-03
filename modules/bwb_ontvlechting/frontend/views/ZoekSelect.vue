@@ -234,7 +234,8 @@ watch(
           @mousedown.prevent="selecteer(item)"
           @mousemove="actieveIndex = i"
         >
-          {{ _label(item) }}
+          <!-- Optionele item-opmaak (scoped slot); default = de kale weergavetekst. -->
+          <slot name="optie" :item="item" :label="_label(item)">{{ _label(item) }}</slot>
         </li>
         <li v-if="!resultaten.length" :data-testid="`${props.testid}-leeg`" class="px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]">
           <!-- Lege-zoekstaat: een consument kan hier een contextuele actie renderen (bv. aanmaken op

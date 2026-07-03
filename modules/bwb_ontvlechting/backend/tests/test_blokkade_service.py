@@ -154,6 +154,7 @@ def _row(**kw):
         toelichting=None,
         verantwoordelijke_naam=None,
         verantwoordelijke_afdeling=None,
+        verantwoordelijke_organisatie=None,
         opgelost_op=None,
         created_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
         updated_at=datetime(2026, 6, 6, tzinfo=timezone.utc),

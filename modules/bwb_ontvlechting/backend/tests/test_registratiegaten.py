@@ -182,5 +182,5 @@ def test_registratiegaten_groepeert_per_ernst():
     assert set(out["aandacht"]) == {
         "component_zonder_gebruikersgroep", "component_geisoleerd", "contract_zonder_component",
         "gebruikersgroep_zonder_organisatie", "gebruiksfeit_zonder_verfijning",
-        "object_zonder_roltoewijzing",
+        "object_zonder_roltoewijzing", "antwoord_zonder_verantwoordelijke",
     }

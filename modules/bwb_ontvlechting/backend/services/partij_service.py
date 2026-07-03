@@ -147,14 +147,44 @@ async def resolve_verantwoordelijken(session: AsyncSession, tenant_id, ids) -> d
     if not unieke:
         return {}
     afd = aliased(Partij)
+    org = aliased(Partij)
     rijen = (
         await session.execute(
-            select(Partij.id, Partij.naam, afd.naam.label("afdeling"))
+            select(
+                Partij.id, Partij.naam,
+                afd.naam.label("afdeling"),
+                org.naam.label("organisatie"),
+            )
             .join(afd, and_(afd.id == Partij.afdeling_id, afd.tenant_id == tid), isouter=True)
+            .join(org, and_(org.id == Partij.organisatie_id, org.tenant_id == tid), isouter=True)
             .where(Partij.id.in_(unieke), Partij.tenant_id == tid)
         )
     ).all()
-    return {r.id: {"naam": r.naam, "afdeling": r.afdeling} for r in rijen}
+    return {
+        r.id: {"naam": r.naam, "afdeling": r.afdeling, "organisatie": r.organisatie}
+        for r in rijen
+    }
+
+
+async def _verrijk_context(session: AsyncSession, tid: uuid.UUID, items: list) -> None:
+    """ADR-037 — hang de afgeleide `organisatie_naam` (+ `afdeling_naam` bij een persoon) op de
+    partij-lijst-items, zodat de identiteit "afdeling — organisatie" / "persoon — afdeling —
+    organisatie" toonbaar is (bv. de verantwoordelijke-picker). Transient attrs (niet gemapt) die
+    `PartijRead` (from_attributes) uitleest; één batch-query op de partij-namen. Read-only."""
+    ids = {p.organisatie_id for p in items if p.organisatie_id}
+    ids |= {p.afdeling_id for p in items if p.afdeling_id}
+    namen: dict = {}
+    if ids:
+        namen = dict(
+            (
+                await session.execute(
+                    select(Partij.id, Partij.naam).where(Partij.id.in_(ids), Partij.tenant_id == tid)
+                )
+            ).all()
+        )
+    for p in items:
+        p.organisatie_naam = namen.get(p.organisatie_id)
+        p.afdeling_naam = namen.get(p.afdeling_id)
 
 
 async def lijst(
@@ -214,6 +244,7 @@ async def lijst(
         if heeft_meer
         else None
     )
+    await _verrijk_context(session, tid, items)  # ADR-037: afgeleide organisatie-/afdeling-namen
     return items, volgende
 
 
