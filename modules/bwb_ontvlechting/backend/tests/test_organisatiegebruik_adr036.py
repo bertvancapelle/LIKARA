@@ -473,3 +473,105 @@ def test_signaal_detaillering_ontbreekt_live():
             await s.commit()
 
     assert asyncio.run(_run_rls(_flow)) is True
+
+
+# ── Invariant "afdeling-met-org ⟹ grof feit" (borgt de no-dubbeltelling van stap B) ──
+@integratie
+def test_afdeling_met_org_impliceert_grof_feit_live():
+    """ADR-036 kern-invariant — elke gebruikersgroep MÉT organisatie (per ADR-036: `gebruik_id`
+    gezet) én afdeling, die een applicatie bedient, heeft een grof gebruiksfeit voor (tenant,
+    organisatie, bediende applicatie). Dat is exact wat `unie(grove feiten, groepen) ⊆ grove feiten`
+    borgt: geen org-ful afdeling-groep valt buiten de grove feiten. Read-only scan over de geseede
+    tenant; niet vacuously true (≥1 groep onderzocht)."""
+    from sqlalchemy import and_, exists, func, select
+    from sqlalchemy import text as _text  # noqa: F401 — consistent met de andere live-tests
+    from sqlalchemy.orm import aliased
+
+    from models.models import Gebruikersgroep, Organisatiegebruik, Relatie
+
+    tid = uuid.UUID(_TID)
+    og_ref = aliased(Organisatiegebruik)    # het feit waar de groep naar verwijst (via gebruik_id)
+    og_serve = aliased(Organisatiegebruik)  # het feit voor (org, bediende applicatie)
+
+    async def _flow(s):
+        # Afdeling-met-org groepen (afdeling + gebruik_id gezet) die een applicatie bedienen; hun
+        # organisatie = die van het feit; hun applicatie = de serving-bron.
+        base = (
+            select(
+                Gebruikersgroep.id.label("gg_id"),
+                og_ref.organisatie_id.label("org"),
+                Relatie.bron_id.label("app"),
+            )
+            .join(og_ref, and_(og_ref.id == Gebruikersgroep.gebruik_id, og_ref.tenant_id == tid))
+            .join(Relatie, and_(
+                Relatie.doel_id == Gebruikersgroep.id, Relatie.relatietype == "serving",
+                Relatie.tenant_id == tid,
+            ))
+            .where(
+                Gebruikersgroep.tenant_id == tid,
+                Gebruikersgroep.afdeling.isnot(None),
+                Gebruikersgroep.gebruik_id.isnot(None),
+            )
+        ).subquery()
+
+        onderzocht = (await s.execute(select(func.count()).select_from(base))).scalar()
+        overtredingen = (
+            await s.execute(
+                select(func.count()).select_from(base).where(
+                    ~exists(
+                        select(og_serve.id).where(
+                            og_serve.tenant_id == tid,
+                            og_serve.organisatie_id == base.c.org,
+                            og_serve.applicatie_id == base.c.app,
+                        )
+                    )
+                )
+            )
+        ).scalar()
+        return onderzocht, overtredingen
+
+    onderzocht, overtredingen = asyncio.run(_run_rls(_flow))
+    assert onderzocht >= 1, "scan is vacuously true — geen afdeling-met-org groepen in de seed"
+    assert overtredingen == 0, f"{overtredingen} afdeling-met-org groep(en) zonder grof feit"
+
+
+@integratie
+def test_creatie_afdeling_met_org_borgt_grof_feit_live():
+    """Gedragsborging (A): een afdeling-mét-organisatie aanmaken via het Pass 1-creatiepad borgt het
+    grove feit voor (tenant, organisatie, DE bediende applicatie) — A==A'. Locks dat een refactor van
+    `maak_aan`/`ensure` het feit niet naar een andere applicatie laat wijzen."""
+    from sqlalchemy import and_, exists, select
+    from sqlalchemy import text as _text
+
+    from models.models import Organisatiegebruik
+    from schemas.gebruikersgroep import GebruikersgroepCreate
+    from services import gebruikersgroep_service as gg
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            org_id = await _maak_org(s, tid, "WT-INV-Org")
+            app_id = await _maak_app(s, tid, "WT-INV-App")
+            await s.commit(); ids += [org_id, app_id]
+
+            g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app_id, organisatie_id=org_id, afdeling="Burgerzaken", aantal_gebruikers=12))
+            ids.append(g["id"])
+
+            # Een grof feit voor (tenant, organisatie, DE bediende applicatie) bestaat.
+            feit_er = (await s.execute(
+                select(exists(select(Organisatiegebruik.id).where(
+                    Organisatiegebruik.tenant_id == tid,
+                    Organisatiegebruik.organisatie_id == org_id,
+                    Organisatiegebruik.applicatie_id == app_id,
+                ))))).scalar()
+            assert feit_er is True
+            return True
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run_rls(_flow)) is True
