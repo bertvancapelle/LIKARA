@@ -32,6 +32,7 @@ from models.models import (
     ElementType,
     Gap,
     Gebruikersgroep,
+    Organisatiegebruik,
     Partij,
     Plateau,
     WorkPackage,
@@ -174,7 +175,9 @@ async def lijst(
 
     # Catalogus-typing per componenttype via een join (component-tak van de coalesce).
     cc = aliased(ComponentConfigOptie)
-    # UX-B6-a — gebruikersgroep-organisatie is nu een partij-verwijzing; join voor de display-naam.
+    # UX-B6-a / ADR-036 — de gebruikersgroep-organisatie leeft op het grove feit; join via
+    # `gebruik_id` → `organisatiegebruik` → partij voor de display-naam.
+    gg_gebruik = aliased(Organisatiegebruik)
     gg_org = aliased(Partij)
     partij_self = aliased(Partij)  # partij-element zelf (element.id == partij.id) — eigen naam/aard
     naam_expr = func.coalesce(
@@ -215,7 +218,8 @@ async def lijst(
         .outerjoin(Contract, and_(Contract.id == Element.id, Contract.tenant_id == tid))
         .outerjoin(Datatype, and_(Datatype.id == Element.id, Datatype.tenant_id == tid))
         .outerjoin(Gebruikersgroep, and_(Gebruikersgroep.id == Element.id, Gebruikersgroep.tenant_id == tid))
-        .outerjoin(gg_org, and_(gg_org.id == Gebruikersgroep.organisatie_id, gg_org.tenant_id == tid))
+        .outerjoin(gg_gebruik, and_(gg_gebruik.id == Gebruikersgroep.gebruik_id, gg_gebruik.tenant_id == tid))
+        .outerjoin(gg_org, and_(gg_org.id == gg_gebruik.organisatie_id, gg_org.tenant_id == tid))
         .outerjoin(Plateau, and_(Plateau.id == Element.id, Plateau.tenant_id == tid))
         .outerjoin(Gap, and_(Gap.id == Element.id, Gap.tenant_id == tid))
         .outerjoin(WorkPackage, and_(WorkPackage.id == Element.id, WorkPackage.tenant_id == tid))

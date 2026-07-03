@@ -60,6 +60,8 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "contract_kostenmodel",
     # ADR-024 slice 2b — rol-toewijzing (partij vervult rol op component/contract).
     "roltoewijzing",
+    # ADR-036 — grof gebruiksfeit (organisatie gebruikt applicatie).
+    "organisatiegebruik",
     # ADR-023 Fase E — migratielaag. Het plateau-/gap-lidmaatschap loopt via `relatie`
     # (aggregation/association) → al gedekt door het bestaande relatie-spoor.
     "plateau", "work_package", "deliverable", "gap",

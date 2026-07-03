@@ -408,8 +408,50 @@ class Datatype(Base, TenantMixin, TimestampMixin):
     omvang_indicatie: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
+class Organisatiegebruik(Base, TenantMixin, TimestampMixin):
+    """ADR-036 — grof gebruiksfeit: "organisatie gebruikt applicatie".
+
+    Eigen tenant-scoped registratie-feit (GEEN ArchiMate-element, dus geen element-subtype) —
+    vorm identiek aan `roltoewijzing`. Eén feit per (organisatie, applicatie), schema-geborgd via
+    `UNIQUE(tenant_id, organisatie_id, applicatie_id)`. Onvolledig = geldig: organisatie + applicatie
+    volstaat, verder niets verplicht; LIKARA laat het staan en blokkeert niets. De gebruikersgroep
+    is de fijne verfijning en verwijst hiernaar (`gebruikersgroep.gebruik_id`) — daarom óók
+    `UNIQUE(tenant_id, id)` als composiet-FK-doel.
+
+    `organisatie_id` → een partij met aard=organisatie (app-side geborgd via
+    `partij_service.valideer_organisatie`); `applicatie_id` → een component met
+    componenttype='applicatie' (app-side geborgd). Beide composiet-FK's naar `element`
+    (ON DELETE CASCADE: het feit verdwijnt met de organisatie of de applicatie). Puur
+    registratief — geen engine-koppeling. Tenant-scoped (FORCE RLS)."""
+
+    __tablename__ = "organisatiegebruik"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "organisatie_id", "applicatie_id", name="uq_organisatiegebruik"),
+        # Composiet-FK-doel voor gebruikersgroep.gebruik_id → (tenant_id, id).
+        UniqueConstraint("tenant_id", "id", name="uq_organisatiegebruik_tenant_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "organisatie_id"], ["element.tenant_id", "element.id"],
+            name="fk_organisatiegebruik_organisatie", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "applicatie_id"], ["element.tenant_id", "element.id"],
+            name="fk_organisatiegebruik_applicatie", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    organisatie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    applicatie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+
 class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
-    """ADR-023 B-mig-1: subtype van `element` (shared-PK, ArchiMate business actor/role)."""
+    """ADR-023 B-mig-1: subtype van `element` (shared-PK, ArchiMate business actor/role).
+
+    ADR-036: de organisatie leeft niet langer als eigen kolom op de groep, maar op het grove
+    gebruiksfeit `organisatiegebruik` waarnaar `gebruik_id` verwijst — **single source of truth**.
+    Een groep-mét-organisatie is de fijne verfijning ván dat grove feit (`gebruik_id` gezet);
+    `gebruik_id` NULL = organisatie-loze groep (bv. burgers), geldig en hangt onder géén grof feit.
+    De band met de applicatie blijft de `serving`-relatie (applicatie → gebruikersgroep)."""
 
     __tablename__ = "gebruikersgroep"
     __table_args__ = (
@@ -417,19 +459,19 @@ class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "id"], ["element.tenant_id", "element.id"],
             name="fk_gebruikersgroep_element", ondelete="CASCADE",
         ),
-        # ADR-024 UX-B6-a — organisatie verwijst naar een partij-element (aard=organisatie,
-        # app-side geborgd). Optioneel; ON DELETE SET NULL → organisatie wordt 'onbekend'
-        # als de partij verdwijnt (geen verplichte koppeling).
+        # ADR-036 — verfijning-van het grove gebruiksfeit. ON DELETE SET NULL (kolom-specifiek,
+        # via de migratie): verdwijnt het grove feit, dan wordt de groep organisatie-loos
+        # (tenant_id blijft intact — kale SET NULL zou de gedeelde NOT NULL tenant_id nullen).
         ForeignKeyConstraint(
-            ["tenant_id", "organisatie_id"], ["element.tenant_id", "element.id"],
-            name="fk_gebruikersgroep_organisatie", ondelete="SET NULL",
+            ["tenant_id", "gebruik_id"], ["organisatiegebruik.tenant_id", "organisatiegebruik.id"],
+            name="fk_gebruikersgroep_gebruik", ondelete="SET NULL",
         ),
     )
 
     # ADR-023 B-mig-2 slice 4: de band met de applicatie is een `serving`-relatie geworden.
     id: Mapped[uuid.UUID] = _pk()
-    # ADR-024 UX-B6-a — optionele verwijzing naar de organisatie (partij, aard=organisatie).
-    organisatie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # ADR-036 — verwijzing naar het grove gebruiksfeit (de organisatie leeft daar); NULL = org-loos.
+    gebruik_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     afdeling: Mapped[str | None] = mapped_column(String(255), nullable=True)
     aantal_gebruikers: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

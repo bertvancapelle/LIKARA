@@ -250,11 +250,12 @@ async def contract_zonder_component(session: AsyncSession, tenant_id) -> list[di
 
 
 async def gebruikersgroep_zonder_organisatie(session: AsyncSession, tenant_id) -> list[dict]:
-    """Gebruikersgroepen met ``organisatie_id IS NULL`` (label = afdeling, anders fallback)."""
+    """Gebruikersgroepen zonder organisatie (label = afdeling, anders fallback). ADR-036: een groep
+    is organisatie-loos wanneer ze onder géén grof gebruiksfeit hangt (``gebruik_id IS NULL``)."""
     tid = _tenant_uuid(tenant_id)
     stmt = (
         select(Gebruikersgroep.id, _GG_LABEL.label("naam"))
-        .where(Gebruikersgroep.tenant_id == tid, Gebruikersgroep.organisatie_id.is_(None))
+        .where(Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id.is_(None))
         .order_by(_GG_LABEL.asc(), Gebruikersgroep.id.asc())
     )
     return [_aitem(r, _SIG_GG_ORG) for r in (await session.execute(stmt)).all()]

@@ -21,6 +21,7 @@ from models.models import (
     ComponentConfigDimensie,
     Contract,
     Gebruikersgroep,
+    Organisatiegebruik,
     Partij,
     PartijAard,
     Plateau,
@@ -260,12 +261,19 @@ async def haal_grafdata_op(
     # `organisatie_id` reist mee voor de client-side "groepeer per organisatie"-toggle.
     partij_naam = {r.id: r.naam for r in partij_rijen}
     gebruikersgroep_ids: set[uuid.UUID] = set()
+    # ADR-036 — de organisatie leeft op het grove feit; LEFT JOIN het feit via `gebruik_id`
+    # (gedrag identiek aan de oude `organisatie_id`-kolom: org-loze groep → NULL).
     gg_rijen = (
         await session.execute(
             select(
-                Gebruikersgroep.id, Gebruikersgroep.organisatie_id,
+                Gebruikersgroep.id, Organisatiegebruik.organisatie_id.label("organisatie_id"),
                 Gebruikersgroep.afdeling, Gebruikersgroep.aantal_gebruikers,
-            ).where(Gebruikersgroep.tenant_id == tid, _sc(Gebruikersgroep.id))
+            )
+            .outerjoin(
+                Organisatiegebruik,
+                and_(Organisatiegebruik.id == Gebruikersgroep.gebruik_id, Organisatiegebruik.tenant_id == tid),
+            )
+            .where(Gebruikersgroep.tenant_id == tid, _sc(Gebruikersgroep.id))
         )
     ).all()
     gg_org: dict[uuid.UUID, uuid.UUID | None] = {}  # gebruikersgroep-id → organisatie-id (of None)

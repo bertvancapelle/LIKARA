@@ -33,6 +33,8 @@ class Entiteit(str, Enum):
     # opgegaan. Het contract houdt de term "leverancier" (tegenpartij-koppeling, optie A).
     PARTIJ = "partij"
     CONTRACT = "contract"
+    # ADR-036 — grof gebruiksfeit "organisatie gebruikt applicatie" (tenant-zijde, inhoud-entiteit).
+    ORGANISATIEGEBRUIK = "organisatiegebruik"
     # ADR-021 Fase D — contract-koppeling generaliseerde naar component-niveau.
     COMPONENT_CONTRACT = "component_contract"
     # ADR-021 — component-herfundering (tenant-zijde, inhoud-entiteiten)
@@ -111,6 +113,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     # ADR-020/ADR-024 contract- + partijenregister — zelfde inhoud-patroon als Applicatie.
     Entiteit.PARTIJ: dict(_INHOUD),
     Entiteit.CONTRACT: dict(_INHOUD),
+    # ADR-036 — grof gebruiksfeit: zelfde inhoud-patroon (Viewer L · Medewerker LAW ·
+    # Beheerder LAWV · Auditor L).
+    Entiteit.ORGANISATIEGEBRUIK: dict(_INHOUD),
     Entiteit.COMPONENT_CONTRACT: dict(_INHOUD),
     # ADR-021 — component/structuurrelatie, zelfde inhoud-patroon als Applicatie.
     Entiteit.COMPONENT: dict(_INHOUD),

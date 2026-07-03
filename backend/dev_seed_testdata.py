@@ -57,6 +57,7 @@ from models.models import (  # noqa: E402
     GebruikerPersoon,
     Gebruikersgroep,
     HostingModel,
+    Organisatiegebruik,
     Partij,
     PartijAard,
     Relatie,
@@ -76,6 +77,7 @@ from services import (  # noqa: E402
     checklistscore_service,
     contract_service,
     gebruikersgroep_service,
+    organisatiegebruik_service,
     partij_service,
     relatie_service,
     roltoewijzing_service,
@@ -986,7 +988,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     telling = {k: 0 for k in (
         "organisaties", "leveranciers", "ketenpartners", "burgers", "afdelingen", "personen",
         "applicaties", "contracten", "associaties", "flows", "roltoewijzingen",
-        "scores", "gebruikersgroepen",
+        "scores", "organisatiegebruik", "gebruikersgroepen",
     )}
 
     partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
@@ -1358,17 +1360,49 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     for p, c, r in rt_extern:
         await _rol(p, contract_id[c], r)
 
-    # ── 13. Gebruikersgroepen (org MOET aard=organisatie; Burgers → org=None + afdeling='Burgers') ──
-    serving_rows = (
+    # ── 13. Organisatiegebruik (grof feit, ADR-036) + gebruikersgroep-verfijning ──
+    # Grof feit = "organisatie X gebruikt applicatie Y", op zichzelf vastlegbaar zonder afdeling.
+    # De meeste org×app-combinaties blijven GROF (geen afdeling eronder) → voedt de latere signaal-
+    # demo "detaillering ontbreekt" (pass 2). Idempotent op (org, app).
+    bestaande_feiten = {
+        (r.organisatie_id, r.applicatie_id)
+        for r in (await session.execute(
+            select(Organisatiegebruik.organisatie_id, Organisatiegebruik.applicatie_id)
+            .where(Organisatiegebruik.tenant_id == tid))).all()
+    }
+
+    async def _feit(app_naam, org_naam):
+        key = (partij_id[org_naam], app_id[app_naam])
+        if key in bestaande_feiten:
+            return
+        await organisatiegebruik_service.ensure(session, tid, partij_id[org_naam], app_id[app_naam])
+        bestaande_feiten.add(key)
+        telling["organisatiegebruik"] += 1
+
+    gg_orgs = ["BvoWB", "Gemeente Tiel", "Gemeente Culemborg", "Gemeente West Betuwe"]
+    # LI021 — Klantportaal bewust NIET hier: het wordt uitsluitend door de organisatieloze
+    # "Burgers"-groep geserved → laat de scope-teller "alleen organisatieloos gebruikt" aanslaan.
+    org_apps = ["Zaaksysteem", "Zaakafhandelcomponent", "DMS", "Burgerzaken-suite",
+                "BRP", "Gegevensmakelaar", "Sociaal domein suite"]
+    for app_naam in org_apps:
+        for org_naam in gg_orgs:
+            await _feit(app_naam, org_naam)
+    await session.commit()  # grove feiten borgen vóór de verfijningen (idempotent-veilig)
+
+    # Verfijning = een afdeling MÉT organisatie ónder het grove feit (hergebruikt het feit via
+    # gebruikersgroep_service; geen dubbele org-invoer). Idempotent op (app, org, afdeling).
+    verfijning_rows = (
         await session.execute(
-            select(Relatie.bron_id, Gebruikersgroep.organisatie_id, Gebruikersgroep.afdeling)
+            select(Relatie.bron_id, Organisatiegebruik.organisatie_id, Gebruikersgroep.afdeling)
             .join(Gebruikersgroep, Gebruikersgroep.id == Relatie.doel_id)
+            .outerjoin(Organisatiegebruik, Organisatiegebruik.id == Gebruikersgroep.gebruik_id)
             .where(Relatie.relatietype == "serving", Relatie.tenant_id == tid)
         )
     ).all()
-    bestaande_gg = {(r.bron_id, r.organisatie_id, r.afdeling) for r in serving_rows}
+    bestaande_gg = {(r.bron_id, r.organisatie_id, r.afdeling) for r in verfijning_rows}
 
-    async def _gg(app_naam, org_id, afdeling, aantal):
+    async def _gg(app_naam, org_naam, afdeling, aantal):
+        org_id = partij_id[org_naam] if org_naam else None
         key = (app_id[app_naam], org_id, afdeling)
         if key in bestaande_gg:
             return
@@ -1377,14 +1411,11 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         bestaande_gg.add(key)
         telling["gebruikersgroepen"] += 1
 
-    gg_orgs = [("BvoWB", 45), ("Gemeente Tiel", 180), ("Gemeente Culemborg", 120), ("Gemeente West Betuwe", 95)]
-    # LI021 — Klantportaal bewust NIET in org_apps: het wordt uitsluitend door de organisatieloze
-    # "Burgers"-groep geserved → laat de scope-teller "alleen organisatieloos gebruikt" aanslaan.
-    org_apps = ["Zaaksysteem", "Zaakafhandelcomponent", "DMS", "Burgerzaken-suite",
-                "BRP", "Gegevensmakelaar", "Sociaal domein suite"]
-    for app_naam in org_apps:
-        for org_naam, aantal in gg_orgs:
-            await _gg(app_naam, partij_id[org_naam], None, aantal)
+    # Fijne verfijningen (afdeling + organisatie) onder bestaande grove feiten.
+    await _gg("Zaaksysteem", "Gemeente Tiel", "Burgerzaken", 40)
+    await _gg("Zaaksysteem", "Gemeente Culemborg", "Publiekszaken", 25)
+    await _gg("DMS", "Gemeente West Betuwe", "Documentbeheer", 15)
+    # Organisatie-loze groepen (burgers/inwoners): hangen onder GEEN grof feit, blijven geldig.
     for app_naam in ["Klantportaal", "Burgerzaken-suite", "Zaaksysteem"]:
         await _gg(app_naam, None, "Burgers", 35000)
 

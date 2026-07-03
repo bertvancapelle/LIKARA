@@ -42,6 +42,7 @@ VERWACHT = {
     Entiteit.BLOKKADE: _INHOUD,
     Entiteit.PARTIJ: _INHOUD,
     Entiteit.CONTRACT: _INHOUD,
+    Entiteit.ORGANISATIEGEBRUIK: _INHOUD,   # ADR-036 — grof gebruiksfeit
     Entiteit.COMPONENT_CONTRACT: _INHOUD,
     Entiteit.COMPONENT: _INHOUD,            # ADR-021 Fase B (CD052)
     Entiteit.COMPONENT_STRUCTUUR: _INHOUD,  # ADR-021 Fase B (CD052)
@@ -74,7 +75,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (22×4×4 = 352 combinaties) tegen de spec (LI059: -APPLICATIE)."""
+    """Elke entiteit × rol × actie (23×4×4 = 368 combinaties) tegen de spec (ADR-036: +ORGANISATIEGEBRUIK)."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist
     for entiteit, per_rol in VERWACHT.items():
         for rol in Rol:

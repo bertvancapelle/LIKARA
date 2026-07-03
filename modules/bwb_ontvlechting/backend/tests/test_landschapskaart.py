@@ -452,7 +452,7 @@ def test_landschapskaart_organisatie_scope_live():
     from sqlalchemy import text as _text
 
     from models.models import (
-        Component, Element, ElementType, Gebruikersgroep, Partij, PartijAard, Relatie,
+        Component, Element, ElementType, Gebruikersgroep, Organisatiegebruik, Partij, PartijAard, Relatie,
     )
     from services import landschapskaart_service as svc
 
@@ -464,9 +464,15 @@ def test_landschapskaart_organisatie_scope_live():
                         hostingmodel="on_premise", eigenaar_organisatie_id=eigenaar)); await s.flush()
         return elem.id
 
-    async def _groep(s, *, naam, organisatie_id):
+    async def _groep(s, *, naam, organisatie_id, applicatie_id=None):
+        # ADR-036 — organisatie leeft op het grove feit; org-ful groep verwijst er via gebruik_id naar.
+        gebruik_id = None
+        if organisatie_id is not None:
+            og = Organisatiegebruik(tenant_id=tid, organisatie_id=organisatie_id, applicatie_id=applicatie_id)
+            s.add(og); await s.flush()
+            gebruik_id = og.id
         elem = Element(tenant_id=tid, element_type=ElementType.gebruikersgroep); s.add(elem); await s.flush()
-        s.add(Gebruikersgroep(id=elem.id, tenant_id=tid, organisatie_id=organisatie_id,
+        s.add(Gebruikersgroep(id=elem.id, tenant_id=tid, gebruik_id=gebruik_id,
                               afdeling=naam, aantal_gebruikers=10)); await s.flush()
         return elem.id
 
@@ -482,7 +488,7 @@ def test_landschapskaart_organisatie_scope_live():
             # Gebruik: component via een groep MET organisatie; component via een organisatieLOZE groep.
             c_gebruik = await _comp(s, "WT-OS-Gebruik")
             c_loos = await _comp(s, "WT-OS-Loos")
-            g_org = await _groep(s, naam="WT-OS-Groep", organisatie_id=oe.id)
+            g_org = await _groep(s, naam="WT-OS-Groep", organisatie_id=oe.id, applicatie_id=c_gebruik)
             g_loos = await _groep(s, naam="WT-OS-Burgers", organisatie_id=None)
             s.add(Relatie(tenant_id=tid, bron_id=c_gebruik, doel_id=g_org, relatietype="serving"))
             s.add(Relatie(tenant_id=tid, bron_id=c_loos, doel_id=g_loos, relatietype="serving"))
