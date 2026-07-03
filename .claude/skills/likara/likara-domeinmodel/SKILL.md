@@ -170,13 +170,22 @@ Tweerichting wordt vastgelegd als `richting`-kenmerk op de relatie,
 rollen op hetzelfde object hebben als losse rijen; onmogelijk via de `relatie`-facade
 die slechts één rij per (bron, doel, type) toestaat.
 
-### Type-validatie bron/doel (per facade)
+### Type-validatie bron/doel — LEEFT NIET in de relatie-facade (geverifieerd V030)
 
-De service valideert `element_type` van bron en doel per relatietype:
-- `assignment` (draait_op): bron ∈ host-typen, doel ∈ component/applicatie
-- `realization`: realiseerder ∈ {work_package, deliverable}, gerealiseerde ∈ {deliverable, plateau}
-- `aggregation` (plateau-lid): bron = plateau, doel ∈ {component, contract}
-- Ongeldig type → 422 `ONGELDIGE_BRON_TYPE` / `ONGELDIG_DOEL_TYPE`
+**De generieke `relatie_service.maak_aan` valideert GEEN `element_type` van bron/doel per relatietype.**
+Ze borgt alleen: bron ≠ doel (`ZELFVERWIJZING`), beide endpoints bestaan binnen de tenant (404),
+`relatietype` is een geldige catalogus-sleutel, en de kenmerken tegen de catalogus (+ flow-dubbel).
+Een `assignment` met een onzinnig bron/doel-type wordt door de facade dus NIET geweigerd.
+
+**Endpoint-type-borging leeft uitsluitend in de eigen-tabel-services**, waar het verband een
+registratie-feit is met eigen validatie:
+- `roltoewijzing_service` — partij-aard/object-type per rol;
+- `contract_service._valideer_contractpartij` — leverancier ∈ {organisatie, organisatie_eenheid,
+  externe_partij}, nooit `persoon` (422 `ONGELDIGE_PARTIJ`);
+- `gebruikersgroep_service._valideer_afdeling` — afdeling = org-eenheid binnen de grove-feit-organisatie.
+
+Wil je bron/doel-typeborging op een ArchiMate-relatie, dan moet die expliciet worden toegevoegd — de
+facade levert 'm niet gratis. (Historie: eerdere skill-versie beweerde ten onrechte dat de facade dit deed.)
 
 ### Relatie-kenmerken
 
@@ -300,10 +309,22 @@ Niets geforceerd (geen "één eigenaar per object").
 - Term "leverancier" blijft in het contract-domein (optie A, blast-radius-minimalisatie).
 
 ### Organisatie als verwijzing elders (B6, migraties 0031/0032)
-- `gebruikersgroep.organisatie_id`: optionele FK → element (aard=organisatie),
-  ON DELETE SET NULL (kolom-specifiek, PostgreSQL 15+).
-- `component.eigenaar_organisatie_id`: idem.
-- Beide tonen de gejoinde `Partij.naam` in lijsten/details (naam-in-read via alias).
+- `component.eigenaar_organisatie_id`: optionele FK → element (aard=organisatie),
+  ON DELETE SET NULL (kolom-specifiek, PostgreSQL 15+). Toont de gejoinde `Partij.naam` in
+  lijsten/details (naam-in-read via alias). De eigenaar-picker filtert `aard=organisatie`.
+
+### Gebruikersgroep: organisatie + afdeling (ADR-036 / ADR-036a, V030, migratie 0050)
+- **Organisatie leeft NIET meer op de gebruikersgroep** (geen `organisatie_id`-kolom meer). Ze leeft op
+  het **grove feit** `organisatiegebruik` (single source of truth); de gebruikersgroep verwijst er als
+  fijne verfijning naar via `gebruik_id`. `organisatie_id` blijft een Create/Update/Read-veld, intern
+  vertaald naar een grof feit (get-or-create via `organisatiegebruik_service.ensure`).
+- **Afdeling is structureel** (ADR-036a): `gebruikersgroep.afdeling_id` → organisatie_eenheid-partij
+  binnen de grove-feit-organisatie (spiegel van persoon→afdeling), composiet-FK ON DELETE RESTRICT; geen
+  vrije tekst meer. `_valideer_afdeling` borgt org-eenheid-binnen-organisatie (422 `ONGELDIGE_AFDELING`);
+  een organisatie-loze groep draagt geen afdeling.
+- **Identiteit**: "afdeling — organisatie" (bv. "Burgerzaken — Tiel"), zodat gelijknamige afdelingen van
+  verschillende organisaties niet op één hoop vallen (`identiteit()`).
+- Read geeft `organisatie_id`+`organisatie_naam` (uit grof feit) en `afdeling_id`+`afdeling` (partij-naam).
 
 ---
 
@@ -537,25 +558,29 @@ hasattr-test + bronscan-test.
   platform-breed/gedeeld, RBAC is één platform-brede matrix. RLS blijft technisch fundament,
   geen ontwerponderwerp tot er echt meerdere tenants zijn.
 
-## Signalering — registratiegaten (ADR-035, V024; +BIV V028)
+## Signalering — registratiegaten (ADR-035, V024; +BIV V028; +ADR-036 V030)
 
-Elf signaaltypen (6 kritiek / 5 aandacht) op entiteiten in het domeinmodel. Puur read-only afgeleid.
-Nieuw signaal wordt config-gedreven in `SignaleringView.GROEPEN` gerenderd; de per-component
-`SignaleringBadge` toont via de optionele `signalen`-prop een sprekende tooltip (`SIGNAAL_LABEL`).
+**Negen geïmplementeerde signaaltypen (3 kritiek / 6 aandacht)** op entiteiten in het domeinmodel, puur
+read-only afgeleid in `registratiegaten_service.overzicht()` (gegroepeerd per ernst) en gelabeld in
+`labels.js:SIGNAAL_LABELS`. De per-component `SignaleringBadge` toont via de optionele `signalen`-prop
+een sprekende tooltip. **De telling volgt de code (`overzicht()` + `SIGNAAL_LABELS`), niet deze tabel —
+verifieer bij twijfel daar.**
 
-| Signaal | Bron | Ernst |
+| Signaal (code) | Bron | Ernst |
 |---|---|---|
-| Component zonder eigenaar (organisatie) | `eigenaar_organisatie_id IS NULL` | 🔴 Kritiek |
-| Component zonder verantwoordelijke (rol) | geen `roltoewijzing` op component | 🔴 Kritiek |
-| BIV-classificatie onvolledig (ADR-028) | ≥1 van `biv_{beschikbaarheid,integriteit,vertrouwelijkheid}` IS NULL | 🔴 Kritiek |
-| Registratie onvolledig | score onder tenant-drempelwaarde | 🔴 Kritiek |
-| Contract zonder leverancier | `leverancier_id IS NULL` | 🔴 Kritiek |
-| Blokkade zonder eigenaar | geen roltoewijzing op blokkade | 🔴 Kritiek |
-| Component zonder gebruikersgroep | geen serving-relatie van gg naar component | 🟡 Aandacht |
-| Component zonder koppeling (geïsoleerd) | geen flow-relaties | 🟡 Aandacht |
-| Contract zonder gekoppeld component | geen association van component naar contract | 🟡 Aandacht |
-| Gebruikersgroep zonder organisatie | `organisatie_id IS NULL` | 🟡 Aandacht |
-| Object zonder roltoewijzing | geen `roltoewijzing`-rij voor dit element | 🟡 Aandacht |
+| `component_zonder_eigenaar` | `eigenaar_organisatie_id IS NULL` | 🔴 Kritiek |
+| `component_zonder_verantwoordelijke` | geen `roltoewijzing` op component | 🔴 Kritiek |
+| `biv_classificatie_onvolledig` (ADR-028) | ≥1 van `biv_{beschikbaarheid,integriteit,vertrouwelijkheid}` IS NULL | 🔴 Kritiek |
+| `component_zonder_gebruikersgroep` | geen serving-relatie van gg naar component | 🟡 Aandacht |
+| `component_geisoleerd` | geen flow-relaties | 🟡 Aandacht |
+| `contract_zonder_component` | geen association van component naar contract | 🟡 Aandacht |
+| `gebruikersgroep_zonder_organisatie` | grof feit (`gebruik_id`) ontbreekt | 🟡 Aandacht |
+| `gebruiksfeit_zonder_verfijning` (ADR-036) | grof gebruiksfeit zónder afdeling-verfijning eronder | 🟡 Aandacht |
+| `object_zonder_roltoewijzing` | geen `roltoewijzing`-rij voor dit element | 🟡 Aandacht |
+
+**Gepland / nog niet geïmplementeerd** (staan bewust NIET in `overzicht()`): _Registratie onvolledig_
+(score onder tenant-drempel — ADR-035 slice 3, open); _Contract zonder leverancier_ (moot: `leverancier_id`
+is verplicht); _Blokkade zonder eigenaar_ (structureel onmogelijk zonder schema-/semantiekherziening).
 
 Engine-invariant: Signalering raakt nooit `component_profiel`, `checklistscore`,
 `blokkade` (schrijven) of `lifecycle_status`. Geen engine-poort.

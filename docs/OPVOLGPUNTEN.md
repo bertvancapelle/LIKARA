@@ -7,6 +7,63 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V030 (sessie-afsluiting ADR-036 + Velduitleg + ADR-036a, 2026-07-03)
+
+Build **V029 → V030**. Organisatiegebruik van applicaties **end-to-end** gebouwd, veld-uitleg op alle
+formulieren, afdeling structureel gemaakt, plus drie gerichte UI-fixes.
+
+**Geland deze sessie:**
+
+| Commit | Slice |
+|---|---|
+| `8e7e419` | ADR-036 pass 1 — grof gebruiksfeit + gebruikersgroep-verfijning (schema) |
+| `bff1254` | ADR-036 pass 2 — kaart-afleiding + signaal + identiteit (read-only) |
+| `889fc4d` | ADR-036 invariant-test "afdeling-met-org ⟹ grof feit" |
+| `7cc6e24` | Velduitleg slice 1 — `VeldUitleg`-component + centrale `velduitleg.js` |
+| `8ea87be` | Velduitleg slice 2 — content-uitrol (popover-'i') over alle formulieren |
+| `480fa84` | ADR-036a pass 1 — gebruikersgroep-afdeling structureel (schema+service+seed, migratie 0050) |
+| `a09a8cb` | ADR-036a pass 2 — afdeling-picker (search-first create-in-lege-zoekstaat) |
+| `929435e` | Fix — bewerken-voorvulling gebruikersgroep (organisatie voorvullen uit grof feit) |
+| `0e439d3` | Fix — contract-leverancier-picker versmald (`aard_in`) + seed geverifieerd geldig |
+
+- **ADR-036 (compleet):** grof "organisatie gebruikt applicatie"-feit (`organisatiegebruik`) +
+  gebruikersgroep als fijne verfijning (`gebruik_id`); kaart-afleiding "gebruikt door", read-only signaal
+  "gebruik bekend, detaillering ontbreekt", identiteit "afdeling — organisatie". Invariant geborgd.
+- **Velduitleg-slice:** alle formulieren voorzien van popover-'i'; ADR-036a-identiteit partij-verankerd.
+- **ADR-036a (afdeling structureel):** `gebruikersgroep.afdeling` (vrije tekst) → `afdeling_id` →
+  organisatie_eenheid-partij binnen de grove-feit-organisatie (migratie **0050**).
+- **Drie UI-fixes:** bewerken-voorvulling (organisatie uit grof feit); contract-leverancier-picker
+  versmald; (+ search-first afdeling-picker uit ADR-036a pass 2).
+
+**Afgevinkt / opgelost deze sessie:**
+- **Eigenaar-organisatie-picker** — onderzocht, **geen defect**: filter is correct (`aard=organisatie`),
+  seed compleet (4 orgs), query levert alle 4. "Alleen BvoWB" was **stale seed-data** (reseed lost het op).
+- **Afdeling-structureel** (ADR-036a) — gebouwd.
+- **Contract-leverancier picker-scope** — versmald naar `aard_in=[organisatie, organisatie_eenheid,
+  externe_partij]`; **seed geverifieerd geldig** (12 externe_partij + 3 organisatie voor de BvoWB-DVO's;
+  nul persoon/burger). Geen seed-wijziging nodig.
+
+**Nieuw open (verwerkt in de top-5):**
+- **GebruikersgroepDetail + BlokkadeDetail** — nu ontgrendeld (betekenislaag is er). BlokkadeDetail-
+  restpunten: `BlokkadeRead` verrijken met herkomst; eigenaar = vrij tekstveld; `objecthistorie._TYPES`
+  uitbreiden met `gebruikersgroep` + `blokkade`.
+- **ADR-036 "begin grof"-invoerroute** — frontend-formulier om een grof feit los vast te leggen
+  (backend bestaat al). Zonder dit vuurt "detaillering ontbreekt" alleen op seed-data.
+- **Verantwoordelijkheid-/roltoewijzing-partij-picker** — eerst de **domeinvraag** (welke aarden mogen een
+  beheerrol dragen?), dán de scoping. Bewust niet blind versmald.
+
+**Klein / parked toegevoegd:** RelatieKenmerk-dimensie-velduitleg (content klaar in `velduitleg.js`;
+wacht op een invoerveld — nu sectie-gedreven).
+
+**Nog open (ongewijzigd):** Impact-verkenner render-herbouw (top-5, echte cytoscape-render); ADR-035
+Slice 3 (configureerbare score-drempel); ADR-029 Fase 5; ADR-023 Fase F-rest; OP-30. **Test-hygiëne:**
+~30–33 Cytoscape-mock-consoleruis in `LandschapskaartView.test.js` (geen falende test) — bij render-herbouw.
+
+Tests: backend **914/0** (2 skipped) · frontend **763**. Migratie-head **0050**.
+ADR-register: **ADR-036** + **ADR-036a** opgenomen.
+
+---
+
 ### Stand V029 (sessie-afsluiting LI060 + ADR-028, 2026-07-02)
 
 Build **V028 → V029**. Componenttype-catalogus uitgebreid (top-5 #1 geland) én

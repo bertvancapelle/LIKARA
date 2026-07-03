@@ -215,6 +215,34 @@ implementeren; server-side `zoek-functie`, debounce, ~10 resultaten + "verfijn"-
 
 Bij twijfel: kies ZoekSelect.
 
+### ZoekSelect-patronen (V030, beproefd)
+
+**1. Picker-scope spiegelt de backend-regel (niet-onderhandelbaar).** Een keuze-picker toont alléén wat
+de backend als geldig accepteert — nooit opties die bij opslaan een 422 opleveren. De gebruiker mag geen
+keuze kunnen maken die het systeem verwerpt. Referentie: contract-leverancier filtert
+`aard_in=[organisatie, organisatie_eenheid, externe_partij]` (spiegelt
+`contract_service.TOEGESTANE_LEVERANCIER_AARDEN`); eigenaar-organisatie filtert `aard=organisatie`.
+Bestaat er een meervoudige filter-param (`aard_in`), gebruik die; hij loopt al door de hele keten
+(route → service → `api.js`-whitelist).
+
+**2. Bewerken-voorvulling leest uit de ACTUELE bron + `initieel-weergave` (niet-onderhandelbaar).** Een
+edit-formulier vult elk veld voor uit waar de waarde ná de laatste ADR écht leeft — niet de oude plek.
+Referentie: de organisatie van een gebruikersgroep leeft sinds ADR-036 op het grove feit, niet meer op
+de groep; de read resolvet `organisatie_naam`, het formulier vult daaruit voor. Een `ZoekSelect` kent
+alleen het id, niet de naam: **zonder de `initieel-weergave`-prop blijft het veld leeg terwijl het id
+correct gezet is** (verwarrend + risico op stille ontkoppeling). Geef `:initieel-weergave` bij élke
+edit-prefill; remount met een `:key` als de dialog-instantie voortleeft (anders blijft een vorig
+`gekozenLabel` staan).
+
+**3. Search-first create-in-lege-zoekstaat (voor open-ended catalogi).** Een picker die ter plekke
+aanmaken toestaat (bv. afdeling) biedt dat **pas aan in de lege zoekuitkomst** — géén altijd-zichtbare
+"+ Nieuw"-knop (die lokt voortijdig aanmaken → duplicaten). De aanmaak-actie is contextueel (toont de
+zoekterm + de organisatie), de naam is **vastgeklonken aan de zoekterm**, met een korte **inline**
+bevestiging (geen popup-op-popup), en alleen zichtbaar met aanmaakrecht. De kern-maatregel tegen
+wildgroei is een **vergevingsgezinde zoek** (ilike / partieel / trim), zodat een bestaande afdeling
+gevonden wordt vóór iemand een dubbele aanmaakt. Referentie: generiek `#leeg`-scoped-slot op
+`ZoekSelect.vue` (backward-compatible: default = "Geen resultaten.").
+
 ## Cytoscape.js Vue 3 integratiepatroon (DC013, niet-onderhandelbaar)
 
 Cytoscape.js in een Vue 3 flex-container vereist vier dingen voor een correcte render.
