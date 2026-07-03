@@ -45,9 +45,10 @@ def test_naam_resolutie_per_subtype():
     dt = _rij("datatype", datatype_categorie=DatatypeCategorie.gestructureerd_db, datatype_omschrijving="Klantgegevens")
     assert _naam(dt) == "gestructureerd_db"
     assert _naam_secundair(dt) == "Klantgegevens"
-    # gebruikersgroep → organisatie-naam (uit de partij-join, UX-B6-a) (+ afdeling).
-    assert _naam(_rij("gebruikersgroep", gg_org_naam="Publiekszaken", gg_afdeling="Burgerzaken")) == "Publiekszaken — Burgerzaken"
+    # gebruikersgroep → "afdeling — organisatie" (ADR-036 stap D); terugvallen op alleen één van beide.
+    assert _naam(_rij("gebruikersgroep", gg_org_naam="Tiel", gg_afdeling="Burgerzaken")) == "Burgerzaken — Tiel"
     assert _naam(_rij("gebruikersgroep", gg_org_naam="ICT", gg_afdeling=None)) == "ICT"
+    assert _naam(_rij("gebruikersgroep", gg_org_naam=None, gg_afdeling="Burgers")) == "Burgers"
     # fallback: nooit leeg.
     leeg = _rij("contract", contract_naam=None)
     assert _naam(leeg).startswith("contract ")

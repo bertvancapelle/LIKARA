@@ -13,6 +13,16 @@ export function label(map, code) {
   return map[code] ?? humaniseer(code)
 }
 
+// ADR-036 stap D — een afdeling toont zich overal als "afdeling — organisatie" (bv.
+// "Burgerzaken — Tiel"), zodat gelijknamige afdelingen van verschillende organisaties niet op één
+// hoop vallen. Terugvallen: alleen afdeling, alleen organisatie, of een generieke naam.
+export function gebruikersgroepIdentiteit(afdeling, organisatieNaam) {
+  const a = (afdeling || '').trim()
+  const o = (organisatieNaam || '').trim()
+  if (a && o) return `${a} — ${o}`
+  return a || o || 'Gebruikersgroep'
+}
+
 // ADR-029 — toewijsbare gebruikersrollen bij aanmaak (gesloten lijst; beheerder buiten LIKARA).
 export const GEBRUIKER_ROL = {
   medewerker: 'Medewerker',
@@ -325,5 +335,6 @@ export const SIGNAAL_LABEL = {
   component_geisoleerd: 'Component zonder koppeling (geïsoleerd)',
   contract_zonder_component: 'Contract zonder gekoppeld component',
   gebruikersgroep_zonder_organisatie: 'Gebruikersgroep zonder organisatie',
+  gebruiksfeit_zonder_verfijning: 'Gebruik bekend, detaillering ontbreekt',
   object_zonder_roltoewijzing: 'Object zonder roltoewijzing',
 }

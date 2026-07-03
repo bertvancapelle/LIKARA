@@ -17,7 +17,15 @@ import uuid
 from sqlalchemy import and_, column, exists, func, literal, or_, select, table
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Component, Contract, Gebruikersgroep, Relatie, Roltoewijzing
+from models.models import (
+    Component,
+    Contract,
+    Gebruikersgroep,
+    Organisatiegebruik,
+    Partij,
+    Relatie,
+    Roltoewijzing,
+)
 
 # Lichtgewicht handle op de engine-tabel (shared-PK: component_profiel.id == component.id) — leest
 # lifecycle_status zonder ComponentProfiel te importeren, zodat de engine-borging groen blijft.
@@ -33,6 +41,8 @@ _SIG_ISOLATIE = "component_geisoleerd"
 _SIG_CONTRACT = "contract_zonder_component"
 _SIG_GG_ORG = "gebruikersgroep_zonder_organisatie"
 _SIG_OBJ_ROL = "object_zonder_roltoewijzing"
+# ADR-036 stap C — grof gebruiksfeit zónder afdeling-verfijning eronder ("detaillering ontbreekt").
+_SIG_GEBRUIK_GEEN_VERFIJNING = "gebruiksfeit_zonder_verfijning"
 _KRITIEK = "kritiek"
 _AANDACHT = "aandacht"
 
@@ -286,6 +296,42 @@ async def object_zonder_roltoewijzing(session: AsyncSession, tenant_id) -> list[
     return out
 
 
+async def gebruiksfeit_zonder_verfijning(session: AsyncSession, tenant_id) -> list[dict]:
+    """Grove gebruiksfeiten (organisatie gebruikt applicatie) zónder énige afdeling-verfijning
+    eronder — "gebruik bekend, detaillering ontbreekt" (ADR-036 stap C). Dooft zodra één
+    afdeling-mét-die-organisatie eronder hangt (een gebruikersgroep met `gebruik_id` naar dit feit).
+
+    Aantal-onbekend telt hier bewust NIET mee (een afdeling waarvan alleen het ledental ontbreekt is
+    géén ontbrekende detaillering — voorkomt ruis). Label = "applicatie — organisatie"; de badge linkt
+    naar de applicatie (`applicatie_id`). Puur read-only, engine onaangeroerd."""
+    tid = _tenant_uuid(tenant_id)
+    geen_verfijning = ~exists(
+        select(Gebruikersgroep.id).where(
+            Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id == Organisatiegebruik.id
+        )
+    )
+    stmt = (
+        select(
+            Organisatiegebruik.id,
+            Organisatiegebruik.applicatie_id.label("applicatie_id"),
+            Component.naam.label("app_naam"),
+            Partij.naam.label("org_naam"),
+        )
+        .join(Component, and_(Component.id == Organisatiegebruik.applicatie_id, Component.tenant_id == tid))
+        .join(Partij, and_(Partij.id == Organisatiegebruik.organisatie_id, Partij.tenant_id == tid))
+        .where(Organisatiegebruik.tenant_id == tid, geen_verfijning)
+        .order_by(Component.naam.asc(), Partij.naam.asc(), Organisatiegebruik.id.asc())
+    )
+    return [
+        {
+            "id": r.id, "applicatie_id": r.applicatie_id,
+            "naam": f"{r.app_naam} — {r.org_naam}",
+            "signaal": _SIG_GEBRUIK_GEEN_VERFIJNING, "niveau": _AANDACHT,
+        }
+        for r in (await session.execute(stmt)).all()
+    ]
+
+
 async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
     """Alle actieve signaaltypen, gegroepeerd per ernst (kritiek/aandacht). Read-only."""
     return {
@@ -299,6 +345,7 @@ async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
             _SIG_ISOLATIE: await component_geisoleerd(session, tenant_id),
             _SIG_CONTRACT: await contract_zonder_component(session, tenant_id),
             _SIG_GG_ORG: await gebruikersgroep_zonder_organisatie(session, tenant_id),
+            _SIG_GEBRUIK_GEEN_VERFIJNING: await gebruiksfeit_zonder_verfijning(session, tenant_id),
             _SIG_OBJ_ROL: await object_zonder_roltoewijzing(session, tenant_id),
         },
     }

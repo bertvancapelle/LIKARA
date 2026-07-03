@@ -38,6 +38,7 @@ from models.models import (
     WorkPackage,
 )
 from services import componentconfig_catalog as catalog
+from services import gebruikersgroep_service
 from services.archimate_typing import ELEMENT_ARCHIMATE_TYPING, typing_voor
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -104,8 +105,8 @@ def _naam(r) -> str:
     elif et == "datatype":
         naam = _et_value(r.datatype_categorie) if r.datatype_categorie is not None else None
     elif et == "gebruikersgroep":
-        if r.gg_org_naam:
-            naam = f"{r.gg_org_naam} — {r.gg_afdeling}" if r.gg_afdeling else r.gg_org_naam
+        # ADR-036 stap D — "afdeling — organisatie" (met terugvallen); via de gedeelde helper.
+        naam = gebruikersgroep_service.identiteit(r.gg_afdeling, r.gg_org_naam)
     elif et == "plateau":
         naam = r.plateau_naam
     elif et == "gap":

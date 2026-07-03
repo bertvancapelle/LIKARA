@@ -31,6 +31,7 @@ from models.models import (
 )
 from schemas.landschapskaart import LandschapsEdge, LandschapskaartResponse, LandschapsNode
 from services import componentconfig_catalog as comp_catalog
+from services import gebruikersgroep_service
 from services import relatiekenmerk_catalog as rk_catalog
 
 # Lichtgewicht read-only handles op engine-tabellen — bewust GEEN ORM-import (de import-
@@ -257,7 +258,8 @@ async def haal_grafdata_op(
         ))
 
     # ── Gebruikersgroep-nodes (ADR-031, ring 'gebruikers') — business actor/role ──
-    # Naam: afdeling (bv. "Burgers") of anders de organisatie-naam; ledental uit `aantal_gebruikers`.
+    # Naam (ADR-036 stap D): "afdeling — organisatie" (bv. "Burgerzaken — Tiel"); terugvallen op
+    # alleen afdeling / alleen organisatie / generiek. Ledental uit `aantal_gebruikers`.
     # `organisatie_id` reist mee voor de client-side "groepeer per organisatie"-toggle.
     partij_naam = {r.id: r.naam for r in partij_rijen}
     gebruikersgroep_ids: set[uuid.UUID] = set()
@@ -280,7 +282,7 @@ async def haal_grafdata_op(
     for r in gg_rijen:
         gebruikersgroep_ids.add(r.id)
         gg_org[r.id] = r.organisatie_id
-        naam = r.afdeling or partij_naam.get(r.organisatie_id) or "Gebruikersgroep"
+        naam = gebruikersgroep_service.identiteit(r.afdeling, partij_naam.get(r.organisatie_id))
         nodes.append(LandschapsNode(
             id=r.id, naam=naam, element_type="gebruikersgroep", laag="business",
             archimate_element="business_role",
@@ -300,10 +302,22 @@ async def haal_grafdata_op(
     # ADR-023a Fase 3 — flows per gericht paar (bron,doel) samentrekken tot één edge met `aantal`.
     # Volgorde-stabiel (eerste-gezien paar eerst); assignment/association blijven één-per-rij.
     flow_groepen: dict[tuple, list[dict]] = {}
-    # ADR-024 organisatie-scope (gebruik-kant): per component de gebruikende organisaties afleiden
-    # uit serving (component → gebruikersgroep) × de organisatie van die groep. Groep zonder
-    # organisatie → het component is "organisatieloos gebruikt" (zichtbaar gat, geen toerekening).
+    # ADR-036 stap B — "gebruikt door organisatie(s)" = de grove gebruiksfeiten (organisatiegebruik)
+    # op de applicatie, NIET meer afgeleid uit de groepen. Elke organisatie precies één keer
+    # (UNIQUE(tenant, org, app)); een grof-only feit (organisatie zónder afdeling) verschijnt óók.
+    # De organisaties van afdelingen-mét-organisatie zitten per single-source-of-truth (ADR-036) al
+    # in deze grove feiten → geen dubbeltelling. Org-loze groepen tellen NIET mee (aparte weergave).
     comp_gebruik_orgs: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for r_og in (
+        await session.execute(
+            select(Organisatiegebruik.applicatie_id, Organisatiegebruik.organisatie_id).where(
+                Organisatiegebruik.tenant_id == tid, _sc(Organisatiegebruik.applicatie_id)
+            )
+        )
+    ).all():
+        comp_gebruik_orgs.setdefault(r_og.applicatie_id, set()).add(r_og.organisatie_id)
+    # Org-loze groepen (burgers) → het bediende component is "organisatieloos gebruikt" (zichtbaar
+    # gat, geen toerekening); afgeleid uit de serving-relaties hieronder.
     comp_gebruik_orgloos: set[uuid.UUID] = set()
     for r in rel_rijen:
         rt = _val(r.relatietype)
@@ -320,11 +334,9 @@ async def haal_grafdata_op(
             # ADR-031 — applicatie → gebruikersgroep (wie gebruikt deze applicatie).
             edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
                                         relatietype="serving", label="gebruikt door", ring="gebruikers"))
-            # ADR-024 organisatie-scope: org van de gebruikende groep toerekenen aan het component.
-            org = gg_org.get(r.doel_id)
-            if org is not None:
-                comp_gebruik_orgs.setdefault(r.bron_id, set()).add(org)
-            else:
+            # ADR-036 stap B — de org-toerekening loopt via de grove feiten (hierboven); hier alleen
+            # de organisatieloos-gebruik-flag uit een organisatie-loze groep (geen grof feit eronder).
+            if gg_org.get(r.doel_id) is None:
                 comp_gebruik_orgloos.add(r.bron_id)
         elif rt == "aggregation" and r.bron_id in component_ids and r.doel_id in component_ids:
             # ADR-033 1b — samenstelling: component↔component aggregatie (bron=geheel → doel=onderdeel).
@@ -346,8 +358,8 @@ async def haal_grafdata_op(
                                     relatietype="flow", label="koppeling", ring="applicaties",
                                     richting=richting, protocol=protocol, aantal=len(groep)))
 
-    # ADR-024 organisatie-scope: de afgeleide gebruik-data per component-node invullen (read-only;
-    # geen extra query — uit de al gelezen serving-relaties × gebruikersgroep-organisatie).
+    # ADR-036 stap B — de afgeleide gebruik-data per component-node invullen (read-only): organisaties
+    # uit de grove feiten, organisatieloos-flag uit de org-loze serving-groepen.
     for cid, node in comp_node.items():
         node.gebruikt_door_organisaties = sorted(comp_gebruik_orgs.get(cid, set()), key=str)
         node.gebruikt_door_organisatieloos = cid in comp_gebruik_orgloos

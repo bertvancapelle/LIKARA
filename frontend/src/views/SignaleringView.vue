@@ -27,6 +27,8 @@ const GROEPEN = {
     { key: 'component_geisoleerd', label: 'Component zonder koppeling (geïsoleerd)', link: 'component' },
     { key: 'contract_zonder_component', label: 'Contract zonder gekoppeld component', link: 'contract' },
     { key: 'gebruikersgroep_zonder_organisatie', label: 'Gebruikersgroep zonder organisatie', link: null },
+    // ADR-036 stap C — grof gebruiksfeit zonder afdeling eronder; link naar de applicatie.
+    { key: 'gebruiksfeit_zonder_verfijning', label: 'Gebruik bekend, detaillering ontbreekt', link: 'applicatie' },
     { key: 'object_zonder_roltoewijzing', label: 'Object zonder roltoewijzing', link: 'object' },
   ],
 }
@@ -46,6 +48,8 @@ const totaal = computed(() => {
 })
 function linkVoor(item, soort) {
   if (soort === 'component') return { name: 'component-detail', params: { id: item.id } }
+  // ADR-036 — het grof-feit-item draagt zijn eigen id (v-key) + de applicatie als linkdoel.
+  if (soort === 'applicatie') return { name: 'component-detail', params: { id: item.applicatie_id } }
   if (soort === 'contract') return { name: 'contract-detail', params: { id: item.id } }
   if (soort === 'object') {
     if (item.entiteit_type === 'component') return { name: 'component-detail', params: { id: item.id } }

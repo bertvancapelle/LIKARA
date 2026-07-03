@@ -18,7 +18,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '@/api'
 import ZoekSelect from './ZoekSelect.vue'
-import { humaniseer } from '../labels'
+import { gebruikersgroepIdentiteit, humaniseer } from '../labels'
 
 const props = defineProps({
   opgeslagenViews: { type: Array, default: () => [] },
@@ -106,7 +106,8 @@ const zoekContexten = async ({ zoek } = {}) => {
   return (r || []).map((c) => ({ ...c, _key: `${c.organisatie_id || ''}|${c.afdeling || ''}` }))
 }
 function _contextLabel(c) {
-  return `${c.organisatie_naam || '—'} — ${c.afdeling || '—'} (${c.aantal_componenten} componenten)`
+  // ADR-036 stap D — "afdeling — organisatie" (met terugvallen), plus de component-telling.
+  return `${gebruikersgroepIdentiteit(c.afdeling, c.organisatie_naam)} (${c.aantal_componenten} componenten)`
 }
 
 function _emitComponenten(lijst, mapper) {

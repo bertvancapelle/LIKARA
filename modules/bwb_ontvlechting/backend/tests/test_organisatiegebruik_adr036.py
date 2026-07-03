@@ -77,6 +77,17 @@ def test_gebruikersgroep_heeft_geen_eigen_organisatie_kolom():
     assert hasattr(Gebruikersgroep, "gebruik_id")
 
 
+def test_identiteit_afdeling_organisatie():
+    """ADR-036 stap D — "afdeling — organisatie" met de drie terugvallen (pure helper)."""
+    from services.gebruikersgroep_service import identiteit
+
+    assert identiteit("Burgerzaken", "Tiel") == "Burgerzaken — Tiel"
+    assert identiteit("Burgerzaken", None) == "Burgerzaken"       # org-loos → alleen afdeling
+    assert identiteit(None, "Tiel") == "Tiel"                     # afdeling ontbreekt → organisatie
+    assert identiteit("  ", "  ") == "Gebruikersgroep"            # geen van beide → generiek
+    assert identiteit(None, None) == "Gebruikersgroep"
+
+
 # ── Live (skip-if-no-DB) ─────────────────────────────────────────────────────────
 def _db_bereikbaar() -> bool:
     async def _probe():
@@ -357,6 +368,104 @@ def test_grof_feit_en_afdeling_raken_engine_niet_live():
 
             assert await _status(s, app_id) == voor_status, "lifecycle_status mag niet muteren"
             assert await _blokkades(s, app_id) == voor_blok, "geen blokkade door registratief feit"
+            return True
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run_rls(_flow)) is True
+
+
+@integratie
+def test_kaart_gebruikt_door_grove_feiten_live():
+    """ADR-036 stap B — "gebruikt door organisatie(s)" komt uit de grove feiten: grof-only verschijnt;
+    een organisatie die zowel grof als via een afdeling bekend is telt één keer; een org-loze groep
+    telt niet mee maar zet wél de organisatieloos-flag."""
+    from sqlalchemy import text as _text
+
+    from schemas.gebruikersgroep import GebruikersgroepCreate
+    from services import gebruikersgroep_service as gg
+    from services import landschapskaart_service as lk
+    from services import organisatiegebruik_service as og
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            org1 = await _maak_org(s, tid, "WT-B-Org1")
+            org2 = await _maak_org(s, tid, "WT-B-Org2")
+            app_id = await _maak_app(s, tid, "WT-B-App")
+            await s.commit(); ids += [org1, org2, app_id]
+
+            # org1: zowel grof als via een afdeling; org2: grof-only; plus een org-loze groep.
+            await og.ensure(s, tid, org1, app_id); await s.commit()
+            g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app_id, organisatie_id=org1, afdeling="Burgerzaken", aantal_gebruikers=10))
+            ids.append(g1["id"])
+            await og.ensure(s, tid, org2, app_id); await s.commit()
+            g_loos = await gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app_id, organisatie_id=None, afdeling="Burgers", aantal_gebruikers=999))
+            ids.append(g_loos["id"])
+
+            graf = await lk.haal_grafdata_op(s, _TID)
+            node = next((n for n in graf.nodes if n.id == app_id), None)
+            assert node is not None
+            # Elke organisatie precies één keer (org1 niet dubbel ondanks grof + afdeling).
+            assert sorted(node.gebruikt_door_organisaties, key=str) == sorted([org1, org2], key=str)
+            assert node.gebruikt_door_organisatieloos is True
+            return True
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run_rls(_flow)) is True
+
+
+@integratie
+def test_signaal_detaillering_ontbreekt_live():
+    """ADR-036 stap C — het signaal vuurt op een grof feit zonder afdeling en dooft zodra een
+    afdeling-mét-die-organisatie eronder hangt; aantal-onbekend triggert het NIET."""
+    from sqlalchemy import text as _text
+
+    from schemas.gebruikersgroep import GebruikersgroepCreate
+    from services import gebruikersgroep_service as gg
+    from services import organisatiegebruik_service as og
+    from services import registratiegaten_service as rg
+
+    tid = uuid.UUID(_TID)
+
+    async def _mijn(s, app_id):
+        rijen = await rg.gebruiksfeit_zonder_verfijning(s, tid)
+        return [r for r in rijen if r["applicatie_id"] == app_id]
+
+    async def _flow(s):
+        ids = []
+        try:
+            org1 = await _maak_org(s, tid, "WT-C-Org1")
+            org2 = await _maak_org(s, tid, "WT-C-Org2")
+            app_id = await _maak_app(s, tid, "WT-C-App")
+            await s.commit(); ids += [org1, org2, app_id]
+
+            # Grof-only feit → vuurt (aandacht), label "app — org".
+            await og.ensure(s, tid, org1, app_id); await s.commit()
+            mijn = await _mijn(s, app_id)
+            assert len(mijn) == 1 and mijn[0]["niveau"] == "aandacht"
+            assert mijn[0]["naam"] == "WT-C-App — WT-C-Org1"
+
+            # Afdeling-mét-organisatie ZONDER aantal → verfijning bestaat → signaal dooft; aantal-
+            # onbekend triggert dus niet.
+            g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app_id, organisatie_id=org1, afdeling="Burgerzaken", aantal_gebruikers=None))
+            ids.append(g1["id"])
+            assert await _mijn(s, app_id) == []
+
+            # Tweede grof-only feit (org2) → vuurt weer, alleen voor org2.
+            await og.ensure(s, tid, org2, app_id); await s.commit()
+            mijn2 = await _mijn(s, app_id)
+            assert len(mijn2) == 1 and mijn2[0]["naam"] == "WT-C-App — WT-C-Org2"
             return True
         finally:
             for eid in ids:

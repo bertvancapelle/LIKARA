@@ -67,6 +67,18 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
+def identiteit(afdeling: str | None, organisatie_naam: str | None) -> str:
+    """ADR-036 stap D — een afdeling toont zich overal als "afdeling — organisatie"
+    (bv. "Burgerzaken — Tiel"), zodat gelijknamige afdelingen van verschillende organisaties niet
+    op één hoop vallen. Terugvallen: alleen afdeling (org-loos), alleen organisatie (afdeling
+    ontbreekt), of een generieke naam (geen van beide — bv. een burger-groep)."""
+    afdeling = (afdeling or "").strip() or None
+    organisatie_naam = (organisatie_naam or "").strip() or None
+    if afdeling and organisatie_naam:
+        return f"{afdeling} — {organisatie_naam}"
+    return afdeling or organisatie_naam or "Gebruikersgroep"
+
+
 def _lees(obj: Gebruikersgroep, applicatie_id, organisatie_id=None, organisatie_naam=None) -> dict:
     """API-vorm (applicatie_id afgeleid uit serving; organisatie via het grove feit — ADR-036).
     None = wees (applicatie weg) resp. organisatie-loos."""
