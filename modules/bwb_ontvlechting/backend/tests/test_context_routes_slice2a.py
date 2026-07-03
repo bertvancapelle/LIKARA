@@ -193,47 +193,45 @@ def test_gebruiker_contexten_en_componenten():
 
     sfx = uuid.uuid4().hex[:8]
     afd_org = f"WT-S2a-Afd-{sfx}"
-    afd_burgers = f"WT-S2a-Burgers-{sfx}"
 
     async def _flow(s):
-        org_id = a_org = a_burg = g1 = g2 = None
+        org_id = a_org = a_burg = g1 = g2 = afd_id = None
         try:
             org = await partij_service.maak_aan(s, _TID, PartijCreate(aard=PartijAard.organisatie, naam=f"WT-S2a-Org-{sfx}"))
             org_id = org.id
+            # ADR-036a — afdeling = een echte organisatie_eenheid-partij binnen de organisatie.
+            afd = await partij_service.maak_aan(s, _TID, PartijCreate(
+                aard=PartijAard.organisatie_eenheid, naam=afd_org, organisatie_id=org_id))
+            afd_id = afd.id
             a_org = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppOrg-{sfx}")))["id"]
             a_burg = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppBurg-{sfx}")))["id"]
             g1 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(
-                applicatie_id=a_org, organisatie_id=org_id, afdeling=afd_org, aantal_gebruikers=10)))["id"]
+                applicatie_id=a_org, organisatie_id=org_id, afdeling_id=afd_id, aantal_gebruikers=10)))["id"]
+            # Org-loze groep (burgers): geen organisatie ⇒ geen afdeling (ADR-036a).
             g2 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(
-                applicatie_id=a_burg, organisatie_id=None, afdeling=afd_burgers, aantal_gebruikers=20)))["id"]
+                applicatie_id=a_burg, organisatie_id=None, afdeling_id=None, aantal_gebruikers=20)))["id"]
 
-            # 2a — zoek op de gedeelde WT-prefix → exact deze twee contexten.
-            ctx = await gg.contexten(s, _TID, zoek=f"WT-S2a-")
-            mijn = {(c["organisatie_id"], c["afdeling"]): c for c in ctx if c["afdeling"] in (afd_org, afd_burgers)}
-            # 2a — zoek alleen op de afdeling-naam (vrije term op afdeling) → één context.
-            ctx_burg = await gg.contexten(s, _TID, zoek=afd_burgers)
-            # 2b — componenten per context (nullable-veilig).
-            comp_org = await gg.componenten_voor_context(s, _TID, organisatie_id=org_id, afdeling=afd_org)
-            comp_burg = await gg.componenten_voor_context(s, _TID, organisatie_id=None, afdeling=afd_burgers)
-            return (mijn, ctx_burg, comp_org, comp_burg, org_id, a_org, a_burg)
+            # 2a — zoek op de afdeling-naam → precies de org-context (distinct via de afdeling-partij).
+            ctx = await gg.contexten(s, _TID, zoek=afd_org)
+            mijn = {(c["organisatie_id"], c["afdeling"]): c for c in ctx}
+            # 2b — componenten per context (nullable-veilig; afdeling_id-referentie).
+            comp_org = await gg.componenten_voor_context(s, _TID, organisatie_id=org_id, afdeling_id=afd_id)
+            comp_burg = await gg.componenten_voor_context(s, _TID, organisatie_id=None, afdeling_id=None)
+            return (mijn, comp_org, comp_burg, org_id, afd_org, a_org, a_burg)
         finally:
-            await _ruim(s, [g1, g2, a_org, a_burg, org_id])
+            # RESTRICT-volgorde: groepen → afdeling → apps/organisatie.
+            await _ruim(s, [g1, g2, afd_id, a_org, a_burg, org_id])
 
-    mijn, ctx_burg, comp_org, comp_burg, org_id, a_org, a_burg = asyncio.run(_sessie_run(_flow))
+    mijn, comp_org, comp_burg, org_id, afd_org, a_org, a_burg = asyncio.run(_sessie_run(_flow))
 
-    # 2a — beide WT-contexten aanwezig; de Burgers-casus heeft een LEGE organisatie.
+    # 2a — de org-context is aanwezig, distinct via de afdeling-partij, met geresolveerde namen.
     assert (org_id, afd_org) in mijn
-    assert (None, afd_burgers) in mijn
     assert mijn[(org_id, afd_org)]["aantal_componenten"] == 1
-    assert mijn[(None, afd_burgers)]["aantal_componenten"] == 1
-    assert mijn[(org_id, afd_org)]["organisatie_naam"] == f"WT-S2a-Org-{sfx}"  # naam geresolveerd
-    assert mijn[(None, afd_burgers)]["organisatie_naam"] is None               # lege org → geen naam
-    # 2a — zoek op afdeling-naam filtert tot precies de Burgers-context.
-    assert any(c["afdeling"] == afd_burgers and c["organisatie_id"] is None for c in ctx_burg)
-    assert all(c["afdeling"] != afd_org for c in ctx_burg)
-    # 2b — exact de juiste, distinct component-ids per context.
+    assert mijn[(org_id, afd_org)]["organisatie_naam"] == f"WT-S2a-Org-{sfx}"
+    # 2b — exact de juiste component voor de org-context; de burger-component is bereikbaar via de
+    # organisatie-loze context (— / —), die met andere org-loze groepen deelt (dus 'bevat', geen '==').
     assert {r["component_id"] for r in comp_org} == {a_org}
-    assert {r["component_id"] for r in comp_burg} == {a_burg}
+    assert a_burg in {r["component_id"] for r in comp_burg}
 
 
 @integratie
@@ -254,7 +252,7 @@ def test_endpoints_muteren_geen_component_profiel():
             await contract_service.componenten(s, _TID, con_id)
         ctx = await gg.contexten(s, _TID)
         for c in ctx[:3]:
-            await gg.componenten_voor_context(s, _TID, organisatie_id=c["organisatie_id"], afdeling=c["afdeling"])
+            await gg.componenten_voor_context(s, _TID, organisatie_id=c["organisatie_id"], afdeling_id=c["afdeling_id"])
         na = await _telling()
         return voor, na, len(ctx)
 

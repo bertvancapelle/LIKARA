@@ -472,8 +472,10 @@ def test_landschapskaart_organisatie_scope_live():
             s.add(og); await s.flush()
             gebruik_id = og.id
         elem = Element(tenant_id=tid, element_type=ElementType.gebruikersgroep); s.add(elem); await s.flush()
+        # ADR-036a — de afdeling is nu een partij-referentie; deze org-scope-test toetst alleen de
+        # organisatie-toerekening, dus zonder afdeling (afdeling_id NULL).
         s.add(Gebruikersgroep(id=elem.id, tenant_id=tid, gebruik_id=gebruik_id,
-                              afdeling=naam, aantal_gebruikers=10)); await s.flush()
+                              aantal_gebruikers=10)); await s.flush()
         return elem.id
 
     async def _flow(s):

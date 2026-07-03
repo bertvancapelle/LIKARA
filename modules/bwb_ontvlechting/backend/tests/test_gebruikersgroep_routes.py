@@ -22,6 +22,7 @@ def _fake_groep():
         applicatie_id=uuid.UUID(_APP_ID),
         organisatie_id=None,
         organisatie_naam=None,
+        afdeling_id=None,
         afdeling=None,
         aantal_gebruikers=None,
         created_at=datetime(2026, 6, 6, tzinfo=timezone.utc),
@@ -89,7 +90,7 @@ _ENDPOINTS = [
     ("L", "GET", "/api/v1/gebruikersgroepen", None, 200),
     ("L", "GET", f"/api/v1/gebruikersgroepen/{_ID}", None, 200),
     ("A", "POST", "/api/v1/gebruikersgroepen", _CREATE_BODY, 201),
-    ("W", "PATCH", f"/api/v1/gebruikersgroepen/{_ID}", {"afdeling": "Burgerzaken"}, 200),
+    ("W", "PATCH", f"/api/v1/gebruikersgroepen/{_ID}", {"afdeling_id": None}, 200),
     ("V", "DELETE", f"/api/v1/gebruikersgroepen/{_ID}", None, 204),
 ]
 

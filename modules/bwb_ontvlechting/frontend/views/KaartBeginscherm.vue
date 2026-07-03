@@ -103,7 +103,7 @@ const zoekEigenaars = (params = {}) => api.partijen.lijst({ ...params, aard: 'or
 // voorzie elke rij van een synthetische `_key` (idVeld) want er is geen enkelvoudige id-kolom.
 const zoekContexten = async ({ zoek } = {}) => {
   const r = await api.gebruikersgroepen.contexten({ zoek })
-  return (r || []).map((c) => ({ ...c, _key: `${c.organisatie_id || ''}|${c.afdeling || ''}` }))
+  return (r || []).map((c) => ({ ...c, _key: `${c.organisatie_id || ''}|${c.afdeling_id || ''}` }))
 }
 function _contextLabel(c) {
   // ADR-036 stap D — "afdeling — organisatie" (met terugvallen), plus de component-telling.
@@ -131,7 +131,7 @@ async function kiesContext(item) {
   try {
     const r = await api.gebruikersgroepen.contextComponenten({
       organisatie_id: item.organisatie_id || undefined,
-      afdeling: item.afdeling || undefined,
+      afdeling_id: item.afdeling_id || undefined,
     })
     _emitComponenten(r, (c) => ({ id: c.component_id, naam: c.component_naam, componenttype: c.componenttype }))
   } catch { /* faalt zacht */ }

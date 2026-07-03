@@ -265,16 +265,19 @@ async def haal_grafdata_op(
     gebruikersgroep_ids: set[uuid.UUID] = set()
     # ADR-036 — de organisatie leeft op het grove feit; LEFT JOIN het feit via `gebruik_id`
     # (gedrag identiek aan de oude `organisatie_id`-kolom: org-loze groep → NULL).
+    # ADR-036a — de afdeling is een `organisatie_eenheid`-partij; join haar direct voor de naam
+    # (de gescoopte `partij_naam`-map dekt de afdeling-partij niet noodzakelijk).
     gg_rijen = (
         await session.execute(
             select(
                 Gebruikersgroep.id, Organisatiegebruik.organisatie_id.label("organisatie_id"),
-                Gebruikersgroep.afdeling, Gebruikersgroep.aantal_gebruikers,
+                Partij.naam.label("afdeling_naam"), Gebruikersgroep.aantal_gebruikers,
             )
             .outerjoin(
                 Organisatiegebruik,
                 and_(Organisatiegebruik.id == Gebruikersgroep.gebruik_id, Organisatiegebruik.tenant_id == tid),
             )
+            .outerjoin(Partij, and_(Partij.id == Gebruikersgroep.afdeling_id, Partij.tenant_id == tid))
             .where(Gebruikersgroep.tenant_id == tid, _sc(Gebruikersgroep.id))
         )
     ).all()
@@ -282,7 +285,7 @@ async def haal_grafdata_op(
     for r in gg_rijen:
         gebruikersgroep_ids.add(r.id)
         gg_org[r.id] = r.organisatie_id
-        naam = gebruikersgroep_service.identiteit(r.afdeling, partij_naam.get(r.organisatie_id))
+        naam = gebruikersgroep_service.identiteit(r.afdeling_naam, partij_naam.get(r.organisatie_id))
         nodes.append(LandschapsNode(
             id=r.id, naam=naam, element_type="gebruikersgroep", laag="business",
             archimate_element="business_role",

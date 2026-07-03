@@ -157,7 +157,7 @@ export const api = {
       request(`/gebruikersgroepen/contexten${_filterQuery('gebruikersgroepen.contexten', params, ['zoek'])}`),
     contextComponenten: (params = {}) =>
       request(
-        `/gebruikersgroepen/contexten/componenten${_filterQuery('gebruikersgroepen.contextComponenten', params, ['organisatie_id', 'afdeling'])}`,
+        `/gebruikersgroepen/contexten/componenten${_filterQuery('gebruikersgroepen.contextComponenten', params, ['organisatie_id', 'afdeling_id'])}`,
       ),
   },
 

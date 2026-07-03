@@ -63,8 +63,10 @@ def _enum(module, naam):
 _CONFIG = [
     (datatype_service, "datatype", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "datatype.created_at", "omschrijving", "datatype.omschrijving"),
+    # ADR-036a — `afdeling` sorteert nu op de gejoinde partij-naam; het voorbeeld-veld gebruikt een
+    # directe gebruikersgroep-kolom voor de ORDER-BY-prefix-assertie.
     (gebruikersgroep_service, "gebruikersgroep", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
-     "gebruikersgroep.created_at", "afdeling", "gebruikersgroep.afdeling"),
+     "gebruikersgroep.created_at", "aantal_gebruikers", "gebruikersgroep.aantal_gebruikers"),
     (checklistscore_service, "checklistscore", "_SORTEERBARE_KOLOMMEN", "_WAARDE_PARSERS",
      "checklistscore.created_at", "score", "checklistscore.score"),
     (blokkade_service, "blokkade", "_LIJST_KOLOMMEN", "_LIJST_PARSERS",

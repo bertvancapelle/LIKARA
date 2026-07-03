@@ -180,6 +180,7 @@ async def lijst(
     # `gebruik_id` → `organisatiegebruik` → partij voor de display-naam.
     gg_gebruik = aliased(Organisatiegebruik)
     gg_org = aliased(Partij)
+    gg_afd = aliased(Partij)  # ADR-036a — afdeling-partij (organisatie_eenheid) voor de naam
     partij_self = aliased(Partij)  # partij-element zelf (element.id == partij.id) — eigen naam/aard
     naam_expr = func.coalesce(
         Component.naam, Contract.contractnaam, cast(Datatype.categorie, String),
@@ -206,7 +207,7 @@ async def lijst(
             Datatype.categorie.label("datatype_categorie"),
             Datatype.omschrijving.label("datatype_omschrijving"),
             gg_org.naam.label("gg_org_naam"),
-            Gebruikersgroep.afdeling.label("gg_afdeling"),
+            gg_afd.naam.label("gg_afdeling"),
             Plateau.naam.label("plateau_naam"),
             Gap.naam.label("gap_naam"),
             WorkPackage.naam.label("wp_naam"),
@@ -221,6 +222,7 @@ async def lijst(
         .outerjoin(Gebruikersgroep, and_(Gebruikersgroep.id == Element.id, Gebruikersgroep.tenant_id == tid))
         .outerjoin(gg_gebruik, and_(gg_gebruik.id == Gebruikersgroep.gebruik_id, gg_gebruik.tenant_id == tid))
         .outerjoin(gg_org, and_(gg_org.id == gg_gebruik.organisatie_id, gg_org.tenant_id == tid))
+        .outerjoin(gg_afd, and_(gg_afd.id == Gebruikersgroep.afdeling_id, gg_afd.tenant_id == tid))
         .outerjoin(Plateau, and_(Plateau.id == Element.id, Plateau.tenant_id == tid))
         .outerjoin(Gap, and_(Gap.id == Element.id, Gap.tenant_id == tid))
         .outerjoin(WorkPackage, and_(WorkPackage.id == Element.id, WorkPackage.tenant_id == tid))

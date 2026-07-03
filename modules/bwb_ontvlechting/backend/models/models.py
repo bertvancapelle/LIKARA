@@ -466,13 +466,22 @@ class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "gebruik_id"], ["organisatiegebruik.tenant_id", "organisatiegebruik.id"],
             name="fk_gebruikersgroep_gebruik", ondelete="SET NULL",
         ),
+        # ADR-036a — afdeling structureel: verwijzing naar een `organisatie_eenheid`-partij (element),
+        # spiegel van het persoon→afdeling-patroon (ADR-024). ON DELETE RESTRICT: een afdeling met
+        # groepen verdwijnt niet stil. De aard/organisatie-consistentie (org-eenheid binnen de
+        # grove-feit-organisatie) borgt de service.
+        ForeignKeyConstraint(
+            ["tenant_id", "afdeling_id"], ["element.tenant_id", "element.id"],
+            name="fk_gebruikersgroep_afdeling", ondelete="RESTRICT",
+        ),
     )
 
     # ADR-023 B-mig-2 slice 4: de band met de applicatie is een `serving`-relatie geworden.
     id: Mapped[uuid.UUID] = _pk()
     # ADR-036 — verwijzing naar het grove gebruiksfeit (de organisatie leeft daar); NULL = org-loos.
     gebruik_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    afdeling: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # ADR-036a — afdeling als structurele referentie (organisatie_eenheid-partij); NULL = geen afdeling.
+    afdeling_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     aantal_gebruikers: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 

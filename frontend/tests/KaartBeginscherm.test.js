@@ -37,7 +37,7 @@ beforeEach(() => {
   api.contracten.lijst.mockResolvedValue({ items: [{ id: 'k1', naam: 'Contract X' }] })
   api.contracten.componenten.mockResolvedValue([{ component_id: 'c3', component_naam: 'DMS', componenttype: 'applicatie' }])
   api.gebruikersgroepen.contexten.mockResolvedValue([
-    { organisatie_id: 'o1', organisatie_naam: 'Tiel', afdeling: 'Burgerzaken', aantal_componenten: 4 },
+    { organisatie_id: 'o1', organisatie_naam: 'Tiel', afdeling_id: 'a1', afdeling: 'Burgerzaken', aantal_componenten: 4 },
   ])
   api.gebruikersgroepen.contextComponenten.mockResolvedValue([
     { component_id: 'c4', component_naam: 'Burgerportaal', componenttype: 'applicatie' },
@@ -102,11 +102,11 @@ describe('KaartBeginscherm', () => {
     expect(w.emitted('voegComponentenToe')[0][0]).toEqual([{ id: 'c3', naam: 'DMS', componenttype: 'applicatie' }])
   })
 
-  it('gebruikerscontext selecteren → contextComponenten met (organisatie_id, afdeling) → voegComponentenToe', async () => {
+  it('gebruikerscontext selecteren → contextComponenten met (organisatie_id, afdeling_id) → voegComponentenToe', async () => {
     const w = mountKB()
-    await zs(w, 'kb-context').vm.$emit('keuze', { organisatie_id: 'o1', afdeling: 'Burgerzaken', _key: 'o1|Burgerzaken' })
+    await zs(w, 'kb-context').vm.$emit('keuze', { organisatie_id: 'o1', afdeling_id: 'a1', afdeling: 'Burgerzaken', _key: 'o1|a1' })
     await flushPromises()
-    expect(api.gebruikersgroepen.contextComponenten).toHaveBeenCalledWith({ organisatie_id: 'o1', afdeling: 'Burgerzaken' })
+    expect(api.gebruikersgroepen.contextComponenten).toHaveBeenCalledWith({ organisatie_id: 'o1', afdeling_id: 'a1' })
     expect(w.emitted('voegComponentenToe')[0][0]).toEqual([{ id: 'c4', naam: 'Burgerportaal', componenttype: 'applicatie' }])
   })
 

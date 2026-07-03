@@ -1,24 +1,27 @@
-"""Pydantic v2-schemas voor de entiteit Gebruikersgroep (P5-vervolg, ADR-009).
+"""Pydantic v2-schemas voor de entiteit Gebruikersgroep (P5-vervolg, ADR-009; ADR-036; ADR-036a).
 
 ADR-024 UX-B6-a: `organisatie` is een **optionele verwijzing** naar een organisatie-partij
-(`organisatie_id`), niet langer vrije tekst. `aantal_gebruikers` is optioneel en niet-negatief
-(`ge=0`). `applicatie_id` zit in Create maar niet in Update (immutabel).
+(`organisatie_id`). `aantal_gebruikers` is optioneel en niet-negatief (`ge=0`). `applicatie_id` zit
+in Create maar niet in Update (immutabel).
+
+ADR-036a: `afdeling` is niet langer vrije tekst maar een **structurele referentie** `afdeling_id`
+naar een `organisatie_eenheid`-partij (binnen de organisatie van het grove feit — service borgt
+dat). Create/Update dragen `afdeling_id`; Read geeft `afdeling_id` + de geresolveerde `afdeling`
+(partij-naam) terug.
 """
 import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-from schemas._validators import _optionele_tekst
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class GebruikersgroepSorteerveld(str, Enum):
     """Allowlist van sorteerbare lijst-velden (ADR-017 B2, retrofit CD020).
 
-    Dekt de getoonde kolommen. `organisatie` sorteert op de naam van de gekoppelde
-    organisatie-partij (nullable → NULLS LAST). `afdeling`/`aantal_gebruikers` nullable
-    eveneens. De service mapt deze namen 1-op-1; een test borgt de synchroniteit.
+    `organisatie`/`afdeling` sorteren op de naam van de gekoppelde partij (nullable → NULLS LAST);
+    `aantal_gebruikers` nullable eveneens. De service mapt deze namen 1-op-1; een test borgt de
+    synchroniteit.
     """
 
     created_at = "created_at"
@@ -33,13 +36,9 @@ class GebruikersgroepCreate(BaseModel):
     applicatie_id: uuid.UUID
     # ADR-024 UX-B6-a — optionele verwijzing naar de organisatie (partij, aard=organisatie).
     organisatie_id: uuid.UUID | None = None
-    afdeling: str | None = None
+    # ADR-036a — optionele verwijzing naar een organisatie_eenheid-partij (afdeling).
+    afdeling_id: uuid.UUID | None = None
     aantal_gebruikers: int | None = Field(default=None, ge=0)
-
-    @field_validator("afdeling")
-    @classmethod
-    def _v_afdeling(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 255)
 
 
 class GebruikersgroepUpdate(BaseModel):
@@ -48,13 +47,8 @@ class GebruikersgroepUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     organisatie_id: uuid.UUID | None = None
-    afdeling: str | None = None
+    afdeling_id: uuid.UUID | None = None
     aantal_gebruikers: int | None = Field(default=None, ge=0)
-
-    @field_validator("afdeling")
-    @classmethod
-    def _v_afdeling(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 255)
 
 
 class GebruikersgroepRead(BaseModel):
@@ -66,7 +60,9 @@ class GebruikersgroepRead(BaseModel):
     # ADR-024 UX-B6-a — organisatie als verwijzing + geresolveerde naam (read).
     organisatie_id: uuid.UUID | None = None
     organisatie_naam: str | None = None
-    afdeling: str | None
+    # ADR-036a — afdeling als verwijzing + geresolveerde partij-naam.
+    afdeling_id: uuid.UUID | None = None
+    afdeling: str | None = None
     aantal_gebruikers: int | None
     created_at: datetime
     updated_at: datetime

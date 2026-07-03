@@ -78,14 +78,14 @@ async def lijst_gebruikercontexten(
 @router.get("/contexten/componenten", response_model=list[ContextComponentRead])
 async def gebruikercontext_componenten(
     organisatie_id: uuid.UUID | None = Query(None),
-    afdeling: str | None = Query(None, max_length=255),
+    afdeling_id: uuid.UUID | None = Query(None),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSGROEP, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     """Componenten voor één gebruikercontext (context-route naar de subgraaf). Nullable composiet-
-    sleutel via query-params: niet-opgegeven = null-match (exacte context). Read-only."""
+    sleutel via query-params (ADR-036a: `afdeling_id`): niet-opgegeven = null-match. Read-only."""
     return await svc.componenten_voor_context(
-        session, user.tenant_id, organisatie_id=organisatie_id, afdeling=afdeling
+        session, user.tenant_id, organisatie_id=organisatie_id, afdeling_id=afdeling_id
     )
 
 

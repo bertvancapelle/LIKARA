@@ -14,8 +14,10 @@ def test_create_happy_path():
     from schemas.gebruikersgroep import GebruikersgroepCreate
 
     org_id = uuid.uuid4()
-    m = GebruikersgroepCreate(**_basis(), organisatie_id=org_id, afdeling="Burgerzaken", aantal_gebruikers=12)
+    afd_id = uuid.uuid4()
+    m = GebruikersgroepCreate(**_basis(), organisatie_id=org_id, afdeling_id=afd_id, aantal_gebruikers=12)
     assert m.organisatie_id == org_id
+    assert m.afdeling_id == afd_id
     assert m.aantal_gebruikers == 12
 
 
@@ -86,8 +88,8 @@ def test_update_aantal_negatief_geweigerd():
 def test_update_afdeling_wissen_toegestaan():
     from schemas.gebruikersgroep import GebruikersgroepUpdate
 
-    m = GebruikersgroepUpdate(afdeling=None)
-    assert "afdeling" in m.model_fields_set and m.afdeling is None
+    m = GebruikersgroepUpdate(afdeling_id=None)
+    assert "afdeling_id" in m.model_fields_set and m.afdeling_id is None
 
 
 def test_read_geen_tenant_id():

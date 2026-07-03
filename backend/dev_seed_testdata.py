@@ -1389,35 +1389,43 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             await _feit(app_naam, org_naam)
     await session.commit()  # grove feiten borgen vóór de verfijningen (idempotent-veilig)
 
+    # ADR-036a — afdelingen zijn structurele organisatie_eenheid-partijen ónder de gemeente.
+    # Maak ze aan (idempotent via _partij) zodat de verfijningen ernaar kunnen verwijzen via afdeling_id.
+    await _partij(PartijAard.organisatie_eenheid, "Burgerzaken", "afdelingen", organisatie_id=partij_id["Gemeente Tiel"])
+    await _partij(PartijAard.organisatie_eenheid, "Publiekszaken", "afdelingen", organisatie_id=partij_id["Gemeente Culemborg"])
+    await _partij(PartijAard.organisatie_eenheid, "Documentbeheer", "afdelingen", organisatie_id=partij_id["Gemeente West Betuwe"])
+
     # Verfijning = een afdeling MÉT organisatie ónder het grove feit (hergebruikt het feit via
-    # gebruikersgroep_service; geen dubbele org-invoer). Idempotent op (app, org, afdeling).
+    # gebruikersgroep_service; geen dubbele org-invoer). ADR-036a: afdeling = een org-eenheid-partij.
+    # Idempotent op (app, org, afdeling_id).
     verfijning_rows = (
         await session.execute(
-            select(Relatie.bron_id, Organisatiegebruik.organisatie_id, Gebruikersgroep.afdeling)
+            select(Relatie.bron_id, Organisatiegebruik.organisatie_id, Gebruikersgroep.afdeling_id)
             .join(Gebruikersgroep, Gebruikersgroep.id == Relatie.doel_id)
             .outerjoin(Organisatiegebruik, Organisatiegebruik.id == Gebruikersgroep.gebruik_id)
             .where(Relatie.relatietype == "serving", Relatie.tenant_id == tid)
         )
     ).all()
-    bestaande_gg = {(r.bron_id, r.organisatie_id, r.afdeling) for r in verfijning_rows}
+    bestaande_gg = {(r.bron_id, r.organisatie_id, r.afdeling_id) for r in verfijning_rows}
 
-    async def _gg(app_naam, org_naam, afdeling, aantal):
+    async def _gg(app_naam, org_naam, afdeling_naam, aantal):
         org_id = partij_id[org_naam] if org_naam else None
-        key = (app_id[app_naam], org_id, afdeling)
+        afdeling_id = partij_id[afdeling_naam] if afdeling_naam else None
+        key = (app_id[app_naam], org_id, afdeling_id)
         if key in bestaande_gg:
             return
         await gebruikersgroep_service.maak_aan(session, tid, GebruikersgroepCreate(
-            applicatie_id=app_id[app_naam], organisatie_id=org_id, afdeling=afdeling, aantal_gebruikers=aantal))
+            applicatie_id=app_id[app_naam], organisatie_id=org_id, afdeling_id=afdeling_id, aantal_gebruikers=aantal))
         bestaande_gg.add(key)
         telling["gebruikersgroepen"] += 1
 
-    # Fijne verfijningen (afdeling + organisatie) onder bestaande grove feiten.
+    # Fijne verfijningen (afdeling-partij + organisatie) onder bestaande grove feiten.
     await _gg("Zaaksysteem", "Gemeente Tiel", "Burgerzaken", 40)
     await _gg("Zaaksysteem", "Gemeente Culemborg", "Publiekszaken", 25)
     await _gg("DMS", "Gemeente West Betuwe", "Documentbeheer", 15)
-    # Organisatie-loze groepen (burgers/inwoners): hangen onder GEEN grof feit, blijven geldig.
+    # Organisatie-loze groepen (burgers/inwoners): geen organisatie ⇒ geen afdeling (ADR-036a).
     for app_naam in ["Klantportaal", "Burgerzaken-suite", "Zaaksysteem"]:
-        await _gg(app_naam, None, "Burgers", 35000)
+        await _gg(app_naam, None, None, 35000)
 
     # ── 14. Infrastructuur (technology-laag) + component-samenstelling (LI021, context) ──
     # KALE componenten (Element + Component, géén subtype/scoring/profiel) → engine onaangeroerd.

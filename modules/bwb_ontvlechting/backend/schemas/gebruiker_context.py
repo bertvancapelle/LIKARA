@@ -26,5 +26,7 @@ class GebruikerContextRead(BaseModel):
 
     organisatie_id: uuid.UUID | None = None
     organisatie_naam: str | None = None
+    # ADR-036a — afdeling als structurele referentie (id) + geresolveerde partij-naam.
+    afdeling_id: uuid.UUID | None = None
     afdeling: str | None = None
     aantal_componenten: int

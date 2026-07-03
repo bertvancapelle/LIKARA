@@ -136,6 +136,18 @@ async def _maak_org(s, tid, naam, aard=None):
     return elem.id
 
 
+async def _maak_afdeling(s, tid, naam, organisatie_id):
+    """ADR-036a — een organisatie_eenheid-partij (afdeling) binnen een organisatie."""
+    from models.models import Element, ElementType, Partij, PartijAard
+
+    elem = Element(tenant_id=tid, element_type=ElementType.partij)
+    s.add(elem); await s.flush()
+    s.add(Partij(id=elem.id, tenant_id=tid, aard=PartijAard.organisatie_eenheid,
+                 naam=naam, organisatie_id=organisatie_id))
+    await s.flush()
+    return elem.id
+
+
 async def _maak_app(s, tid, naam="WT-OG-App"):
     from models.models import HostingModel, Migratiepad, NiveauEnum
     from services import component_service
@@ -221,13 +233,16 @@ def test_afdeling_borgt_grof_feit_automatisch_live():
         try:
             org_id = await _maak_org(s, tid, "WT-OG-Org2")
             app_id = await _maak_app(s, tid, "WT-OG-App2")
-            await s.commit(); ids += [org_id, app_id]
+            afd1 = await _maak_afdeling(s, tid, "WT-OG-Burgerzaken", org_id)
+            afd2 = await _maak_afdeling(s, tid, "WT-OG-Publiekszaken", org_id)
+            await s.commit(); ids += [org_id, app_id, afd1, afd2]
 
             # Afdeling + organisatie → grove feit ontstaat automatisch.
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling="Burgerzaken", aantal_gebruikers=40))
+                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd1, aantal_gebruikers=40))
             ids.append(g1["id"])
             assert g1["organisatie_id"] == org_id and g1["organisatie_naam"] == "WT-OG-Org2"
+            assert g1["afdeling_id"] == afd1 and g1["afdeling"] == "WT-OG-Burgerzaken"
 
             # Verfijning-link: de groep verwijst structureel naar het grove feit.
             gg_obj = await gg.haal_op(s, tid, g1["id"])
@@ -237,7 +252,7 @@ def test_afdeling_borgt_grof_feit_automatisch_live():
 
             # Tweede afdeling van dezelfde organisatie → hergebruikt hetzelfde grove feit (geen duplicaat).
             g2 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling="Publiekszaken", aantal_gebruikers=25))
+                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd2, aantal_gebruikers=25))
             ids.append(g2["id"])
             aantal = (await s.execute(
                 select(func.count()).select_from(Organisatiegebruik).where(
@@ -249,7 +264,9 @@ def test_afdeling_borgt_grof_feit_automatisch_live():
             assert g2_obj.gebruik_id == gg_obj.gebruik_id  # beide verfijnen hetzelfde feit
             return True
         finally:
-            for eid in ids:
+            # ADR-036a — afdeling-FK is RESTRICT: verwijder in omgekeerde afhankelijkheidsvolgorde
+            # (groepen vóór afdelingen vóór organisaties).
+            for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 
@@ -270,10 +287,12 @@ def test_organisatie_loze_groep_blijft_geldig_live():
         try:
             app_id = await _maak_app(s, tid, "WT-OG-App3")
             await s.commit(); ids.append(app_id)
+            # ADR-036a — organisatie-loze groep draagt geen afdeling.
             groep = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=None, afdeling="Burgers", aantal_gebruikers=35000))
+                applicatie_id=app_id, organisatie_id=None, afdeling_id=None, aantal_gebruikers=35000))
             ids.append(groep["id"])
             assert groep["organisatie_id"] is None and groep["organisatie_naam"] is None
+            assert groep["afdeling_id"] is None
             obj = await gg.haal_op(s, tid, groep["id"])
             assert obj.gebruik_id is None  # hangt onder géén grof feit
             return True
@@ -357,20 +376,21 @@ def test_grof_feit_en_afdeling_raken_engine_niet_live():
         try:
             org_id = await _maak_org(s, tid, "WT-OG-OrgE")
             app_id = await _maak_app(s, tid, "WT-OG-AppE")
-            await s.commit(); ids += [org_id, app_id]
+            afd = await _maak_afdeling(s, tid, "WT-OG-AfdE", org_id)
+            await s.commit(); ids += [org_id, app_id, afd]
             voor_status = await _status(s, app_id)
             voor_blok = await _blokkades(s, app_id)
 
             await og.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=app_id))
             g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling="Burgerzaken", aantal_gebruikers=10))
+                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=10))
             ids.append(g["id"])
 
             assert await _status(s, app_id) == voor_status, "lifecycle_status mag niet muteren"
             assert await _blokkades(s, app_id) == voor_blok, "geen blokkade door registratief feit"
             return True
         finally:
-            for eid in ids:
+            for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 
@@ -397,16 +417,17 @@ def test_kaart_gebruikt_door_grove_feiten_live():
             org1 = await _maak_org(s, tid, "WT-B-Org1")
             org2 = await _maak_org(s, tid, "WT-B-Org2")
             app_id = await _maak_app(s, tid, "WT-B-App")
-            await s.commit(); ids += [org1, org2, app_id]
+            afd1 = await _maak_afdeling(s, tid, "WT-B-Afd1", org1)
+            await s.commit(); ids += [org1, org2, app_id, afd1]
 
             # org1: zowel grof als via een afdeling; org2: grof-only; plus een org-loze groep.
             await og.ensure(s, tid, org1, app_id); await s.commit()
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org1, afdeling="Burgerzaken", aantal_gebruikers=10))
+                applicatie_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=10))
             ids.append(g1["id"])
             await og.ensure(s, tid, org2, app_id); await s.commit()
             g_loos = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=None, afdeling="Burgers", aantal_gebruikers=999))
+                applicatie_id=app_id, organisatie_id=None, afdeling_id=None, aantal_gebruikers=999))
             ids.append(g_loos["id"])
 
             graf = await lk.haal_grafdata_op(s, _TID)
@@ -417,7 +438,7 @@ def test_kaart_gebruikt_door_grove_feiten_live():
             assert node.gebruikt_door_organisatieloos is True
             return True
         finally:
-            for eid in ids:
+            for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 
@@ -447,7 +468,8 @@ def test_signaal_detaillering_ontbreekt_live():
             org1 = await _maak_org(s, tid, "WT-C-Org1")
             org2 = await _maak_org(s, tid, "WT-C-Org2")
             app_id = await _maak_app(s, tid, "WT-C-App")
-            await s.commit(); ids += [org1, org2, app_id]
+            afd1 = await _maak_afdeling(s, tid, "WT-C-Afd1", org1)
+            await s.commit(); ids += [org1, org2, app_id, afd1]
 
             # Grof-only feit → vuurt (aandacht), label "app — org".
             await og.ensure(s, tid, org1, app_id); await s.commit()
@@ -458,7 +480,7 @@ def test_signaal_detaillering_ontbreekt_live():
             # Afdeling-mét-organisatie ZONDER aantal → verfijning bestaat → signaal dooft; aantal-
             # onbekend triggert dus niet.
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org1, afdeling="Burgerzaken", aantal_gebruikers=None))
+                applicatie_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=None))
             ids.append(g1["id"])
             assert await _mijn(s, app_id) == []
 
@@ -468,7 +490,7 @@ def test_signaal_detaillering_ontbreekt_live():
             assert len(mijn2) == 1 and mijn2[0]["naam"] == "WT-C-App — WT-C-Org2"
             return True
         finally:
-            for eid in ids:
+            for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 
@@ -509,7 +531,7 @@ def test_afdeling_met_org_impliceert_grof_feit_live():
             ))
             .where(
                 Gebruikersgroep.tenant_id == tid,
-                Gebruikersgroep.afdeling.isnot(None),
+                Gebruikersgroep.afdeling_id.isnot(None),
                 Gebruikersgroep.gebruik_id.isnot(None),
             )
         ).subquery()
@@ -554,10 +576,11 @@ def test_creatie_afdeling_met_org_borgt_grof_feit_live():
         try:
             org_id = await _maak_org(s, tid, "WT-INV-Org")
             app_id = await _maak_app(s, tid, "WT-INV-App")
-            await s.commit(); ids += [org_id, app_id]
+            afd = await _maak_afdeling(s, tid, "WT-INV-Afd", org_id)
+            await s.commit(); ids += [org_id, app_id, afd]
 
             g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling="Burgerzaken", aantal_gebruikers=12))
+                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=12))
             ids.append(g["id"])
 
             # Een grof feit voor (tenant, organisatie, DE bediende applicatie) bestaat.
@@ -570,7 +593,79 @@ def test_creatie_afdeling_met_org_borgt_grof_feit_live():
             assert feit_er is True
             return True
         finally:
-            for eid in ids:
+            for eid in reversed(ids):
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run_rls(_flow)) is True
+
+
+# ── ADR-036a — afdeling structureel ──────────────────────────────────────────────
+def test_gebruikersgroep_service_geen_engine_symbolen():
+    """ADR-036a engine-borging (offline) — de gewijzigde gebruikersgroep-service noemt geen
+    lifecycle-symbolen in de bron (registratief). De service importeert component_service voor de
+    ouder-validatie, dus geen module-hasattr; een bron-scan op de verboden namen volstaat."""
+    import pathlib
+    base = pathlib.Path(__file__).resolve().parents[1] / "services"
+    verboden = ("lifecycle_service", "herbereken_lifecycle", "bepaal_lifecycle",
+                "ComponentProfiel", "Blokkade", "Checklistscore")
+    bron = (base / "gebruikersgroep_service.py").read_text(encoding="utf-8")
+    for term in verboden:
+        assert term not in bron, f"gebruikersgroep_service noemt onverwacht {term}"
+
+
+@integratie
+def test_afdeling_validaties_live():
+    """ADR-036a — `afdeling_id` moet een bestaande organisatie_eenheid zijn binnen de grove-feit-
+    organisatie; een niet-bestaande, een uit een andere organisatie, of een afdeling op een
+    organisatie-loze groep → 422 `ONGELDIGE_AFDELING`."""
+    from sqlalchemy import text as _text
+
+    from schemas.gebruikersgroep import GebruikersgroepCreate
+    from services import gebruikersgroep_service as gg
+    from services.errors import OngeldigeRegistratie
+
+    tid = uuid.UUID(_TID)
+
+    async def _verwacht_afdelingsfout(coro):
+        try:
+            await coro
+            raise AssertionError("verwachtte ONGELDIGE_AFDELING")
+        except OngeldigeRegistratie as e:
+            assert e.code == "ONGELDIGE_AFDELING"
+
+    async def _flow(s):
+        ids = []
+        try:
+            org1 = await _maak_org(s, tid, "WT-AV-Org1")
+            org2 = await _maak_org(s, tid, "WT-AV-Org2")
+            app1 = await _maak_app(s, tid, "WT-AV-App1")
+            app2 = await _maak_app(s, tid, "WT-AV-App2")
+            afd1 = await _maak_afdeling(s, tid, "WT-AV-Afd1", org1)   # afdeling van org1
+            afd2 = await _maak_afdeling(s, tid, "WT-AV-Afd2", org2)   # afdeling van org2
+            await s.commit(); ids += [org1, org2, app1, app2, afd1, afd2]
+
+            # Geldig: afdeling van org1 op een groep met org1.
+            g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app1, organisatie_id=org1, afdeling_id=afd1))
+            ids.append(g["id"])
+            assert g["afdeling_id"] == afd1 and g["afdeling"] == "WT-AV-Afd1"
+
+            # Afdeling van een ANDERE organisatie → 422.
+            await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app2, organisatie_id=org1, afdeling_id=afd2)))
+            await s.rollback()
+            # Niet-bestaand afdeling_id → 422.
+            await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app2, organisatie_id=org1, afdeling_id=uuid.uuid4())))
+            await s.rollback()
+            # Org-loze groep + afdeling → 422.
+            await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app2, organisatie_id=None, afdeling_id=afd1)))
+            await s.rollback()
+            return True
+        finally:
+            for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 

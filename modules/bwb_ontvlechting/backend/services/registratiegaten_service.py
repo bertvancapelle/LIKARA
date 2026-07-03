@@ -15,6 +15,7 @@ de tenant (dubbele bescherming met de expliciete ``tenant_id``-filter).
 import uuid
 
 from sqlalchemy import and_, column, exists, func, literal, or_, select, table
+from sqlalchemy.orm import aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
@@ -46,9 +47,11 @@ _SIG_GEBRUIK_GEEN_VERFIJNING = "gebruiksfeit_zonder_verfijning"
 _KRITIEK = "kritiek"
 _AANDACHT = "aandacht"
 
-# Gebruikersgroep heeft geen `naam`-kolom → label = afdeling, anders een generieke fallback
-# (org-naam-resolutie bewust overgeslagen: bij 'zonder organisatie' is er geen org).
-_GG_LABEL = func.coalesce(Gebruikersgroep.afdeling, literal("(gebruikersgroep)"))
+# Gebruikersgroep heeft geen `naam`-kolom → label = de afdeling-partij-naam (ADR-036a; via een
+# per-query join op `afdeling_id`), anders een generieke fallback. `_gg_label(afd)` bouwt de
+# coalesce voor de meegegeven afdeling-partij-alias.
+def _gg_label(afd):
+    return func.coalesce(afd.naam, literal("(gebruikersgroep)"))
 
 
 def _geen_roltoewijzing(id_col, tid: uuid.UUID):
@@ -263,10 +266,12 @@ async def gebruikersgroep_zonder_organisatie(session: AsyncSession, tenant_id) -
     """Gebruikersgroepen zonder organisatie (label = afdeling, anders fallback). ADR-036: een groep
     is organisatie-loos wanneer ze onder géén grof gebruiksfeit hangt (``gebruik_id IS NULL``)."""
     tid = _tenant_uuid(tenant_id)
+    afd = aliased(Partij)
     stmt = (
-        select(Gebruikersgroep.id, _GG_LABEL.label("naam"))
+        select(Gebruikersgroep.id, _gg_label(afd).label("naam"))
+        .outerjoin(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
         .where(Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id.is_(None))
-        .order_by(_GG_LABEL.asc(), Gebruikersgroep.id.asc())
+        .order_by(_gg_label(afd).asc(), Gebruikersgroep.id.asc())
     )
     return [_aitem(r, _SIG_GG_ORG) for r in (await session.execute(stmt)).all()]
 
@@ -287,10 +292,12 @@ async def object_zonder_roltoewijzing(session: AsyncSession, tenant_id) -> list[
         .order_by(Contract.contractnaam.asc(), Contract.id.asc())
     )).all()
     out += [_aitem(r, _SIG_OBJ_ROL, "contract") for r in contr]
+    afd = aliased(Partij)
     gg = (await session.execute(
-        select(Gebruikersgroep.id, _GG_LABEL.label("naam"))
+        select(Gebruikersgroep.id, _gg_label(afd).label("naam"))
+        .outerjoin(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
         .where(Gebruikersgroep.tenant_id == tid, _geen_roltoewijzing(Gebruikersgroep.id, tid))
-        .order_by(_GG_LABEL.asc(), Gebruikersgroep.id.asc())
+        .order_by(_gg_label(afd).asc(), Gebruikersgroep.id.asc())
     )).all()
     out += [_aitem(r, _SIG_OBJ_ROL, "gebruikersgroep") for r in gg]
     return out

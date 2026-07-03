@@ -1,15 +1,17 @@
-"""Service-laag voor de entiteit Gebruikersgroep (ADR-009; ADR-023 B-mig-2 slice 4; ADR-036).
+"""Service-laag voor de entiteit Gebruikersgroep (ADR-009; ADR-023 B-mig-2 slice 4; ADR-036/036a).
 
 ADR-023: gebruikersgroep is een **zelfstandig element** (business actor/role); de band met de
-applicatie is een **serving**-relatie (applicatie → gebruikersgroep). De API blijft stabiel:
-`applicatie_id` wordt afgeleid uit de serving-relatie.
+applicatie is een **serving**-relatie (applicatie → gebruikersgroep). `applicatie_id` wordt afgeleid
+uit de serving-relatie.
 
-ADR-036: de organisatie leeft niet langer als eigen kolom op de groep, maar op het grove
-gebruiksfeit `organisatiegebruik` waar `gebruik_id` naar verwijst (**single source of truth**).
-De API blijft stabiel: `organisatie_id` blijft een Create/Update/Read-veld, maar wordt intern
-naar een grof feit vertaald (get-or-create via `organisatiegebruik_service.ensure`) en op read
-uit dat feit gelezen. Een afdeling-mét-organisatie borgt zo automatisch het grove feit (geen
-dubbele invoer). `gebruik_id` NULL = organisatie-loze groep (geldig).
+ADR-036: de organisatie leeft op het grove gebruiksfeit `organisatiegebruik` waar `gebruik_id` naar
+verwijst (single source of truth). `organisatie_id` blijft een Create/Update/Read-veld, intern
+vertaald naar een grof feit (get-or-create via `organisatiegebruik_service.ensure`).
+
+ADR-036a: de afdeling is een **structurele referentie** `afdeling_id` naar een `organisatie_eenheid`-
+partij binnen de organisatie van het grove feit (spiegel van het persoon→afdeling-patroon, ADR-024).
+Optioneel; een organisatie-loze groep draagt geen afdeling. De read geeft `afdeling_id` + de
+geresolveerde partij-naam (`afdeling`).
 """
 import uuid
 from datetime import datetime
@@ -25,6 +27,7 @@ from models.models import (
     Gebruikersgroep,
     Organisatiegebruik,
     Partij,
+    PartijAard,
     Relatie,
 )
 from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepUpdate
@@ -46,13 +49,13 @@ _MAX_LIMIT = 100
 _STANDAARD_SORT = "created_at"
 _STANDAARD_ORDER = "asc"
 
-# UX-B6-a — `organisatie` sorteert op de naam van de gekoppelde organisatie-partij (per-call
-# join via het grove feit in `lijst`); de dict-waarde hier is een placeholder voor de allowlist-
-# synctest (ADR-036: `gebruik_id` is de verfijning-verwijzing, geen eigen organisatie-kolom meer).
+# `organisatie`/`afdeling` sorteren op de naam van de gekoppelde partij (per-call join in `lijst`);
+# de dict-waarde hier is een placeholder voor de allowlist-synctest (ADR-036/036a: geen eigen
+# organisatie-/afdeling-tekstkolom meer — beide via een verwijzing).
 _SORTEERBARE_KOLOMMEN = {
     "created_at": Gebruikersgroep.created_at,
     "organisatie": Gebruikersgroep.gebruik_id,
-    "afdeling": Gebruikersgroep.afdeling,
+    "afdeling": Gebruikersgroep.afdeling_id,
     "aantal_gebruikers": Gebruikersgroep.aantal_gebruikers,
 }
 _WAARDE_PARSERS = {
@@ -79,13 +82,14 @@ def identiteit(afdeling: str | None, organisatie_naam: str | None) -> str:
     return afdeling or organisatie_naam or "Gebruikersgroep"
 
 
-def _lees(obj: Gebruikersgroep, applicatie_id, organisatie_id=None, organisatie_naam=None) -> dict:
-    """API-vorm (applicatie_id afgeleid uit serving; organisatie via het grove feit — ADR-036).
-    None = wees (applicatie weg) resp. organisatie-loos."""
+def _lees(obj: Gebruikersgroep, applicatie_id, organisatie_id=None, organisatie_naam=None, afdeling_naam=None) -> dict:
+    """API-vorm. applicatie_id afgeleid uit serving; organisatie via het grove feit (ADR-036);
+    afdeling via de afdeling-partij (ADR-036a). None = wees/organisatie-loos/geen afdeling."""
     return {
         "id": obj.id, "applicatie_id": applicatie_id,
         "organisatie_id": organisatie_id, "organisatie_naam": organisatie_naam,
-        "afdeling": obj.afdeling, "aantal_gebruikers": obj.aantal_gebruikers,
+        "afdeling_id": obj.afdeling_id, "afdeling": afdeling_naam,
+        "aantal_gebruikers": obj.aantal_gebruikers,
         "created_at": obj.created_at, "updated_at": obj.updated_at,
     }
 
@@ -103,6 +107,49 @@ async def _org_voor_gebruik(session: AsyncSession, tid: uuid.UUID, gebruik_id):
         )
     ).first()
     return (row.organisatie_id, row.naam) if row else (None, None)
+
+
+async def _afdeling_naam(session: AsyncSession, tid: uuid.UUID, afdeling_id):
+    """Naam van de gekoppelde afdeling-partij (None als niet gezet)."""
+    if afdeling_id is None:
+        return None
+    return (
+        await session.execute(
+            select(Partij.naam).where(Partij.id == afdeling_id, Partij.tenant_id == tid)
+        )
+    ).scalar_one_or_none()
+
+
+async def _valideer_afdeling(session: AsyncSession, tid: uuid.UUID, afdeling_id, gebruik_id) -> None:
+    """ADR-036a — een afdeling moet een bestaande `organisatie_eenheid`-partij zijn **binnen de
+    organisatie van het grove feit** (`gebruik_id`). Een organisatie-loze groep (`gebruik_id` None)
+    mag geen afdeling dragen. Spiegelt `partij_service._valideer_lidmaatschap` → 422 `ONGELDIGE_AFDELING`."""
+    if afdeling_id is None:
+        return
+    if gebruik_id is None:
+        raise OngeldigeRegistratie(
+            "ONGELDIGE_AFDELING", "Een organisatie-loze groep kan geen afdeling dragen."
+        )
+    org_id = (
+        await session.execute(
+            select(Organisatiegebruik.organisatie_id).where(
+                Organisatiegebruik.id == gebruik_id, Organisatiegebruik.tenant_id == tid
+            )
+        )
+    ).scalar_one_or_none()
+    afd = (
+        await session.execute(
+            select(Partij.aard, Partij.organisatie_id).where(
+                Partij.id == afdeling_id, Partij.tenant_id == tid
+            )
+        )
+    ).first()
+    if afd is None or afd.aard != PartijAard.organisatie_eenheid:
+        raise OngeldigeRegistratie("ONGELDIGE_AFDELING", "De afdeling moet een bestaande afdeling zijn.")
+    if afd.organisatie_id != org_id:
+        raise OngeldigeRegistratie(
+            "ONGELDIGE_AFDELING", "De afdeling hoort niet bij de organisatie van deze groep."
+        )
 
 
 async def _applicaties_van(session: AsyncSession, tid: uuid.UUID, ids: list) -> dict:
@@ -125,49 +172,52 @@ def _escape_like(term: str) -> str:
 
 async def contexten(session: AsyncSession, tenant_id, *, zoek: str | None = None) -> list[dict]:
     """Fase B slice 2a (LI022) — distinct `(organisatie, afdeling)`-gebruikercontexten over alle
-    gebruikersgroepen, met geresolveerde organisatie-naam + een telling van bijbehorende componenten
-    (distinct applicatie-bron van de serving-relatie). ADR-036: de organisatie komt via het grove
-    feit (`gebruik_id` → `organisatiegebruik`). Doorzoekbaar (organisatie-naam OF afdeling). Bewust
-    BEGRENSDE afgeleide lijst (géén keyset). Read-only."""
+    gebruikersgroepen, met geresolveerde namen + een telling van bijbehorende componenten (distinct
+    applicatie-bron van de serving-relatie). ADR-036: organisatie via het grove feit; ADR-036a:
+    afdeling via de afdeling-partij. Doorzoekbaar (organisatie- OF afdeling-naam). Bewust BEGRENSDE
+    afgeleide lijst (géén keyset). Read-only."""
     tid = _tenant_uuid(tenant_id)
     og = aliased(Organisatiegebruik)
     org = aliased(Partij)
+    afd = aliased(Partij)
     serv = aliased(Relatie)
     stmt = (
         select(
             og.organisatie_id.label("organisatie_id"),
             org.naam.label("organisatie_naam"),
-            Gebruikersgroep.afdeling.label("afdeling"),
+            afd.id.label("afdeling_id"),
+            afd.naam.label("afdeling"),
             func.count(distinct(serv.bron_id)).label("aantal_componenten"),
         )
         .select_from(Gebruikersgroep)
         .outerjoin(og, and_(og.id == Gebruikersgroep.gebruik_id, og.tenant_id == tid))
         .outerjoin(org, and_(org.id == og.organisatie_id, org.tenant_id == tid))
+        .outerjoin(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
         .outerjoin(serv, and_(serv.doel_id == Gebruikersgroep.id, serv.tenant_id == tid, serv.relatietype == _SERVING))
         .where(Gebruikersgroep.tenant_id == tid)
-        .group_by(og.organisatie_id, org.naam, Gebruikersgroep.afdeling)
-        .order_by(org.naam.nulls_last(), Gebruikersgroep.afdeling.nulls_last())
+        .group_by(og.organisatie_id, org.naam, afd.id, afd.naam)
+        .order_by(org.naam.nulls_last(), afd.naam.nulls_last())
     )
     if zoek and zoek.strip():
         like = f"%{_escape_like(zoek.strip())}%"
-        stmt = stmt.where(or_(org.naam.ilike(like, escape="\\"), Gebruikersgroep.afdeling.ilike(like, escape="\\")))
+        stmt = stmt.where(or_(org.naam.ilike(like, escape="\\"), afd.naam.ilike(like, escape="\\")))
     rijen = (await session.execute(stmt)).all()
     return [
         {
             "organisatie_id": r.organisatie_id, "organisatie_naam": r.organisatie_naam,
-            "afdeling": r.afdeling, "aantal_componenten": r.aantal_componenten,
+            "afdeling_id": r.afdeling_id, "afdeling": r.afdeling, "aantal_componenten": r.aantal_componenten,
         }
         for r in rijen
     ]
 
 
 async def componenten_voor_context(
-    session: AsyncSession, tenant_id, *, organisatie_id: uuid.UUID | None, afdeling: str | None
+    session: AsyncSession, tenant_id, *, organisatie_id: uuid.UUID | None, afdeling_id: uuid.UUID | None
 ) -> list[dict]:
     """Fase B slice 2a (LI022) — distinct componenten (de applicatie-bron van de serving-relatie) van de
     gebruikersgroepen die EXACT op deze `(organisatie, afdeling)`-context matchen. ADR-036: organisatie
-    via het grove feit. Nullable-veilige match (`IS NOT DISTINCT FROM`) zodat de lege-organisatie-/
-    lege-afdeling-casus (bv. "— / Burgers") klopt. Read-only."""
+    via het grove feit; ADR-036a: afdeling via `afdeling_id`. Nullable-veilige match
+    (`IS NOT DISTINCT FROM`) zodat de lege-organisatie-/lege-afdeling-casus (bv. "— / burgers") klopt."""
     tid = _tenant_uuid(tenant_id)
     og = aliased(Organisatiegebruik)
     rijen = (
@@ -184,7 +234,7 @@ async def componenten_voor_context(
             .where(
                 Gebruikersgroep.tenant_id == tid,
                 og.organisatie_id.is_not_distinct_from(organisatie_id),
-                Gebruikersgroep.afdeling.is_not_distinct_from(afdeling),
+                Gebruikersgroep.afdeling_id.is_not_distinct_from(afdeling_id),
             )
             .distinct()
             .order_by(Component.naam, Component.id)
@@ -206,19 +256,28 @@ async def lijst(
         raise ValueError(f"onbekend sorteerveld: {sort}")
     if order not in (_STANDAARD_ORDER, "desc"):
         raise ValueError(f"onbekende sorteerrichting: {order}")
-    # ADR-036 — LEFT JOIN het grove feit + de organisatie-partij voor naam-in-read + org-sortering.
+    # ADR-036/036a — LEFT JOIN het grove feit (org-naam) + de afdeling-partij (afdeling-naam) voor
+    # naam-in-read + sortering op de gejoinde namen.
     og = aliased(Organisatiegebruik)
     org = aliased(Partij)
-    kolom = org.naam if sort == "organisatie" else _SORTEERBARE_KOLOMMEN[sort]
+    afd = aliased(Partij)
+    if sort == "organisatie":
+        kolom = org.naam
+    elif sort == "afdeling":
+        kolom = afd.naam
+    else:
+        kolom = _SORTEERBARE_KOLOMMEN[sort]
 
     stmt = (
         select(
             Gebruikersgroep,
             og.organisatie_id.label("organisatie_id"),
             org.naam.label("organisatie_naam"),
+            afd.naam.label("afdeling_naam"),
         )
         .outerjoin(og, and_(og.id == Gebruikersgroep.gebruik_id, og.tenant_id == tid))
         .outerjoin(org, and_(org.id == og.organisatie_id, org.tenant_id == tid))
+        .outerjoin(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
         .where(Gebruikersgroep.tenant_id == tid)
     )
     if applicatie_id is not None:
@@ -239,14 +298,19 @@ async def lijst(
         )
     stmt = stmt.order_by(*keyset_order_by_nulls_last(kolom, Gebruikersgroep.id, order)).limit(limit + 1)
 
-    rijen = list((await session.execute(stmt)).all())  # (Gebruikersgroep, organisatie_id|None, organisatie_naam|None)
+    rijen = list((await session.execute(stmt)).all())  # (Gebruikersgroep, org_id|None, org_naam|None, afd_naam|None)
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
-    app_map = await _applicaties_van(session, tid, [g.id for (g, _oid, _on) in items])
-    out = [_lees(g, app_map.get(g.id), oid, on) for (g, oid, on) in items]
+    app_map = await _applicaties_van(session, tid, [g.id for (g, _oid, _on, _an) in items])
+    out = [_lees(g, app_map.get(g.id), oid, on, an) for (g, oid, on, an) in items]
     if heeft_meer:
-        laatste_g, _laatste_oid, laatste_on = items[-1]
-        waarde = laatste_on if sort == "organisatie" else getattr(laatste_g, kolom.key)
+        laatste_g, _laatste_oid, laatste_on, laatste_an = items[-1]
+        if sort == "organisatie":
+            waarde = laatste_on
+        elif sort == "afdeling":
+            waarde = laatste_an
+        else:
+            waarde = getattr(laatste_g, kolom.key)
         volgende = encode_sort_cursor_nullable(sort=sort, order=order, waarde=waarde, id=laatste_g.id)
     else:
         volgende = None
@@ -272,22 +336,23 @@ async def lees_detail(session: AsyncSession, tenant_id, gebruikersgroep_id) -> d
     obj = await haal_op(session, tenant_id, gebruikersgroep_id)
     app_map = await _applicaties_van(session, tid, [obj.id])
     org_id, org_naam = await _org_voor_gebruik(session, tid, obj.gebruik_id)
-    return _lees(obj, app_map.get(obj.id), org_id, org_naam)
+    afd_naam = await _afdeling_naam(session, tid, obj.afdeling_id)
+    return _lees(obj, app_map.get(obj.id), org_id, org_naam, afd_naam)
 
 
 async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
     # LI059 Slice 3: ouder is een component met type 'applicatie' (geen subtabel meer).
-    # Zelfde 404-no-leak: buiten tenant / niet-applicatie ⇒ NietGevonden.
     _ouder = await component_service.haal_op(session, tenant_id, data.applicatie_id)
     if _ouder.componenttype != _APPLICATIE_TYPE:
         raise NietGevonden(_APPLICATIE_TYPE, data.applicatie_id)
-    # ADR-036 — organisatie zetten = het grove feit (organisatie, applicatie) get-or-create'n;
-    # de groep verwijst ernaar via gebruik_id (single source, geen dubbele invoer). Org None = org-loos.
+    # ADR-036 — organisatie zetten = het grove feit (organisatie, applicatie) get-or-create'n.
     gebruik_id = None
     if data.organisatie_id is not None:
         gebruik_id = await organisatiegebruik_service.ensure(session, tid, data.organisatie_id, data.applicatie_id)
-    velden = data.model_dump(exclude={"applicatie_id", "organisatie_id"})
+    # ADR-036a — afdeling moet een org-eenheid binnen de grove-feit-organisatie zijn (of leeg).
+    await _valideer_afdeling(session, tid, data.afdeling_id, gebruik_id)
+    velden = data.model_dump(exclude={"applicatie_id", "organisatie_id"})  # {afdeling_id, aantal_gebruikers}
     elem = Element(tenant_id=tid, element_type=ElementType.gebruikersgroep)
     session.add(elem)
     await session.flush()
@@ -297,20 +362,20 @@ async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate
     await session.commit()
     await session.refresh(obj)
     org_id, org_naam = await _org_voor_gebruik(session, tid, obj.gebruik_id)
-    return _lees(obj, data.applicatie_id, org_id, org_naam)
+    afd_naam = await _afdeling_naam(session, tid, obj.afdeling_id)
+    return _lees(obj, data.applicatie_id, org_id, org_naam, afd_naam)
 
 
 async def werk_bij(session: AsyncSession, tenant_id, gebruikersgroep_id, data: GebruikersgroepUpdate) -> dict:
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, gebruikersgroep_id)
     velden = data.model_dump(exclude_unset=True)
-    # ADR-036 — organisatie wijzigen verschuift de verfijning-verwijzing (gebruik_id), niet een
-    # eigen kolom. None ⇒ groep wordt organisatie-loos; een id ⇒ borg het grove feit op de
-    # applicatie van deze groep (get-or-create).
+    # ADR-036 — organisatie wijzigen verschuift de verfijning-verwijzing (gebruik_id).
     if "organisatie_id" in velden:
         org_id = velden.pop("organisatie_id")
         if org_id is None:
             obj.gebruik_id = None
+            obj.afdeling_id = None  # ADR-036a — organisatie-loze groep draagt geen afdeling
         else:
             app_map = await _applicaties_van(session, tid, [obj.id])
             app_id = app_map.get(obj.id)
@@ -320,13 +385,19 @@ async def werk_bij(session: AsyncSession, tenant_id, gebruikersgroep_id, data: G
                     "Deze groep hangt aan geen applicatie meer; een organisatie kan pas worden gekoppeld met een applicatie.",
                 )
             obj.gebruik_id = await organisatiegebruik_service.ensure(session, tid, org_id, app_id)
+    # ADR-036a — afdeling valideren tegen de (mogelijk gewijzigde) organisatie van het grove feit.
+    if "afdeling_id" in velden:
+        await _valideer_afdeling(session, tid, velden["afdeling_id"], obj.gebruik_id)
+    elif obj.afdeling_id is not None:
+        await _valideer_afdeling(session, tid, obj.afdeling_id, obj.gebruik_id)
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     await session.commit()
     await session.refresh(obj)
     app_map = await _applicaties_van(session, tid, [obj.id])
     org_id, org_naam = await _org_voor_gebruik(session, tid, obj.gebruik_id)
-    return _lees(obj, app_map.get(obj.id), org_id, org_naam)
+    afd_naam = await _afdeling_naam(session, tid, obj.afdeling_id)
+    return _lees(obj, app_map.get(obj.id), org_id, org_naam, afd_naam)
 
 
 async def verwijder(session: AsyncSession, tenant_id, gebruikersgroep_id) -> None:
