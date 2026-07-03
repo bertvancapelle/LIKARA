@@ -14,7 +14,7 @@ vi.mock('@/api', () => ({
       verwijder: vi.fn(),
     },
     // UX-B6-a — ZoekSelect voor de organisatie-keuze (partijen, aard_in organisatie+burger).
-    partijen: { lijst: vi.fn(), haal: vi.fn() },
+    partijen: { lijst: vi.fn(), haal: vi.fn(), maak: vi.fn() },
   },
 }))
 
@@ -94,7 +94,7 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises()
     expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith({
       organisatie_id: null,
-      afdeling: null,
+      afdeling_id: null,
       aantal_gebruikers: null,
       applicatie_id: APP,
     })
@@ -134,7 +134,7 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises()
     expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith({
       organisatie_id: 'org-1',
-      afdeling: null,
+      afdeling_id: null,
       aantal_gebruikers: null,
       applicatie_id: APP,
     })
@@ -169,7 +169,7 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises()
     await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
     await flushPromises()
-    // afdeling kiezen (naam wordt in het vrije tekstveld opgeslagen)
+    // afdeling kiezen (structurele verwijzing: afdeling_id)
     api.partijen.lijst.mockResolvedValue({ items: [{ id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' }], volgende_cursor: null })
     api.partijen.haal.mockResolvedValue({ id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' })
     await w.find('[data-testid="gg-veld-afdeling-input"]').trigger('focus')
@@ -185,6 +185,59 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises()
     await w.find('[data-testid="gg-form"]').trigger('submit')
     await flushPromises()
-    expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'org-2', afdeling: null }))
+    expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'org-2', afdeling_id: null }))
+  })
+
+  it('afdeling-keuze stuurt afdeling_id mee', async () => {
+    api.gebruikersgroepen.maak.mockResolvedValueOnce({ id: 'new' })
+    const w = await mountSectie()
+    await w.find('[data-testid="gg-toevoegen"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="gg-veld-organisatie-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
+    await flushPromises()
+    api.partijen.lijst.mockResolvedValue({ items: [{ id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' }], volgende_cursor: null })
+    await w.find('[data-testid="gg-veld-afdeling-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="gg-veld-afdeling-optie-afd-1"]').trigger('mousedown')
+    await flushPromises()
+    await w.find('[data-testid="gg-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'org-1', afdeling_id: 'afd-1' }))
+  })
+
+  it('search-first: geen altijd-zichtbare aanmaakknop; aanmaken vanuit de lege zoekstaat + bevestiging', async () => {
+    api.gebruikersgroepen.maak.mockResolvedValueOnce({ id: 'new' })
+    api.partijen.maak.mockResolvedValueOnce({ id: 'afd-nieuw', naam: 'Finance' })
+    const w = await mountSectie()
+    await w.find('[data-testid="gg-toevoegen"]').trigger('click')
+    await flushPromises()
+    // Geen losstaande "+ Nieuwe afdeling"-knop meer.
+    expect(w.find('[data-testid="gg-nieuwe-afdeling"]').exists()).toBe(false)
+    await w.find('[data-testid="gg-veld-organisatie-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
+    await flushPromises()
+    // Afdeling-zoek levert geen match → aanmaak-regel verschijnt ín de lege zoekstaat (met de zoekterm).
+    api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    vi.useFakeTimers()
+    await w.find('[data-testid="gg-veld-afdeling-input"]').setValue('Finance')
+    vi.advanceTimersByTime(300)
+    vi.useRealTimers()
+    await flushPromises()
+    const aanmaak = w.find('[data-testid="gg-afd-aanmaak"]')
+    expect(aanmaak.exists()).toBe(true)
+    expect(aanmaak.text()).toContain('Finance')
+    // Klik → inline bevestiging (geen apart modaal) → bevestigen → aanmaken op de zoekterm.
+    await aanmaak.trigger('click')
+    expect(w.find('[data-testid="gg-afd-aanmaak-bevestig"]').exists()).toBe(true)
+    await w.find('[data-testid="gg-afd-aanmaak-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.partijen.maak).toHaveBeenCalledWith({ aard: 'organisatie_eenheid', naam: 'Finance', organisatie_id: 'org-1' })
+    // Nieuwe afdeling is geselecteerd → save stuurt afdeling_id.
+    await w.find('[data-testid="gg-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'org-1', afdeling_id: 'afd-nieuw' }))
   })
 })

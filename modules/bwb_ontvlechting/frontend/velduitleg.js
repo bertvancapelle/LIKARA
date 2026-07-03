@@ -114,8 +114,9 @@ export const VELD_UITLEG = {
   },
   gg_afdeling: {
     uitleg:
-      'De afdeling of het team binnen de organisatie dat de applicatie gebruikt. Samen met de ' +
-      "organisatie vormt dit de identiteit ('afdeling — organisatie').",
+      'De afdeling of het team binnen de organisatie dat de applicatie gebruikt — kies een bestaande ' +
+      "afdeling van de organisatie, of maak er een aan. Samen met de organisatie vormt dit de " +
+      "identiteit ('afdeling — organisatie').",
   },
 
   // ── Partij ───────────────────────────────────────────────────────────────────

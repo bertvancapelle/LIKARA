@@ -237,7 +237,9 @@ watch(
           {{ _label(item) }}
         </li>
         <li v-if="!resultaten.length" :data-testid="`${props.testid}-leeg`" class="px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]">
-          Geen resultaten.
+          <!-- Lege-zoekstaat: een consument kan hier een contextuele actie renderen (bv. aanmaken op
+               de zoekterm). Default = "Geen resultaten." De `query` (getrimd) is de huidige zoekterm. -->
+          <slot name="leeg" :query="query.trim()">Geen resultaten.</slot>
         </li>
         <li v-if="meer" :data-testid="`${props.testid}-meer`" class="border-t border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-xs)]">
           Meer resultaten — verfijn je zoekopdracht.

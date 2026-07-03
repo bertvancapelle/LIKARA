@@ -38,36 +38,63 @@ const primeSortOrder = computed(() =>
 const dialogOpen = ref(false)
 const bewerkenId = ref(null)
 const bezig = ref(false)
-const form = reactive({ organisatie_id: null, afdeling: '', aantal_gebruikers: '' })
+// ADR-036a — afdeling is een structurele verwijzing (`afdeling_id`) naar een organisatie_eenheid-
+// partij; geen vrije tekst meer. `afInitieel` = de naam voor de ZoekSelect in bewerk-modus.
+const form = reactive({ organisatie_id: null, afdeling_id: null, aantal_gebruikers: '' })
 const fouten = reactive({})
 const eersteVeld = ref(null)
 let laatsteTrigger = null
 
-// Afdeling-picker (UX-fix): id voor de ZoekSelect; de afdeling-NAAM wordt in `form.afdeling`
-// (vrij tekstveld) opgeslagen. Alleen tonen bij een echte organisatie (geen burger).
-const afdelingId = ref(null)
 const orgAard = ref(null)
-const afdInitieel = ref('')
+const orgNaam = ref('')
+const afInitieel = ref('')
+// Sleutel om de afdeling-ZoekSelect te remounten bij org-wissel of ter-plekke-aanmaken.
+const afdelingKey = ref(0)
+// Afdeling-veld alleen bij een échte organisatie (geen burger, geen org-loze groep) — spiegelt de
+// backend-regel dat een organisatie-loze groep geen afdeling draagt.
 const toonAfdeling = computed(() => !!form.organisatie_id && orgAard.value === 'organisatie')
+
+// Search-first: ter-plekke aanmaken leeft in de LEGE zoekstaat van de afdeling-picker. `aanmaakBevestig`
+// = de zoekterm waarvoor de inline bevestiging open staat.
+const aanmaakBevestig = ref('')
+const afdelingBezig = ref(false)
+
+function _resetAfdeling() {
+  form.afdeling_id = null
+  afInitieel.value = ''
+  aanmaakBevestig.value = ''
+  afdelingKey.value += 1
+}
 
 async function onOrgKies(id) {
   form.organisatie_id = id || null
-  // Wisselen van organisatie → afdelingkeuze resetten.
-  afdelingId.value = null
-  form.afdeling = ''
-  afdInitieel.value = ''
+  _resetAfdeling()  // een afdeling van de oude organisatie is niet meer geldig
   orgAard.value = null
+  orgNaam.value = ''
   if (id) {
-    try { orgAard.value = (await api.partijen.haal(id)).aard } catch { /* aard niet kritisch */ }
+    try { const p = await api.partijen.haal(id); orgAard.value = p.aard; orgNaam.value = p.naam } catch { /* niet kritisch */ }
   }
 }
 
-async function onAfdelingKies(id) {
-  afdelingId.value = id || null
-  if (id) {
-    try { form.afdeling = (await api.partijen.haal(id)).naam } catch { /* naam niet kritisch */ }
-  } else {
-    form.afdeling = ''
+function onAfdelingKies(id) {
+  form.afdeling_id = id || null
+}
+
+// Aanmaken vanuit de lege-zoekstaat: de naam is vastgeklonken aan de zoekterm (geen apart tekstveld).
+async function maakNieuweAfdeling(naam) {
+  const n = (naam || '').trim()
+  if (!n || !form.organisatie_id) return
+  afdelingBezig.value = true
+  try {
+    const p = await api.partijen.maak({ aard: 'organisatie_eenheid', naam: n, organisatie_id: form.organisatie_id })
+    form.afdeling_id = p.id
+    afInitieel.value = p.naam       // toon + selecteer de nieuwe afdeling (remount bewijst 'in de lijst')
+    aanmaakBevestig.value = ''
+    afdelingKey.value += 1
+  } catch (e) {
+    _toastFout(e)
+  } finally {
+    afdelingBezig.value = false
   }
 }
 
@@ -103,10 +130,9 @@ function onSort(event) {
 }
 
 function _reset() {
-  Object.assign(form, { organisatie_id: null, afdeling: '', aantal_gebruikers: '' })
-  afdelingId.value = null
+  Object.assign(form, { organisatie_id: null, afdeling_id: null, aantal_gebruikers: '' })
   orgAard.value = null
-  afdInitieel.value = ''
+  _resetAfdeling()
   Object.keys(fouten).forEach((k) => delete fouten[k])
 }
 
@@ -123,13 +149,14 @@ async function openBewerken(e, rij) {
   _reset()
   Object.assign(form, {
     organisatie_id: rij.organisatie_id ?? null,
-    afdeling: rij.afdeling || '',
+    afdeling_id: rij.afdeling_id ?? null,
     aantal_gebruikers: rij.aantal_gebruikers ?? '',
   })
-  afdInitieel.value = rij.afdeling || ''  // bestaande (vrije-tekst) afdeling tonen in de ZoekSelect
+  afInitieel.value = rij.afdeling || ''  // de afdeling-partij-naam tonen in de ZoekSelect
+  afdelingKey.value += 1
   dialogOpen.value = true
   if (form.organisatie_id) {
-    try { orgAard.value = (await api.partijen.haal(form.organisatie_id)).aard } catch { /* idem */ }
+    try { const p = await api.partijen.haal(form.organisatie_id); orgAard.value = p.aard; orgNaam.value = p.naam } catch { /* idem */ }
   }
 }
 
@@ -148,8 +175,7 @@ function onHide() {
 
 function valideer() {
   Object.keys(fouten).forEach((k) => delete fouten[k])
-  // UX-B6-a — organisatie is optioneel (verwijzing); geen verplicht-/lengtecheck meer.
-  if (form.afdeling && form.afdeling.trim().length > 255) fouten.afdeling = 'Maximaal 255 tekens.'
+  // UX-B6-a — organisatie optioneel; ADR-036a — afdeling is een verwijzing (geen lengtecheck).
   if (form.aantal_gebruikers !== '' && form.aantal_gebruikers !== null) {
     const n = Number(form.aantal_gebruikers)
     if (!Number.isInteger(n) || n < 0) fouten.aantal_gebruikers = 'Geheel getal ≥ 0.'
@@ -178,7 +204,8 @@ async function opslaan() {
   try {
     const data = {
       organisatie_id: form.organisatie_id || null,
-      afdeling: form.afdeling.trim() || null,
+      // ADR-036a — alleen een afdeling meesturen als er een organisatie is (org-loos → geen afdeling).
+      afdeling_id: toonAfdeling.value ? (form.afdeling_id || null) : null,
       aantal_gebruikers: form.aantal_gebruikers === '' ? null : Number(form.aantal_gebruikers),
     }
     if (bewerkenId.value) await api.gebruikersgroepen.werkBij(bewerkenId.value, data)
@@ -283,22 +310,48 @@ laad({ reset: true })
           </div>
           <span v-if="fouten.organisatie_id" id="gg-fout-organisatie" role="alert" data-testid="gg-fout-organisatie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.organisatie_id }}</span>
         </div>
-        <!-- Afdeling: ZoekSelect binnen de gekozen organisatie; alleen bij een echte organisatie (niet burger). -->
+        <!-- Afdeling (ADR-036a): kies een bestaande organisatie_eenheid van de organisatie, of maak er
+             ter plekke een aan. Alleen bij een échte organisatie (geen burger, geen org-loze groep). -->
         <div v-if="toonAfdeling" class="flex flex-col gap-[var(--lk-space-xs)]">
           <div class="flex items-center gap-[var(--lk-space-xs)]">
             <label for="gg-afdeling" class="font-semibold">Afdeling</label>
             <VeldUitleg veld="gg_afdeling" />
           </div>
+          <!-- Search-first: bij een lege zoekuitkomst verschijnt (met aanmaakrecht) de aanmaak-actie
+               ín de dropdown, contextueel met de zoekterm + organisatie; met inline bevestiging. -->
           <ZoekSelect
             id="gg-afdeling"
-            :key="form.organisatie_id"
+            :key="`${form.organisatie_id}-${afdelingKey}`"
             testid="gg-veld-afdeling"
-            :model-value="afdelingId"
+            :model-value="form.afdeling_id"
             :zoek-functie="zoekAfdelingen"
-            :initieel-weergave="afdInitieel"
-            placeholder="Zoek een afdeling…"
+            :initieel-weergave="afInitieel"
+            placeholder="Zoek een afdeling (optioneel)…"
             @update:model-value="onAfdelingKies"
-          />
+          >
+            <template #leeg="{ query }">
+              <template v-if="mag && query">
+                <button
+                  v-if="aanmaakBevestig !== query"
+                  type="button" data-testid="gg-afd-aanmaak"
+                  class="w-full text-left text-[var(--lk-color-primary)] hover:underline"
+                  @mousedown.prevent @click="aanmaakBevestig = query"
+                >Geen afdeling ‘{{ query }}’ gevonden — ‘{{ query }}’ aanmaken onder {{ orgNaam }}</button>
+                <div v-else class="flex flex-col gap-[var(--lk-space-xs)]">
+                  <span class="text-[var(--lk-color-text)]">Weet je zeker? Dit maakt een nieuwe afdeling die overal herbruikbaar is.</span>
+                  <span class="flex gap-[var(--lk-space-md)]">
+                    <button
+                      type="button" data-testid="gg-afd-aanmaak-bevestig"
+                      class="font-semibold text-[var(--lk-color-primary)] hover:underline disabled:opacity-60"
+                      :disabled="afdelingBezig" @mousedown.prevent @click="maakNieuweAfdeling(query)"
+                    >‘{{ query }}’ aanmaken</button>
+                    <button type="button" class="text-[var(--lk-color-text-muted)] hover:underline" @mousedown.prevent @click="aanmaakBevestig = ''">Annuleren</button>
+                  </span>
+                </div>
+              </template>
+              <span v-else>Geen afdeling gevonden.</span>
+            </template>
+          </ZoekSelect>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="gg-aantal" class="font-semibold">Aantal gebruikers</label>
