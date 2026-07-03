@@ -23,6 +23,7 @@ import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { SCORE, label, scoreKleur } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
@@ -373,9 +374,12 @@ laad()
             </button>
           </th>
           <th :aria-sort="ariaSort('score')">
-            <button type="button" data-testid="cs-sort-score" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('score')">
-              Afgehandeld <span aria-hidden="true">{{ sortKolom === 'score' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
-            </button>
+            <span class="inline-flex items-center gap-1">
+              <button type="button" data-testid="cs-sort-score" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('score')">
+                Afgehandeld <span aria-hidden="true">{{ sortKolom === 'score' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
+              </button>
+              <VeldUitleg veld="score" opties="score" />
+            </span>
           </th>
           <th></th>
           <th><span class="sr-only">Details</span></th>
@@ -437,7 +441,10 @@ laad()
               <div v-else class="flex flex-col gap-[var(--lk-space-sm)]">
                 <!-- ADR-019: gestructureerd antwoordveld, alleen waar geconfigureerd -->
                 <div v-if="antwoordType(v.code) !== 'geen'" class="flex flex-col gap-[var(--lk-space-xs)]">
-                  <label :for="`cs-antwoord-${v.code}`" class="text-[length:var(--lk-text-sm)] font-medium">Antwoord</label>
+                  <span class="inline-flex items-center gap-[var(--lk-space-xs)]">
+                    <label :for="`cs-antwoord-${v.code}`" class="text-[length:var(--lk-text-sm)] font-medium">Antwoord</label>
+                    <VeldUitleg :veld="'checklist_antwoord'" :testid="`uitleg-antwoord-${v.code}`" />
+                  </span>
 
                   <select
                     v-if="antwoordType(v.code) === 'enkelvoudige_keuze'"

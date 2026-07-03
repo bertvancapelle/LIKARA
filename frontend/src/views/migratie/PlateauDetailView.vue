@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import ObjectHistoriePaneel from '@modules/bwb_ontvlechting/frontend/views/ObjectHistoriePaneel.vue'
+import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -355,7 +356,10 @@ onMounted(() => {
           <span v-if="lidFouten.lid_id" role="alert" data-testid="lk-fout-lid" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ lidFouten.lid_id }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="lk-dispositie" class="font-semibold">Dispositie *</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label for="lk-dispositie" class="font-semibold">Dispositie *</label>
+            <VeldUitleg veld="dispositie" opties="dispositie" />
+          </div>
           <select id="lk-dispositie" v-model="lidForm.dispositie" data-testid="lk-dispositie" :aria-invalid="!!lidFouten.dispositie" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
             <option value="" disabled>— kies een dispositie —</option>
             <option v-for="o in dispositieOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
@@ -365,7 +369,7 @@ onMounted(() => {
 
         <!-- Contractuele bevestiging — alleen voor een contract-lid -->
         <fieldset v-if="isContractLid" class="flex flex-col gap-[var(--lk-space-sm)] border border-[var(--lk-color-border)] rounded-[var(--lk-radius-input)] p-[var(--lk-space-md)]" data-testid="lk-bevestiging">
-          <legend class="font-semibold px-[var(--lk-space-xs)]">Contractuele bevestiging</legend>
+          <legend class="font-semibold px-[var(--lk-space-xs)]"><span class="inline-flex items-center gap-[var(--lk-space-xs)]">Contractuele bevestiging <VeldUitleg veld="contractueel_bevestigd" /></span></legend>
           <label class="flex items-center gap-[var(--lk-space-sm)]">
             <input type="checkbox" v-model="lidForm.contractueel_bevestigd" data-testid="lk-bevestigd" />
             <span>Contractueel bevestigd (wie/wanneer wordt automatisch vastgelegd)</span>

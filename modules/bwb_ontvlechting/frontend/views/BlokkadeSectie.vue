@@ -12,6 +12,7 @@ import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast }
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, SCORE, label } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ScoreBadge from './ScoreBadge.vue'
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
@@ -225,7 +226,10 @@ laad({ reset: true })
     <Dialog v-model:visible="dialogOpen" modal :closable="false" header="Blokkade bewerken" data-testid="bk-dialog" @show="focusEerste" @hide="onHide">
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[20rem]" data-testid="bk-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="bk-status" class="font-semibold">Status<span v-if="!bewerkenOpgelost"> *</span></label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label for="bk-status" class="font-semibold">Status<span v-if="!bewerkenOpgelost"> *</span></label>
+            <VeldUitleg veld="blokkade_status" opties="blokkade_status" />
+          </div>
           <!-- ADR-016: opgelost is read-only (auto-afgeleid), niet handmatig kiesbaar. -->
           <template v-if="bewerkenOpgelost">
             <Tag data-testid="bk-status-readonly" :value="label(BLOKKADE_STATUS, 'opgelost')" :severity="BLOKKADE_STATUS_SEVERITY.opgelost" />

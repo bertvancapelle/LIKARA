@@ -12,6 +12,7 @@ import { Button, Column, DataTable, Dialog, Tag, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { humaniseer } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({ partijId: { type: String, required: true } })
@@ -162,7 +163,10 @@ defineExpose({ items, laad })
           <span v-if="fouten.object_id" role="alert" data-testid="pr-fout-object" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.object_id }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="pr-rol" class="font-semibold">Rol *</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label for="pr-rol" class="font-semibold">Rol *</label>
+            <VeldUitleg veld="beheerrol" opties="beheerrol" />
+          </div>
           <select id="pr-rol" v-model="form.rol" data-testid="pr-veld-rol" :aria-invalid="!!fouten.rol" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
             <option value="" disabled>— kies een rol —</option>
             <option v-for="o in rolOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>

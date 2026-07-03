@@ -13,6 +13,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api'
+import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 
 const ANTWOORDTYPES = ['geen', 'enkelvoudige_keuze', 'meerkeuze', 'getal']
 const TYPE_LABEL = {
@@ -350,6 +351,7 @@ laad()
               <option v-for="t in ANTWOORDTYPES" :key="t" :value="t">{{ TYPE_LABEL[t] }}</option>
             </select>
           </label>
+          <VeldUitleg veld="antwoordtype" opties="antwoordtype" :testid="`uitleg-antwoordtype-${vraag.code}`" />
           <!-- ADR-023 Fase F (F-3): betekenis-toekenning. Leeg = geen betekenis; de server
                handhaaft de uniciteit per (tenant, componenttype) en de catalogus-validatie. -->
           <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
@@ -364,6 +366,7 @@ laad()
               <option v-for="b in betekenisOpties" :key="b.optie_sleutel" :value="b.optie_sleutel">{{ b.label }}</option>
             </select>
           </label>
+          <VeldUitleg veld="betekenis" :testid="`uitleg-betekenis-${vraag.code}`" />
         </div>
         <p v-if="vraag.antwoordtype !== 'geen'" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
           Een reeds geconfigureerde vraag kan niet van antwoordtype wisselen (de server weigert dat).

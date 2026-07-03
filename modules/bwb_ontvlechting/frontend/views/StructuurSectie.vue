@@ -20,6 +20,7 @@ import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/pr
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { REGISTER_FOUT, humaniseer } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({ componentId: { type: String, required: true } })
@@ -218,7 +219,10 @@ laad()
     <Dialog v-model:visible="dialogOpen" modal :closable="false" :header="bewerkenId ? 'Draait-op bewerken' : 'Draait-op toevoegen'" data-testid="st-dialog" @show="focusEerste" @hide="onHide">
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[22rem]" data-testid="st-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="st-doel" class="font-semibold">Draait op (component) *</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label for="st-doel" class="font-semibold">Draait op (component) *</label>
+            <VeldUitleg veld="draait_op" />
+          </div>
           <ZoekSelect
             id="st-doel"
             ref="eersteVeld"

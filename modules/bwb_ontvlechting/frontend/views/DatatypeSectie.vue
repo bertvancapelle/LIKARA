@@ -12,6 +12,7 @@ import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast }
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { DATATYPE_CATEGORIE, label } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
 const auth = useAuthStore()
@@ -228,10 +229,13 @@ laad({ reset: true })
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[20rem]" data-testid="dt-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="dt-categorie" class="font-semibold">Categorie *</label>
-          <select id="dt-categorie" ref="eersteVeld" autofocus v-model="form.categorie" data-testid="dt-veld-categorie" :aria-invalid="!!fouten.categorie" aria-describedby="dt-fout-categorie" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <select id="dt-categorie" ref="eersteVeld" autofocus v-model="form.categorie" data-testid="dt-veld-categorie" :aria-invalid="!!fouten.categorie" aria-describedby="dt-fout-categorie" class="flex-1 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
             <option value="" disabled>— maak een keuze —</option>
             <option v-for="c in opties.categorie" :key="c" :value="c">{{ label(DATATYPE_CATEGORIE, c) }}</option>
           </select>
+            <VeldUitleg veld="datatype_categorie" />
+          </div>
           <span v-if="fouten.categorie" id="dt-fout-categorie" role="alert" data-testid="dt-fout-categorie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.categorie }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">

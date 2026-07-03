@@ -13,6 +13,7 @@ import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
 import { CONTRACTTYPE, REGISTER_FOUT, label } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -230,7 +231,10 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
 
     <form class="card flex flex-col gap-[var(--lk-space-md)] max-w-2xl" data-testid="contract-form" @submit.prevent="opslaan">
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="cf-leverancier" class="font-semibold">Leverancier *</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="cf-leverancier" class="font-semibold">Leverancier *</label>
+          <VeldUitleg veld="leverancier" />
+        </div>
         <ZoekSelect
           id="cf-leverancier"
           testid="veld-leverancier"
@@ -245,7 +249,10 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
       </div>
 
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="cf-type" class="font-semibold">Contracttype *</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="cf-type" class="font-semibold">Contracttype *</label>
+          <VeldUitleg veld="contracttype" opties="contracttype" />
+        </div>
         <select id="cf-type" v-model="form.contracttype" data-testid="veld-contracttype" :aria-invalid="!!fouten.contracttype" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
           <option value="" disabled>— maak een keuze —</option>
           <option v-for="t in TYPE_OPTIES" :key="t" :value="t">{{ typeLabel(t) }}</option>
@@ -254,7 +261,10 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
       </div>
 
       <div v-if="isDeel" class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="cf-mantel" class="font-semibold">Mantelcontract *</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="cf-mantel" class="font-semibold">Mantelcontract *</label>
+          <VeldUitleg veld="mantelcontract" />
+        </div>
         <ZoekSelect
           id="cf-mantel"
           testid="veld-mantelcontract"
@@ -282,7 +292,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
       </div>
 
       <fieldset class="flex flex-col gap-[var(--lk-space-xs)]">
-        <legend class="font-semibold">Dekking</legend>
+        <legend class="font-semibold"><span class="inline-flex items-center gap-[var(--lk-space-xs)]">Dekking <VeldUitleg veld="dekking" opties="dekking" /></span></legend>
         <label v-for="o in dekkingOpties" :key="o.optie_sleutel" class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
           <input v-model="gekozenDekking" type="checkbox" :value="o.optie_sleutel" :data-testid="`dekking-${o.optie_sleutel}`" />
           {{ o.label }}
@@ -290,7 +300,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
       </fieldset>
 
       <fieldset class="flex flex-col gap-[var(--lk-space-xs)]">
-        <legend class="font-semibold">Kostenmodel</legend>
+        <legend class="font-semibold"><span class="inline-flex items-center gap-[var(--lk-space-xs)]">Kostenmodel <VeldUitleg veld="kostenmodel" opties="kostenmodel" /></span></legend>
         <label v-for="o in kostenmodelOpties" :key="o.optie_sleutel" class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
           <input v-model="gekozenKostenmodel" type="checkbox" :value="o.optie_sleutel" :data-testid="`kostenmodel-${o.optie_sleutel}`" />
           {{ o.label }}

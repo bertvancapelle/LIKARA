@@ -224,7 +224,7 @@ onMounted(init)
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
         <div class="flex items-center gap-[var(--lk-space-xs)]">
           <label for="f-componenttype" class="font-semibold">Type *</label>
-          <VeldUitleg veld="componenttype" />
+          <VeldUitleg veld="componenttype" opties="componenttype" />
         </div>
         <select
           id="f-componenttype"
@@ -248,7 +248,10 @@ onMounted(init)
       </div>
 
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="f-hostingmodel" class="font-semibold">Hostingmodel</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="f-hostingmodel" class="font-semibold">Hostingmodel</label>
+          <VeldUitleg veld="hostingmodel" />
+        </div>
         <select
           id="f-hostingmodel"
           v-model="form.hostingmodel"
@@ -284,7 +287,10 @@ onMounted(init)
           :key="b.veld"
           class="flex flex-col gap-[var(--lk-space-xs)]"
         >
-          <label :for="`f-${b.veld}`">{{ b.label }}</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label :for="`f-${b.veld}`">{{ b.label }}</label>
+            <VeldUitleg :veld="b.veld" />
+          </div>
           <select
             :id="`f-${b.veld}`"
             v-model="form[b.veld]"
@@ -294,7 +300,6 @@ onMounted(init)
             <option value="">— Niet geclassificeerd —</option>
             <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
           </select>
-          <VeldUitleg :veld="b.veld" inline />
         </div>
         <span v-if="fouten.biv" role="alert" data-testid="fout-biv" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.biv }}</span>
       </fieldset>
@@ -305,7 +310,10 @@ onMounted(init)
         :key="t.veld"
         class="flex flex-col gap-[var(--lk-space-xs)]"
       >
-        <label :for="`f-${t.veld}`" class="font-semibold">{{ t.label }}</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label :for="`f-${t.veld}`" class="font-semibold">{{ t.label }}</label>
+          <VeldUitleg :veld="t.veld" />
+        </div>
         <select
           :id="`f-${t.veld}`"
           v-model="form[t.veld]"
@@ -319,7 +327,10 @@ onMounted(init)
       </div>
 
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="f-eigenaar-org" class="font-semibold">Eigenaar-organisatie</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="f-eigenaar-org" class="font-semibold">Eigenaar-organisatie</label>
+          <VeldUitleg veld="eigenaar_organisatie_id" />
+        </div>
         <ZoekSelect
           id="f-eigenaar-org"
           testid="veld-eigenaar-organisatie"

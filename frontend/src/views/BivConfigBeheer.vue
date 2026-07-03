@@ -13,6 +13,7 @@ import Tag from 'primevue/tag'
 import { useToast } from 'primevue/usetoast'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 
 const SLEUTEL_PATROON = /^[a-z][a-z0-9_]*$/
 const auth = useAuthStore()
@@ -236,7 +237,10 @@ laad()
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[22rem]" data-testid="biv-add-form" @submit.prevent="bevestigToevoegen">
         <p v-if="addFormFout" role="alert" data-testid="biv-add-formfout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFormFout }}</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="biv-add-sleutel" class="font-semibold">Sleutel *</label>
+          <span class="inline-flex items-center gap-[var(--lk-space-xs)]">
+            <label for="biv-add-sleutel" class="font-semibold">Sleutel *</label>
+            <VeldUitleg veld="sleutel" />
+          </span>
           <input id="biv-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="biv-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. zeer_hoog" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white font-mono" />
           <span v-if="addFouten.optie_sleutel" role="alert" data-testid="biv-add-fout-optie_sleutel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.optie_sleutel }}</span>
         </div>
@@ -246,9 +250,11 @@ laad()
           <span v-if="addFouten.label" role="alert" data-testid="biv-add-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="biv-add-volgorde" class="font-semibold">Volgorde</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label for="biv-add-volgorde" class="font-semibold">Volgorde</label>
+            <VeldUitleg veld="volgorde" />
+          </div>
           <input id="biv-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="biv-add-volgorde" placeholder="leeg = achteraan (hoogste)" class="w-40 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
-          <span class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">Bepaalt de rangorde in de schaal (lager = minder gevoelig).</span>
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="biv-add-opslaan" :disabled="bezig" />
@@ -271,7 +277,10 @@ laad()
           <span v-if="editFouten.label" role="alert" data-testid="biv-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="biv-edit-volgorde" class="font-semibold">Volgorde</label>
+          <span class="inline-flex items-center gap-[var(--lk-space-xs)]">
+            <label for="biv-edit-volgorde" class="font-semibold">Volgorde</label>
+            <VeldUitleg veld="volgorde" />
+          </span>
           <input id="biv-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="biv-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">

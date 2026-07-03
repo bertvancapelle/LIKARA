@@ -38,6 +38,34 @@ describe('velduitleg-accessors', () => {
   })
 })
 
+// ── Content-borging (slice 2 uitrol) ────────────────────────────────────────────
+describe('velduitleg-content', () => {
+  it('kernvelden hebben veld-uitleg', () => {
+    for (const k of ['rol', 'score', 'componenttype', 'aard', 'beheerrol', 'dispositie',
+      'archimate_element', 'archimate_laag', 'archimate_aspect', 'sleutel', 'volgorde',
+      'eigenaar_organisatie_id', 'leverancier', 'gg_organisatie', 'draait_op', 'blokkade_status']) {
+      expect(veldUitleg(k), k).not.toBeNull()
+    }
+  })
+  it('optie-sets dekken de verwachte keys', () => {
+    expect(optieUitlegLijst('componentrol')).toHaveLength(4)
+    expect(optieUitlegLijst('componenttype')).toHaveLength(8)
+    expect(optieUitlegLijst('score')).toHaveLength(4)
+    expect(optieUitlegLijst('beheerrol')).toHaveLength(9)
+    expect(optieUitlegLijst('dispositie')).toHaveLength(4)
+    expect(optieUitlegLijst('archimate_element')).toHaveLength(18) // volledig (18/18)
+    expect(optieUitlegLijst('archimate_laag')).toHaveLength(4)
+    expect(optieUitlegLijst('archimate_aspect')).toHaveLength(3)
+    expect(optieUitlegLijst('contracttype')).toHaveLength(3)
+    expect(optieUitlegLijst('aard')).toHaveLength(5)             // incl. burger (nagelverd)
+  })
+  it('nagelverde keys hebben nu uitleg; bewuste degradatie blijft', () => {
+    expect(optieUitleg('aard', 'burger')).not.toBeNull()          // nagelverd
+    expect(optieUitleg('archimate_element', 'device')).not.toBeNull() // set nu volledig
+    expect(optieUitleg('blokkade_status', 'opgelost')).toBeNull() // auto-afgeleid, bewust geen keuze-uitleg
+  })
+})
+
 // ── Popover-interactie ──────────────────────────────────────────────────────────
 describe('VeldUitleg popover', () => {
   it('rendert een i-knop met het aria-patroon, paneel dicht', () => {

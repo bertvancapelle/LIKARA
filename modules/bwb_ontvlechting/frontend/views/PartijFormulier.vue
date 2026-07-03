@@ -12,6 +12,7 @@ import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter, useRoute } from '@/composables/router'
 import { api } from '@/api'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -200,7 +201,10 @@ const TEKSTVELDEN = [
     <form class="card flex flex-col gap-[var(--lk-space-md)] max-w-2xl" data-testid="partij-form" @submit.prevent="opslaan">
       <!-- Aard: keuze bij aanmaken, vast (read-only) bij bewerken -->
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="pf-aard" class="font-semibold">Aard *</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="pf-aard" class="font-semibold">Aard *</label>
+          <VeldUitleg veld="aard" opties="aard" />
+        </div>
         <select
           v-if="!bewerken"
           id="pf-aard"
@@ -219,7 +223,10 @@ const TEKSTVELDEN = [
       <!-- "Hoort bij": organisatie verplicht voor persoon/afdeling; afdeling optioneel voor persoon.
            CD049/ZoekSelect-standaard: server-side zoekend (onbegrensd), geen voor-geladen lijst. -->
       <div v-if="heeftOrgOuder" class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="pf-organisatie" class="font-semibold">Organisatie *</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="pf-organisatie" class="font-semibold">Organisatie *</label>
+          <VeldUitleg veld="partij_organisatie" />
+        </div>
         <ZoekSelect
           id="pf-organisatie"
           testid="veld-organisatie"
@@ -235,7 +242,10 @@ const TEKSTVELDEN = [
       </div>
 
       <div v-if="magAfdeling && organisatieId" class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="pf-afdeling" class="font-semibold">Afdeling (optioneel)</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="pf-afdeling" class="font-semibold">Afdeling (optioneel)</label>
+          <VeldUitleg veld="partij_afdeling" />
+        </div>
         <ZoekSelect
           id="pf-afdeling"
           testid="veld-afdeling"
@@ -258,7 +268,10 @@ const TEKSTVELDEN = [
 
       <!-- Soort: optioneel (platform-catalogus) -->
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="pf-soort" class="font-semibold">Soort</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="pf-soort" class="font-semibold">Soort</label>
+          <VeldUitleg veld="soort" opties="partijsoort" />
+        </div>
         <select
           id="pf-soort"
           v-model="soort"

@@ -10,6 +10,7 @@ import { Button, Column, DataTable, Dialog, InputText, Textarea, useToast } from
 import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 
 const router = useRouter()
@@ -147,7 +148,10 @@ onMounted(() => laad({ reset: true }))
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[24rem]" data-testid="wp-nieuw-form" @submit.prevent="bevestigNieuw">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="wp-naam" class="font-semibold">Naam *</label>
-          <InputText id="wp-naam" v-model="form.naam" data-testid="wp-naam" :aria-invalid="!!fouten.naam" />
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <InputText id="wp-naam" v-model="form.naam" data-testid="wp-naam" :aria-invalid="!!fouten.naam" class="flex-1" />
+            <VeldUitleg veld="work_package" />
+          </div>
           <span v-if="fouten.naam" role="alert" data-testid="wp-fout-naam" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.naam }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">

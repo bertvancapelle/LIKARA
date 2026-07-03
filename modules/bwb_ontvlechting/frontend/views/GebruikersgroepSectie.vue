@@ -8,6 +8,7 @@ import { computed, nextTick, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, InputText, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 // Organisatie-keuze: server-side zoeken, beperkt tot organisaties + burgers (aard_in).
@@ -265,6 +266,8 @@ laad({ reset: true })
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[20rem]" data-testid="gg-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="gg-organisatie" class="font-semibold">Organisatie</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <div class="flex-1">
           <ZoekSelect
             id="gg-organisatie"
             ref="eersteVeld"
@@ -275,11 +278,17 @@ laad({ reset: true })
             placeholder="Zoek een organisatie (optioneel)…"
             @update:model-value="onOrgKies"
           />
+            </div>
+            <VeldUitleg veld="gg_organisatie" />
+          </div>
           <span v-if="fouten.organisatie_id" id="gg-fout-organisatie" role="alert" data-testid="gg-fout-organisatie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.organisatie_id }}</span>
         </div>
         <!-- Afdeling: ZoekSelect binnen de gekozen organisatie; alleen bij een echte organisatie (niet burger). -->
         <div v-if="toonAfdeling" class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="gg-afdeling" class="font-semibold">Afdeling</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label for="gg-afdeling" class="font-semibold">Afdeling</label>
+            <VeldUitleg veld="gg_afdeling" />
+          </div>
           <ZoekSelect
             id="gg-afdeling"
             :key="form.organisatie_id"

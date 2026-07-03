@@ -21,6 +21,7 @@ import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/pr
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { IMPACT_SEVERITY, IMPACT_VERBREKING, KOPPELPROTOCOL, KOPPELRICHTING, label } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
@@ -32,6 +33,9 @@ const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 // B4 — gecureerde labels (gelijk aan de tabel ernaast), geen uit-veldnaam-afgeleide tekst.
 const VELD_LABEL = { richting: 'Richting', protocol: 'Protocol', impact_bij_verbreking: 'Impact bij verbreking' }
 const OPTIE_MAP = { richting: KOPPELRICHTING, protocol: KOPPELPROTOCOL, impact_bij_verbreking: IMPACT_VERBREKING }
+// Velduitleg-sleutels per flow-kenmerk (alleen richting heeft ook optie-uitleg).
+const UITLEG_KEY = { richting: 'koppelrichting', protocol: 'koppelprotocol', impact_bij_verbreking: 'impact_verbreking' }
+const UITLEG_OPTIES = { richting: 'koppelrichting' }
 
 // Elke richting heeft een eigen keyset-cursor + eigen sort-state (server-side paginering +
 // sortering via /relaties; Uitgaand en Inkomend sorteren onafhankelijk — ADR-023a Fase 4).
@@ -434,7 +438,10 @@ laadBeide()
           <span v-if="fouten.doel_applicatie_id" id="kp-fout-doel" role="alert" data-testid="kp-fout-doel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.doel_applicatie_id }}</span>
         </div>
         <div v-for="veld in ['richting', 'protocol', 'impact_bij_verbreking']" :key="veld" class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label :for="`kp-${veld}`" class="font-semibold">{{ VELD_LABEL[veld] }} *</label>
+          <div class="flex items-center gap-[var(--lk-space-xs)]">
+            <label :for="`kp-${veld}`" class="font-semibold">{{ VELD_LABEL[veld] }} *</label>
+            <VeldUitleg :veld="UITLEG_KEY[veld]" :opties="UITLEG_OPTIES[veld] || null" />
+          </div>
           <select :id="`kp-${veld}`" v-model="form[veld]" :data-testid="`kp-veld-${veld}`" :aria-invalid="!!fouten[veld]" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
             <option value="" disabled>— maak een keuze —</option>
             <option v-for="c in opties[veld]" :key="c" :value="c">{{ label(OPTIE_MAP[veld], c) }}</option>
