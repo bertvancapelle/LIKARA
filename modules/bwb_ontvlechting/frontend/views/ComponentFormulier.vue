@@ -16,6 +16,7 @@ import { Button, InputText, Textarea, useToast } from '@/primevue'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
 import { HOSTINGMODEL, MIGRATIEPAD, NIVEAU, REGISTER_FOUT, label } from '../labels'
+import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 // Eigenaar-organisatie: server-side zoeken, beperkt tot partijen met aard=organisatie (UX-B6-b).
@@ -221,7 +222,10 @@ onMounted(init)
       </div>
 
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="f-componenttype" class="font-semibold">Type *</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="f-componenttype" class="font-semibold">Type *</label>
+          <VeldUitleg veld="componenttype" />
+        </div>
         <select
           id="f-componenttype"
           v-model="form.componenttype"
@@ -257,7 +261,10 @@ onMounted(init)
 
       <!-- ADR-028 — componentrol (default Intern) + optionele BIV-classificatie. -->
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="f-componentrol" class="font-semibold">Rol</label>
+        <div class="flex items-center gap-[var(--lk-space-xs)]">
+          <label for="f-componentrol" class="font-semibold">Rol</label>
+          <VeldUitleg veld="rol" opties="componentrol" />
+        </div>
         <select
           id="f-componentrol"
           v-model="form.componentrol"
@@ -287,6 +294,7 @@ onMounted(init)
             <option value="">— Niet geclassificeerd —</option>
             <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
           </select>
+          <VeldUitleg :veld="b.veld" inline />
         </div>
         <span v-if="fouten.biv" role="alert" data-testid="fout-biv" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.biv }}</span>
       </fieldset>
