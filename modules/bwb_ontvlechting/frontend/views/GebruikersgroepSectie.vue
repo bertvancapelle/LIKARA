@@ -47,6 +47,13 @@ let laatsteTrigger = null
 
 const orgAard = ref(null)
 const orgNaam = ref('')
+// Voorvul-naam voor de organisatie-ZoekSelect in bewerk-modus (ADR-036: organisatie leeft op het
+// grove feit; de read levert `organisatie_naam` mee — zonder deze prop bleef het veld leeg terwijl
+// `organisatie_id` wél gezet was: verwarrend en risico op ongemerkte ontkoppeling).
+const orgInitieel = ref('')
+// Sleutel om de organisatie-ZoekSelect te remounten (dialog-instantie leeft voort; zonder remount
+// blijft de vorige `gekozenLabel` staan bij een volgende bewerk-actie).
+const orgKey = ref(0)
 const afInitieel = ref('')
 // Sleutel om de afdeling-ZoekSelect te remounten bij org-wissel of ter-plekke-aanmaken.
 const afdelingKey = ref(0)
@@ -132,6 +139,9 @@ function onSort(event) {
 function _reset() {
   Object.assign(form, { organisatie_id: null, afdeling_id: null, aantal_gebruikers: '' })
   orgAard.value = null
+  orgNaam.value = ''
+  orgInitieel.value = ''
+  orgKey.value += 1
   _resetAfdeling()
   Object.keys(fouten).forEach((k) => delete fouten[k])
 }
@@ -152,6 +162,8 @@ async function openBewerken(e, rij) {
     afdeling_id: rij.afdeling_id ?? null,
     aantal_gebruikers: rij.aantal_gebruikers ?? '',
   })
+  orgInitieel.value = rij.organisatie_naam || ''  // de organisatie-naam tonen in de ZoekSelect (ADR-036)
+  orgKey.value += 1
   afInitieel.value = rij.afdeling || ''  // de afdeling-partij-naam tonen in de ZoekSelect
   afdelingKey.value += 1
   dialogOpen.value = true
@@ -298,9 +310,11 @@ laad({ reset: true })
           <ZoekSelect
             id="gg-organisatie"
             ref="eersteVeld"
+            :key="orgKey"
             testid="gg-veld-organisatie"
             :model-value="form.organisatie_id"
             :zoek-functie="zoekOrganisaties"
+            :initieel-weergave="orgInitieel"
             :invalid="!!fouten.organisatie_id"
             placeholder="Zoek een organisatie (optioneel)…"
             @update:model-value="onOrgKies"

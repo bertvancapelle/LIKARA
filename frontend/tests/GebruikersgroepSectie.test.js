@@ -240,4 +240,40 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises()
     expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith(expect.objectContaining({ organisatie_id: 'org-1', afdeling_id: 'afd-nieuw' }))
   })
+
+  it('bewerken voert organisatie, afdeling én aantal correct voor; opslaan zonder wijziging ontkoppelt niet', async () => {
+    api.gebruikersgroepen.lijst.mockResolvedValueOnce({
+      items: [{ id: 'g1', organisatie_id: 'org-1', organisatie_naam: 'Gemeente Tiel', afdeling_id: 'afd-1', afdeling: 'Burgerzaken', aantal_gebruikers: 12 }],
+      volgende_cursor: null,
+    })
+    api.gebruikersgroepen.werkBij.mockResolvedValueOnce({ id: 'g1' })
+    const w = await mountSectie()
+    await w.find('[data-testid="gg-bewerk-g1"]').trigger('click')
+    await flushPromises() // openBewerken → api.partijen.haal (orgAard/orgNaam)
+    // Voorvulling: organisatie-naam zichtbaar (ADR-036: uit organisatie_naam), afdeling + aantal ingevuld.
+    expect(w.find('[data-testid="gg-veld-organisatie-input"]').element.value).toBe('Gemeente Tiel')
+    expect(w.find('[data-testid="gg-veld-afdeling-input"]').element.value).toBe('Burgerzaken')
+    expect(w.find('[data-testid="gg-veld-aantal"]').element.value).toBe('12')
+    // Direct opslaan zonder wijziging → koppelingen ongemoeid (geen stille ontkoppeling).
+    await w.find('[data-testid="gg-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.gebruikersgroepen.werkBij).toHaveBeenCalledWith('g1', {
+      organisatie_id: 'org-1',
+      afdeling_id: 'afd-1',
+      aantal_gebruikers: 12,
+    })
+  })
+
+  it('bewerken van een org-loze groep: organisatie leeg, geen afdeling-veld', async () => {
+    api.gebruikersgroepen.lijst.mockResolvedValueOnce({
+      items: [{ id: 'g2', organisatie_id: null, organisatie_naam: null, afdeling_id: null, afdeling: null, aantal_gebruikers: 5 }],
+      volgende_cursor: null,
+    })
+    const w = await mountSectie()
+    await w.find('[data-testid="gg-bewerk-g2"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="gg-veld-organisatie-input"]').element.value).toBe('')
+    expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(false)
+    expect(w.find('[data-testid="gg-veld-aantal"]').element.value).toBe('5')
+  })
 })
