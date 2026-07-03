@@ -158,6 +158,11 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
 - PrimeVue `Dialog` teleporteert naar body → `global.stubs: { teleport: true }`.
 - `window.location` via `vi.stubGlobal('location', { assign: vi.fn() })`.
 - Cursor-/paginering-assertions via gemockte `lijst`-resoluties (`volgende_cursor`).
+- **Toets ook de visuele/interactie-staat, niet alleen de payload (LI030).** Een groene payload-assert
+  dekte tweemaal een kapotte UX niet: een onleesbare Opslaan-knop (wit-op-bijna-wit `--lk-color-accent`)
+  en een geselecteerd-item-label dat afweek van de lijst-identiteit. Assert daarom óók de knop-stijl-class
+  (primaire token, **niet** `accent`) én het geselecteerde-item-label (`veld == lijst`); en bekijk
+  UX-rakende schermen vóór commit in de **echte browser** (mocks tonen de styling/selectie-staat niet).
 
 ## Offline-grens (bewust)
 

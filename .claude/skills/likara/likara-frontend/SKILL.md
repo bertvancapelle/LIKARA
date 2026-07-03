@@ -148,6 +148,14 @@ toegestane variatie is:
 (`ml-auto`/`mt-*`) is toegestaan. Alle knoppen lopen via het ene preset; zo kan een
 hoogteafwijking structureel niet meer ontstaan.
 
+**Leesbaarheid van een losse knop (LI030, niet-onderhandelbaar).** Een `<button>` buiten het preset
+(bv. de inline uitklaprij-Opslaan in `ChecklistscoreSectie`) MOET een rol-kleur met leesbaar contrast
+dragen: hoofdactie = `bg-[var(--lk-color-primary)] text-white` (+ `hover:bg-[#2D6DB5]` + focus-outline).
+**NOOIT** `bg-[var(--lk-color-accent)] text-white` — `--lk-color-accent` (#E8F0FB) is bijna-wit, dus
+witte tekst is onleesbaar en de knop oogt disabled/dood (incident LI030: de groene payload-test dekte
+dit niet; pas in de echte browser zichtbaar). Voorkeur: gebruik het Button-preset (dwingt dit af); bij
+een losse knop een class-assert op de primaire token in de view-test.
+
 **Tabbladen** (`AppTabs.vue`) volgen dezelfde kleurtaal én hoogte (`h-10`, `--lk-radius-btn`):
 omlijnd = beschikbaar, lichtblauw (`--lk-color-primary-50/700`) = hover, donkerblauw
 (`--lk-color-primary`, wit, semibold) = gekozen.

@@ -116,6 +116,15 @@ Een nieuwe sectie hoort qua interactie te lijken op vergelijkbare bestaande sect
 (zelfde knop-plaatsing, zelfde lege-staat-stijl, zelfde manier van toevoegen/verwijderen),
 zodat de gebruiker niet per scherm opnieuw moet leren.
 
+**Identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie" (ADR-036a/037, LI030).**
+In ELKE niet-org-gescoopte lijst/picker waar afdelingen of personen verschijnen, toon de
+organisatie-context via de gedeelde helper `gebruikersgroepIdentiteit` (`labels.js`) — dit ontdubbelt
+gelijknamige afdelingen van verschillende organisaties ("Beheer & Exploitatie — Tiel" vs. "— Culemborg").
+Regels: afdeling → "afdeling — organisatie"; persoon → "persoon — afdeling — organisatie" (persoon
+zonder afdeling → "persoon — organisatie"). Het **geselecteerde** item in het veld toont dezelfde
+identiteit als de lijst (niet uiteen laten lopen). Toegepast op de verantwoordelijke-picker (ADR-037);
+nog toe te passen op de ContractFormulier-leverancier-picker + PartijLijst (opvolgpunt).
+
 ---
 
 ## Toepassing in de praktijk

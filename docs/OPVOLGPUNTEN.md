@@ -7,6 +7,43 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V031 (sessie-afsluiting LI030 — ADR-037 verantwoordelijke per checklistantwoord, 2026-07-03)
+
+Build **V030 → V031**. Het vrije-tekstveld "Eigenaar" op een checklistantwoord vervangen door een
+gestructureerde **verantwoordelijke** (afdeling óf persoon uit het register); blokkade-eigenaar afgeleid.
+
+**Geland deze sessie:**
+
+| Commit | Slice |
+|---|---|
+| `e21a28e` | ADR-037 Pass 1 — schema-gate (migratie `0051`): `checklistscore.verantwoordelijke_id` (composiet-FK, SET NULL) vervangt `eigenaar`; `blokkade.eigenaar` gedropt (afgeleid); aard-validatie 422; dubbele engine-borging; seed-scenario |
+| `4c8d113` | ADR-037 Pass 2 — verantwoordelijke-picker (afdeling/persoon, `aard_in`); aandacht-signaal `antwoord_zonder_verantwoordelijke` (engine-veilig via `table()`-handle) + velduitleg; Opslaan-knop leesbaar; identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie" in lijst/veld/na-selectie |
+
+**Nieuwe opvolgpunten uit LI030 (van meest naar minst gebruikerswaarde):**
+
+1. **Detailpagina's — GebruikersgroepDetail + BlokkadeDetail.** GebruikersgroepDetail verst (grounding
+   gedaan; scherm + identiteit-/applicatie-weergave + signalen-ter-plekke + objecthistorie-ontsluiting
+   ontbreken). BlokkadeDetail: **open conceptuele keuze** (eigen pagina vs. doorklik naar de component-
+   checklisttab) — eerst met Bert uitdenken vóór bouw; detail-read verrijken met herkomst.
+
+2. **Breder org-context-patroon** — "afdeling — organisatie"-ontdubbeling (via `gebruikersgroepIdentiteit`)
+   ook toepassen op de **ContractFormulier-leverancier-picker** + **PartijLijst** (de resterende niet-org-
+   gescoopte afdeling/persoon-lijsten). ADR-037 paste het toe op de verantwoordelijke-picker.
+
+3. **Auth/sessie-cluster** (uit het `NIET_GEAUTHENTICEERD`-onderzoek): (a) dev-sessie-robuustheid bij
+   reseed — een stack-herstart (Redis/Keycloak) doodt levende sessies stil; persistentie of
+   gedocumenteerde re-login; (b) UX-vangrail — 401 na gefaalde refresh → gebruiker naar opnieuw inloggen
+   leiden i.p.v. een kale rode `NIET_GEAUTHENTICEERD`-toast; (c) auth/refresh-testgat — nu overal gemockt,
+   geen echte 401→refresh→retry-dekking.
+
+**Incident-lessen LI030 (geborgd in skills):** groene tests dekten tweemaal een kapotte UX niet (pas in
+de browser zichtbaar): onleesbare Opslaan-knop (`--lk-color-accent` #E8F0FB + `text-white` = wit-op-
+bijna-wit) en veld-vs-lijst-identiteit. Vuistregels toegevoegd aan `likara-frontend` (knop-leesbaarheid),
+`likara-tests` (toets visuele/interactie-staat, niet alleen payload; browser-check vóór commit) en
+`likara-ux` (identiteit-patroon voor niet-org-gescoopte afdeling/persoon-lijsten).
+
+---
+
 ### Stand V030 (sessie-afsluiting ADR-036 + Velduitleg + ADR-036a, 2026-07-03)
 
 Build **V029 → V030**. Organisatiegebruik van applicaties **end-to-end** gebouwd, veld-uitleg op alle

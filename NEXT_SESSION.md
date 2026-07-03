@@ -1,92 +1,108 @@
-# LIKARA — Next Session (V030)
+# LIKARA — Next Session (V031)
 
-> **Sessie ADR-036 + Velduitleg + ADR-036a (V030):** organisatiegebruik van applicaties
-> **end-to-end** gebouwd (grof feit + gebruikersgroep-verfijning + afleiding/signaal/identiteit),
-> veld-uitleg op alle formulieren, de afdeling structureel gemaakt, plus drie gerichte UI-fixes.
-> - **ADR-036 (`8e7e419`, `bff1254`, `889fc4d`):** grof organisatiegebruik-feit + gebruikersgroep
->   als fijne verfijning (`gebruik_id`); kaart-afleiding "gebruikt door", signaal "detaillering
->   ontbreekt", identiteit "afdeling — organisatie"; invariant-test "afdeling-met-org ⟹ grof feit".
-> - **Velduitleg (`7cc6e24`, `8ea87be`):** `VeldUitleg`-component + centrale `velduitleg.js`;
->   content-uitrol (popover-'i') over alle formulieren.
-> - **ADR-036a (`480fa84`, `a09a8cb`):** afdeling structureel — `afdeling_id` → organisatie_eenheid-
->   partij (migratie **0050**); search-first afdeling-picker (aanmaken in de lege zoekstaat).
-> - **UI-fixes (`929435e`, `0e439d3`):** bewerken-voorvulling gebruikersgroep (organisatie uit grof
->   feit voorvullen); contract-leverancier-picker versmald naar geldige aarden (`aard_in`).
+> **Sessie LI030 — ADR-037 (verantwoordelijke per checklistantwoord), volledig geland (V031):**
+> het vrije-tekstveld "Eigenaar" op een checklistantwoord vervangen door een gestructureerde
+> **verantwoordelijke** (afdeling óf persoon uit het register), met de blokkade-eigenaar afgeleid.
+> - **Pass 1 — schema-gate (`e21a28e`, migratie `0051`):** `checklistscore.verantwoordelijke_id`
+>   (composiet-FK → `element`, ON DELETE SET NULL) vervangt `checklistscore.eigenaar`;
+>   `blokkade.eigenaar` gedropt (afgeleid in de leeslaag via `checklistscore.verantwoordelijke_id`).
+>   Aard-validatie (422 `ONGELDIGE_VERANTWOORDELIJKE`); dubbele engine-borging (score blijft enige
+>   lifecycle-driver); seed-scenario (persoon/afdeling/leeg + blokkerend antwoord).
+> - **Pass 2 — invoer + signaal (`4c8d113`):** verantwoordelijke-picker in `ChecklistscoreSectie`
+>   (afdeling/persoon in één `ZoekSelect`, `aard_in`), PATCH `verantwoordelijke_id` zonder score;
+>   aandacht-signaal `antwoord_zonder_verantwoordelijke` (registratiegaten via `table()`-handle,
+>   engine-veilig) + `SIGNAAL_LABEL` + velduitleg; Opslaan-knop leesbaar (primaire kleur);
+>   identiteit **"afdeling — organisatie" / "persoon — afdeling — organisatie"** in lijst, veld én
+>   weergave na selectie (read-uitbreiding: `verantwoordelijke_organisatie` + partij-lijst
+>   `organisatie_naam`/`afdeling_naam`).
 >
-> Eigenaar-organisatie-picker: onderzocht, **geen defect** (stale seed-data; reseed toont alle 4 orgs).
+> Twee incident-lessen (groene tests dekten een kapotte UX niet — pas in de browser zichtbaar):
+> onleesbare Opslaan-knop (wit-op-bijna-wit) en veld-vs-lijst-identiteit. Vuistregels geborgd in
+> `likara-frontend`/`likara-tests`/`likara-ux`. Separaat gezien maar buiten scope gehouden:
+> `NIET_GEAUTHENTICEERD` bij opslaan = sessie-/tokenverval + gefaalde refresh (niet de PATCH).
 >
-> Laatste commit: `0e439d3`. Tests: backend **914/0** (2 skipped) · frontend **763**. Migratie-head **0050**.
+> Laatste commit: `4c8d113`. Tests: backend **841** (module) + **80** (platform), 2 skipped ·
+> frontend **772**. Migratie-head **0051**.
 
 ## Top-5 prioriteiten (volgende sessie)
 
-1. **GebruikersgroepDetail + BlokkadeDetail** — nu ontgrendeld (ADR-036/036a leverden de betekenislaag;
-   grounding gedaan). BlokkadeDetail-restpunten: detail-read (`BlokkadeRead`) verrijken met **herkomst**
-   (checklistvraag `vraag_code`/`vraag`/score); eigenaar blijft **vrij tekstveld**; `objecthistorie._TYPES`
-   uitbreiden met `gebruikersgroep` + `blokkade` voor het 'i'-paneel.
+1. **Detailpagina's — GebruikersgroepDetail + BlokkadeDetail.** GebruikersgroepDetail is het verst
+   (feitenonderzoek gedaan: read + formulier bestaan al; ontbreken: het scherm zelf, identiteit-/
+   applicatie-weergave, signalen-ter-plekke, en objecthistorie-ontsluiting `objecthistorie._TYPES` +
+   `haal_op`-resolutie). **BlokkadeDetail heeft eerst een conceptuele keuze met Bert:** eigen pagina
+   vs. doorklik naar de component-checklisttab — uitdenken vóór bouw. BlokkadeDetail-restpunt: detail-
+   read (`BlokkadeRead`) verrijken met **herkomst** (checklistvraag `vraag_code`/`vraag`/score).
 
-2. **ADR-036 "begin grof"-invoerroute** — frontend-formulier om een grof organisatiegebruik-feit los vast
-   te leggen (organisatie zonder afdeling). Backend bestaat al (`organisatiegebruik*` routes/schemas/
-   services); zonder dit vuurt "detaillering ontbreekt" alleen op seed-data. Maakt ADR-036 end-to-end
-   bruikbaar.
+2. **Breder org-context-patroon** — dezelfde "afdeling — organisatie"-ontdubbeling (ADR-036a/037,
+   via `gebruikersgroepIdentiteit`) ook toepassen op de **ContractFormulier-leverancier-picker** en
+   **PartijLijst** — de enige resterende niet-org-gescoopte afdeling/persoon-lijsten.
 
-3. **Impact-verkenner render-herbouw** — één deterministische render-eigenaar; edges-onzichtbaar-bug zit
-   in de echte cytoscape-render (logica bewezen correct). Zwaarste item, verse sessie; met échte
-   render-verificatie i.p.v. mocks + de ~30 Cytoscape-mock-consoleruis opruimen.
+3. **Auth/sessie-cluster** (uit LI030-onderzoek): (a) **dev-sessie-robuustheid bij reseed** — een
+   stack-herstart (Redis/Keycloak) doodt levende sessies stil; persistentie of gedocumenteerde
+   re-login; (b) **UX-vangrail** — 401 na gefaalde refresh → gebruiker naar opnieuw inloggen leiden
+   i.p.v. een kale rode `NIET_GEAUTHENTICEERD`-toast; (c) **auth/refresh-testgat** — nu overal gemockt;
+   geen echte 401→refresh→retry-dekking.
 
-4. **ADR-035 slice 3** — configureerbare score-drempel voor "Registratie onvolledig".
+4. **Impact-verkenner render-herbouw** — één deterministische render-eigenaar; edges-onzichtbaar-bug
+   zit in de echte cytoscape-render (logica bewezen correct). Zwaarste item, verse sessie; met échte
+   render-verificatie i.p.v. mocks + de Cytoscape-mock-consoleruis opruimen.
 
-5. **Verantwoordelijkheid-/roltoewijzing-partij-picker scope** — eerst de **domeinvraag** (welke
-   partij-aarden mogen een beheerrol dragen?), dán de picker-scoping. Niet blind versmallen.
+5. **ADR-036 "begin grof"-invoerroute** — frontend-formulier om een grof organisatiegebruik-feit los
+   vast te leggen (organisatie zonder afdeling). Backend bestaat al; zonder dit vuurt "detaillering
+   ontbreekt" alleen op seed-data.
 
-**Klein onderhoud (kan meeliften, geen top-5-plek):** RelatieKenmerk-dimensie-velduitleg (content staat
-klaar in `velduitleg.js`; wacht op een invoerveld — nu sectie-gedreven); dode-code-opschoning; de
-cytoscape-test-ruis (bij #3).
+**Klein onderhoud (kan meeliften, geen top-5-plek):** ADR-035 slice 3 (configureerbare score-drempel);
+verantwoordelijkheid-/roltoewijzing-partij-picker-scope (eerst de domeinvraag); RelatieKenmerk-dimensie-
+velduitleg (content klaar, wacht op invoerveld); dode-code-opschoning; de cytoscape-test-ruis (bij #4).
 
 ---
 
 ## Openstaande punten (volledig)
 
+### ADR-037 / verantwoordelijke per checklistantwoord — ✅ GELAND (V031, migratie 0051)
+- Pass 1 (`e21a28e`) schema-gate + Pass 2 (`4c8d113`) picker/signaal/velduitleg/identiteit.
+- **Open vervolg (top-5 #2):** org-context-patroon uitrollen naar leverancier-picker + PartijLijst.
+
+### Detailpagina's (gebruikersgroep + blokkade) — top-5 #1
+- Standalone pagina's ontbreken nog. GebruikersgroepDetail-grounding gedaan; BlokkadeDetail vraagt
+  eerst de conceptuele keuze (eigen pagina vs. doorklik) met Bert. Objecthistorie `_TYPES` uitbreiden
+  met `gebruikersgroep` + `blokkade` voor het 'i'-paneel (bouwstenen `haal_op` + `Entiteit`-enum
+  bestaan al).
+
+### Auth/sessie-cluster — top-5 #3 (nieuw, uit LI030)
+- (a) reseed doodt levende sessies stil (Redis/Keycloak); (b) 401→re-login-UX-vangrail;
+  (c) auth/refresh-testgat (echte 401→refresh→retry-dekking ontbreekt).
+
 ### ADR-036 / organisatiegebruik — ✅ GELAND (V030)
-- Grof feit `organisatiegebruik` + gebruikersgroep-verfijning (`gebruik_id`); kaart-afleiding "gebruikt
-  door"; signaal "gebruik bekend, detaillering ontbreekt"; identiteit "afdeling — organisatie".
-- **Open vervolg (top-5 #2):** frontend-invoerroute om een grof feit los vast te leggen.
+- **Open vervolg (top-5 #5):** frontend-invoerroute om een grof feit los vast te leggen.
 
 ### ADR-036a / afdeling structureel — ✅ GELAND (V030, migratie 0050)
-- `gebruikersgroep.afdeling` (vrije tekst) → `afdeling_id` → organisatie_eenheid-partij binnen de
-  grove-feit-organisatie (spiegel persoon→afdeling). Search-first afdeling-picker.
 
 ### Velduitleg — ✅ GELAND (V030)
-- `VeldUitleg`-component + centrale `velduitleg.js`; popover-'i' op alle formulieren.
 - **Parked:** RelatieKenmerk-dimensie-velduitleg (content klaar; wacht op een invoerveld).
 
 ### Component-focus-herfundering — ✅ AFGEROND (LI057–LI059, migraties 0045–0047)
-- Q1 per-type configureerbaar (`checklist_dragend`), Q2 velden component-breed NOT NULL + defaults,
-  Q3 subtabel gedropt (0047), Q4 type vrij wijzigbaar met data-safety, Q5 enum-rename gedaan.
 
-### Detailpagina's (gebruikersgroep + blokkade) — ontgrendeld (top-5 #1)
-- Standalone pagina's ontbreken nog; betekenislaag is er nu (ADR-036/036a). BlokkadeDetail-restpunten
-  zoals in top-5 #1.
-
-### Impact-verkenner
-- **Render-bug** (edges onzichtbaar op preset-pad; `nodes:visible` inzakking) — onopgelost, geagendeerd
-  voor de render-herbouw (top-5 #3). Logica/model bewezen correct; zit in de echte cytoscape-render.
-- Modus ego→impact ontkoppelen van set-grootte (ADR-033-revisie) — nog niet opgepakt.
-- Swimlane (ADR-034, geparkeerd); Saved views als permanente hoofdingang (Fase D).
-- **Test-hygiëne (pre-existing):** ~30–33 unhandled-rejection-consoleruis uit de Cytoscape-mock in
-  `LandschapskaartView.test.js` — **geen falende test** (frontend 763/763). Bij render-herbouw meenemen.
+### Impact-verkenner — top-5 #4
+- **Render-bug** (edges onzichtbaar op preset-pad; `nodes:visible` inzakking) — onopgelost. Logica/model
+  bewezen correct; zit in de echte cytoscape-render.
+- Modus ego→impact ontkoppelen van set-grootte (ADR-033-revisie); Swimlane (ADR-034, geparkeerd);
+  Saved views als permanente hoofdingang (Fase D).
+- **Test-hygiëne (pre-existing):** ~29–33 unhandled-rejection-consoleruis uit de Cytoscape-mock
+  (`cy.nodes`) + theme-CSS-fetch-abort in `LandschapskaartView.test.js`/`LandschapskaartPopups.test.js`
+  — **geen falende test** (frontend 772/772). Bij render-herbouw meenemen.
 
 ### ADR-035 Signalering
-- Slice 3: "Registratie onvolledig" (configureerbare score-drempelwaarde) — uitgesteld (top-5 #4).
-- blokkade_zonder_eigenaar — structureel onmogelijk zonder schema-/semantiekherziening.
+- Slice 3: "Registratie onvolledig" (configureerbare score-drempelwaarde) — uitgesteld (klein onderhoud).
 - badges op GebruikersgroepDetail/BlokkadeDetail — bij die detail-pagina's (top-5 #1).
 
 ### Partij-pickers
 - **Verantwoordelijkheid-/roltoewijzing-partij-picker** ongefilterd → eerst domeinvraag, dán scoping
-  (top-5 #5). Contract-leverancier-picker is deze sessie al versmald (`aard_in`).
+  (klein onderhoud). Contract-leverancier-picker is versmald (`aard_in`); org-context nog toe te voegen
+  (top-5 #2).
 
 ### Cosmetic/klein
-- Zoekbalk-contextlabel "Component toevoegen aan beeld" in kaart-modus.
-- Dode-code-opschoning.
+- Zoekbalk-contextlabel "Component toevoegen aan beeld" in kaart-modus. Dode-code-opschoning.
 
 ### Strategisch (parked)
 - Export/import/rapportage — scope apart te bepalen.

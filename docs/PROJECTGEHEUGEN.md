@@ -5,40 +5,41 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V030 · 2026-07-03
-- **Commit:** 0e439d3 (contract-leverancier picker) — sessie-afsluiting V030 volgt
-- **Tests:** backend 914 / 2 skipped / 0 failed · frontend 763 groen (66 files) · 0 kritieken
-- **Migratie-head:** `0050_adr036a_gg_afdeling`
-- **TST-rapport:** `docs/TST-V030-Validatierapport.md`
+- **Build:** V031 · 2026-07-03
+- **Commit:** `4c8d113` (ADR-037 Pass 2) — sessie-afsluiting V031 volgt
+- **Tests:** backend 841 (module) + 80 (platform) / 2 skipped / 0 failed · frontend 772 groen (66 files) · 0 kritieken
+- **Migratie-head:** `0051_adr037_verantw`
+- **TST-rapport:** `docs/TST-V031-Validatierapport.md`
 
-## Deze sessie (ADR-036 + Velduitleg + ADR-036a) — organisatiegebruik end-to-end AFGEROND
-**Kader:** organisatiegebruik van applicaties end-to-end gebouwd, veld-uitleg op alle formulieren, de
-afdeling structureel gemaakt, plus drie gerichte UI-fixes. Puur registratief; score = enige lifecycle-driver.
-- **ADR-036 (`8e7e419`, `bff1254`, `889fc4d`):** grof "organisatie gebruikt applicatie"-feit
-  (`organisatiegebruik`) + gebruikersgroep als fijne verfijning (`gebruik_id`); kaart-afleiding "gebruikt
-  door", read-only signaal "gebruik bekend, detaillering ontbreekt", identiteit "afdeling — organisatie";
-  invariant-test "afdeling-met-org ⟹ grof feit".
-- **Velduitleg (`7cc6e24`, `8ea87be`):** `VeldUitleg`-component + centrale `velduitleg.js`; popover-'i'
-  uitgerold over alle formulieren.
-- **ADR-036a (`480fa84`, `a09a8cb`, migratie 0050):** afdeling structureel — `afdeling_id` →
-  organisatie_eenheid-partij binnen de grove-feit-organisatie; search-first afdeling-picker (aanmaken in
-  de lege zoekstaat).
-- **UI-fixes (`929435e`, `0e439d3`):** bewerken-voorvulling gebruikersgroep (organisatie voorvullen uit
-  grof feit + `initieel-weergave`); contract-leverancier-picker versmald naar `aard_in`
-  (organisatie/organisatie_eenheid/externe_partij); seed geverifieerd geldig.
-- **Eigenaar-organisatie-picker:** onderzocht, **geen defect** (filter correct, 4 orgs geseed, query levert
-  alle 4) — "alleen BvoWB" was stale seed-data; reseed lost het op.
-- **Signaaltelling gecorrigeerd:** feitelijk **9 signaaltypen (3 kritiek / 6 aandacht)** — skill bijgetrokken.
+## Deze sessie (LI030 — ADR-037 verantwoordelijke per checklistantwoord) — AFGEROND
+**Kader:** het vrije-tekstveld "Eigenaar" op een checklistantwoord vervangen door een gestructureerde
+**verantwoordelijke** (afdeling óf persoon uit het register), met de blokkade-eigenaar afgeleid. Puur
+registratie/leeslaag; score blijft de enige lifecycle-driver (dubbele engine-borging).
+- **Pass 1 — schema-gate (`e21a28e`, migratie `0051`):** `checklistscore.verantwoordelijke_id`
+  (composiet-FK → `element`, ON DELETE SET NULL, kolom-specifiek) vervangt `checklistscore.eigenaar`;
+  `blokkade.eigenaar` gedropt (afgeleid in de leeslaag via `checklistscore.verantwoordelijke_id`).
+  Aard-validatie 422 `ONGELDIGE_VERANTWOORDELIJKE`; seed-scenario (persoon/afdeling/leeg + blokkerend).
+- **Pass 2 — invoer + signaal (`4c8d113`):** verantwoordelijke-picker in `ChecklistscoreSectie`
+  (afdeling/persoon in één `ZoekSelect`, `aard_in`), PATCH `verantwoordelijke_id` zonder score;
+  aandacht-signaal `antwoord_zonder_verantwoordelijke` (registratiegaten via `table()`-handle,
+  engine-veilig) + `SIGNAAL_LABEL` + velduitleg; Opslaan-knop leesbaar (primaire kleur); identiteit
+  "afdeling — organisatie" / "persoon — afdeling — organisatie" in lijst, veld én weergave na selectie
+  (read-uitbreiding: `verantwoordelijke_organisatie` + partij-lijst `organisatie_naam`/`afdeling_naam`).
+- **Incident-lessen (geborgd in skills):** groene tests dekten tweemaal een kapotte UX niet — onleesbare
+  Opslaan-knop (wit-op-bijna-wit `--lk-color-accent`) en veld-vs-lijst-identiteit; pas in de browser
+  zichtbaar. Vuistregels in `likara-frontend`/`likara-tests`/`likara-ux`.
+- **Separaat gezien, buiten scope:** `NIET_GEAUTHENTICEERD` bij opslaan = sessie-/tokenverval + gefaalde
+  `/auth/refresh` (een GET faalde óók) — niet de PATCH, niet ADR-037. → auth/sessie-cluster (opvolgpunt).
 
 ## Top-5 prioriteiten volgende sessie
-1. **GebruikersgroepDetail + BlokkadeDetail** — ontgrendeld (betekenislaag is er); BlokkadeDetail-
-   restpunten: herkomst in `BlokkadeRead`, eigenaar = vrij tekstveld, `objecthistorie._TYPES` uitbreiden
-2. **ADR-036 "begin grof"-invoerroute** — frontend-formulier om een grof feit los vast te leggen
-   (backend bestaat al); zonder dit vuurt "detaillering ontbreekt" alleen op seed-data
-3. **Impact-verkenner render-herbouw** — deterministische render-eigenaar + echte render-verificatie
-   (incl. het losse Cytoscape-mock-consoleruispunt in `LandschapskaartView.test.js`)
-4. **ADR-035 Slice 3** — "Registratie onvolledig" (configureerbare score-drempelwaarde)
-5. **Verantwoordelijkheid-/roltoewijzing-partij-picker scope** — eerst domeinvraag, dán scoping
+1. **Detailpagina's — GebruikersgroepDetail + BlokkadeDetail** (GG verst; BlokkadeDetail eerst de
+   conceptuele keuze eigen-pagina-vs-doorklik met Bert; objecthistorie `_TYPES` ontsluiten)
+2. **Breder org-context-patroon** — "afdeling — organisatie"-ontdubbeling ook op de leverancier-picker
+   + PartijLijst (via `gebruikersgroepIdentiteit`)
+3. **Auth/sessie-cluster** — (a) dev-sessie-robuustheid bij reseed, (b) 401→re-login-UX-vangrail,
+   (c) auth/refresh-testgat
+4. **Impact-verkenner render-herbouw** — deterministische render-eigenaar + echte render-verificatie
+5. **ADR-036 "begin grof"-invoerroute** — frontend-formulier voor een los grof gebruiksfeit
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale
