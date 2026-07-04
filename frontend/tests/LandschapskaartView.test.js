@@ -1418,17 +1418,15 @@ describe('LandschapskaartView v3', () => {
       organisatie: vorm({ id: 'o', element_type: 'partij', soort: 'organisatie' }),
       afdeling: vorm({ id: 'a', element_type: 'partij', soort: 'organisatie_eenheid' }),
       leverancier: vorm({ id: 'l', element_type: 'partij', soort: 'externe_partij' }),
-      burger: vorm({ id: 'b', element_type: 'partij', soort: 'burger' }),
     }
     expect(m).toEqual({
       component: 'round-rectangle', infra: 'barrel', contract: 'tag', persoon: 'ellipse',
       groep: 'octagon', organisatie: 'hexagon', afdeling: 'cut-rectangle',
-      leverancier: 'rhomboid', burger: 'pentagon',
+      leverancier: 'rhomboid',
     })
-    expect(new Set(Object.values(m)).size).toBe(9) // negen verschillende silhouetten
+    expect(new Set(Object.values(m)).size).toBe(8) // acht verschillende silhouetten (ADR-038 — burger weg)
     // de bijna-dubbele paren zijn echt verschillend
     expect(m.leverancier).not.toBe(m.contract)
-    expect(m.burger).not.toBe(m.persoon)
     expect(m.afdeling).not.toBe(m.organisatie)
   })
 
@@ -1439,7 +1437,6 @@ describe('LandschapskaartView v3', () => {
     expect(lbl({ element_type: 'partij', soort: 'organisatie_eenheid', naam: 'Afd' })).toContain('Afdeling')
     expect(lbl({ element_type: 'partij', soort: 'organisatie', naam: 'Org' })).toContain('Organisatie')
     expect(lbl({ element_type: 'partij', soort: 'externe_partij', naam: 'Lev' })).toContain('Leverancier')
-    expect(lbl({ element_type: 'partij', soort: 'burger', naam: 'B' })).toContain('Burger')
     expect(lbl({ element_type: 'contract', naam: 'K' })).toContain('Contract')
     expect(lbl({ element_type: 'gebruikersgroep', naam: 'G', aantal_leden: 5 })).toContain('Gebruikersgroep')
     expect(lbl({ element_type: 'database', laag: 'technology', naam: 'DB' })).toContain('Infrastructuur')
@@ -1453,7 +1450,6 @@ describe('LandschapskaartView v3', () => {
       { element_type: 'contract' }, { element_type: 'partij', soort: 'persoon' },
       { element_type: 'gebruikersgroep' }, { element_type: 'partij', soort: 'organisatie' },
       { element_type: 'partij', soort: 'organisatie_eenheid' }, { element_type: 'partij', soort: 'externe_partij' },
-      { element_type: 'partij', soort: 'burger' },
     ]
     const statussen = ['migratieklaar', 'geblokkeerd', 'in_inventarisatie', 'concept', undefined]
     for (const v of vormen) {
@@ -1476,7 +1472,7 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-legenda-vorm"]').exists()).toBe(true)
     expect(w.find('[data-testid="lk-legenda-status"]').exists()).toBe(true)
     const vormtekst = w.find('[data-testid="lk-legenda-vorm"]').text()
-    for (const t of ['Component', 'Infrastructuur', 'Contract', 'Persoon', 'Gebruikersgroep', 'Organisatie', 'Afdeling', 'Leverancier', 'Burger']) {
+    for (const t of ['Component', 'Infrastructuur', 'Contract', 'Persoon', 'Gebruikersgroep', 'Organisatie', 'Afdeling', 'Leverancier']) {
       expect(vormtekst).toContain(t)
     }
     // Voorkeur onthouden (sessionStorage): een nieuwe mount opent meteen uitgeklapt.

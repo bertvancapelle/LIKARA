@@ -1338,13 +1338,12 @@ const _heeftTypeLabel = (n) => !!n.element_type && !GEEN_COMPONENTTYPE.has(n.ele
 
 // ── Vorm per node-type (kleur blijft status) — ÉÉN gedeelde bron, gelezen door graph + swimlane ──
 // Alleen native, labelvriendelijke Cytoscape-vormen; de in de praktijk dicht-bij-elkaar liggende
-// paren (leverancier/contract, burger/persoon, afdeling/organisatie) krijgen een echt ander silhouet.
+// paren (leverancier/contract, afdeling/organisatie) krijgen een echt ander silhouet.
 const _AARD_VORM = {
   persoon: 'ellipse',            // individu = ovaal
   organisatie: 'hexagon',        // organisatie-koepel
   organisatie_eenheid: 'cut-rectangle', // afdeling — duidelijk anders dan organisatie-hexagon
   externe_partij: 'rhomboid',    // leverancier — schuin blok, duidelijk anders dan contract-tag
-  burger: 'pentagon',            // burger — duidelijk anders dan persoon-ovaal
 }
 function _vormVoorType(n) {
   if (n.element_type === 'gebruikersgroep') return 'octagon'        // groep/rol-badge
@@ -1356,13 +1355,13 @@ function _vormVoorType(n) {
 // Vormen die een ruimer bounding-box nodig hebben om het (tweeregelige) label te bevatten.
 const _SHAPE_KLASSE = (shape) =>
   (shape === 'ellipse' || shape === 'barrel') ? 'rond'
-  : (shape === 'hexagon' || shape === 'octagon' || shape === 'pentagon') ? 'veelhoek'
+  : (shape === 'hexagon' || shape === 'octagon') ? 'veelhoek'
   : null
 
 // Leesbare type-aanduiding (tweede labelregel) voor ÁLLE typen — naast de vorm het tekstsignaal.
 const _AARD_LABEL = {
   persoon: 'Persoon', organisatie: 'Organisatie', organisatie_eenheid: 'Afdeling',
-  externe_partij: 'Leverancier', burger: 'Burger',
+  externe_partij: 'Leverancier',
 }
 function _typeRegelVoor(n) {
   if (n.element_type === 'partij') return _AARD_LABEL[n.soort] || 'Partij'
@@ -1383,7 +1382,6 @@ const VORM_LEGENDA = [
   { label: 'Organisatie', stijl: { clipPath: 'polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)' } },
   { label: 'Afdeling', stijl: { clipPath: 'polygon(15% 0,85% 0,100% 15%,100% 85%,85% 100%,15% 100%,0 85%,0 15%)' } },
   { label: 'Leverancier', stijl: { clipPath: 'polygon(22% 0,100% 0,78% 100%,0 100%)' } },
-  { label: 'Burger', stijl: { clipPath: 'polygon(50% 0,100% 38%,82% 100%,18% 100%,0 38%)' } },
 ]
 // Uitklapbare legenda — standaard ingeklapt; open/dicht-voorkeur onthouden (sessionStorage, niet-gevoelig).
 const _LEGENDA_KEY = 'lk-legenda-open'
@@ -1412,7 +1410,6 @@ const _LEGENDA_MATCH = {
   Organisatie: (n) => n.element_type === 'partij' && n.soort === 'organisatie',
   Afdeling: (n) => n.element_type === 'partij' && n.soort === 'organisatie_eenheid',
   Leverancier: (n) => n.element_type === 'partij' && n.soort === 'externe_partij',
-  Burger: (n) => n.element_type === 'partij' && n.soort === 'burger',
 }
 function _legendaMatch(n, label) {
   const f = _LEGENDA_MATCH[label]
@@ -1828,7 +1825,7 @@ const CY_STYLE = [
   },
   // Ronde vormen (ellipse/barrel) clippen het label aan de randen → ruimere padding.
   { selector: 'node.rond', style: { 'padding-left': 18, 'padding-right': 18, 'padding-top': 12, 'padding-bottom': 12 } },
-  // Veelhoeken (hexagon/octagon/pentagon) knijpen het label aan de hoeken → ruimere padding.
+  // Veelhoeken (hexagon/octagon) knijpen het label aan de hoeken → ruimere padding.
   { selector: 'node.veelhoek', style: { 'padding-left': 16, 'padding-right': 16, 'padding-top': 12, 'padding-bottom': 12 } },
   // ADR-028 — externe dataprovider: afwijkende (gestippelde, dikkere) rand. Géén nieuwe vulkleur;
   // vorm blijft = type, vulkleur blijft = lifecycle; de rand-KLEUR blijft data(border). Selectie/
