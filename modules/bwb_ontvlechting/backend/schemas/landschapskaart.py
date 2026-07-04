@@ -41,11 +41,10 @@ class LandschapsNode(BaseModel):
     # - eigenaar_organisatie_id: de eigenaar-organisatie (bezit/aanbieden); None = zonder eigenaar.
     # - gebruikt_door_organisaties: organisatie-ids die dit component gebruiken (via serving aan hun
     #   gebruikersgroepen); leeg = door geen enkele organisatie.
-    # - gebruikt_door_organisatieloos: True als ≥1 gebruikende groep géén organisatie heeft
-    #   (bv. "Burgers") — zo blijft dat "gat" zichtbaar i.p.v. verborgen.
+    # ADR-038: `gebruikt_door_organisatieloos` is verwijderd — een groep heeft nu altijd een
+    # organisatie, dus de vlag zou permanent False zijn.
     eigenaar_organisatie_id: UUID | None = None
     gebruikt_door_organisaties: list[UUID] = []
-    gebruikt_door_organisatieloos: bool = False
 
 
 class LandschapsEdge(BaseModel):

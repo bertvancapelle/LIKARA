@@ -127,7 +127,7 @@ describe('GebruikersgroepSectie', () => {
     // Open de combobox (focus → server-zoek) en kies de organisatie-optie.
     await w.find('[data-testid="gg-veld-organisatie-input"]').trigger('focus')
     await flushPromises()
-    expect(api.partijen.lijst).toHaveBeenCalledWith(expect.objectContaining({ aard_in: ['organisatie', 'burger'] }))
+    expect(api.partijen.lijst).toHaveBeenCalledWith(expect.objectContaining({ aard_in: ['organisatie'] }))
     await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
     await flushPromises()
     await w.find('[data-testid="gg-form"]').trigger('submit')

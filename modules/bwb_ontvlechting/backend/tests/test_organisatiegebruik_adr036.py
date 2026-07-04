@@ -276,32 +276,31 @@ def test_afdeling_borgt_grof_feit_automatisch_live():
 
 
 @integratie
-def test_organisatie_loze_groep_blijft_geldig_live():
-    from sqlalchemy import text as _text
+def test_organisatie_verplicht_groep_live():
+    """ADR-038 — een groep hoort altijd bij een organisatie: schema-verplicht + DB NOT NULL-backstop."""
+    from pydantic import ValidationError
+    from sqlalchemy.exc import IntegrityError
 
+    from models.models import Element, ElementType, Gebruikersgroep
     from schemas.gebruikersgroep import GebruikersgroepCreate
-    from services import gebruikersgroep_service as gg
+
+    # Schema: organisatie verplicht.
+    with pytest.raises(ValidationError):
+        GebruikersgroepCreate(applicatie_id=uuid.uuid4(), organisatie_id=None, aantal_gebruikers=1)
 
     tid = uuid.UUID(_TID)
 
     async def _flow(s):
-        ids = []
+        # DB-backstop: directe (service-omzeilende) insert met gebruik_id=None → IntegrityError.
+        elem = Element(tenant_id=tid, element_type=ElementType.gebruikersgroep); s.add(elem); await s.flush()
+        s.add(Gebruikersgroep(id=elem.id, tenant_id=tid, gebruik_id=None, aantal_gebruikers=1))
         try:
-            app_id = await _maak_app(s, tid, "WT-OG-App3")
-            await s.commit(); ids.append(app_id)
-            # ADR-036a — organisatie-loze groep draagt geen afdeling.
-            groep = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=None, afdeling_id=None, aantal_gebruikers=35000))
-            ids.append(groep["id"])
-            assert groep["organisatie_id"] is None and groep["organisatie_naam"] is None
-            assert groep["afdeling_id"] is None
-            obj = await gg.haal_op(s, tid, groep["id"])
-            assert obj.gebruik_id is None  # hangt onder géén grof feit
-            return True
-        finally:
-            for eid in ids:
-                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
-            await s.commit()
+            await s.flush()
+            raise AssertionError("verwachtte IntegrityError (gebruik_id NOT NULL)")
+        except IntegrityError as e:
+            assert "gebruik_id" in str(e.orig) or "not-null" in str(e.orig).lower()
+        await s.rollback()
+        return True
 
     assert asyncio.run(_run_rls(_flow)) is True
 
@@ -402,8 +401,8 @@ def test_grof_feit_en_afdeling_raken_engine_niet_live():
 @integratie
 def test_kaart_gebruikt_door_grove_feiten_live():
     """ADR-036 stap B — "gebruikt door organisatie(s)" komt uit de grove feiten: grof-only verschijnt;
-    een organisatie die zowel grof als via een afdeling bekend is telt één keer; een org-loze groep
-    telt niet mee maar zet wél de organisatieloos-flag."""
+    een organisatie die zowel grof als via een afdeling bekend is telt één keer (ADR-038: geen
+    org-loze groepen meer)."""
     from sqlalchemy import text as _text
 
     from schemas.gebruikersgroep import GebruikersgroepCreate
@@ -422,22 +421,18 @@ def test_kaart_gebruikt_door_grove_feiten_live():
             afd1 = await _maak_afdeling(s, tid, "WT-B-Afd1", org1)
             await s.commit(); ids += [org1, org2, app_id, afd1]
 
-            # org1: zowel grof als via een afdeling; org2: grof-only; plus een org-loze groep.
+            # org1: zowel grof als via een afdeling; org2: grof-only.
             await og.ensure(s, tid, org1, app_id); await s.commit()
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
                 applicatie_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=10))
             ids.append(g1["id"])
             await og.ensure(s, tid, org2, app_id); await s.commit()
-            g_loos = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=None, afdeling_id=None, aantal_gebruikers=999))
-            ids.append(g_loos["id"])
 
             graf = await lk.haal_grafdata_op(s, _TID)
             node = next((n for n in graf.nodes if n.id == app_id), None)
             assert node is not None
             # Elke organisatie precies één keer (org1 niet dubbel ondanks grof + afdeling).
             assert sorted(node.gebruikt_door_organisaties, key=str) == sorted([org1, org2], key=str)
-            assert node.gebruikt_door_organisatieloos is True
             return True
         finally:
             for eid in reversed(ids):
@@ -661,10 +656,7 @@ def test_afdeling_validaties_live():
             await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
                 applicatie_id=app2, organisatie_id=org1, afdeling_id=uuid.uuid4())))
             await s.rollback()
-            # Org-loze groep + afdeling → 422.
-            await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app2, organisatie_id=None, afdeling_id=afd1)))
-            await s.rollback()
+            # (ADR-038 — een org-loze groep bestaat niet meer; organisatie is verplicht in het schema.)
             return True
         finally:
             for eid in reversed(ids):

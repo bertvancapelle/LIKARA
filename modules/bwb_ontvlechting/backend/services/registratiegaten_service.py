@@ -49,7 +49,8 @@ _SIG_BIV = "biv_classificatie_onvolledig"
 _SIG_GG = "component_zonder_gebruikersgroep"
 _SIG_ISOLATIE = "component_geisoleerd"
 _SIG_CONTRACT = "contract_zonder_component"
-_SIG_GG_ORG = "gebruikersgroep_zonder_organisatie"
+# ADR-038 — `gebruikersgroep_zonder_organisatie` is verwijderd: een groep hoort nu altijd bij een
+# organisatie (schema NOT NULL), dus dit signaal kan nooit meer vuren.
 _SIG_OBJ_ROL = "object_zonder_roltoewijzing"
 # ADR-036 stap C — grof gebruiksfeit zónder afdeling-verfijning eronder ("detaillering ontbreekt").
 _SIG_GEBRUIK_GEEN_VERFIJNING = "gebruiksfeit_zonder_verfijning"
@@ -274,20 +275,6 @@ async def contract_zonder_component(session: AsyncSession, tenant_id) -> list[di
     return [_aitem(r, _SIG_CONTRACT) for r in (await session.execute(stmt)).all()]
 
 
-async def gebruikersgroep_zonder_organisatie(session: AsyncSession, tenant_id) -> list[dict]:
-    """Gebruikersgroepen zonder organisatie (label = afdeling, anders fallback). ADR-036: een groep
-    is organisatie-loos wanneer ze onder géén grof gebruiksfeit hangt (``gebruik_id IS NULL``)."""
-    tid = _tenant_uuid(tenant_id)
-    afd = aliased(Partij)
-    stmt = (
-        select(Gebruikersgroep.id, _gg_label(afd).label("naam"))
-        .outerjoin(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
-        .where(Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id.is_(None))
-        .order_by(_gg_label(afd).asc(), Gebruikersgroep.id.asc())
-    )
-    return [_aitem(r, _SIG_GG_ORG) for r in (await session.execute(stmt)).all()]
-
-
 async def object_zonder_roltoewijzing(session: AsyncSession, tenant_id) -> list[dict]:
     """Componenten, contracten én gebruikersgroepen zonder enige roltoewijzing (object_id)."""
     tid = _tenant_uuid(tenant_id)
@@ -394,7 +381,6 @@ async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
             _SIG_GG: await component_zonder_gebruikersgroep(session, tenant_id),
             _SIG_ISOLATIE: await component_geisoleerd(session, tenant_id),
             _SIG_CONTRACT: await contract_zonder_component(session, tenant_id),
-            _SIG_GG_ORG: await gebruikersgroep_zonder_organisatie(session, tenant_id),
             _SIG_GEBRUIK_GEEN_VERFIJNING: await gebruiksfeit_zonder_verfijning(session, tenant_id),
             _SIG_OBJ_ROL: await object_zonder_roltoewijzing(session, tenant_id),
             _SIG_ANTW_VERANTW: await antwoord_zonder_verantwoordelijke(session, tenant_id),

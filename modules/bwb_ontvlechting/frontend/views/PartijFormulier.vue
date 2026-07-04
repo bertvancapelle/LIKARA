@@ -23,7 +23,7 @@ const toast = useToast()
 const bewerken = computed(() => !!props.id)
 const bezig = ref(false)
 
-const AARD_OPTIES = ['externe_partij', 'organisatie', 'organisatie_eenheid', 'persoon', 'burger']
+const AARD_OPTIES = ['externe_partij', 'organisatie', 'organisatie_eenheid', 'persoon']
 const aardLabel = (a) => label(PARTIJ_AARD, a)
 
 const VELDEN = [

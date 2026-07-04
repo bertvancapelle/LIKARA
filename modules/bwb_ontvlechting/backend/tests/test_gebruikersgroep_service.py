@@ -10,11 +10,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
-def _create_data(applicatie_id):
+def _create_data(applicatie_id, organisatie_id=None):
     from schemas.gebruikersgroep import GebruikersgroepCreate
 
-    # UX-B6-a — organisatie optioneel (verwijzing); hier zonder organisatie.
-    return GebruikersgroepCreate(applicatie_id=applicatie_id, aantal_gebruikers=5)
+    # ADR-038 — organisatie is verplicht.
+    return GebruikersgroepCreate(
+        applicatie_id=applicatie_id, organisatie_id=organisatie_id or uuid.uuid4(), aantal_gebruikers=5
+    )
 
 
 def test_maak_aan_ouder_ontbreekt_geeft_nietgevonden(monkeypatch):
@@ -40,21 +42,39 @@ def test_maak_aan_ouder_bestaat(monkeypatch):
 
     from models.models import Element, Relatie
     from services import component_service, gebruikersgroep_service as svc
+    from services import organisatiegebruik_service
 
     async def _ok(*a, **k):
         return SimpleNamespace(componenttype="applicatie")
 
     monkeypatch.setattr(component_service, "haal_op", _ok)
+    # ADR-038 — organisatie is verplicht: het grove feit wordt altijd ge-ensured. Mock de ensure
+    # + de leesresolutie (org-/afdeling-naam) zodat deze unit-test de maak_aan-mechaniek toetst.
+    gebruik_id = uuid.uuid4()
+    org_id = uuid.uuid4()
+
+    async def _ensure(*a, **k):
+        return gebruik_id
+
+    async def _org(*a, **k):
+        return (org_id, "WT-Org")
+
+    async def _afd(*a, **k):
+        return None
+
+    monkeypatch.setattr(organisatiegebruik_service, "ensure", _ensure)
+    monkeypatch.setattr(svc, "_org_voor_gebruik", _org)
+    monkeypatch.setattr(svc, "_afdeling_naam", _afd)
     session = AsyncMock()
     toegevoegd = []
     session.add = lambda obj: toegevoegd.append(obj)
 
     app_id = uuid.uuid4()
     tid = "11111111-1111-1111-1111-111111111111"
-    out = asyncio.run(svc.maak_aan(session, tid, _create_data(app_id)))
+    out = asyncio.run(svc.maak_aan(session, tid, _create_data(app_id, organisatie_id=org_id)))
 
     assert str(out["applicatie_id"]) == str(app_id)
-    assert out["organisatie_id"] is None and out["organisatie_naam"] is None
+    assert out["organisatie_id"] == org_id and out["organisatie_naam"] == "WT-Org"
     assert out["aantal_gebruikers"] == 5
     assert any(isinstance(o, Element) for o in toegevoegd)
     rel = next(o for o in toegevoegd if isinstance(o, Relatie))

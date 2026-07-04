@@ -151,14 +151,6 @@ def test_contract_zonder_component_mapping():
     assert out[0]["signaal"] == "contract_zonder_component" and out[0]["niveau"] == "aandacht"
 
 
-def test_gebruikersgroep_zonder_organisatie_mapping():
-    s = AsyncMock()
-    s.execute = AsyncMock(return_value=_res_all([_row("Burgerzaken")]))  # naam = afdeling-label
-    out = asyncio.run(svc.gebruikersgroep_zonder_organisatie(s, TID))
-    assert out[0]["signaal"] == "gebruikersgroep_zonder_organisatie" and out[0]["niveau"] == "aandacht"
-    assert out[0]["naam"] == "Burgerzaken"
-
-
 def test_object_zonder_roltoewijzing_combineert_drie_subtypes():
     """Combineert component + contract + gebruikersgroep, elk met entiteit_type."""
     s = AsyncMock()
@@ -181,6 +173,6 @@ def test_registratiegaten_groepeert_per_ernst():
     }
     assert set(out["aandacht"]) == {
         "component_zonder_gebruikersgroep", "component_geisoleerd", "contract_zonder_component",
-        "gebruikersgroep_zonder_organisatie", "gebruiksfeit_zonder_verfijning",
+        "gebruiksfeit_zonder_verfijning",
         "object_zonder_roltoewijzing", "antwoord_zonder_verantwoordelijke",
     }

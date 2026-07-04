@@ -281,10 +281,8 @@ async def haal_grafdata_op(
             .where(Gebruikersgroep.tenant_id == tid, _sc(Gebruikersgroep.id))
         )
     ).all()
-    gg_org: dict[uuid.UUID, uuid.UUID | None] = {}  # gebruikersgroep-id → organisatie-id (of None)
     for r in gg_rijen:
         gebruikersgroep_ids.add(r.id)
-        gg_org[r.id] = r.organisatie_id
         naam = gebruikersgroep_service.identiteit(r.afdeling_naam, partij_naam.get(r.organisatie_id))
         nodes.append(LandschapsNode(
             id=r.id, naam=naam, element_type="gebruikersgroep", laag="business",
@@ -319,9 +317,6 @@ async def haal_grafdata_op(
         )
     ).all():
         comp_gebruik_orgs.setdefault(r_og.applicatie_id, set()).add(r_og.organisatie_id)
-    # Org-loze groepen (burgers) → het bediende component is "organisatieloos gebruikt" (zichtbaar
-    # gat, geen toerekening); afgeleid uit de serving-relaties hieronder.
-    comp_gebruik_orgloos: set[uuid.UUID] = set()
     for r in rel_rijen:
         rt = _val(r.relatietype)
         if rt == "flow" and r.bron_id in component_ids and r.doel_id in component_ids:
@@ -337,10 +332,7 @@ async def haal_grafdata_op(
             # ADR-031 — applicatie → gebruikersgroep (wie gebruikt deze applicatie).
             edges.append(LandschapsEdge(bron_id=r.bron_id, doel_id=r.doel_id,
                                         relatietype="serving", label="gebruikt door", ring="gebruikers"))
-            # ADR-036 stap B — de org-toerekening loopt via de grove feiten (hierboven); hier alleen
-            # de organisatieloos-gebruik-flag uit een organisatie-loze groep (geen grof feit eronder).
-            if gg_org.get(r.doel_id) is None:
-                comp_gebruik_orgloos.add(r.bron_id)
+            # ADR-036 stap B — de org-toerekening loopt via de grove feiten (hierboven).
         elif rt == "aggregation" and r.bron_id in component_ids and r.doel_id in component_ids:
             # ADR-033 1b — samenstelling: component↔component aggregatie (bron=geheel → doel=onderdeel).
             # Bewust géén afleiding (ADR-023 besluit 7): exact de geregistreerde structuurrelatie, dezelfde
@@ -362,10 +354,9 @@ async def haal_grafdata_op(
                                     richting=richting, protocol=protocol, aantal=len(groep)))
 
     # ADR-036 stap B — de afgeleide gebruik-data per component-node invullen (read-only): organisaties
-    # uit de grove feiten, organisatieloos-flag uit de org-loze serving-groepen.
+    # uit de grove feiten (ADR-038: geen org-loze-flag meer — een groep heeft altijd een organisatie).
     for cid, node in comp_node.items():
         node.gebruikt_door_organisaties = sorted(comp_gebruik_orgs.get(cid, set()), key=str)
-        node.gebruikt_door_organisatieloos = cid in comp_gebruik_orgloos
 
     # ── Ring 4 — beheerorganisatie uit de roltoewijzingen (label = rol-naam) ──
     rol_labels = await rk_catalog.labels(session, _RK_BEHEERROL)

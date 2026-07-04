@@ -63,10 +63,12 @@ def test_landschaps_adr024_organisatie_scope_velden_in_schema():
     from schemas.landschapskaart import LandschapsNode
 
     velden = LandschapsNode.model_fields
-    assert {"eigenaar_organisatie_id", "gebruikt_door_organisaties", "gebruikt_door_organisatieloos"} <= set(velden)
+    assert {"eigenaar_organisatie_id", "gebruikt_door_organisaties"} <= set(velden)
+    # ADR-038 — `gebruikt_door_organisatieloos` is verwijderd (een groep heeft nu altijd een organisatie).
+    assert "gebruikt_door_organisatieloos" not in velden
     n = LandschapsNode(id=uuid.uuid4(), naam="X", element_type="applicatie")
     assert n.eigenaar_organisatie_id is None  # zonder eigenaar herkenbaar
-    assert n.gebruikt_door_organisaties == [] and n.gebruikt_door_organisatieloos is False
+    assert n.gebruikt_door_organisaties == []
 
 
 def test_landschapskaart_serveert_gebruikers_ring():
@@ -465,17 +467,14 @@ def test_landschapskaart_organisatie_scope_live():
                         hostingmodel="on_premise", eigenaar_organisatie_id=eigenaar)); await s.flush()
         return elem.id
 
-    async def _groep(s, *, naam, organisatie_id, applicatie_id=None):
-        # ADR-036 — organisatie leeft op het grove feit; org-ful groep verwijst er via gebruik_id naar.
-        gebruik_id = None
-        if organisatie_id is not None:
-            og = Organisatiegebruik(tenant_id=tid, organisatie_id=organisatie_id, applicatie_id=applicatie_id)
-            s.add(og); await s.flush()
-            gebruik_id = og.id
+    async def _groep(s, *, naam, organisatie_id, applicatie_id):
+        # ADR-036/038 — organisatie leeft op het grove feit; een groep heeft altijd een organisatie
+        # (verwijst via gebruik_id). Deze org-scope-test toetst de organisatie-toerekening zonder
+        # afdeling (afdeling_id NULL).
+        og = Organisatiegebruik(tenant_id=tid, organisatie_id=organisatie_id, applicatie_id=applicatie_id)
+        s.add(og); await s.flush()
         elem = Element(tenant_id=tid, element_type=ElementType.gebruikersgroep); s.add(elem); await s.flush()
-        # ADR-036a — de afdeling is nu een partij-referentie; deze org-scope-test toetst alleen de
-        # organisatie-toerekening, dus zonder afdeling (afdeling_id NULL).
-        s.add(Gebruikersgroep(id=elem.id, tenant_id=tid, gebruik_id=gebruik_id,
+        s.add(Gebruikersgroep(id=elem.id, tenant_id=tid, gebruik_id=og.id,
                               aantal_gebruikers=10)); await s.flush()
         return elem.id
 
@@ -488,18 +487,17 @@ def test_landschapskaart_organisatie_scope_live():
             # Bezit: component MET eigenaar vs ZONDER eigenaar.
             c_bezit = await _comp(s, "WT-OS-Bezit", eigenaar=oe.id)
             c_geen_eig = await _comp(s, "WT-OS-GeenEig")
-            # Gebruik: component via een groep MET organisatie; component via een organisatieLOZE groep.
+            # Gebruik: component via een groep MET organisatie (ADR-038 — org-loos bestaat niet meer).
             c_gebruik = await _comp(s, "WT-OS-Gebruik")
-            c_loos = await _comp(s, "WT-OS-Loos")
             g_org = await _groep(s, naam="WT-OS-Groep", organisatie_id=oe.id, applicatie_id=c_gebruik)
-            g_loos = await _groep(s, naam="WT-OS-Burgers", organisatie_id=None)
             s.add(Relatie(tenant_id=tid, bron_id=c_gebruik, doel_id=g_org, relatietype="serving"))
-            s.add(Relatie(tenant_id=tid, bron_id=c_loos, doel_id=g_loos, relatietype="serving"))
             await s.commit()
-            ids += [c_bezit, c_geen_eig, c_gebruik, c_loos, g_org, g_loos, oe.id]
+            # RESTRICT-volgorde (ADR-038): de groep vóór de app/organisatie wier verwijdering het
+            # grove feit cascadeert (fk_gebruikersgroep_gebruik = RESTRICT).
+            ids += [g_org, c_bezit, c_geen_eig, c_gebruik, oe.id]
             graf = await svc.haal_grafdata_op(s, _TID)
             return graf, {"org": oe.id, "bezit": c_bezit, "geen_eig": c_geen_eig,
-                          "gebruik": c_gebruik, "loos": c_loos}
+                          "gebruik": c_gebruik}
         finally:
             for eid in ids:
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
@@ -512,15 +510,10 @@ def test_landschapskaart_organisatie_scope_live():
     assert per_id[X["bezit"]].eigenaar_organisatie_id == X["org"]
     assert per_id[X["geen_eig"]].eigenaar_organisatie_id is None
 
-    # 2. Gebruik: component via een org-groep → die organisatie in de set; niet org-loos.
+    # 2. Gebruik: component via een org-groep → die organisatie in de set.
     assert X["org"] in per_id[X["gebruik"]].gebruikt_door_organisaties
-    assert per_id[X["gebruik"]].gebruikt_door_organisatieloos is False
-    # Component dat ALLEEN via een organisatieloze groep gebruikt wordt → buiten elke org-scope,
-    # maar herkenbaar als organisatieloos gebruikt (gat niet verborgen).
-    assert per_id[X["loos"]].gebruikt_door_organisaties == []
-    assert per_id[X["loos"]].gebruikt_door_organisatieloos is True
     # Een component zonder serving heeft geen gebruik-toerekening.
-    assert per_id[X["bezit"]].gebruikt_door_organisaties == [] and per_id[X["bezit"]].gebruikt_door_organisatieloos is False
+    assert per_id[X["bezit"]].gebruikt_door_organisaties == []
 
     # 3. De aard=organisatie-partij is identificeerbaar voor de frontend (soort='organisatie').
     org_node = per_id[X["org"]]

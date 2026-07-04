@@ -336,16 +336,14 @@ export const OPTIE_UITLEG = {
     per_inwoner: 'Kosten per inwoner van de gemeente (gebruikelijk bij gemeentelijke voorzieningen).',
   },
 
-  // Set 'aard' — PARTIJ_AARD (5e key 'burger' bewust nog zonder tekst → degradeert).
+  // Set 'aard' — PARTIJ_AARD. ADR-038: burger-doelgroepen zijn gewone (externe) organisaties.
   aard: {
-    organisatie: 'Een organisatie als geheel — de eigen organisatie of een externe.',
+    organisatie: 'Een organisatie als geheel — de eigen organisatie, een externe partij of een ' +
+      'burger-doelgroep (bv. "Burgers Tiel", met segment-afdelingen eronder).',
     organisatie_eenheid:
       'Een afdeling of team binnen een organisatie. Vereist de bovenliggende organisatie.',
     persoon: 'Een medewerker of contactpersoon (natuurlijke persoon).',
     externe_partij: 'Een externe partij: leverancier, partner of ketenpartner.',
-    burger:
-      'Burgers of inwoners als gebruikersgroep — geen organisatie of medewerker, maar de burger als ' +
-      'afnemer (bv. via een klantportaal). Hoort bij geen organisatie.',
   },
 
   // Set 'partijsoort' — partijsoort_optie.

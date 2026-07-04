@@ -1,8 +1,10 @@
 """Pydantic v2-schemas voor de entiteit Gebruikersgroep (P5-vervolg, ADR-009; ADR-036; ADR-036a).
 
-ADR-024 UX-B6-a: `organisatie` is een **optionele verwijzing** naar een organisatie-partij
-(`organisatie_id`). `aantal_gebruikers` is optioneel en niet-negatief (`ge=0`). `applicatie_id` zit
-in Create maar niet in Update (immutabel).
+ADR-038: `organisatie` is een **verplichte verwijzing** naar een organisatie-partij
+(`organisatie_id`) — een groep hoort altijd bij een organisatie (de org-loze uitzondering vervalt).
+`aantal_gebruikers` is optioneel en niet-negatief (`ge=0`). `applicatie_id` zit in Create maar niet
+in Update (immutabel). In Update is `organisatie_id` optioneel-in-payload (weglaten = ongewijzigd),
+maar mag niet op null worden gezet — de service weigert dat (422).
 
 ADR-036a: `afdeling` is niet langer vrije tekst maar een **structurele referentie** `afdeling_id`
 naar een `organisatie_eenheid`-partij (binnen de organisatie van het grove feit — service borgt
@@ -34,8 +36,8 @@ class GebruikersgroepCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     applicatie_id: uuid.UUID
-    # ADR-024 UX-B6-a — optionele verwijzing naar de organisatie (partij, aard=organisatie).
-    organisatie_id: uuid.UUID | None = None
+    # ADR-038 — verplichte verwijzing naar de organisatie (partij, aard=organisatie).
+    organisatie_id: uuid.UUID
     # ADR-036a — optionele verwijzing naar een organisatie_eenheid-partij (afdeling).
     afdeling_id: uuid.UUID | None = None
     aantal_gebruikers: int | None = Field(default=None, ge=0)

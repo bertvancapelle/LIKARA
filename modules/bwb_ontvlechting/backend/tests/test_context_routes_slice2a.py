@@ -195,7 +195,7 @@ def test_gebruiker_contexten_en_componenten():
     afd_org = f"WT-S2a-Afd-{sfx}"
 
     async def _flow(s):
-        org_id = a_org = a_burg = g1 = g2 = afd_id = None
+        org_id = a_org = g1 = afd_id = None
         try:
             org = await partij_service.maak_aan(s, _TID, PartijCreate(aard=PartijAard.organisatie, naam=f"WT-S2a-Org-{sfx}"))
             org_id = org.id
@@ -204,34 +204,27 @@ def test_gebruiker_contexten_en_componenten():
                 aard=PartijAard.organisatie_eenheid, naam=afd_org, organisatie_id=org_id))
             afd_id = afd.id
             a_org = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppOrg-{sfx}")))["id"]
-            a_burg = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppBurg-{sfx}")))["id"]
             g1 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(
                 applicatie_id=a_org, organisatie_id=org_id, afdeling_id=afd_id, aantal_gebruikers=10)))["id"]
-            # Org-loze groep (burgers): geen organisatie ⇒ geen afdeling (ADR-036a).
-            g2 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(
-                applicatie_id=a_burg, organisatie_id=None, afdeling_id=None, aantal_gebruikers=20)))["id"]
 
             # 2a — zoek op de afdeling-naam → precies de org-context (distinct via de afdeling-partij).
             ctx = await gg.contexten(s, _TID, zoek=afd_org)
             mijn = {(c["organisatie_id"], c["afdeling"]): c for c in ctx}
-            # 2b — componenten per context (nullable-veilig; afdeling_id-referentie).
+            # 2b — componenten per context (afdeling_id-referentie).
             comp_org = await gg.componenten_voor_context(s, _TID, organisatie_id=org_id, afdeling_id=afd_id)
-            comp_burg = await gg.componenten_voor_context(s, _TID, organisatie_id=None, afdeling_id=None)
-            return (mijn, comp_org, comp_burg, org_id, afd_org, a_org, a_burg)
+            return (mijn, comp_org, org_id, afd_org, a_org)
         finally:
-            # RESTRICT-volgorde: groepen → afdeling → apps/organisatie.
-            await _ruim(s, [g1, g2, afd_id, a_org, a_burg, org_id])
+            # RESTRICT-volgorde: groepen → afdeling → app/organisatie.
+            await _ruim(s, [g1, afd_id, a_org, org_id])
 
-    mijn, comp_org, comp_burg, org_id, afd_org, a_org, a_burg = asyncio.run(_sessie_run(_flow))
+    mijn, comp_org, org_id, afd_org, a_org = asyncio.run(_sessie_run(_flow))
 
     # 2a — de org-context is aanwezig, distinct via de afdeling-partij, met geresolveerde namen.
     assert (org_id, afd_org) in mijn
     assert mijn[(org_id, afd_org)]["aantal_componenten"] == 1
     assert mijn[(org_id, afd_org)]["organisatie_naam"] == f"WT-S2a-Org-{sfx}"
-    # 2b — exact de juiste component voor de org-context; de burger-component is bereikbaar via de
-    # organisatie-loze context (— / —), die met andere org-loze groepen deelt (dus 'bevat', geen '==').
+    # 2b — exact de juiste component voor de org-context.
     assert {r["component_id"] for r in comp_org} == {a_org}
-    assert a_burg in {r["component_id"] for r in comp_burg}
 
 
 @integratie

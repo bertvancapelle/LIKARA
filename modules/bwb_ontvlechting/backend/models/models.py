@@ -200,9 +200,8 @@ class PartijAard(str, Enum):
     organisatie = "organisatie"
     organisatie_eenheid = "organisatie_eenheid"
     persoon = "persoon"
-    # ADR-024 — burgers als partij-aard: geen organisatie_id/afdeling_id, geen leden
-    # (valt buiten _HEEFT_ORG_OUDER én _ORGANISATIE_ACHTIG in partij_service).
-    burger = "burger"
+    # ADR-038 — de aparte `burger`-aard is verwijderd: burger-doelgroepen zijn gewone externe
+    # organisaties (`aard=organisatie` + `scope=extern`) met afdelingen eronder.
 
 
 class PartijScope(str, Enum):
@@ -463,8 +462,8 @@ class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
 
     ADR-036: de organisatie leeft niet langer als eigen kolom op de groep, maar op het grove
     gebruiksfeit `organisatiegebruik` waarnaar `gebruik_id` verwijst — **single source of truth**.
-    Een groep-mét-organisatie is de fijne verfijning ván dat grove feit (`gebruik_id` gezet);
-    `gebruik_id` NULL = organisatie-loze groep (bv. burgers), geldig en hangt onder géén grof feit.
+    Een groep is de fijne verfijning ván dat grove feit. ADR-038: `gebruik_id` is **verplicht**
+    (NOT NULL) — een groep hoort altijd bij een organisatie; de org-loze uitzondering vervalt.
     De band met de applicatie blijft de `serving`-relatie (applicatie → gebruikersgroep)."""
 
     __tablename__ = "gebruikersgroep"
@@ -473,12 +472,13 @@ class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "id"], ["element.tenant_id", "element.id"],
             name="fk_gebruikersgroep_element", ondelete="CASCADE",
         ),
-        # ADR-036 — verfijning-van het grove gebruiksfeit. ON DELETE SET NULL (kolom-specifiek,
-        # via de migratie): verdwijnt het grove feit, dan wordt de groep organisatie-loos
-        # (tenant_id blijft intact — kale SET NULL zou de gedeelde NOT NULL tenant_id nullen).
+        # ADR-036/038 — verfijning-van het grove gebruiksfeit; `gebruik_id` is verplicht (NOT NULL,
+        # geen org-loze groep meer). ON DELETE RESTRICT: een grof feit (en daarmee de organisatie)
+        # met groepen verdwijnt niet stil — spiegel van `afdeling_id`. Vervangt de oude SET NULL,
+        # die met NOT NULL zou botsen.
         ForeignKeyConstraint(
             ["tenant_id", "gebruik_id"], ["organisatiegebruik.tenant_id", "organisatiegebruik.id"],
-            name="fk_gebruikersgroep_gebruik", ondelete="SET NULL",
+            name="fk_gebruikersgroep_gebruik", ondelete="RESTRICT",
         ),
         # ADR-036a — afdeling structureel: verwijzing naar een `organisatie_eenheid`-partij (element),
         # spiegel van het persoon→afdeling-patroon (ADR-024). ON DELETE RESTRICT: een afdeling met
@@ -492,8 +492,9 @@ class Gebruikersgroep(Base, TenantMixin, TimestampMixin):
 
     # ADR-023 B-mig-2 slice 4: de band met de applicatie is een `serving`-relatie geworden.
     id: Mapped[uuid.UUID] = _pk()
-    # ADR-036 — verwijzing naar het grove gebruiksfeit (de organisatie leeft daar); NULL = org-loos.
-    gebruik_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # ADR-036/038 — verwijzing naar het grove gebruiksfeit (de organisatie leeft daar). Verplicht:
+    # een groep hoort altijd bij een organisatie (geen org-loze groep meer).
+    gebruik_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     # ADR-036a — afdeling als structurele referentie (organisatie_eenheid-partij); NULL = geen afdeling.
     afdeling_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     aantal_gebruikers: Mapped[int | None] = mapped_column(Integer, nullable=True)

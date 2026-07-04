@@ -297,7 +297,6 @@ export const PARTIJ_AARD = {
   organisatie: 'Organisatie',
   organisatie_eenheid: 'Afdeling',
   persoon: 'Persoon',
-  burger: 'Burger',
 }
 
 export const CONTRACTTYPE_SEVERITY = {
@@ -334,7 +333,6 @@ export const SIGNAAL_LABEL = {
   component_zonder_gebruikersgroep: 'Component zonder gebruikersgroep',
   component_geisoleerd: 'Component zonder koppeling (geïsoleerd)',
   contract_zonder_component: 'Contract zonder gekoppeld component',
-  gebruikersgroep_zonder_organisatie: 'Gebruikersgroep zonder organisatie',
   gebruiksfeit_zonder_verfijning: 'Gebruik bekend, detaillering ontbreekt',
   object_zonder_roltoewijzing: 'Object zonder roltoewijzing',
   // ADR-037 — aandacht: antwoord gescoord, maar niemand staat er (nog) voor in. Bewust

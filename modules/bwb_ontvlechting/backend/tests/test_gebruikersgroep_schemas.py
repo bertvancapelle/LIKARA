@@ -6,7 +6,8 @@ from pydantic import ValidationError
 
 
 def _basis() -> dict:
-    # UX-B6-a — organisatie is een optionele verwijzing (organisatie_id); leeg laten mag.
+    # ADR-038 — organisatie is verplicht; `_basis()` levert alleen `applicatie_id` (tests vullen
+    # `organisatie_id` waar een geldige Create nodig is).
     return {"applicatie_id": str(uuid.uuid4())}
 
 
@@ -28,11 +29,12 @@ def test_create_extra_forbid():
         GebruikersgroepCreate(**_basis(), onbekend="x")
 
 
-def test_create_organisatie_optioneel():
-    # UX-B6-a — zonder organisatie is geldig (optioneel veld).
+def test_create_organisatie_verplicht():
+    # ADR-038 — zonder organisatie is ongeldig (verplicht veld).
     from schemas.gebruikersgroep import GebruikersgroepCreate
 
-    assert GebruikersgroepCreate(**_basis()).organisatie_id is None
+    with pytest.raises(ValidationError):
+        GebruikersgroepCreate(**_basis())
 
 
 def test_create_organisatie_geen_uuid_geweigerd():
@@ -54,7 +56,7 @@ def test_create_aantal_negatief_geweigerd():
 def test_create_aantal_nul_toegestaan():
     from schemas.gebruikersgroep import GebruikersgroepCreate
 
-    assert GebruikersgroepCreate(**_basis(), aantal_gebruikers=0).aantal_gebruikers == 0
+    assert GebruikersgroepCreate(**_basis(), organisatie_id=uuid.uuid4(), aantal_gebruikers=0).aantal_gebruikers == 0
 
 
 def test_create_geen_serverbeheerde_velden():

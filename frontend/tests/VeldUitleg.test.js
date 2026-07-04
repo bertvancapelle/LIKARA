@@ -57,10 +57,9 @@ describe('velduitleg-content', () => {
     expect(optieUitlegLijst('archimate_laag')).toHaveLength(4)
     expect(optieUitlegLijst('archimate_aspect')).toHaveLength(3)
     expect(optieUitlegLijst('contracttype')).toHaveLength(3)
-    expect(optieUitlegLijst('aard')).toHaveLength(5)             // incl. burger (nagelverd)
+    expect(optieUitlegLijst('aard')).toHaveLength(4)             // ADR-038 — burger-aard verwijderd
   })
   it('nagelverde keys hebben nu uitleg; bewuste degradatie blijft', () => {
-    expect(optieUitleg('aard', 'burger')).not.toBeNull()          // nagelverd
     expect(optieUitleg('archimate_element', 'device')).not.toBeNull() // set nu volledig
     expect(optieUitleg('blokkade_status', 'opgelost')).toBeNull() // auto-afgeleid, bewust geen keuze-uitleg
   })

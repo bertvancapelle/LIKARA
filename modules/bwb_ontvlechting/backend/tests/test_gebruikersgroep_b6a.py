@@ -123,8 +123,9 @@ async def _maak_app(s, tid):
 
 
 @integratie
-def test_organisatie_zetten_lezen_en_set_null_live():
+def test_organisatie_zetten_lezen_en_restrict_live():
     from sqlalchemy import text as _text
+    from sqlalchemy.exc import IntegrityError
 
     from schemas.gebruikersgroep import GebruikersgroepCreate
     from services import architectuur_service, gebruikersgroep_service as svc
@@ -162,14 +163,55 @@ def test_organisatie_zetten_lezen_en_set_null_live():
                 assert e.code == "ONGELDIGE_ORGANISATIE"
             await s.rollback()
 
-            # ON DELETE SET NULL: verwijder de organisatie-partij → verwijzing wordt null (geen 409).
-            await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(org_id)})
-            await s.commit()
+            # ADR-038 — ON DELETE RESTRICT: een organisatie met groepen kan niet stil verdwijnen.
+            # (Verwijderen van de org cascadeert het grove feit, dat door de groep wordt geblokkeerd.)
+            try:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(org_id)})
+                await s.flush()
+                raise AssertionError("verwachtte IntegrityError (RESTRICT)")
+            except IntegrityError:
+                await s.rollback()
             na = await svc.lees_detail(s, tid, gid)
-            assert na["organisatie_id"] is None and na["organisatie_naam"] is None
+            assert na["organisatie_id"] == org_id  # organisatie ongewijzigd
             return True
         finally:
-            for eid in ids:
+            # RESTRICT-volgorde: groep(en) eerst, dan afdeling/app/organisatie.
+            for eid in reversed(ids):
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run_rls(_flow)) is True
+
+
+@integratie
+def test_werk_bij_organisatie_null_geweigerd_live():
+    """ADR-038 — een groep-organisatie mag niet op null worden gezet (organisatie verplicht)."""
+    from sqlalchemy import text as _text
+
+    from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepUpdate
+    from services import gebruikersgroep_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            org_id = await _maak_org(s, tid, "WT-038-Org")
+            app_id = await _maak_app(s, tid)
+            await s.commit(); ids += [org_id, app_id]
+            groep = await svc.maak_aan(s, tid, GebruikersgroepCreate(applicatie_id=app_id, organisatie_id=org_id))
+            gid = groep["id"]; ids.append(gid)
+            try:
+                await svc.werk_bij(s, tid, gid, GebruikersgroepUpdate(organisatie_id=None))
+                raise AssertionError("verwachtte OngeldigeRegistratie")
+            except OngeldigeRegistratie as e:
+                assert e.code == "ORGANISATIE_VERPLICHT"
+            await s.rollback()
+            return True
+        finally:
+            # RESTRICT-volgorde: groep vóór app/organisatie.
+            for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 

@@ -4,14 +4,14 @@ ADR-023: gebruikersgroep is een **zelfstandig element** (business actor/role); d
 applicatie is een **serving**-relatie (applicatie → gebruikersgroep). `applicatie_id` wordt afgeleid
 uit de serving-relatie.
 
-ADR-036: de organisatie leeft op het grove gebruiksfeit `organisatiegebruik` waar `gebruik_id` naar
-verwijst (single source of truth). `organisatie_id` blijft een Create/Update/Read-veld, intern
-vertaald naar een grof feit (get-or-create via `organisatiegebruik_service.ensure`).
+ADR-036/038: de organisatie leeft op het grove gebruiksfeit `organisatiegebruik` waar `gebruik_id`
+naar verwijst (single source of truth). `organisatie_id` is een **verplicht** Create/Read-veld
+(Update optioneel-in-payload, nooit null), intern vertaald naar een grof feit (get-or-create via
+`organisatiegebruik_service.ensure`). Een groep hoort altijd bij een organisatie.
 
 ADR-036a: de afdeling is een **structurele referentie** `afdeling_id` naar een `organisatie_eenheid`-
 partij binnen de organisatie van het grove feit (spiegel van het persoon→afdeling-patroon, ADR-024).
-Optioneel; een organisatie-loze groep draagt geen afdeling. De read geeft `afdeling_id` + de
-geresolveerde partij-naam (`afdeling`).
+Optioneel. De read geeft `afdeling_id` + de geresolveerde partij-naam (`afdeling`).
 """
 import uuid
 from datetime import datetime
@@ -122,14 +122,11 @@ async def _afdeling_naam(session: AsyncSession, tid: uuid.UUID, afdeling_id):
 
 async def _valideer_afdeling(session: AsyncSession, tid: uuid.UUID, afdeling_id, gebruik_id) -> None:
     """ADR-036a — een afdeling moet een bestaande `organisatie_eenheid`-partij zijn **binnen de
-    organisatie van het grove feit** (`gebruik_id`). Een organisatie-loze groep (`gebruik_id` None)
-    mag geen afdeling dragen. Spiegelt `partij_service._valideer_lidmaatschap` → 422 `ONGELDIGE_AFDELING`."""
+    organisatie van het grove feit** (`gebruik_id`). Optioneel (leeg mag). Spiegelt
+    `partij_service._valideer_lidmaatschap` → 422 `ONGELDIGE_AFDELING`. ADR-038: `gebruik_id` is
+    altijd gezet (geen org-loze groep meer)."""
     if afdeling_id is None:
         return
-    if gebruik_id is None:
-        raise OngeldigeRegistratie(
-            "ONGELDIGE_AFDELING", "Een organisatie-loze groep kan geen afdeling dragen."
-        )
     org_id = (
         await session.execute(
             select(Organisatiegebruik.organisatie_id).where(
@@ -346,10 +343,14 @@ async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate
     _ouder = await component_service.haal_op(session, tenant_id, data.applicatie_id)
     if _ouder.componenttype != _APPLICATIE_TYPE:
         raise NietGevonden(_APPLICATIE_TYPE, data.applicatie_id)
-    # ADR-036 — organisatie zetten = het grove feit (organisatie, applicatie) get-or-create'n.
-    gebruik_id = None
-    if data.organisatie_id is not None:
-        gebruik_id = await organisatiegebruik_service.ensure(session, tid, data.organisatie_id, data.applicatie_id)
+    # ADR-038 — organisatie is verplicht: het grove feit (organisatie, applicatie) wordt altijd
+    # ge-ensured; `gebruik_id` is dus altijd gezet (geen org-loze groep). Backstop naast de
+    # schema-verplichting + de DB NOT NULL.
+    if data.organisatie_id is None:
+        raise OngeldigeRegistratie(
+            "ORGANISATIE_VERPLICHT", "Een gebruikersgroep hoort verplicht bij een organisatie."
+        )
+    gebruik_id = await organisatiegebruik_service.ensure(session, tid, data.organisatie_id, data.applicatie_id)
     # ADR-036a — afdeling moet een org-eenheid binnen de grove-feit-organisatie zijn (of leeg).
     await _valideer_afdeling(session, tid, data.afdeling_id, gebruik_id)
     velden = data.model_dump(exclude={"applicatie_id", "organisatie_id"})  # {afdeling_id, aantal_gebruikers}
@@ -370,21 +371,22 @@ async def werk_bij(session: AsyncSession, tenant_id, gebruikersgroep_id, data: G
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, gebruikersgroep_id)
     velden = data.model_dump(exclude_unset=True)
-    # ADR-036 — organisatie wijzigen verschuift de verfijning-verwijzing (gebruik_id).
+    # ADR-036/038 — organisatie wijzigen verschuift de verfijning-verwijzing (gebruik_id). De
+    # organisatie is verplicht: op null zetten mag niet (een groep is nooit org-loos).
     if "organisatie_id" in velden:
         org_id = velden.pop("organisatie_id")
         if org_id is None:
-            obj.gebruik_id = None
-            obj.afdeling_id = None  # ADR-036a — organisatie-loze groep draagt geen afdeling
-        else:
-            app_map = await _applicaties_van(session, tid, [obj.id])
-            app_id = app_map.get(obj.id)
-            if app_id is None:
-                raise OngeldigeRegistratie(
-                    "GROEP_ZONDER_APPLICATIE",
-                    "Deze groep hangt aan geen applicatie meer; een organisatie kan pas worden gekoppeld met een applicatie.",
-                )
-            obj.gebruik_id = await organisatiegebruik_service.ensure(session, tid, org_id, app_id)
+            raise OngeldigeRegistratie(
+                "ORGANISATIE_VERPLICHT", "Een gebruikersgroep hoort verplicht bij een organisatie."
+            )
+        app_map = await _applicaties_van(session, tid, [obj.id])
+        app_id = app_map.get(obj.id)
+        if app_id is None:
+            raise OngeldigeRegistratie(
+                "GROEP_ZONDER_APPLICATIE",
+                "Deze groep hangt aan geen applicatie meer; een organisatie kan pas worden gekoppeld met een applicatie.",
+            )
+        obj.gebruik_id = await organisatiegebruik_service.ensure(session, tid, org_id, app_id)
     # ADR-036a — afdeling valideren tegen de (mogelijk gewijzigde) organisatie van het grove feit.
     if "afdeling_id" in velden:
         await _valideer_afdeling(session, tid, velden["afdeling_id"], obj.gebruik_id)

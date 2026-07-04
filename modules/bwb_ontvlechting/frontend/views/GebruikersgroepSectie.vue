@@ -11,8 +11,9 @@ import { api } from '@/api'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
-// Organisatie-keuze: server-side zoeken, beperkt tot organisaties + burgers (aard_in).
-const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard_in: ['organisatie', 'burger'] })
+// Organisatie-keuze: server-side zoeken, beperkt tot organisaties (ADR-038 — burger-doelgroepen
+// zijn gewone externe organisaties; de aparte `burger`-aard bestaat niet meer).
+const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard_in: ['organisatie'] })
 // Afdeling-keuze: alleen organisatie_eenheden binnen de gekozen organisatie.
 const zoekAfdelingen = (params) =>
   api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: form.organisatie_id })

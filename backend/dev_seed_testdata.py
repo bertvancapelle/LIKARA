@@ -981,8 +981,8 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
       'samenwerkende gemeente' → None.
     - flow-richting naar_doel/naar_bron → eenrichting · bidirectioneel → tweerichting;
       protocol REST/SOAP → api · StUF → middleware.
-    - gebruikersgroep-organisatie MOET aard=organisatie → de Burgers-groep krijgt org=None +
-      afdeling='Burgers' (kan niet aan de burger-partij hangen).
+    - ADR-038 — een groep hoort altijd bij een organisatie; burger-doelgroepen zijn externe
+      organisaties (aard=organisatie + scope=extern) met segment-afdelingen eronder.
     - flow naar een ketenpartner-partij (Belastingdienst) wordt NIET aangemaakt — flows lopen
       tussen componenten, niet naar een partij."""
     from datetime import date
@@ -1049,8 +1049,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         await _partij(PartijAard.externe_partij, naam, "leveranciers", soort="leverancier",
                       straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
 
-    # ── 3. Burger-partij ──
-    await _partij(PartijAard.burger, "Burgers", "burgers", omschrijving="Inwoners van de regio")
+    # ── 3. Burger-doelgroepen: zie stap 13b (ADR-038 — externe organisaties met afdelingen). ──
 
     # ── 4. Afdelingen BvoWB (onder BvoWB) ──
     afdelingen = [
@@ -1428,9 +1427,31 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     await _gg("Zaaksysteem", "Gemeente Tiel", "Burgerzaken", 40)
     await _gg("Zaaksysteem", "Gemeente Culemborg", "Publiekszaken", 25)
     await _gg("DMS", "Gemeente West Betuwe", "Documentbeheer", 15)
-    # Organisatie-loze groepen (burgers/inwoners): geen organisatie ⇒ geen afdeling (ADR-036a).
-    for app_naam in ["Klantportaal", "Burgerzaken-suite", "Zaaksysteem"]:
-        await _gg(app_naam, None, None, 35000)
+
+    # ── 13b. Burger-doelgroepen (ADR-038): externe organisaties met segment-afdelingen. ──
+    # Per gemeente een burger-organisatie (aard=organisatie + scope=extern), met een paar
+    # segment-afdelingen, gekoppeld aan de burgergerichte applicaties (voorheen "organisatieloos").
+    burger_orgs = ["Burgers Tiel", "Burgers West Betuwe", "Burgers Culemborg"]
+    for naam in burger_orgs:
+        await _partij(PartijAard.organisatie, naam, "burgers", scope=PartijScope.extern,
+                      omschrijving="Inwoners/doelgroep — externe organisatie (ADR-038)")
+    burger_afdelingen = [
+        ("Burgers Tiel", "Agrariërs"), ("Burgers Tiel", "Woningbezitters"),
+        ("Burgers West Betuwe", "Agrariërs"), ("Burgers West Betuwe", "Ondernemers"),
+        ("Burgers Culemborg", "Woningbezitters"), ("Burgers Culemborg", "Studenten"),
+    ]
+    for org_naam, seg in burger_afdelingen:
+        await _partij(PartijAard.organisatie_eenheid, f"{org_naam} — {seg}", "afdelingen",
+                      organisatie_id=partij_id[org_naam])
+    # Koppel de burger-segmenten als gebruikersgroepen aan hun applicaties (grof feit via _gg/ensure).
+    for app_naam, org_naam, seg, aantal in [
+        ("Klantportaal", "Burgers Tiel", "Agrariërs", 12000),
+        ("Klantportaal", "Burgers Tiel", "Woningbezitters", 23000),
+        ("Burgerzaken-suite", "Burgers West Betuwe", "Agrariërs", 8000),
+        ("Klantportaal", "Burgers Culemborg", "Woningbezitters", 15000),
+        ("Zaaksysteem", "Burgers Culemborg", "Studenten", 4000),
+    ]:
+        await _gg(app_naam, org_naam, f"{org_naam} — {seg}", aantal)
 
     # ── 14. Infrastructuur (technology-laag) + component-samenstelling (LI021, context) ──
     # KALE componenten (Element + Component, géén subtype/scoring/profiel) → engine onaangeroerd.
