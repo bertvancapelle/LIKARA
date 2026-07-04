@@ -140,6 +140,27 @@ async def valideer_verantwoordelijke(session: AsyncSession, tenant_id, partij_id
         )
 
 
+async def _valideer_contactpersoon(session: AsyncSession, tid, partij_id, contactpersoon_id) -> None:
+    """ADR-039 — het aanspreekpunt moet een bestaande persoon-partij binnen de tenant
+    zijn die **bij deze partij hoort** (aard=persoon én persoon.organisatie_id == deze partij).
+    Anders 422 `ONGELDIGE_CONTACTPERSOON`. `None` = leeg (registratiegat), handelt de caller af.
+    Spiegel van `valideer_verantwoordelijke`, met de extra "hoort-bij-deze-partij"-eis."""
+    persoon = (
+        await session.execute(
+            select(Partij).where(Partij.id == contactpersoon_id, Partij.tenant_id == tid)
+        )
+    ).scalar_one_or_none()
+    if (
+        persoon is None
+        or persoon.aard != PartijAard.persoon
+        or persoon.organisatie_id != partij_id
+    ):
+        raise OngeldigeRegistratie(
+            "ONGELDIGE_CONTACTPERSOON",
+            "Het aanspreekpunt moet een persoon zijn die bij deze partij hoort.",
+        )
+
+
 async def resolve_verantwoordelijken(session: AsyncSession, tenant_id, ids) -> dict:
     """ADR-037 — resolveer verantwoordelijke-partij-ids → `{id: {"naam", "afdeling"}}` voor de
     leeslaag. `afdeling` = naam van de afdeling-partij (alleen bij aard=persoon; een afdeling-partij
@@ -169,12 +190,13 @@ async def resolve_verantwoordelijken(session: AsyncSession, tenant_id, ids) -> d
 
 
 async def _verrijk_context(session: AsyncSession, tid: uuid.UUID, items: list) -> None:
-    """ADR-037 — hang de afgeleide `organisatie_naam` (+ `afdeling_naam` bij een persoon) op de
-    partij-lijst-items, zodat de identiteit "afdeling — organisatie" / "persoon — afdeling —
-    organisatie" toonbaar is (bv. de verantwoordelijke-picker). Transient attrs (niet gemapt) die
-    `PartijRead` (from_attributes) uitleest; één batch-query op de partij-namen. Read-only."""
+    """ADR-037/039 — hang de afgeleide `organisatie_naam` (+ `afdeling_naam` bij een persoon) én
+    `contactpersoon_naam` (het aanspreekpunt) op de partij-lijst-items, zodat de identiteit "afdeling
+    — organisatie" / "persoon — afdeling — organisatie" en het aanspreekpunt toonbaar zijn. Transient
+    attrs (niet gemapt) die `PartijRead` (from_attributes) uitleest; één batch-query op de namen."""
     ids = {p.organisatie_id for p in items if p.organisatie_id}
     ids |= {p.afdeling_id for p in items if p.afdeling_id}
+    ids |= {p.contactpersoon_id for p in items if p.contactpersoon_id}
     namen: dict = {}
     if ids:
         namen = dict(
@@ -187,6 +209,7 @@ async def _verrijk_context(session: AsyncSession, tid: uuid.UUID, items: list) -
     for p in items:
         p.organisatie_naam = namen.get(p.organisatie_id)
         p.afdeling_naam = namen.get(p.afdeling_id)
+        p.contactpersoon_naam = namen.get(p.contactpersoon_id)
 
 
 async def lijst(
@@ -335,11 +358,23 @@ def _valideer_functietitel(aard: PartijAard, functietitel: str | None) -> None:
         )
 
 
+def _valideer_contactpersoon_aard(aard: PartijAard, contactpersoon_id) -> None:
+    """ADR-039 — een aanspreekpunt geldt uitsluitend voor een organisatie of externe
+    partij (die dragen een eigen aanspreekpunt; spiegel van hoe `functietitel` alleen op persoon
+    leeft). 422 `CONTACTPERSOON_ALLEEN_PARTIJ` bij een afdeling of persoon."""
+    if contactpersoon_id is not None and aard not in _ORGANISATIE_ACHTIG:
+        raise OngeldigeRegistratie(
+            "CONTACTPERSOON_ALLEEN_PARTIJ",
+            "Een aanspreekpunt kan alleen voor een organisatie of externe partij worden vastgelegd.",
+        )
+
+
 async def maak_aan(session: AsyncSession, tenant_id, data: PartijCreate) -> Partij:
     tid = _tenant_uuid(tenant_id)
     await partijsoort_catalog.valideer_soort(session, data.soort)
     await _valideer_lidmaatschap(session, tid, data.aard, data.organisatie_id, data.afdeling_id)
     _valideer_functietitel(data.aard, data.functietitel)
+    _valideer_contactpersoon_aard(data.aard, data.contactpersoon_id)  # ADR-039 — aard-restrictie
     # ADR-038 — bepaal + borg de effectieve intern/extern-waarde (default extern op organisatie).
     scope = _effectieve_scope(data.aard, data.scope)
     _valideer_scope(data.aard, scope)
@@ -347,6 +382,11 @@ async def maak_aan(session: AsyncSession, tenant_id, data: PartijCreate) -> Part
     elem = Element(tenant_id=tid, element_type=ElementType.partij)
     session.add(elem)
     await session.flush()
+    # ADR-039 — een aanspreekpunt moet een persoon zijn die bij déze partij hoort (elem.id ná flush).
+    # Bij aanmaken bestaat de partij nog niet, dus er kan nog geen persoon bij horen: een gezette
+    # contactpersoon_id levert hier terecht 422 op (het aanspreekpunt wordt in de bewerk-flow gezet).
+    if data.contactpersoon_id is not None:
+        await _valideer_contactpersoon(session, tid, elem.id, data.contactpersoon_id)
     velden = data.model_dump()
     velden["scope"] = scope  # de effectieve waarde vervangt de rauwe invoer
     obj = Partij(id=elem.id, tenant_id=tid, **velden)
@@ -406,6 +446,11 @@ async def werk_bij(session: AsyncSession, tenant_id, partij_id, data: PartijUpda
         await _valideer_lidmaatschap(session, tid, obj.aard, nieuw_org, nieuw_afd)
     if "functietitel" in velden:
         _valideer_functietitel(obj.aard, velden["functietitel"])  # aard ligt vast
+    if "contactpersoon_id" in velden:
+        # ADR-039 — aard-restrictie + "hoort bij déze partij" (aard ligt vast; partij bestaat).
+        _valideer_contactpersoon_aard(obj.aard, velden["contactpersoon_id"])
+        if velden["contactpersoon_id"] is not None:
+            await _valideer_contactpersoon(session, tid, obj.id, velden["contactpersoon_id"])
     if "scope" in velden:
         _valideer_scope(obj.aard, velden["scope"])  # ADR-038 — aard-bewust (aard ligt vast)
     for veld, waarde in velden.items():

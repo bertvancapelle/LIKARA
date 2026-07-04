@@ -53,7 +53,7 @@ async function mountDetail({ rollen = ['beheerder'], id = 'p1' } = {}) {
 
 const _partij = (over = {}) => ({
   id: 'p1', aard: 'externe_partij', naam: 'Acme BV', soort: 'leverancier',
-  straat_huisnummer: null, postcode: null, plaats: 'Tiel', contactpersoon: null,
+  straat_huisnummer: null, postcode: null, plaats: 'Tiel', contactpersoon_id: null,
   telefoon: null, mobiel: null, email: null, omschrijving: null, ...over,
 })
 
@@ -338,6 +338,35 @@ describe('PartijDetail', () => {
     await w.find('[data-testid="verwijder-bevestig"]').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.name).toBe('partij-lijst')
+  })
+
+  // ADR-039 — aanspreekpunt: doorklikbare persoon op organisatie/externe partij.
+  it('externe partij met aanspreekpunt: doorklikbare persoon (id + geresolvede naam)', async () => {
+    api.partijen.haal.mockImplementation((id) =>
+      id === 'cp9'
+        ? Promise.resolve(_partij({ id: 'cp9', aard: 'persoon', naam: 'M. de Boer', organisatie_id: 'p1' }))
+        : Promise.resolve(_partij({ contactpersoon_id: 'cp9' })),
+    )
+    const { w } = await mountDetail()
+    const link = w.find('[data-testid="detail-aanspreekpunt-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toContain('M. de Boer')
+    expect(link.attributes('href')).toContain('/partijen/cp9')
+    expect(api.partijen.haal).toHaveBeenCalledWith('cp9')
+  })
+
+  it('organisatie zonder aanspreekpunt: rij toont — (geen link)', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', soort: null, contactpersoon_id: null }))
+    mockLeden({})
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="detail-aanspreekpunt"]').exists()).toBe(true)
+    expect(w.find('[data-testid="detail-aanspreekpunt-link"]').exists()).toBe(false)
+  })
+
+  it('afdeling/persoon: geen aanspreekpunt-rij (dragen er geen)', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'persoon', naam: 'J', soort: null, organisatie_id: 'o1' }))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="detail-aanspreekpunt"]').exists()).toBe(false)
   })
 
   it('rol-gating: viewer ziet geen bewerk-/verwijder-knop', async () => {

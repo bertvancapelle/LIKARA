@@ -37,10 +37,12 @@ class PartijCreate(BaseModel):
     straat_huisnummer: str | None = None
     postcode: str | None = None
     plaats: str | None = None
-    contactpersoon: str | None = None
     telefoon: str | None = None
     mobiel: str | None = None
     email: str | None = None
+    # ADR-039 — aanspreekpunt: verwijzing naar een persoon-partij die bij deze partij
+    # hoort (alleen organisatie/externe_partij; service borgt aard + hoort-bij). Optioneel.
+    contactpersoon_id: uuid.UUID | None = None
     # ADR-024 (Optie 1) — persoon-only contactveld (de service weigert het bij andere aarden).
     functietitel: str | None = None
     omschrijving: str | None = None
@@ -85,7 +87,7 @@ class PartijCreate(BaseModel):
     def _v_tel(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 40)
 
-    @field_validator("straat_huisnummer", "plaats", "contactpersoon", "email")
+    @field_validator("straat_huisnummer", "plaats", "email")
     @classmethod
     def _v_opt_255(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 255)
@@ -116,10 +118,12 @@ class PartijUpdate(BaseModel):
     straat_huisnummer: str | None = None
     postcode: str | None = None
     plaats: str | None = None
-    contactpersoon: str | None = None
     telefoon: str | None = None
     mobiel: str | None = None
     email: str | None = None
+    # ADR-039 — aanspreekpunt wijzigen (alleen zinvol op organisatie/externe_partij;
+    # de service borgt aard + hoort-bij, aangezien de aard hier niet in het schema leeft).
+    contactpersoon_id: uuid.UUID | None = None
     functietitel: str | None = None
     omschrijving: str | None = None
     soort: str | None = None
@@ -147,7 +151,7 @@ class PartijUpdate(BaseModel):
     def _v_tel(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 40)
 
-    @field_validator("straat_huisnummer", "plaats", "contactpersoon", "email")
+    @field_validator("straat_huisnummer", "plaats", "email")
     @classmethod
     def _v_opt_255(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 255)
@@ -184,7 +188,6 @@ class PartijRead(BaseModel):
     straat_huisnummer: str | None
     postcode: str | None
     plaats: str | None
-    contactpersoon: str | None
     telefoon: str | None
     mobiel: str | None
     email: str | None
@@ -193,6 +196,9 @@ class PartijRead(BaseModel):
     soort: str | None
     organisatie_id: uuid.UUID | None
     afdeling_id: uuid.UUID | None
+    # ADR-039 — het aanspreekpunt (persoon-partij) + afgeleide naam. `contactpersoon_naam`
+    # vult alleen de lijst-read (via _verrijk_context); overige paden laten 'm None (backward-compatible).
+    contactpersoon_id: uuid.UUID | None
     # ADR-038 — intern/extern zoals opgeslagen: gezet voor organisatie/externe_partij, None voor
     # afdeling/persoon (die leiden af van hun ouder-organisatie; nog geen consument in Slice 1a,
     # daarom bewust niet in deze read afgeleid — zie gate-rapport).
@@ -202,6 +208,8 @@ class PartijRead(BaseModel):
     # vult ze (via joins); overige paden laten ze None (backward-compatible).
     organisatie_naam: str | None = None
     afdeling_naam: str | None = None
+    # ADR-039 — naam van het aanspreekpunt (persoon); alleen de lijst-read vult dit.
+    contactpersoon_naam: str | None = None
     created_at: datetime
     updated_at: datetime
 

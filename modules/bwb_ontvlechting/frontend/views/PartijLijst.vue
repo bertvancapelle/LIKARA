@@ -184,8 +184,16 @@ onMounted(() => laad({ reset: true }))
       <Column field="plaats" header="Plaats" sortable>
         <template #body="{ data }">{{ data.plaats || '—' }}</template>
       </Column>
-      <Column header="Contactpersoon">
-        <template #body="{ data }">{{ data.contactpersoon || '—' }}</template>
+      <Column header="Aanspreekpunt">
+        <template #body="{ data }">
+          <router-link
+            v-if="data.contactpersoon_id"
+            :to="{ name: 'partij-detail', params: { id: data.contactpersoon_id } }"
+            data-testid="rij-contactpersoon-link"
+            class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          >{{ data.contactpersoon_naam || '—' }}</router-link>
+          <span v-else class="text-[var(--lk-color-text-muted)]">—</span>
+        </template>
       </Column>
       <template #empty>
         <span v-if="eersteGeladen && !laden && heeftFilters" data-testid="lijst-geen-match">

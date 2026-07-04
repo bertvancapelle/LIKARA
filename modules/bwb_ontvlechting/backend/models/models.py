@@ -828,6 +828,15 @@ class Partij(Base, TenantMixin, TimestampMixin):
             ["tenant_id", "afdeling_id"], ["element.tenant_id", "element.id"],
             name="fk_partij_afdeling", ondelete="RESTRICT",
         ),
+        # Aanspreekpunt (ADR-039 voorgesteld) — een organisatie/externe partij verwijst optioneel
+        # naar een persoon-partij die bij háár hoort (persoon.organisatie_id == deze partij; app-side
+        # geborgd). Composiet-FK naar het partij-element; ON DELETE SET NULL (kolom-specifiek op
+        # contactpersoon_id in de migratie — een kale SET NULL zou óók de gedeelde tenant_id nullen).
+        # Spiegel van `component.eigenaar_organisatie_id`. Puur registratief: de engine leest dit NOOIT.
+        ForeignKeyConstraint(
+            ["tenant_id", "contactpersoon_id"], ["element.tenant_id", "element.id"],
+            name="fk_partij_contactpersoon", ondelete="SET NULL",
+        ),
         # Harde invariant (DB-backstop): organisatie verplicht voor persoon + organisatie_eenheid,
         # en verboden voor organisatie + externe_partij (de top staat op zichzelf).
         CheckConstraint(
@@ -858,7 +867,6 @@ class Partij(Base, TenantMixin, TimestampMixin):
     straat_huisnummer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     postcode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     plaats: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    contactpersoon: Mapped[str | None] = mapped_column(String(255), nullable=True)
     telefoon: Mapped[str | None] = mapped_column(String(40), nullable=True)
     mobiel: Mapped[str | None] = mapped_column(String(40), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -869,6 +877,9 @@ class Partij(Base, TenantMixin, TimestampMixin):
     # ADR-024 slice 2a-bis — lidmaatschap (zie __table_args__).
     organisatie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     afdeling_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # ADR-039 — aanspreekpunt: verwijzing naar een persoon-partij die bij deze partij
+    # hoort (alleen op organisatie/externe_partij; service dwingt af). Zie __table_args__ voor de FK.
+    contactpersoon_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     # ADR-038 — intern/extern-kenmerk. Nullable op tabelniveau; de CHECK
     # `ck_partij_scope_aanwezig` maakt hem verplicht voor organisatie + externe_partij en verbiedt
     # hem voor afdeling/persoon (die leiden af). Default (organisatie) = extern, in de service gezet.

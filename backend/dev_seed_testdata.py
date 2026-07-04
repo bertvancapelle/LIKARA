@@ -69,7 +69,7 @@ from schemas.blokkade import BlokkadeUpdate  # noqa: E402
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate  # noqa: E402
 from schemas.contract import ContractCreate  # noqa: E402
 from schemas.relatie import RelatieCreate  # noqa: E402
-from schemas.partij import PartijCreate  # noqa: E402
+from schemas.partij import PartijCreate, PartijUpdate  # noqa: E402
 from schemas.gebruikersgroep import GebruikersgroepCreate  # noqa: E402
 from services import (  # noqa: E402
     component_contract_service,
@@ -197,17 +197,21 @@ KOPPELINGEN = [
 # Door Bert vastgesteld landschap (CD046). Deterministisch + idempotent; loopt via
 # de service-laag zodat de invarianten (I1/I2, catalogus-validatie, uniciteit) gelden.
 # Géén 'TIEL' in namen (fictieve, plausibele NL-gegevens; geen echte bedrijven).
+# Legacy/ongebruikt (`_seed_aanvulling_d` wordt niet door main() aangeroepen — het leidende
+# scenario is `_seed_bvowb_scenario`). Bewust ZONDER `contactpersoon`-veld: dat vrije-tekstveld
+# bestaat na ADR-039 niet meer op PartijCreate (het aanspreekpunt is `contactpersoon_id`, gezet in
+# het canonieke scenario). Zo blijft deze dict een geldige PartijCreate mocht de functie ooit lopen.
 LEVERANCIERS_D = [
     {"naam": "GemSoft B.V.", "straat_huisnummer": "Softwareplein 12", "postcode": "3811 AB",
-     "plaats": "Amersfoort", "contactpersoon": "Account Management",
+     "plaats": "Amersfoort",
      "telefoon": "033-1234567", "mobiel": "06-12345678", "email": "contact@gemsoft.test"},
     {"naam": "CivData Solutions", "straat_huisnummer": "Dataweg 8", "postcode": "3542 AD",
-     "plaats": "Utrecht", "contactpersoon": "Servicedesk",
+     "plaats": "Utrecht",
      "telefoon": "030-7654321", "mobiel": "06-87654321", "email": "info@civdata.test"},
     # Minimaal: alleen plaats + email.
     {"naam": "InfraHost Nederland", "plaats": "Rotterdam", "email": "support@infrahost.test"},
-    # Minimaal: alleen contactpersoon + telefoon.
-    {"naam": "GeoWorks B.V.", "contactpersoon": "Verkoop binnendienst", "telefoon": "020-5556677"},
+    # Minimaal: alleen telefoon.
+    {"naam": "GeoWorks B.V.", "telefoon": "020-5556677"},
 ]
 
 # Mantel (#1) staat vóór de deelcontracten (#2/#3): de lijstvolgorde borgt dat de
@@ -1113,6 +1117,22 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     for naam, lev, tel, mail in leverancier_personen:
         await _partij(PartijAard.persoon, naam, "personen", organisatie_id=partij_id[lev],
                       telefoon=tel, email=mail)
+
+    # ── 7b. Aanspreekpunt per leverancier (ADR-039) — de eerste contactpersoon van de leverancier
+    #        wordt als aanspreekpunt (contactpersoon_id) gezet: een echte persoon, geen vrije tekst.
+    #        Idempotent (alleen zetten als nog leeg). ──
+    _eerste_contact: dict = {}
+    for naam, lev, _tel, _mail in leverancier_personen:
+        _eerste_contact.setdefault(lev, naam)
+    for lev_naam, per_naam in _eerste_contact.items():
+        lev_pid = partij_id[lev_naam]
+        huidig = (await session.execute(
+            select(Partij.contactpersoon_id).where(Partij.id == lev_pid, Partij.tenant_id == tid)
+        )).scalar_one()
+        if huidig is None:
+            await partij_service.werk_bij(
+                session, tid, lev_pid, PartijUpdate(contactpersoon_id=partij_id[per_naam])
+            )
 
     # ── 8. Ketenpartner-contactpersonen (1 per ketenpartner) ──
     ketenpartner_personen = [

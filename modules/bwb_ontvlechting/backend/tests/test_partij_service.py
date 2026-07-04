@@ -300,6 +300,198 @@ def test_component_schema_zonder_eigenaar_naam_leverancier():
         assert "eigenaar_organisatie_id" in model.model_fields
 
 
+# ── ADR-039: aanspreekpunt (contactpersoon als persoon-verwijzing) ───────────────
+
+def test_contactpersoon_aard_alleen_organisatie_achtig_pure():
+    """`_valideer_contactpersoon_aard`: toegestaan voor organisatie/externe_partij, 422
+    CONTACTPERSOON_ALLEEN_PARTIJ voor afdeling/persoon; None mag altijd."""
+    from models.models import PartijAard
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    cid = uuid.uuid4()
+    svc._valideer_contactpersoon_aard(PartijAard.organisatie, cid)
+    svc._valideer_contactpersoon_aard(PartijAard.externe_partij, cid)
+    svc._valideer_contactpersoon_aard(PartijAard.persoon, None)  # None mag
+    for aard in (PartijAard.persoon, PartijAard.organisatie_eenheid):
+        with pytest.raises(OngeldigeRegistratie) as ei:
+            svc._valideer_contactpersoon_aard(aard, cid)
+        assert ei.value.code == "CONTACTPERSOON_ALLEEN_PARTIJ"
+
+
+def test_contactpersoon_persoon_binnen_partij_ok():
+    """`_valideer_contactpersoon`: een persoon die bij déze partij hoort ⇒ geen raise."""
+    from models.models import PartijAard
+    from services import partij_service as svc
+
+    partij_id = uuid.uuid4()
+    persoon = SimpleNamespace(aard=PartijAard.persoon, organisatie_id=partij_id)
+    session = AsyncMock()
+    session.execute.return_value = _result(persoon)
+    asyncio.run(svc._valideer_contactpersoon(session, uuid.uuid4(), partij_id, uuid.uuid4()))
+
+
+def test_contactpersoon_verkeerde_aard_422():
+    """Een niet-persoon als aanspreekpunt ⇒ 422 ONGELDIGE_CONTACTPERSOON."""
+    from models.models import PartijAard
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    partij_id = uuid.uuid4()
+    org = SimpleNamespace(aard=PartijAard.organisatie, organisatie_id=None)
+    session = AsyncMock()
+    session.execute.return_value = _result(org)
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc._valideer_contactpersoon(session, uuid.uuid4(), partij_id, uuid.uuid4()))
+    assert ei.value.code == "ONGELDIGE_CONTACTPERSOON"
+
+
+def test_contactpersoon_persoon_van_andere_partij_422():
+    """Een persoon die bij een ándere partij hoort ⇒ 422 ONGELDIGE_CONTACTPERSOON."""
+    from models.models import PartijAard
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    partij_id = uuid.uuid4()
+    persoon = SimpleNamespace(aard=PartijAard.persoon, organisatie_id=uuid.uuid4())  # andere org
+    session = AsyncMock()
+    session.execute.return_value = _result(persoon)
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc._valideer_contactpersoon(session, uuid.uuid4(), partij_id, uuid.uuid4()))
+    assert ei.value.code == "ONGELDIGE_CONTACTPERSOON"
+
+
+def test_contactpersoon_onbekend_422():
+    """Onbekende persoon (buiten tenant) ⇒ 422 (no-leak; zelfde foutcode)."""
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    session = AsyncMock()
+    session.execute.return_value = _result(None)
+    with pytest.raises(OngeldigeRegistratie) as ei:
+        asyncio.run(svc._valideer_contactpersoon(session, uuid.uuid4(), uuid.uuid4(), uuid.uuid4()))
+    assert ei.value.code == "ONGELDIGE_CONTACTPERSOON"
+
+
+def test_contactpersoon_schema_velden():
+    """`contactpersoon_id` in Create/Update/Read; `contactpersoon_naam` in Read; de vrije-tekst
+    `contactpersoon` bestaat niet meer in de schemas."""
+    from schemas.partij import PartijCreate, PartijRead, PartijUpdate
+
+    for model in (PartijCreate, PartijUpdate, PartijRead):
+        assert "contactpersoon_id" in model.model_fields
+        assert "contactpersoon" not in model.model_fields
+    assert "contactpersoon_naam" in PartijRead.model_fields
+
+
+def test_partij_contactpersoon_fk_ondelete_set_null():
+    """Structureel: de aanspreekpunt-FK is SET NULL (kolom-specifiek in de migratie); een
+    verwijderde persoon nullt het aanspreekpunt, verweest de partij niet."""
+    from models.models import Partij
+
+    fks = {fk.name: fk for fk in Partij.__table__.constraints if getattr(fk, "name", None)}
+    fk = fks.get("fk_partij_contactpersoon")
+    assert fk is not None and fk.ondelete == "SET NULL"
+
+
+# ── ADR-039 live: aanspreekpunt end-to-end tegen de echte lk_app-DB (zelf-opruimend) ──
+
+def _lk_app_bereikbaar() -> bool:
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async def _probe():
+        eng = create_async_engine(_LK_APP_URL)
+        try:
+            async with eng.connect() as c:
+                return (await c.execute(text("SELECT to_regclass('partij')"))).scalar() is not None
+        except Exception:
+            return False
+        finally:
+            await eng.dispose()
+    try:
+        return asyncio.run(_probe())
+    except Exception:
+        return False
+
+
+live_svc = pytest.mark.skipif(not _lk_app_bereikbaar(), reason="lk_app-DB niet bereikbaar (offline)")
+
+
+async def _run_rls(fn):
+    import app.core.audit  # noqa: F401  (registreert de audit-hook)
+    import app.core.database  # noqa: F401  (registreert de RLS-set_config-hook)
+    from app.core.tenant_context import reset_tenant_context, zet_tenant_context
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    eng = create_async_engine(_LK_APP_URL)
+    smf = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+    tok = zet_tenant_context(_DEV_TENANT)
+    try:
+        async with smf() as s:
+            s.sync_session.info["rls"] = True
+            return await fn(s)
+    finally:
+        reset_tenant_context(tok)
+        await eng.dispose()
+
+
+async def _opruimen(s, ids):
+    from sqlalchemy import delete as _delete
+    from models.models import Element
+    # Kinderen (persoon) vóór de ouder-organisatie (lidmaatschap-FK is RESTRICT).
+    for _id in reversed(ids):
+        await s.execute(_delete(Element).where(Element.id == _id, Element.tenant_id == uuid.UUID(_DEV_TENANT)))
+    await s.commit()
+
+
+@live_svc
+def test_live_contactpersoon_end_to_end():
+    """Echte-stack: persoon-onder-partij als aanspreekpunt zetten, read-verrijking, en de 422-paden
+    (verkeerde organisatie; aard-restrictie). Ruimt eigen rijen op via het element-supertype."""
+    from models.models import PartijAard
+    from schemas.partij import PartijCreate, PartijUpdate
+    from services import partij_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    async def _flow(s):
+        ids = []
+        try:
+            org = await svc.maak_aan(s, _DEV_TENANT, PartijCreate(aard=PartijAard.organisatie, naam="WT-CP-Org"))
+            ids.append(org.id)
+            persoon = await svc.maak_aan(s, _DEV_TENANT, PartijCreate(
+                aard=PartijAard.persoon, naam="WT-CP-Persoon", organisatie_id=org.id))
+            ids.append(persoon.id)
+            # andere organisatie + persoon daaronder (voor de 422-verkeerde-org-casus)
+            org2 = await svc.maak_aan(s, _DEV_TENANT, PartijCreate(aard=PartijAard.organisatie, naam="WT-CP-Org2"))
+            ids.append(org2.id)
+            vreemd = await svc.maak_aan(s, _DEV_TENANT, PartijCreate(
+                aard=PartijAard.persoon, naam="WT-CP-Vreemd", organisatie_id=org2.id))
+            ids.append(vreemd.id)
+
+            # Aanspreekpunt zetten → slaagt.
+            bij = await svc.werk_bij(s, _DEV_TENANT, org.id, PartijUpdate(contactpersoon_id=persoon.id))
+            assert bij.contactpersoon_id == persoon.id
+
+            # Read-verrijking: de lijst levert contactpersoon_naam.
+            items, _ = await svc.lijst(s, _DEV_TENANT, aard=PartijAard.organisatie, zoek="WT-CP-Org")
+            gevonden = next(p for p in items if p.id == org.id)
+            assert gevonden.contactpersoon_naam == "WT-CP-Persoon"
+
+            # 422: persoon van een ándere organisatie mag geen aanspreekpunt van deze partij zijn.
+            with pytest.raises(OngeldigeRegistratie) as ei1:
+                await svc.werk_bij(s, _DEV_TENANT, org.id, PartijUpdate(contactpersoon_id=vreemd.id))
+            assert ei1.value.code == "ONGELDIGE_CONTACTPERSOON"
+
+            # 422: een persoon-partij draagt zelf geen aanspreekpunt (aard-restrictie).
+            with pytest.raises(OngeldigeRegistratie) as ei2:
+                await svc.werk_bij(s, _DEV_TENANT, persoon.id, PartijUpdate(contactpersoon_id=vreemd.id))
+            assert ei2.value.code == "CONTACTPERSOON_ALLEEN_PARTIJ"
+        finally:
+            await _opruimen(s, ids)
+
+    asyncio.run(_run_rls(_flow))
+
+
 # ── ADR-037: aard-validatie van de antwoord-verantwoordelijke ────────────────────
 
 def test_valideer_verantwoordelijke_persoon_en_afdeling_ok():

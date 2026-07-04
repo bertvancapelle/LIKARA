@@ -92,6 +92,8 @@ const isPersoon = computed(() => partij.value?.aard === 'persoon')
 const heeftLeden = computed(() => isOrganisatieAchtig.value || isAfdeling.value)
 const ouderOrgNaam = ref(null)
 const ouderAfdelingNaam = ref(null)
+// ADR-039 — het aanspreekpunt (persoon). Naam apart resolven (de detail-read levert alleen het id).
+const contactpersoonNaam = ref(null)
 
 // Leden-overzicht — server-side ADR-017 (lazy + keyset + @sort), in TWEE aparte secties:
 // Afdelingen (aard=organisatie_eenheid) en Personen (aard=persoon), elk met eigen state +
@@ -138,6 +140,10 @@ const onPersonenSort = (e) => _onSort(personen, laadPersonen, e)
 async function laadSamenhang() {
   const p = partij.value
   if (!p) return
+  // ADR-039 — aanspreekpunt (alleen organisatie/externe partij dragen er een).
+  if (isOrganisatieAchtig.value && p.contactpersoon_id) {
+    contactpersoonNaam.value = await _naam(p.contactpersoon_id)
+  }
   if (isOrganisatieAchtig.value) {
     afdelingenFilter.value = { organisatie_id: p.id, aard: 'organisatie_eenheid' }
     personenFilter.value = { organisatie_id: p.id, aard: 'persoon' }
@@ -191,6 +197,7 @@ async function herlaad() {
   // Reset afgeleide state zodat navigatie naar een andere partij niets ouds laat staan.
   ouderOrgNaam.value = null
   ouderAfdelingNaam.value = null
+  contactpersoonNaam.value = null
   afdelingen.items = []; afdelingen.cursor = null; afdelingenFilter.value = null
   personen.items = []; personen.cursor = null; personenFilter.value = null
   contracten.value = []; contractenCursor.value = null
@@ -211,7 +218,6 @@ const RIJEN = [
   { veld: 'straat_huisnummer', label: 'Straat en huisnummer' },
   { veld: 'postcode', label: 'Postcode' },
   { veld: 'plaats', label: 'Plaats' },
-  { veld: 'contactpersoon', label: 'Contactpersoon' },
   { veld: 'telefoon', label: 'Telefoon' },
   { veld: 'mobiel', label: 'Mobiel' },
   { veld: 'email', label: 'E-mail' },
@@ -244,6 +250,19 @@ const RIJEN = [
         <template v-if="scopeLabel">
           <dt class="font-semibold">Intern of extern</dt>
           <dd data-testid="detail-scope">{{ scopeLabel }}</dd>
+        </template>
+        <!-- ADR-039 — aanspreekpunt: doorklikbare persoon (alleen organisatie/externe partij). -->
+        <template v-if="isOrganisatieAchtig">
+          <dt class="font-semibold">Aanspreekpunt</dt>
+          <dd data-testid="detail-aanspreekpunt">
+            <router-link
+              v-if="partij.contactpersoon_id"
+              :to="{ name: 'partij-detail', params: { id: partij.contactpersoon_id } }"
+              data-testid="detail-aanspreekpunt-link"
+              class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline"
+            >{{ contactpersoonNaam || 'Aanspreekpunt' }}</router-link>
+            <span v-else class="text-[var(--lk-color-text-muted)]">—</span>
+          </dd>
         </template>
         <template v-for="r in RIJEN" :key="r.veld">
           <dt class="font-semibold">{{ r.label }}</dt>

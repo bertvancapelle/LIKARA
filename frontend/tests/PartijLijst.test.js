@@ -35,7 +35,8 @@ async function mountLijst({ rollen = ['medewerker'] } = {}) {
 }
 
 const _partij = (naam, id, aard = 'externe_partij') => ({
-  id, naam, aard, plaats: 'Tiel', contactpersoon: 'J. Jansen',
+  id, naam, aard, plaats: 'Tiel',
+  contactpersoon_id: 'cp-1', contactpersoon_naam: 'J. Jansen',
 })
 
 beforeEach(() => vi.clearAllMocks())
@@ -79,6 +80,24 @@ describe('PartijLijst', () => {
     api.partijen.lijst.mockResolvedValueOnce({ items: [_partij('Acme', 'l-42')], volgende_cursor: null })
     const w = await mountLijst()
     expect(w.find('[data-testid="rij-link"]').attributes('href')).toContain('/partijen/l-42')
+  })
+
+  it('aanspreekpunt-kolom linkt door naar de persoon (contactpersoon_id + naam)', async () => {
+    api.partijen.lijst.mockResolvedValueOnce({ items: [_partij('Acme', 'l1')], volgende_cursor: null })
+    const w = await mountLijst()
+    const link = w.find('[data-testid="rij-contactpersoon-link"]')
+    expect(link.exists()).toBe(true)
+    expect(link.text()).toBe('J. Jansen')
+    expect(link.attributes('href')).toContain('/partijen/cp-1')
+  })
+
+  it('aanspreekpunt-kolom toont — zonder contactpersoon_id', async () => {
+    api.partijen.lijst.mockResolvedValueOnce({
+      items: [{ id: 'l2', naam: 'Geen contact', aard: 'organisatie', plaats: 'Tiel' }],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="rij-contactpersoon-link"]').exists()).toBe(false)
   })
 
   it('lege status zonder items', async () => {

@@ -14,11 +14,14 @@ import { api } from '@/api'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
+import ContactpersoonSelect from './ContactpersoonSelect.vue'
+import { useAuthStore } from '@/store/auth'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const auth = useAuthStore()
 
 const bewerken = computed(() => !!props.id)
 const bezig = ref(false)
@@ -38,7 +41,7 @@ const scopeVast = computed(() => aard.value === 'externe_partij')   // vast "ext
 
 const VELDEN = [
   'naam', 'straat_huisnummer', 'postcode', 'plaats',
-  'contactpersoon', 'telefoon', 'mobiel', 'email', 'functietitel', 'omschrijving',
+  'telefoon', 'mobiel', 'email', 'functietitel', 'omschrijving',
 ]
 const form = reactive(Object.fromEntries(VELDEN.map((v) => [v, ''])))
 const aard = ref('')      // verplicht bij aanmaken; vast daarna
@@ -56,6 +59,18 @@ const orgInitieel = ref('')
 const afdInitieel = ref('')
 const heeftOrgOuder = computed(() => ['persoon', 'organisatie_eenheid'].includes(aard.value))
 const magAfdeling = computed(() => aard.value === 'persoon')
+
+// ADR-039 — aanspreekpunt (persoon van déze partij). Alleen op organisatie/externe partij, én alleen
+// in bewerk-modus: een persoon kan pas bij een partij horen nadat die partij bestaat (bij aanmaken
+// bestaat de partij-id nog niet, dus zijn er geen kandidaten).
+const contactpersoonId = ref('')
+const cpInitieel = ref('')
+const magAanmaakContactpersoon = computed(() => auth.hasRole('medewerker', 'beheerder'))
+const isPartijMetAanspreekpunt = computed(() => ['organisatie', 'externe_partij'].includes(aard.value))
+const magContactpersoon = computed(() => bewerken.value && isPartijMetAanspreekpunt.value)
+function onContactpersoon(id) {
+  contactpersoonId.value = id || ''
+}
 
 // Zoekfuncties (server-side; ZoekSelect roept ze met { zoek, limit, ...extraFilters } aan).
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
@@ -106,6 +121,11 @@ async function init() {
     scope.value = p.scope || 'extern'  // ADR-038 — voorvullen bij bewerken (organisatie/externe partij)
     organisatieId.value = p.organisatie_id || ''
     afdelingId.value = p.afdeling_id || ''
+    // ADR-039 — aanspreekpunt voorvullen (id + naam voor de ZoekSelect-weergave).
+    contactpersoonId.value = p.contactpersoon_id || ''
+    if (contactpersoonId.value) {
+      try { cpInitieel.value = (await api.partijen.haal(contactpersoonId.value)).naam } catch { /* label niet kritisch */ }
+    }
     await _zetInitieelLabels()             // ná het zetten van de ids (ZoekSelect-weergave)
   } catch (e) {
     _toastFout(e)
@@ -135,6 +155,8 @@ function _payload() {
   // Lidmaatschap: organisatie alleen voor persoon/afdeling; afdeling alleen voor persoon.
   uit.organisatie_id = heeftOrgOuder.value ? organisatieId.value || null : null
   uit.afdeling_id = magAfdeling.value ? afdelingId.value || null : null
+  // ADR-039 — aanspreekpunt alleen bij bewerken van een organisatie/externe partij (edit-only).
+  if (magContactpersoon.value) uit.contactpersoon_id = contactpersoonId.value || null
   // `aard` alleen bij aanmaken (vast daarna; Update kent geen aard → extra='forbid').
   if (!bewerken.value) uit.aard = aard.value
   return uit
@@ -145,7 +167,7 @@ function _serverveldfouten(e) {
     let t = false
     for (const d of e.detail) {
       const veld = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : null
-      if (veld && (veld in form || ['aard', 'soort', 'scope', 'organisatie_id', 'afdeling_id'].includes(veld))) {
+      if (veld && (veld in form || ['aard', 'soort', 'scope', 'organisatie_id', 'afdeling_id', 'contactpersoon_id'].includes(veld))) {
         fouten[veld] = d.msg || 'Ongeldige waarde.'
         t = true
       }
@@ -196,7 +218,6 @@ const TEKSTVELDEN = [
   { veld: 'straat_huisnummer', label: 'Straat en huisnummer' },
   { veld: 'postcode', label: 'Postcode' },
   { veld: 'plaats', label: 'Plaats' },
-  { veld: 'contactpersoon', label: 'Contactpersoon' },
   { veld: 'telefoon', label: 'Telefoon' },
   { veld: 'mobiel', label: 'Mobiel' },
   { veld: 'email', label: 'E-mail' },
@@ -331,6 +352,24 @@ const TEKSTVELDEN = [
         <InputText :id="`pf-${v.veld}`" v-model="form[v.veld]" :data-testid="`veld-${v.veld}`" :aria-invalid="!!fouten[v.veld]" :aria-describedby="`fout-${v.veld}`" />
         <span v-if="fouten[v.veld]" :id="`fout-${v.veld}`" role="alert" :data-testid="`fout-${v.veld}`" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten[v.veld] }}</span>
       </div>
+
+      <!-- ADR-039 — aanspreekpunt: een persoon die bij deze partij hoort. Alleen bij organisatie/
+           externe partij; edit-only (bij aanmaken bestaat de partij nog niet, dus geen kandidaten). -->
+      <div v-if="magContactpersoon" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="veld-contactpersoon-wrap">
+        <label class="font-semibold">Aanspreekpunt</label>
+        <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Kies een persoon die bij deze partij hoort, of maak er ter plekke een aan.</p>
+        <ContactpersoonSelect
+          :partij-id="props.id"
+          :model-value="contactpersoonId"
+          :initieel-weergave="cpInitieel"
+          :mag-aanmaken="magAanmaakContactpersoon"
+          @update:model-value="onContactpersoon"
+        />
+        <span v-if="fouten.contactpersoon_id" role="alert" data-testid="fout-contactpersoon_id" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.contactpersoon_id }}</span>
+      </div>
+      <p v-else-if="!bewerken && isPartijMetAanspreekpunt" data-testid="contactpersoon-hint" class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+        Een aanspreekpunt kies je nadat de partij is aangemaakt (het aanspreekpunt is een persoon die bij deze partij hoort).
+      </p>
 
       <!-- ADR-024 (Optie 1) — functietitel uitsluitend voor een persoon. -->
       <div v-if="aard === 'persoon'" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="veld-functietitel-wrap">

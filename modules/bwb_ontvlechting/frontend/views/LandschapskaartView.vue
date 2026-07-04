@@ -1115,7 +1115,6 @@ function _nodeVelden(et, d, n) {
     return _velden([
       _veld('Aard', d.aard ? typeLabel(d.aard) : null),
       _veld('Functietitel', d.functietitel),
-      _veld('Contactpersoon', d.contactpersoon),
       _veld('Adres', adres),
       _veld('Telefoon', d.telefoon),
       _veld('Mobiel', d.mobiel),

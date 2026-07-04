@@ -275,6 +275,50 @@ describe('PartijFormulier — prefill vanaf organisatie/afdeling (UX-A2/A3)', ()
   })
 })
 
+describe('PartijFormulier — aanspreekpunt (ADR-039)', () => {
+  it('aanmaken organisatie: geen picker, wel een hint (edit-only)', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('organisatie')
+    expect(w.find('[data-testid="veld-contactpersoon-wrap"]').exists()).toBe(false)
+    expect(w.find('[data-testid="contactpersoon-hint"]').exists()).toBe(true)
+  })
+
+  it('bewerken organisatie: aanspreekpunt-picker zichtbaar en voorgevuld', async () => {
+    api.partijen.haal.mockImplementation((id) =>
+      Promise.resolve(
+        id === 'cp1'
+          ? { id: 'cp1', naam: 'M. de Boer', aard: 'persoon' }
+          : { id: 'o1', aard: 'organisatie', naam: 'BvoWB', scope: 'intern', contactpersoon_id: 'cp1' },
+      ),
+    )
+    const { w } = await mountForm({ id: 'o1' })
+    expect(w.find('[data-testid="veld-contactpersoon-wrap"]').exists()).toBe(true)
+    expect(w.find('[data-testid="veld-contactpersoon-input"]').element.value).toBe('M. de Boer')
+  })
+
+  it('bewerken organisatie: payload bevat contactpersoon_id', async () => {
+    api.partijen.haal.mockImplementation((id) =>
+      Promise.resolve(
+        id === 'cp1'
+          ? { id: 'cp1', naam: 'M. de Boer', aard: 'persoon' }
+          : { id: 'o1', aard: 'organisatie', naam: 'BvoWB', scope: 'intern', contactpersoon_id: 'cp1' },
+      ),
+    )
+    api.partijen.werkBij.mockResolvedValueOnce({ id: 'o1' })
+    const { w } = await mountForm({ id: 'o1' })
+    await w.find('[data-testid="partij-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.partijen.werkBij).toHaveBeenCalledWith('o1', expect.objectContaining({ contactpersoon_id: 'cp1' }))
+  })
+
+  it('bewerken persoon: geen aanspreekpunt-picker (dragen er geen)', async () => {
+    api.partijen.haal.mockResolvedValue({ id: 'p1', aard: 'persoon', naam: 'J', soort: null, organisatie_id: 'org1' })
+    const { w } = await mountForm({ id: 'p1' })
+    expect(w.find('[data-testid="veld-contactpersoon-wrap"]').exists()).toBe(false)
+    expect(w.find('[data-testid="contactpersoon-hint"]').exists()).toBe(false)
+  })
+})
+
 describe('PartijFormulier — bewerken', () => {
   it('aard is read-only (geen keuzeveld) en niet in de payload', async () => {
     // Afdeling hoort verplicht bij een organisatie (org1 zit in de kandidaten-mock).

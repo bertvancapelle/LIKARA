@@ -38,6 +38,7 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-023 | ArchiMate-uitlijning: element-identiteit, getypeerd relatiemodel, migratielaag | Aanvaard (besluit), implementatie in deze opdracht |
 | ADR-037 | Verantwoordelijke per checklistantwoord (afdeling-dan-persoon; vervangt vrije-tekst `eigenaar`, blokkade-eigenaar afgeleid) | Aanvaard — Pass 1 gerealiseerd (schema-gate), Pass 2 volgt |
 | ADR-038 | Gebruikersgroep-consolidatie: groep hoort altijd bij een organisatie; intern/extern-kenmerk op organisaties; `burger` partij-aard verwijderd (herziet ADR-036/036a) | Besloten — bouw in slices |
+| ADR-039 | Aanspreekpunt van een partij als verwijzing naar een geregistreerde persoon (vervangt vrije-tekst `contactpersoon`; alleen op organisatie/externe partij; search-first ter-plekke-aanmaken) | Besloten — gerealiseerd (schema-gate) |
 
 > **Component-focus-herfundering (LI057–LI059, migraties 0045–0047):** `migratiepad/complexiteit/prioriteit`
 > zijn component-breed, de `applicatie`-subtabel is gedropt en de applicatie-**facade** (routes/service/
