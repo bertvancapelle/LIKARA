@@ -507,11 +507,11 @@ Pas dan: klaar.
 
 | Veld | Waarde |
 |------|--------|
-| Build | V031 |
+| Build | V032 |
 | Datum | July 2026 |
-| Commit | 4c8d113 |
-| Tests | backend 841 (module) + 80 (platform) / frontend 772 groen (2 skipped) |
-| TST-rapport | TST-V031-Validatierapport.md |
+| Commit | 6702bd2 |
+| Tests | backend 851 (module) + 80 (platform) / frontend 780 groen (2 skipped) |
+| TST-rapport | TST-V032-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 <!-- BOUWSTATUS_END -->

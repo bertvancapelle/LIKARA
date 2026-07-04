@@ -251,6 +251,10 @@ dichten.
 
 ### Vier aarden (één `partij`-subtabel, `partij_aard_enum`)
 
+ADR-038 (migratie 0053): de enum telt nu **exact vier** waarden — de aparte `burger`-aard is
+**verwijderd**. Burger-doelgroepen zijn gewone **externe organisaties** (aard=organisatie + scope=extern)
+met afdelingen eronder.
+
 | Aard | Omschrijving | `organisatie_id` | `afdeling_id` |
 |---|---|---|---|
 | `organisatie` | Organisatie als geheel (intern of extern) | — verboden — | — verboden — |
@@ -266,6 +270,17 @@ afdeling_id IS NULL OR aard = 'persoon'
 Fijnere cross-row regels (organisatie_id wijst naar een aard=organisatie;
 afdeling_id hoort binnen die organisatie) leven in `partij_service._valideer_lidmaatschap`
 → 422 `ORGANISATIE_VERPLICHT` / `ONGELDIGE_ORGANISATIE` / `ONGELDIGE_AFDELING`.
+
+### Intern/extern (`partij.scope`, ADR-038, migratie 0052)
+Expliciet kenmerk `partij.scope` (`partij_scope_enum` = intern/extern), géén afgeleide uit de aard:
+- **`organisatie`** → kiesbaar (default **extern**); de tenant markeert bewust zijn eigen organisatie
+  als intern. Twee `aard=organisatie`-partijen kunnen aan verschillende kanten staan.
+- **`externe_partij`** → **vast `extern`** (niet-wijzigbaar; de aard bepaalt het).
+- **`organisatie_eenheid` / `persoon`** → **geen eigen waarde** (kolom NULL); ze **leiden af** van hun
+  ouder-organisatie. Zo is een tegenstrijdige toestand (interne afdeling onder externe organisatie)
+  structureel onmogelijk. Service: `_effectieve_scope`/`_valideer_scope` (422 `ONGELDIGE_SCOPE` /
+  `EXTERNE_PARTIJ_ALTIJD_EXTERN` / `SCOPE_ALLEEN_ORGANISATIE`). UI: kiesbaar in `PartijFormulier`
+  (radio, default extern), leesbaar in `PartijDetail`.
 
 ### ArchiMate-typing partij
 Alle aarden: `business_actor` / `business` / `active`. Eén entry in
@@ -313,15 +328,19 @@ Niets geforceerd (geen "één eigenaar per object").
   ON DELETE SET NULL (kolom-specifiek, PostgreSQL 15+). Toont de gejoinde `Partij.naam` in
   lijsten/details (naam-in-read via alias). De eigenaar-picker filtert `aard=organisatie`.
 
-### Gebruikersgroep: organisatie + afdeling (ADR-036 / ADR-036a, V030, migratie 0050)
-- **Organisatie leeft NIET meer op de gebruikersgroep** (geen `organisatie_id`-kolom meer). Ze leeft op
-  het **grove feit** `organisatiegebruik` (single source of truth); de gebruikersgroep verwijst er als
-  fijne verfijning naar via `gebruik_id`. `organisatie_id` blijft een Create/Update/Read-veld, intern
-  vertaald naar een grof feit (get-or-create via `organisatiegebruik_service.ensure`).
+### Gebruikersgroep: organisatie + afdeling (ADR-036 / ADR-036a / ADR-038, migraties 0050 + 0053)
+- **Een groep hoort ALTIJD bij een organisatie** (ADR-038): `gebruik_id` is **NOT NULL** en de FK
+  `fk_gebruikersgroep_gebruik` → `organisatiegebruik` is **ON DELETE RESTRICT** (was SET NULL — botst met
+  NOT NULL; een grof feit/organisatie met groepen verdwijnt niet stil). De org-loze uitzondering vervalt.
+- **Organisatie leeft NIET op de gebruikersgroep** (geen `organisatie_id`-kolom). Ze leeft op het **grove
+  feit** `organisatiegebruik` (single source of truth); de gebruikersgroep verwijst er als fijne
+  verfijning naar via `gebruik_id`. `organisatie_id` is een **verplicht** Create/Read-veld (Update
+  optioneel-in-payload, nooit null → 422 `ORGANISATIE_VERPLICHT`), intern vertaald naar een grof feit
+  (get-or-create via `organisatiegebruik_service.ensure`). Burger-doelgroepen = externe organisaties met
+  afdelingen (geen aparte burger-aard meer).
 - **Afdeling is structureel** (ADR-036a): `gebruikersgroep.afdeling_id` → organisatie_eenheid-partij
   binnen de grove-feit-organisatie (spiegel van persoon→afdeling), composiet-FK ON DELETE RESTRICT; geen
-  vrije tekst meer. `_valideer_afdeling` borgt org-eenheid-binnen-organisatie (422 `ONGELDIGE_AFDELING`);
-  een organisatie-loze groep draagt geen afdeling.
+  vrije tekst meer. `_valideer_afdeling` borgt org-eenheid-binnen-organisatie (422 `ONGELDIGE_AFDELING`).
 - **Identiteit**: "afdeling — organisatie" (bv. "Burgerzaken — Tiel"), zodat gelijknamige afdelingen van
   verschillende organisaties niet op één hoop vallen (`identiteit()`).
 - Read geeft `organisatie_id`+`organisatie_naam` (uit grof feit) en `afdeling_id`+`afdeling` (partij-naam).
@@ -574,7 +593,6 @@ verifieer bij twijfel daar.**
 | `component_zonder_gebruikersgroep` | geen serving-relatie van gg naar component | 🟡 Aandacht |
 | `component_geisoleerd` | geen flow-relaties | 🟡 Aandacht |
 | `contract_zonder_component` | geen association van component naar contract | 🟡 Aandacht |
-| `gebruikersgroep_zonder_organisatie` | grof feit (`gebruik_id`) ontbreekt | 🟡 Aandacht |
 | `gebruiksfeit_zonder_verfijning` (ADR-036) | grof gebruiksfeit zónder afdeling-verfijning eronder | 🟡 Aandacht |
 | `object_zonder_roltoewijzing` | geen `roltoewijzing`-rij voor dit element | 🟡 Aandacht |
 

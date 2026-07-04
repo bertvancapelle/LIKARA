@@ -7,6 +7,51 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V032 (sessie-afsluiting LI031 — ADR-038 gebruikersgroep-consolidatie + intern/extern, 2026-07-04)
+
+Build **V031 → V032**. Eén consistent model: een gebruikersgroep hoort **altijd** bij een organisatie;
+burger-doelgroepen zijn gewone **externe organisaties met afdelingen**. Intern/extern is een expliciet
+kenmerk op partijen (kiesbaar + zichtbaar). Dode resten opgeruimd.
+
+**Geland deze sessie:**
+
+| Commit | Slice |
+|---|---|
+| `1d9ab3a` | ADR-038 geschreven (register bijgewerkt) |
+| `2f1c816` | Slice 1a — `partij.scope` (`partij_scope_enum` intern/extern, additief), migratie `0052`: nullable + 2 CHECKs (gezet iff organisatie/externe_partij; externe_partij vast extern; afdeling/persoon leiden af); default extern op organisatie; seed BvoWB=intern; dubbele engine-borging |
+| `195c489` | Slice 1b — consolidatie, migratie `0053`: `gebruikersgroep.gebruik_id` NOT NULL (FK → RESTRICT); `burger`-aard uit `partij_aard_enum` (type-recreate); organisatie verplicht (Create + service-422; werk_bij weigert null); dode resten weg (kaart-veld `gebruikt_door_organisatieloos` + signaal `gebruikersgroep_zonder_organisatie`); seed: burger-doelgroepen = 3 externe organisaties + 6 segment-afdelingen + 5 groepen |
+| `edb4eb8` | Slice 2a — groep-dialoog organisatie verplicht (client-side inline-melding + `*`-markering; org-loze payload-tak weg; dode `orgAard`-state opgeruimd) |
+| `3ec3320` | Slice 2b — intern/extern-UI: kiesbaar in `PartijFormulier` (radio-kaartjes, default Extern; vast "Extern" bij externe partij; niet bij afdeling/persoon), leesbaar in `PartijDetail` |
+| `6702bd2` | Slice 2c — kaart: dood burger-silhouet/label/legenda/predicate opgeruimd |
+
+**Nieuw opvolgpunt uit LI031 — top-prioriteit LI032:**
+
+1. **Contactpersoon als keuze uit personen van de eigen organisatie — SCHEMA-GATE (ADR-waardig).**
+   **Expliciet vóór GebruikersgroepDetail (besluit Bert).** Vrije tekst → verwijzing naar een
+   **persoon-partij van de organisatie zelf**. Sjabloon = ADR-036a/037 (FK-kolom `partij.contactpersoon_id`
+   + validator "persoon binnen deze organisatie" + read-verrijking `contactpersoon_naam` + migratie +
+   dev-reseed). Bouwstenen klaar: read `api.partijen.lijst({aard:'persoon', organisatie_id})`, `ZoekSelect`,
+   identiteit "persoon — afdeling — organisatie" (`_verrijk_context`). Beslist: optioneel; keuze uitsluitend
+   uit personen met `organisatie_id = deze partij`; geen vrije tekst meer. **Vijf open ontwerpvragen vóór bouw:**
+   (a) VOORAAN — contactpersoon ter plekke aanmaken bij nog-geen-personen (zoals de afdeling-picker), of
+   alleen kiezen uit bestaande? (b) op welke aarden het veld — alleen organisatie-achtig (organisatie +
+   externe_partij) i.p.v. alle? (c) vervangen vs. additief (aanbeveling: vervangen, met reseed);
+   (d) `telefoon`/`mobiel`/`email`-vrijvelden bewust buiten scope; (e) migratie-landing defensief/reseed
+   zoals `0053`.
+
+**Runtime-restpunt:** verse reseed vóór browserverificatie (BvoWB=intern + burger-doelgroepen zichtbaar):
+`docker compose down` → `docker volume rm likara_lk_postgres_data` → `up -d` → `dev_seed_testdata.py`
+(`down -v` = deny).
+
+**Doorgeschoven (ongewijzigd geldig):** GebruikersgroepDetail (opzet + signaal-scope beslist) + BlokkadeDetail
+(conceptuele keuze eerst); org-context-patroon naar leverancier-picker + PartijLijst (+ intern/extern-kolom);
+auth/sessie-cluster; Impact-verkenner render-herbouw; ADR-036 begin-grof-invoerroute.
+
+Tests: backend **851** (module) + **80** (platform), 2 skipped · frontend **780**. Migratie-head **0053**.
+ADR-register: **ADR-038** opgenomen.
+
+---
+
 ### Stand V031 (sessie-afsluiting LI030 — ADR-037 verantwoordelijke per checklistantwoord, 2026-07-03)
 
 Build **V030 → V031**. Het vrije-tekstveld "Eigenaar" op een checklistantwoord vervangen door een

@@ -5,41 +5,46 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V031 · 2026-07-03
-- **Commit:** `4c8d113` (ADR-037 Pass 2) — sessie-afsluiting V031 volgt
-- **Tests:** backend 841 (module) + 80 (platform) / 2 skipped / 0 failed · frontend 772 groen (66 files) · 0 kritieken
-- **Migratie-head:** `0051_adr037_verantw`
-- **TST-rapport:** `docs/TST-V031-Validatierapport.md`
+- **Build:** V032 · 2026-07-04
+- **Commit:** `6702bd2` (Slice 2c) — sessie-afsluiting V032 volgt
+- **Tests:** backend 851 (module) + 80 (platform) / 2 skipped / 0 failed · frontend 780 groen (66 files) · 0 kritieken
+- **Migratie-head:** `0053_adr038_consolidatie`
+- **TST-rapport:** `docs/TST-V032-Validatierapport.md`
 
-## Deze sessie (LI030 — ADR-037 verantwoordelijke per checklistantwoord) — AFGEROND
-**Kader:** het vrije-tekstveld "Eigenaar" op een checklistantwoord vervangen door een gestructureerde
-**verantwoordelijke** (afdeling óf persoon uit het register), met de blokkade-eigenaar afgeleid. Puur
-registratie/leeslaag; score blijft de enige lifecycle-driver (dubbele engine-borging).
-- **Pass 1 — schema-gate (`e21a28e`, migratie `0051`):** `checklistscore.verantwoordelijke_id`
-  (composiet-FK → `element`, ON DELETE SET NULL, kolom-specifiek) vervangt `checklistscore.eigenaar`;
-  `blokkade.eigenaar` gedropt (afgeleid in de leeslaag via `checklistscore.verantwoordelijke_id`).
-  Aard-validatie 422 `ONGELDIGE_VERANTWOORDELIJKE`; seed-scenario (persoon/afdeling/leeg + blokkerend).
-- **Pass 2 — invoer + signaal (`4c8d113`):** verantwoordelijke-picker in `ChecklistscoreSectie`
-  (afdeling/persoon in één `ZoekSelect`, `aard_in`), PATCH `verantwoordelijke_id` zonder score;
-  aandacht-signaal `antwoord_zonder_verantwoordelijke` (registratiegaten via `table()`-handle,
-  engine-veilig) + `SIGNAAL_LABEL` + velduitleg; Opslaan-knop leesbaar (primaire kleur); identiteit
-  "afdeling — organisatie" / "persoon — afdeling — organisatie" in lijst, veld én weergave na selectie
-  (read-uitbreiding: `verantwoordelijke_organisatie` + partij-lijst `organisatie_naam`/`afdeling_naam`).
-- **Incident-lessen (geborgd in skills):** groene tests dekten tweemaal een kapotte UX niet — onleesbare
-  Opslaan-knop (wit-op-bijna-wit `--lk-color-accent`) en veld-vs-lijst-identiteit; pas in de browser
-  zichtbaar. Vuistregels in `likara-frontend`/`likara-tests`/`likara-ux`.
-- **Separaat gezien, buiten scope:** `NIET_GEAUTHENTICEERD` bij opslaan = sessie-/tokenverval + gefaalde
-  `/auth/refresh` (een GET faalde óók) — niet de PATCH, niet ADR-037. → auth/sessie-cluster (opvolgpunt).
+## Deze sessie (LI031 — ADR-038 gebruikersgroep-consolidatie + intern/extern) — AFGEROND
+**Kader:** één consistent model — een gebruikersgroep hoort **altijd** bij een organisatie; burger-
+doelgroepen zijn gewone **externe organisaties met afdelingen**. Intern/extern wordt een expliciet
+kenmerk op partijen. Puur registratie/structuur/read; score blijft de enige lifecycle-driver (dubbele
+engine-borging).
+- **ADR-038 geschreven** (`1d9ab3a`).
+- **Slice 1a — `partij.scope`, additief (`2f1c816`, migratie `0052`):** `partij_scope_enum`
+  (intern/extern), nullable + twee CHECKs (gezet iff organisatie/externe_partij; externe_partij vast
+  extern; afdeling/persoon leiden af). Default extern op organisatie; seed BvoWB=intern.
+- **Slice 1b — consolidatie (`195c489`, migratie `0053`):** `gebruikersgroep.gebruik_id` **NOT NULL**
+  (FK → RESTRICT); `burger`-aard uit `partij_aard_enum` (type-recreate met drop/herbouw aard-CHECKs).
+  Organisatie verplicht in Create + service-422; werk_bij weigert org=null; `_valideer_afdeling`-tak
+  gesnoeid. Dode resten weg: kaart-veld `gebruikt_door_organisatieloos` + signaal
+  `gebruikersgroep_zonder_organisatie`. Seed: burger-doelgroepen = 3 externe organisaties + 6 segment-
+  afdelingen + 5 groepen; dev-only defensieve migratie-opruiming (no-op op verse DB).
+- **Slice 2a — groep-dialoog org verplicht (`edb4eb8`):** client-side inline-melding + `*`-markering;
+  org-loze payload-tak weg; dode `orgAard`-state opgeruimd.
+- **Slice 2b — intern/extern-UI (`3ec3320`):** kiesbaar in `PartijFormulier` (radio-kaartjes, default
+  Extern; vast "Extern" bij externe partij; niet bij afdeling/persoon), leesbaar in `PartijDetail`.
+- **Slice 2c — kaart-opruiming (`6702bd2`):** dood burger-silhouet/label/legenda/predicate weg.
+- **Runtime-restpunt:** verse reseed vóór browserverificatie (BvoWB=intern + burger-doelgroepen zichtbaar)
+  via stack-reset (`down` → `volume rm likara_lk_postgres_data` → `up -d` → `dev_seed_testdata.py`; `down -v` = deny).
 
 ## Top-5 prioriteiten volgende sessie
-1. **Detailpagina's — GebruikersgroepDetail + BlokkadeDetail** (GG verst; BlokkadeDetail eerst de
-   conceptuele keuze eigen-pagina-vs-doorklik met Bert; objecthistorie `_TYPES` ontsluiten)
-2. **Breder org-context-patroon** — "afdeling — organisatie"-ontdubbeling ook op de leverancier-picker
-   + PartijLijst (via `gebruikersgroepIdentiteit`)
-3. **Auth/sessie-cluster** — (a) dev-sessie-robuustheid bij reseed, (b) 401→re-login-UX-vangrail,
+1. **Contactpersoon als keuze uit personen van de eigen organisatie — SCHEMA-GATE (ADR-waardig),
+   vóór GebruikersgroepDetail (besluit Bert).** Vrije tekst → persoon-verwijzing; sjabloon ADR-036a/037;
+   5 open ontwerpvragen (ter-plekke-aanmaken; aarden-scope; vervangen-vs-additief; telefoon/mobiel/email
+   buiten scope; migratie-landing defensief/reseed). Bouwstenen klaar.
+2. **GebruikersgroepDetail** op het schone model (applicatie-kant-ingang eerst; groep-eigen signalen;
+   objecthistorie `_TYPES` uitbreiden met `gebruikersgroep` — `haal_op` bestaat al)
+3. **BlokkadeDetail** — conceptuele keuze eerst (eigen pagina vs. doorklik naar checklisttab)
+4. **Breder org-context-patroon** — leverancier-picker + PartijLijst (+ intern/extern-kolom)
+5. **Auth/sessie-cluster** — (a) dev-sessie-robuustheid bij reseed, (b) 401→re-login-UX-vangrail,
    (c) auth/refresh-testgat
-4. **Impact-verkenner render-herbouw** — deterministische render-eigenaar + echte render-verificatie
-5. **ADR-036 "begin grof"-invoerroute** — frontend-formulier voor een los grof gebruiksfeit
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

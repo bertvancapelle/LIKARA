@@ -399,15 +399,33 @@ Er is **uitsluitend testdata**, geen productiedata. Daaruit volgt:
       "ON DELETE SET NULL (x_id)"
   )
   ```
-  Toegepast op `gebruikersgroep.organisatie_id` (0031) en `component.eigenaar_organisatie_id` (0032):
-  optionele verwijzing naar een **organisatie-partij** (aard=organisatie, app-side geborgd via
-  `partij_service.valideer_organisatie` → 422 `ONGELDIGE_ORGANISATIE`); verdwijnt de organisatie, dan
-  wordt de verwijzing 'onbekend' (null), tenant_id intact. Kies SET NULL (optioneel veld) i.p.v.
-  RESTRICT (verplichte koppeling) bewust per geval.
+  Toegepast op `component.eigenaar_organisatie_id` (0032): optionele verwijzing naar een
+  **organisatie-partij** (aard=organisatie, app-side geborgd via `partij_service.valideer_organisatie`
+  → 422 `ONGELDIGE_ORGANISATIE`); verdwijnt de organisatie, dan wordt de verwijzing 'onbekend' (null),
+  tenant_id intact. Kies SET NULL (optioneel veld) i.p.v. RESTRICT (verplichte koppeling) bewust per geval.
+  **ADR-038 deed het omgekeerde voor de gebruikersgroep-organisatie:** `gebruikersgroep.gebruik_id` is
+  sinds migratie 0053 **NOT NULL** (een groep hoort **altijd** bij een organisatie) en de FK naar
+  `organisatiegebruik` ging van SET NULL → **RESTRICT** (SET NULL botst met NOT NULL; een grof feit/
+  organisatie met groepen verdwijnt niet stil). De vroegere `gebruikersgroep.organisatie_id` (0031)
+  bestaat niet meer — de organisatie leeft sinds ADR-036 op het grove feit (`gebruik_id`).
 - **Naam-in-read via een gejoinde partij-alias.** Een FK-verwijzing tonen + erop sorteren: LEFT JOIN
   een `aliased(Partij)` op de FK, selecteer `alias.naam`, sorteer met de **v2n-keyset** (NULLS-LAST, want
   de FK is nullable). Voor het ORM-from_attributes-leespad (applicatie) kan de naam als **transient
   attribuut** op het ORM-object gehangen worden i.p.v. een dict-herbouw.
+- **Aard-afhankelijk kenmerk via CHECK i.p.v. een nullable-zonder-borging (ADR-038, `partij.scope`).**
+  Een kenmerk dat alléén voor bepaalde aarden geldt en voor andere **afgeleid** is: nullable kolom +
+  CHECK-constraints die "gezet d.e.s.d." afdwingen — zo kan een sub-aard geen eigen (tegenstrijdige)
+  waarde dragen. `partij.scope` (`partij_scope_enum` intern/extern, migratie 0052):
+  ```
+  -- scope exact gezet dan-en-slechts-dan voor organisatie/externe_partij (afdeling/persoon → NULL, leiden af)
+  (aard IN ('organisatie', 'externe_partij')) = (scope IS NOT NULL)   -- ck_partij_scope_aanwezig
+  -- een externe partij is altijd extern
+  aard <> 'externe_partij' OR scope = 'extern'                        -- ck_partij_externe_partij_extern
+  ```
+  Let op bij een **enum-recreate** (waarde verwijderen, bv. `burger` uit `partij_aard_enum` in 0053):
+  CHECK-constraints die `aard` met een literal vergelijken zijn aan het oude type gebonden → **drop ze
+  vóór en herbouw ze ná** de type-swap (rename→create→`ALTER COLUMN … USING …::text::<enum>`→drop), anders
+  faalt de swap op "operator does not exist: <enum> = <enum>_old".
 
 ## V015-patroon (ADR-027 niet-scorende registratie naast de engine)
 
