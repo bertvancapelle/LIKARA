@@ -92,7 +92,7 @@ async def _platform(actor="system:platform_init"):
 @live
 def test_capture_create_actor_hash_en_correlatie():
     # ADR-024 slice 1: sample tenant-entiteit is nu een element-backed partij.
-    from models.models import AuditLog, Element, ElementType, Partij, PartijAard
+    from models.models import AuditLog, Element, ElementType, Partij, PartijAard, PartijScope
 
     naam = f"AUDIT-LEV-{uuid.uuid4().hex[:8]}"
 
@@ -103,7 +103,7 @@ def test_capture_create_actor_hash_en_correlatie():
             s.add(elem)
             await s.flush()
             s.add(Partij(id=elem.id, tenant_id=uuid.UUID(DEV_TENANT),
-                         aard=PartijAard.externe_partij, naam=naam))
+                         aard=PartijAard.externe_partij, naam=naam, scope=PartijScope.extern))
             await s.commit()
             rows = (await s.execute(
                 select(AuditLog).where(AuditLog.correlatie_id == uuid.UUID(corr))
@@ -259,7 +259,7 @@ def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
 @live
 def test_rls_isolatie_auditlog():
     """Tenant B ziet de audit-rijen van tenant A niet."""
-    from models.models import AuditLog, Element, ElementType, Partij, PartijAard
+    from models.models import AuditLog, Element, ElementType, Partij, PartijAard, PartijScope
 
     naam = f"AUDIT-RLS-{uuid.uuid4().hex[:8]}"
 
@@ -269,7 +269,7 @@ def test_rls_isolatie_auditlog():
             s.add(elem)
             await s.flush()
             s.add(Partij(id=elem.id, tenant_id=uuid.UUID(DEV_TENANT),
-                         aard=PartijAard.externe_partij, naam=naam))
+                         aard=PartijAard.externe_partij, naam=naam, scope=PartijScope.extern))
             await s.commit()
         async with _worker(TENANT_B) as s:
             n_b = (await s.execute(
@@ -342,7 +342,7 @@ def test_gelijktijdige_appends_blijven_lineair_geen_fork():
     """v4: meerdere gelijktijdige audit-appends binnen één tenant serialiseren via de
     per-tenant advisory lock tot een LINEAIRE keten — geen twee records ankeren op
     dezelfde voorganger (geen fork); de keten blijft groen verifiëren."""
-    from models.models import AuditLog, Element, ElementType, Partij, PartijAard
+    from models.models import AuditLog, Element, ElementType, Partij, PartijAard, PartijScope
 
     prefix = f"AUDIT-CONC-{uuid.uuid4().hex[:8]}"
     K = 5
@@ -353,7 +353,7 @@ def test_gelijktijdige_appends_blijven_lineair_geen_fork():
             s.add(elem)
             await s.flush()
             s.add(Partij(id=elem.id, tenant_id=uuid.UUID(DEV_TENANT),
-                         aard=PartijAard.externe_partij, naam=f"{prefix}-{i}"))
+                         aard=PartijAard.externe_partij, naam=f"{prefix}-{i}", scope=PartijScope.extern))
             await s.commit()
 
     async def _run():

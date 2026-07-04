@@ -114,7 +114,7 @@ def test_post_commit_refresh_op_verse_verbinding_slaagt():
     """NullPool ⇒ de refresh ná commit treft gegarandeerd een VERSE verbinding —
     exact het CD047-scenario. De hook herstelt de context per transactie ⇒ slaagt."""
     # ADR-024 slice 1: sample tenant-rij is nu een element-backed partij.
-    from models.models import Element, ElementType, Partij, PartijAard
+    from models.models import Element, ElementType, Partij, PartijAard, PartijScope
 
     eng, smf = _smf(poolclass=NullPool)
     naam = f"CD048-checkout-{uuid.uuid4().hex[:8]}"
@@ -128,7 +128,7 @@ def test_post_commit_refresh_op_verse_verbinding_slaagt():
                 s.add(elem)
                 await s.flush()
                 obj = Partij(id=elem.id, tenant_id=uuid.UUID(_TENANT_A),
-                             aard=PartijAard.externe_partij, naam=naam)
+                             aard=PartijAard.externe_partij, naam=naam, scope=PartijScope.extern)
                 s.add(obj)
                 await s.commit()      # verbinding terug naar (Null)pool
                 await s.refresh(obj)  # VERSE verbinding → hook → SELECT slaagt
@@ -174,7 +174,7 @@ def test_context_lekt_niet_naar_volgende_checkout():
 def test_wisseltest_tenants_zien_alleen_eigen_rijen():
     """Insert als tenant A; daarna A→B→A op dezelfde pool (size 1). Elke transactie krijgt
     via de hook uitsluitend de eigen context ⇒ B ziet A's rij niet, A wel."""
-    from models.models import Element, ElementType, Partij, PartijAard
+    from models.models import Element, ElementType, Partij, PartijAard, PartijScope
 
     eng, smf = _smf(pool_size=1, max_overflow=0)
     naam = f"CD048-wissel-{uuid.uuid4().hex[:8]}"
@@ -196,7 +196,7 @@ def test_wisseltest_tenants_zien_alleen_eigen_rijen():
             s.add(elem)
             await s.flush()
             s.add(Partij(id=elem.id, tenant_id=uuid.UUID(_TENANT_A),
-                         aard=PartijAard.externe_partij, naam=naam))
+                         aard=PartijAard.externe_partij, naam=naam, scope=PartijScope.extern))
             await s.commit()
 
         async def _count(s):

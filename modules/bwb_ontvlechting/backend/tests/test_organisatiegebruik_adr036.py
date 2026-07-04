@@ -127,11 +127,13 @@ async def _run_rls(fn):
 
 
 async def _maak_org(s, tid, naam, aard=None):
-    from models.models import Element, ElementType, Partij, PartijAard
+    from models.models import Element, ElementType, Partij, PartijAard, PartijScope
 
     elem = Element(tenant_id=tid, element_type=ElementType.partij)
     s.add(elem); await s.flush()
-    s.add(Partij(id=elem.id, tenant_id=tid, aard=aard or PartijAard.organisatie, naam=naam))
+    _aard = aard or PartijAard.organisatie
+    _scope = PartijScope.extern if _aard in (PartijAard.organisatie, PartijAard.externe_partij) else None
+    s.add(Partij(id=elem.id, tenant_id=tid, aard=_aard, naam=naam, scope=_scope))
     await s.flush()
     return elem.id
 

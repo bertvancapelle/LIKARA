@@ -205,6 +205,19 @@ class PartijAard(str, Enum):
     burger = "burger"
 
 
+class PartijScope(str, Enum):
+    """ADR-038 — intern/extern-kenmerk op een partij ("onze organisatie" vs. "erbuiten").
+
+    Alleen betekenisvol op `aard=organisatie` (wijzigbaar) en `aard=externe_partij` (vast
+    `extern`). Afdeling (`organisatie_eenheid`) en persoon dragen het NIET zelf — ze leiden het
+    read-side af van hun ouder-organisatie (kolom NULL). Zo is een tegenstrijdige toestand
+    (interne afdeling onder externe organisatie) structureel onmogelijk. Registratie-attribuut —
+    voedt de engine/score/blokkade nooit."""
+
+    intern = "intern"
+    extern = "extern"
+
+
 # Gedeelde sa.Enum-typeobjecten (één type per naam; migratie beheert de DDL).
 # `create_type=False`: de ORM emit nooit zelf CREATE TYPE — de migratie doet dat.
 hostingmodel_enum = sa.Enum(HostingModel, name="hostingmodel_enum")
@@ -231,6 +244,7 @@ componentconfig_dimensie_enum = sa.Enum(
 )
 element_type_enum = sa.Enum(ElementType, name="element_type_enum")
 partij_aard_enum = sa.Enum(PartijAard, name="partij_aard_enum")
+partij_scope_enum = sa.Enum(PartijScope, name="partij_scope_enum")
 
 
 def _pk() -> Mapped[uuid.UUID]:
@@ -824,6 +838,17 @@ class Partij(Base, TenantMixin, TimestampMixin):
             "afdeling_id IS NULL OR aard = 'persoon'",
             name="ck_partij_afdeling_alleen_persoon",
         ),
+        # ADR-038 — intern/extern-kenmerk: exact gezet voor organisatie + externe_partij, NULL voor
+        # afdeling/persoon (die leiden af van hun ouder-organisatie → geen tegenstrijdige toestand).
+        CheckConstraint(
+            "(aard IN ('organisatie', 'externe_partij')) = (scope IS NOT NULL)",
+            name="ck_partij_scope_aanwezig",
+        ),
+        # Een externe partij kan nooit intern zijn (vast op extern).
+        CheckConstraint(
+            "aard <> 'externe_partij' OR scope = 'extern'",
+            name="ck_partij_externe_partij_extern",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
@@ -843,6 +868,10 @@ class Partij(Base, TenantMixin, TimestampMixin):
     # ADR-024 slice 2a-bis — lidmaatschap (zie __table_args__).
     organisatie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     afdeling_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # ADR-038 — intern/extern-kenmerk. Nullable op tabelniveau; de CHECK
+    # `ck_partij_scope_aanwezig` maakt hem verplicht voor organisatie + externe_partij en verbiedt
+    # hem voor afdeling/persoon (die leiden af). Default (organisatie) = extern, in de service gezet.
+    scope: Mapped[PartijScope | None] = mapped_column(partij_scope_enum, nullable=True)
 
 
 class PartijsoortOptie(Base):

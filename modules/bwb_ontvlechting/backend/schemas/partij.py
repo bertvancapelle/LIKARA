@@ -13,7 +13,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from models.models import PartijAard
+from models.models import PartijAard, PartijScope
 from schemas._validators import _optionele_tekst, _verplichte_tekst
 
 
@@ -49,6 +49,10 @@ class PartijCreate(BaseModel):
     # de fijnere aard-/laag-consistentie van de doelen valideert de service (cross-row).
     organisatie_id: uuid.UUID | None = None
     afdeling_id: uuid.UUID | None = None
+    # ADR-038 — intern/extern. Optioneel bij aanmaken: organisatie zonder waarde → default extern
+    # (service). Alleen op organisatie wijzigbaar; externe_partij is vast extern; afdeling/persoon
+    # dragen het niet (moeten leeg zijn). De aard-bewuste borging staat in de service.
+    scope: PartijScope | None = None
 
     @field_validator("naam")
     @classmethod
@@ -64,6 +68,11 @@ class PartijCreate(BaseModel):
             raise ValueError("Een organisatie/externe partij hoort niet onder een andere partij.")
         if self.afdeling_id is not None and self.aard != PartijAard.persoon:
             raise ValueError("Alleen een persoon kan bij een afdeling horen.")
+        # ADR-038 — intern/extern alleen op organisatie (wijzigbaar) / externe_partij (vast extern).
+        if self.aard == PartijAard.externe_partij and self.scope == PartijScope.intern:
+            raise ValueError("Een externe partij kan niet intern zijn.")
+        if self.aard in (PartijAard.persoon, PartijAard.organisatie_eenheid) and self.scope is not None:
+            raise ValueError("Alleen een organisatie draagt een intern/extern-kenmerk.")
         return self
 
     @field_validator("postcode")
@@ -118,6 +127,10 @@ class PartijUpdate(BaseModel):
     # valideert aard-bewust (de aard zelf ligt vast).
     organisatie_id: uuid.UUID | None = None
     afdeling_id: uuid.UUID | None = None
+    # ADR-038 — intern/extern wijzigen (alleen zinvol op organisatie; de service borgt aard-bewust:
+    # externe_partij vast extern, afdeling/persoon dragen het niet). `aard` is hier onbekend → de
+    # cross-veld-borging leeft in de service.
+    scope: PartijScope | None = None
 
     @field_validator("naam")
     @classmethod
@@ -180,6 +193,10 @@ class PartijRead(BaseModel):
     soort: str | None
     organisatie_id: uuid.UUID | None
     afdeling_id: uuid.UUID | None
+    # ADR-038 — intern/extern zoals opgeslagen: gezet voor organisatie/externe_partij, None voor
+    # afdeling/persoon (die leiden af van hun ouder-organisatie; nog geen consument in Slice 1a,
+    # daarom bewust niet in deze read afgeleid — zie gate-rapport).
+    scope: str | None = None
     # ADR-037 — optionele afgeleide namen voor identiteit "afdeling — organisatie" /
     # "persoon — afdeling — organisatie" (bv. in de verantwoordelijke-picker). Alleen de lijst-read
     # vult ze (via joins); overige paden laten ze None (backward-compatible).

@@ -60,6 +60,7 @@ from models.models import (  # noqa: E402
     Organisatiegebruik,
     Partij,
     PartijAard,
+    PartijScope,
     Relatie,
 )
 from schemas.component import ComponentCreate  # noqa: E402
@@ -1007,14 +1008,16 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         return obj.id
 
     # ── 1. Organisaties (aard=organisatie): dienstenprovider + gemeenten ──
+    # ADR-038 — intern/extern expliciet: BvoWB is de eigen organisatie (intern); de deelnemende
+    # gemeenten staan erbuiten (extern).
     organisaties = [
-        ("BvoWB", None, "Markt 1", "4001 AA", "Tiel", "0344-678900", "info@bvowb.test"),
-        ("Gemeente Tiel", None, "Achterweg 2", "4001 BB", "Tiel", "0344-678910", "info@gemeentetiel.test"),
-        ("Gemeente Culemborg", None, "Herenstraat 3", "4101 CC", "Culemborg", "0345-678920", "info@culemborg.test"),
-        ("Gemeente West Betuwe", None, "Dorpsstraat 4", "4021 DD", "West Betuwe", "0344-678930", "info@westbetuwe.test"),
+        ("BvoWB", None, "Markt 1", "4001 AA", "Tiel", "0344-678900", "info@bvowb.test", PartijScope.intern),
+        ("Gemeente Tiel", None, "Achterweg 2", "4001 BB", "Tiel", "0344-678910", "info@gemeentetiel.test", PartijScope.extern),
+        ("Gemeente Culemborg", None, "Herenstraat 3", "4101 CC", "Culemborg", "0345-678920", "info@culemborg.test", PartijScope.extern),
+        ("Gemeente West Betuwe", None, "Dorpsstraat 4", "4021 DD", "West Betuwe", "0344-678930", "info@westbetuwe.test", PartijScope.extern),
     ]
-    for naam, soort, straat, pc, plaats, tel, mail in organisaties:
-        await _partij(PartijAard.organisatie, naam, "organisaties", soort=soort,
+    for naam, soort, straat, pc, plaats, tel, mail, scope in organisaties:
+        await _partij(PartijAard.organisatie, naam, "organisaties", soort=soort, scope=scope,
                       straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
     bvowb_id = partij_id["BvoWB"]
 

@@ -15,7 +15,9 @@ from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
-from models.models import Component, Contract, Element, ElementType, Partij, PartijAard, Relatie
+from models.models import (
+    Component, Contract, Element, ElementType, Partij, PartijAard, PartijScope, Relatie,
+)
 from schemas.partij import PartijCreate, PartijUpdate
 from services import partijsoort_catalog
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
@@ -294,6 +296,35 @@ async def componenten_via_contracten(session: AsyncSession, tenant_id, partij_id
     ]
 
 
+def _effectieve_scope(aard: PartijAard, scope: PartijScope | None) -> PartijScope | None:
+    """ADR-038 — de op te slaan intern/extern-waarde, aard-bewust. Organisatie: keuze, default
+    `extern` bij leeg. Externe partij: altijd `extern` (vast). Afdeling/persoon: geen eigen waarde
+    (None → leiden af van hun ouder-organisatie)."""
+    if aard == PartijAard.organisatie:
+        return scope or PartijScope.extern
+    if aard == PartijAard.externe_partij:
+        return PartijScope.extern
+    return None
+
+
+def _valideer_scope(aard: PartijAard, scope: PartijScope | None) -> None:
+    """ADR-038 — borg de op te slaan intern/extern-waarde tegen de aard (spiegel van de CHECK-
+    backstops): organisatie ⇒ intern|extern; externe_partij ⇒ vast extern (nooit intern);
+    afdeling/persoon ⇒ geen eigen waarde. 422 bij overtreding."""
+    if aard == PartijAard.organisatie:
+        if scope not in (PartijScope.intern, PartijScope.extern):
+            raise OngeldigeRegistratie("ONGELDIGE_SCOPE", "Een organisatie is intern of extern.")
+    elif aard == PartijAard.externe_partij:
+        if scope != PartijScope.extern:
+            raise OngeldigeRegistratie(
+                "EXTERNE_PARTIJ_ALTIJD_EXTERN", "Een externe partij is altijd extern."
+            )
+    elif scope is not None:
+        raise OngeldigeRegistratie(
+            "SCOPE_ALLEEN_ORGANISATIE", "Alleen een organisatie draagt een intern/extern-kenmerk."
+        )
+
+
 def _valideer_functietitel(aard: PartijAard, functietitel: str | None) -> None:
     """ADR-024 (Optie 1) — `functietitel` geldt uitsluitend voor een persoon (422 bij andere aarden).
     E-mail/telefoon blijven gedeelde contactvelden; alleen de functietitel is persoon-eigen."""
@@ -309,11 +340,16 @@ async def maak_aan(session: AsyncSession, tenant_id, data: PartijCreate) -> Part
     await partijsoort_catalog.valideer_soort(session, data.soort)
     await _valideer_lidmaatschap(session, tid, data.aard, data.organisatie_id, data.afdeling_id)
     _valideer_functietitel(data.aard, data.functietitel)
+    # ADR-038 — bepaal + borg de effectieve intern/extern-waarde (default extern op organisatie).
+    scope = _effectieve_scope(data.aard, data.scope)
+    _valideer_scope(data.aard, scope)
     # Element-identiteit eerst (shared-PK), dan de partij-subtype-rij. `aard` uit de invoer.
     elem = Element(tenant_id=tid, element_type=ElementType.partij)
     session.add(elem)
     await session.flush()
-    obj = Partij(id=elem.id, tenant_id=tid, **data.model_dump())
+    velden = data.model_dump()
+    velden["scope"] = scope  # de effectieve waarde vervangt de rauwe invoer
+    obj = Partij(id=elem.id, tenant_id=tid, **velden)
     session.add(obj)
     await session.commit()
     await session.refresh(obj)
@@ -370,6 +406,8 @@ async def werk_bij(session: AsyncSession, tenant_id, partij_id, data: PartijUpda
         await _valideer_lidmaatschap(session, tid, obj.aard, nieuw_org, nieuw_afd)
     if "functietitel" in velden:
         _valideer_functietitel(obj.aard, velden["functietitel"])  # aard ligt vast
+    if "scope" in velden:
+        _valideer_scope(obj.aard, velden["scope"])  # ADR-038 — aard-bewust (aard ligt vast)
     for veld, waarde in velden.items():
         setattr(obj, veld, waarde)
     await session.commit()

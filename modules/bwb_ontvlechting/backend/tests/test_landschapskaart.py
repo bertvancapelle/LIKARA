@@ -174,7 +174,7 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
 
     from models.models import (
         Contract, ContractType, Element, ElementType, HostingModel, Migratiepad,
-        NiveauEnum, Partij, PartijAard, Plateau, Relatie, RelatieKenmerkDimensie, Roltoewijzing,
+        NiveauEnum, Partij, PartijAard, PartijScope, Plateau, Relatie, RelatieKenmerkDimensie, Roltoewijzing,
     )
     from schemas.component import ComponentCreate
     from schemas.component import ComponentCreate
@@ -198,7 +198,7 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
 
             # Organisatie-partij + contract (leverancier = de organisatie).
             oe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(oe); await s.flush()
-            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-LK-Org")); await s.flush()
+            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-LK-Org", scope=PartijScope.extern)); await s.flush()
             ce = Element(tenant_id=tid, element_type=ElementType.contract); s.add(ce); await s.flush()
             s.add(Contract(id=ce.id, tenant_id=tid, leverancier_id=oe.id,
                            contracttype=ContractType.los_contract, contractnaam="WT-LK-Contract"))
@@ -452,7 +452,8 @@ def test_landschapskaart_organisatie_scope_live():
     from sqlalchemy import text as _text
 
     from models.models import (
-        Component, Element, ElementType, Gebruikersgroep, Organisatiegebruik, Partij, PartijAard, Relatie,
+        Component, Element, ElementType, Gebruikersgroep, Organisatiegebruik, Partij, PartijAard,
+        PartijScope, Relatie,
     )
     from services import landschapskaart_service as svc
 
@@ -483,7 +484,7 @@ def test_landschapskaart_organisatie_scope_live():
         try:
             # Organisatie-partij (aard=organisatie) — de "eigen organisatie".
             oe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(oe); await s.flush()
-            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-OS-Org-Scope")); await s.flush()
+            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-OS-Org-Scope", scope=PartijScope.extern)); await s.flush()
             # Bezit: component MET eigenaar vs ZONDER eigenaar.
             c_bezit = await _comp(s, "WT-OS-Bezit", eigenaar=oe.id)
             c_geen_eig = await _comp(s, "WT-OS-GeenEig")
@@ -648,7 +649,7 @@ def test_subgraaf_organisatiestructuur_alleen_s_rol_personen_live():
     from sqlalchemy import text as _text
 
     from models.models import (
-        Element, ElementType, Partij, PartijAard, RelatieKenmerkDimensie, Roltoewijzing,
+        Element, ElementType, Partij, PartijAard, PartijScope, RelatieKenmerkDimensie, Roltoewijzing,
     )
     from services import component_service, landschapskaart_service as svc
     from services import relatiekenmerk_catalog as rk
@@ -664,7 +665,7 @@ def test_subgraaf_organisatiestructuur_alleen_s_rol_personen_live():
 
             async def _org(naam):
                 e = Element(tenant_id=tid, element_type=ElementType.partij); s.add(e); await s.flush()
-                s.add(Partij(id=e.id, tenant_id=tid, aard=PartijAard.organisatie, naam=naam)); await s.flush()
+                s.add(Partij(id=e.id, tenant_id=tid, aard=PartijAard.organisatie, naam=naam, scope=PartijScope.extern)); await s.flush()
                 return e.id
 
             async def _pers(naam, org_id):
@@ -702,7 +703,7 @@ def test_eigenaar_edge_live():
     een component ZONDER eigenaar niet. In de subgraaf komt de eigenaar-org als 1-hop-context mee."""
     from sqlalchemy import text as _text
 
-    from models.models import Component, Element, ElementType, HostingModel, Partij, PartijAard
+    from models.models import Component, Element, ElementType, HostingModel, Partij, PartijAard, PartijScope
     from services import landschapskaart_service as svc
 
     tid = uuid.UUID(_TID)
@@ -711,7 +712,7 @@ def test_eigenaar_edge_live():
         ids = []
         try:
             oe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(oe); await s.flush()
-            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-EIG-Org")); await s.flush()
+            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-EIG-Org", scope=PartijScope.extern)); await s.flush()
 
             async def _comp(naam, eig):
                 e = Element(tenant_id=tid, element_type=ElementType.component); s.add(e); await s.flush()
@@ -747,7 +748,7 @@ def test_component_leverancier_filter_beide_paden_live():
 
     from models.models import (
         Component, Contract, ContractType, Element, ElementType, HostingModel,
-        Partij, PartijAard, Relatie, Roltoewijzing,
+        Partij, PartijAard, PartijScope, Relatie, Roltoewijzing,
     )
     from services import component_service
 
@@ -757,7 +758,7 @@ def test_component_leverancier_filter_beide_paden_live():
         ids = []
         try:
             xe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(xe); await s.flush()
-            s.add(Partij(id=xe.id, tenant_id=tid, aard=PartijAard.externe_partij, naam="WT-LEV-X")); await s.flush()
+            s.add(Partij(id=xe.id, tenant_id=tid, aard=PartijAard.externe_partij, naam="WT-LEV-X", scope=PartijScope.extern)); await s.flush()
 
             async def _comp(naam):
                 e = Element(tenant_id=tid, element_type=ElementType.component); s.add(e); await s.flush()

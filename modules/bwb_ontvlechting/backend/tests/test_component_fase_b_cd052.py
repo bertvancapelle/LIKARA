@@ -317,7 +317,7 @@ def test_server_side_sort_eigenaar_en_hostingmodel_live():
     async def _flow(s):
         # UX-B6-b — eigenaar-organisatie is een verwijzing; maak eerst de organisatie-partijen.
         from sqlalchemy import text as _text
-        from models.models import Element, ElementType, Partij, PartijAard
+        from models.models import Element, ElementType, Partij, PartijAard, PartijScope
 
         tid = uuid.UUID(_TID)
         ids, org_ids, orgs = [], [], {}
@@ -325,7 +325,7 @@ def test_server_side_sort_eigenaar_en_hostingmodel_live():
             for label in ("MMM-org", "AAA-org", "ZZZ-org"):
                 oe = Element(tenant_id=tid, element_type=ElementType.partij)
                 s.add(oe); await s.flush()
-                s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam=label))
+                s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam=label, scope=PartijScope.extern))
                 await s.flush()
                 orgs[label] = oe.id; org_ids.append(oe.id)
             await s.commit()

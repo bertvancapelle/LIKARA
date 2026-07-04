@@ -180,12 +180,12 @@ async def _maak_component(s, tid, naam, status=None):
 
 async def _maak_contract(s, tid, naam):
     # ADR-024 slice 1: de contract-"leverancier" is een element-backed partij (externe_partij).
-    from models.models import Contract, ContractType, Element, ElementType, Partij, PartijAard
+    from models.models import Contract, ContractType, Element, ElementType, Partij, PartijAard, PartijScope
 
     lev_elem = Element(tenant_id=tid, element_type=ElementType.partij)
     s.add(lev_elem)
     await s.flush()
-    lev = Partij(id=lev_elem.id, tenant_id=tid, aard=PartijAard.externe_partij, naam=f"{naam}-lev")
+    lev = Partij(id=lev_elem.id, tenant_id=tid, aard=PartijAard.externe_partij, naam=f"{naam}-lev", scope=PartijScope.extern)
     s.add(lev)
     await s.flush()
     elem = Element(tenant_id=tid, element_type=ElementType.contract)

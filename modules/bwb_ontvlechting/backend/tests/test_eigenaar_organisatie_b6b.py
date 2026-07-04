@@ -58,11 +58,12 @@ async def _run_rls(fn):
 
 
 async def _maak_partij(s, tid, naam, aard):
-    from models.models import Element, ElementType, Partij
+    from models.models import Element, ElementType, Partij, PartijAard, PartijScope
 
     elem = Element(tenant_id=tid, element_type=ElementType.partij)
     s.add(elem); await s.flush()
-    s.add(Partij(id=elem.id, tenant_id=tid, aard=aard, naam=naam))
+    _scope = PartijScope.extern if aard in (PartijAard.organisatie, PartijAard.externe_partij) else None
+    s.add(Partij(id=elem.id, tenant_id=tid, aard=aard, naam=naam, scope=_scope))
     await s.flush()
     return elem.id
 
