@@ -13,7 +13,7 @@ vi.mock('@/api', () => ({
       werkBij: vi.fn(),
       verwijder: vi.fn(),
     },
-    // UX-B6-a — ZoekSelect voor de organisatie-keuze (partijen, aard_in organisatie+burger).
+    // ADR-038 — ZoekSelect voor de organisatie-keuze (partijen, aard_in=['organisatie']).
     partijen: { lijst: vi.fn(), haal: vi.fn(), maak: vi.fn() },
   },
 }))
@@ -85,21 +85,6 @@ describe('GebruikersgroepSectie', () => {
     expect((await mountSectie({ rollen: ['medewerker'] })).find('[data-testid="gg-toevoegen"]').exists()).toBe(true)
   })
 
-  it('B6-a: organisatie is optioneel — submit zonder organisatie is toegestaan', async () => {
-    api.gebruikersgroepen.maak.mockResolvedValueOnce({ id: 'new' })
-    const w = await mountSectie()
-    await w.find('[data-testid="gg-toevoegen"]').trigger('click')
-    await flushPromises()
-    await w.find('[data-testid="gg-form"]').trigger('submit')
-    await flushPromises()
-    expect(api.gebruikersgroepen.maak).toHaveBeenCalledWith({
-      organisatie_id: null,
-      afdeling_id: null,
-      aantal_gebruikers: null,
-      applicatie_id: APP,
-    })
-  })
-
   it('weigert een negatief aantal gebruikers client-side', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="gg-toevoegen"]').trigger('click')
@@ -140,24 +125,29 @@ describe('GebruikersgroepSectie', () => {
     })
   })
 
-  it('afdeling-picker verschijnt bij een organisatie en is verborgen bij een burger', async () => {
+  it('afdeling-picker verschijnt zodra een organisatie is gekozen en is verborgen zonder', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="gg-toevoegen"]').trigger('click')
     await flushPromises()
-    // organisatie (aard=organisatie) → afdeling-picker verschijnt
+    // zonder organisatie → geen afdeling-picker
+    expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(false)
+    // organisatie kiezen → afdeling-picker verschijnt (ADR-038 — geen aard-check meer)
     await w.find('[data-testid="gg-veld-organisatie-input"]').trigger('focus')
     await flushPromises()
     await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
     await flushPromises()
     expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(true)
-    // burger kiezen → afdeling-picker verdwijnt (aard ≠ organisatie)
-    api.partijen.lijst.mockResolvedValue({ items: [{ id: 'b1', naam: 'Burgers', aard: 'burger' }], volgende_cursor: null })
-    api.partijen.haal.mockResolvedValue({ id: 'b1', naam: 'Burgers', aard: 'burger' })
-    await w.find('[data-testid="gg-veld-organisatie-input"]').trigger('focus')
+  })
+
+  it('blokkeert opslaan zonder organisatie met een inline-melding (client-side)', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="gg-toevoegen"]').trigger('click')
     await flushPromises()
-    await w.find('[data-testid="gg-veld-organisatie-optie-b1"]').trigger('mousedown')
+    // submit zonder organisatie → inline-fout, geen server-call (ADR-038 — organisatie verplicht)
+    await w.find('[data-testid="gg-form"]').trigger('submit')
     await flushPromises()
-    expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(false)
+    expect(w.find('[data-testid="gg-fout-organisatie"]').exists()).toBe(true)
+    expect(api.gebruikersgroepen.maak).not.toHaveBeenCalled()
   })
 
   it('afdeling-selectie reset bij het wisselen van organisatie', async () => {

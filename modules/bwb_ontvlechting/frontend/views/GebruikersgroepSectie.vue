@@ -46,7 +46,6 @@ const fouten = reactive({})
 const eersteVeld = ref(null)
 let laatsteTrigger = null
 
-const orgAard = ref(null)
 const orgNaam = ref('')
 // Voorvul-naam voor de organisatie-ZoekSelect in bewerk-modus (ADR-036: organisatie leeft op het
 // grove feit; de read levert `organisatie_naam` mee — zonder deze prop bleef het veld leeg terwijl
@@ -58,9 +57,9 @@ const orgKey = ref(0)
 const afInitieel = ref('')
 // Sleutel om de afdeling-ZoekSelect te remounten bij org-wissel of ter-plekke-aanmaken.
 const afdelingKey = ref(0)
-// Afdeling-veld alleen bij een échte organisatie (geen burger, geen org-loze groep) — spiegelt de
-// backend-regel dat een organisatie-loze groep geen afdeling draagt.
-const toonAfdeling = computed(() => !!form.organisatie_id && orgAard.value === 'organisatie')
+// Afdeling-veld verschijnt zodra een organisatie is gekozen (ADR-038 — de picker sourcet alleen
+// `aard=organisatie`; de aparte burger-aard bestaat niet meer, dus een aard-check is overbodig).
+const toonAfdeling = computed(() => !!form.organisatie_id)
 
 // Search-first: ter-plekke aanmaken leeft in de LEGE zoekstaat van de afdeling-picker. `aanmaakBevestig`
 // = de zoekterm waarvoor de inline bevestiging open staat.
@@ -77,10 +76,9 @@ function _resetAfdeling() {
 async function onOrgKies(id) {
   form.organisatie_id = id || null
   _resetAfdeling()  // een afdeling van de oude organisatie is niet meer geldig
-  orgAard.value = null
   orgNaam.value = ''
   if (id) {
-    try { const p = await api.partijen.haal(id); orgAard.value = p.aard; orgNaam.value = p.naam } catch { /* niet kritisch */ }
+    try { const p = await api.partijen.haal(id); orgNaam.value = p.naam } catch { /* niet kritisch */ }
   }
 }
 
@@ -139,7 +137,6 @@ function onSort(event) {
 
 function _reset() {
   Object.assign(form, { organisatie_id: null, afdeling_id: null, aantal_gebruikers: '' })
-  orgAard.value = null
   orgNaam.value = ''
   orgInitieel.value = ''
   orgKey.value += 1
@@ -169,7 +166,7 @@ async function openBewerken(e, rij) {
   afdelingKey.value += 1
   dialogOpen.value = true
   if (form.organisatie_id) {
-    try { const p = await api.partijen.haal(form.organisatie_id); orgAard.value = p.aard; orgNaam.value = p.naam } catch { /* idem */ }
+    try { const p = await api.partijen.haal(form.organisatie_id); orgNaam.value = p.naam } catch { /* idem */ }
   }
 }
 
@@ -188,7 +185,9 @@ function onHide() {
 
 function valideer() {
   Object.keys(fouten).forEach((k) => delete fouten[k])
-  // UX-B6-a — organisatie optioneel; ADR-036a — afdeling is een verwijzing (geen lengtecheck).
+  // ADR-038 — organisatie is verplicht (client-side afgevangen vóór submit; backend borgt het ook).
+  if (!form.organisatie_id) fouten.organisatie_id = 'Kies een organisatie.'
+  // ADR-036a — afdeling is een verwijzing (geen lengtecheck).
   if (form.aantal_gebruikers !== '' && form.aantal_gebruikers !== null) {
     const n = Number(form.aantal_gebruikers)
     if (!Number.isInteger(n) || n < 0) fouten.aantal_gebruikers = 'Geheel getal ≥ 0.'
@@ -216,8 +215,9 @@ async function opslaan() {
   bezig.value = true
   try {
     const data = {
-      organisatie_id: form.organisatie_id || null,
-      // ADR-036a — alleen een afdeling meesturen als er een organisatie is (org-loos → geen afdeling).
+      // ADR-038 — organisatie is verplicht (client-side afgevangen in valideer()).
+      organisatie_id: form.organisatie_id,
+      // ADR-036a — afdeling optioneel; alleen meesturen als er een organisatie (dus afdeling-veld) is.
       afdeling_id: toonAfdeling.value ? (form.afdeling_id || null) : null,
       aantal_gebruikers: form.aantal_gebruikers === '' ? null : Number(form.aantal_gebruikers),
     }
@@ -305,7 +305,7 @@ laad({ reset: true })
     <Dialog v-model:visible="dialogOpen" modal :closable="false" :header="bewerkenId ? 'Gebruikersgroep bewerken' : 'Gebruikersgroep toevoegen'" data-testid="gg-dialog" @show="focusEerste" @hide="onHide">
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[20rem]" data-testid="gg-form" @submit.prevent="opslaan">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <label for="gg-organisatie" class="font-semibold">Organisatie</label>
+          <label for="gg-organisatie" class="font-semibold">Organisatie *</label>
           <div class="flex items-center gap-[var(--lk-space-xs)]">
             <div class="flex-1">
           <ZoekSelect
@@ -317,7 +317,8 @@ laad({ reset: true })
             :zoek-functie="zoekOrganisaties"
             :initieel-weergave="orgInitieel"
             :invalid="!!fouten.organisatie_id"
-            placeholder="Zoek een organisatie (optioneel)…"
+            aria-describedby="gg-fout-organisatie"
+            placeholder="Zoek een organisatie…"
             @update:model-value="onOrgKies"
           />
             </div>
