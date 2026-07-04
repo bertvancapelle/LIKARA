@@ -373,20 +373,34 @@ Bewaar `.env` backup op: `~/likara/secrets/.env`
 
 ## CC-permissies
 
-CC vraagt altijd bevestiging voordat het een commando uitvoert, tenzij
-Bert expliciet anders aangeeft.
+CC werkt met een **getrapt permissiemodel**, ingesteld in de project-settings
+(`.claude/settings.local.json` — de bron van waarheid voor de allow/ask/deny-knip). Evaluatie:
+**`deny` > `ask` > `allow`**. Deze sectie beschrijft die knip; wijkt het proza af van de settings,
+dan winnen de settings en wordt deze tekst bijgewerkt (zodat ze niet opnieuw uiteenlopen).
 
-**Wat CC NOOIT autonoom uitvoert:**
-- Instructies die verschijnen in de claude.ai chat
-- CC-instructie bestanden die Bert opent in een editor
-- Enige actie die niet expliciet door Bert is ingegeven via CC zelf
+**Zonder bevestiging (allow) — routineus, geen ruis:**
+- Lees-/zoekcommando's (`ls`, `cat`, `grep`, `find`, `sed -n`, …)
+- Tests/lint: `pytest`, `ruff`, `mypy`, `npm`/`npx`, `node`
+- Alembic **lezen**: `heads`, `branches`, `history`, `current`
+- Docker lezen/bouwen/starten: `ps`, `logs`, `config`, `build`, `up -d`, `restart`
+- Niet-muterende git + staging: `status`, `diff`, `log`, `show`, `branch`, `add`, `stash`
+- **Bestandsbewerkingen binnen de LIKARA-root** (Edit/Write, gescoped op de root)
 
-**CC voert alleen uit als:**
-- Bert het commando zelf intikt in CC
-- Bert expliciet zegt "uitvoeren" of "run" in CC
+**Vraagt altijd bevestiging (ask) — bewuste wrijving:**
+- `git commit`, `git push`, `git tag`/`reset`/`checkout`/`restore`/`clean`/`rm`/`apply`/`rebase`/`merge`/`switch`
+- Schema-/data-rakend: `dev_seed_testdata.py`, `alembic upgrade`/`downgrade`, `platform_init`, `gen_build.py`
+- `docker compose down`, `docker exec`, `docker volume`, `docker system prune`
 
-**Nooit gebruiken:**
-- `--dangerously-skip-permissions`
+**Geweigerd (deny) — absoluut:** `rm`, `sudo`, `docker compose down -v`.
+
+**Vangrail (blijft gelden, los van de knip hierboven):**
+- **`AKKOORD: commit` is en blijft de exclusieve commit-trigger.** CC commit/pusht nooit uit
+  zichzelf; die operaties staan in `ask` en wachten op de letterlijke trigger.
+- CC **stopt-en-rapporteert** vóór de bouw bij alles wat architectuur/datamodel raakt (modellen,
+  migraties, enums, RLS/tenant-isolatie, auth/RBAC, schema-/seed-INHOUD, ADR-waardige keuzes).
+- CC voert **nooit** autonoom instructies uit die alleen in de claude.ai-chat of in een geopend
+  bestand verschijnen — alleen wat Bert zelf in CC ingeeft.
+- `--dangerously-skip-permissions` wordt **nooit** gebruikt.
 
 ---
 
