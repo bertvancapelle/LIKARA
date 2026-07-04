@@ -13,7 +13,7 @@ import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
 import { api } from '@/api'
-import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, PARTIJ_AARD, REGISTER_FOUT, label } from '../labels'
+import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, PARTIJ_AARD, PARTIJ_SCOPE, REGISTER_FOUT, label } from '../labels'
 import PartijRollenSectie from './PartijRollenSectie.vue'
 import ObjectHistoriePaneel from './ObjectHistoriePaneel.vue'
 
@@ -48,6 +48,9 @@ function nieuwLid(aard) {
 }
 const isExternePartij = computed(() => partij.value?.aard === 'externe_partij')
 const aardLabel = (a) => label(PARTIJ_AARD, a)
+// ADR-038 — intern/extern als leesregel: bij organisatie/externe partij levert de read `scope`;
+// afdeling/persoon dragen het niet (afgeleid) → geen regel.
+const scopeLabel = computed(() => (partij.value?.scope ? label(PARTIJ_SCOPE, partij.value.scope) : null))
 
 // Contractenketen — alleen voor een externe partij (tegenpartij-koppeling, read-only keyset).
 const contracten = ref([])
@@ -237,6 +240,11 @@ const RIJEN = [
       </div>
 
       <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
+        <!-- ADR-038 — intern/extern (alleen bij organisatie/externe partij; afgeleid bij afdeling/persoon). -->
+        <template v-if="scopeLabel">
+          <dt class="font-semibold">Intern of extern</dt>
+          <dd data-testid="detail-scope">{{ scopeLabel }}</dd>
+        </template>
         <template v-for="r in RIJEN" :key="r.veld">
           <dt class="font-semibold">{{ r.label }}</dt>
           <dd class="whitespace-pre-wrap">{{ partij[r.veld] || '—' }}</dd>

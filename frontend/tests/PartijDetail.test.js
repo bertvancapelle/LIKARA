@@ -83,6 +83,25 @@ describe('PartijDetail', () => {
     expect(w.text()).toContain('leverancier')  // soort-rij
   })
 
+  // ADR-038 — intern/extern als leesregel.
+  it('toont "Intern" bij een organisatie met scope=intern', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', scope: 'intern' }))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="detail-scope"]').text()).toBe('Intern')
+  })
+
+  it('toont "Extern" bij een externe partij', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'externe_partij', scope: 'extern' }))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="detail-scope"]').text()).toBe('Extern')
+  })
+
+  it('toont geen intern/extern-regel bij een afdeling (afgeleid)', async () => {
+    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie_eenheid', scope: null, organisatie_id: 'o1' }))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="detail-scope"]').exists()).toBe(false)
+  })
+
   it('toont de alleen-lezen "Rollen op objecten"-sectie (ADR-024 slice 2b)', async () => {
     api.partijen.haal.mockResolvedValue(_partij())
     const { w } = await mountDetail()

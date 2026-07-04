@@ -75,16 +75,63 @@ describe('PartijFormulier — aanmaken', () => {
     expect(w.find('[data-testid="veld-functietitel"]').exists()).toBe(false)
   })
 
-  it('verbergt organisatie- en afdeling-veld bij aard=burger', async () => {
+  it('verbergt organisatie-/afdeling-/functietitel-veld bij aard=organisatie', async () => {
     const { w } = await mountForm()
     // persoon: organisatie-veld zichtbaar (referentie)
     await w.find('[data-testid="veld-aard"]').setValue('persoon')
     expect(w.find('[data-testid="veld-organisatie-input"]').exists()).toBe(true)
-    // burger: geen organisatie, geen afdeling, geen functietitel
-    await w.find('[data-testid="veld-aard"]').setValue('burger')
+    // organisatie: geen ouder-organisatie, geen afdeling, geen functietitel
+    await w.find('[data-testid="veld-aard"]').setValue('organisatie')
     expect(w.find('[data-testid="veld-organisatie-input"]').exists()).toBe(false)
     expect(w.find('[data-testid="veld-afdeling-input"]').exists()).toBe(false)
     expect(w.find('[data-testid="veld-functietitel"]').exists()).toBe(false)
+  })
+
+  // ADR-038 — intern/extern.
+  it('toont intern/extern (default Extern) bij aard=organisatie en niet bij afdeling/persoon', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('organisatie')
+    expect(w.find('[data-testid="veld-scope-wrap"]').exists()).toBe(true)
+    expect(w.find('[data-testid="scope-radio-extern"]').element.checked).toBe(true)   // default Extern
+    expect(w.find('[data-testid="scope-radio-intern"]').element.checked).toBe(false)
+    await w.find('[data-testid="veld-aard"]').setValue('persoon')
+    expect(w.find('[data-testid="veld-scope-wrap"]').exists()).toBe(false)
+    expect(w.find('[data-testid="veld-scope-vast"]').exists()).toBe(false)
+  })
+
+  it('toont vast "Extern" (niet kiesbaar) bij aard=externe_partij', async () => {
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('externe_partij')
+    expect(w.find('[data-testid="veld-scope-vast"]').exists()).toBe(true)
+    expect(w.find('[data-testid="veld-scope-wrap"]').exists()).toBe(false)
+  })
+
+  it('aanmaken organisatie stuurt de gekozen scope mee (intern)', async () => {
+    api.partijen.maak.mockResolvedValueOnce({ id: 'o1' })
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('organisatie')
+    await w.find('[data-testid="veld-naam"]').setValue('BvoWB')
+    await w.find('[data-testid="scope-radio-intern"]').setValue()
+    await w.find('[data-testid="partij-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.partijen.maak).toHaveBeenCalledWith(expect.objectContaining({ aard: 'organisatie', scope: 'intern' }))
+  })
+
+  it('aanmaken persoon stuurt geen scope (null)', async () => {
+    api.partijen.maak.mockResolvedValueOnce({ id: 'p1' })
+    const { w } = await mountForm()
+    await w.find('[data-testid="veld-aard"]').setValue('persoon')
+    await w.find('[data-testid="veld-naam"]').setValue('J. de Vries')
+    await kiesZoek(w, 'veld-organisatie', 'org1')
+    await w.find('[data-testid="partij-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.partijen.maak).toHaveBeenCalledWith(expect.objectContaining({ scope: null }))
+  })
+
+  it('bewerken van een organisatie vult de scope voor (intern)', async () => {
+    api.partijen.haal.mockResolvedValue({ id: 'o1', aard: 'organisatie', naam: 'BvoWB', scope: 'intern' })
+    const { w } = await mountForm({ id: 'o1' })
+    expect(w.find('[data-testid="scope-radio-intern"]').element.checked).toBe(true)
   })
 
   it('naam leeg ⇒ validatiefout, geen API-call', async () => {

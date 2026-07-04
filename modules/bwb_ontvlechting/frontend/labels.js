@@ -299,6 +299,12 @@ export const PARTIJ_AARD = {
   persoon: 'Persoon',
 }
 
+// ADR-038 — intern/extern-kenmerk op een organisatie(-achtige) partij.
+export const PARTIJ_SCOPE = {
+  intern: 'Intern',
+  extern: 'Extern',
+}
+
 export const CONTRACTTYPE_SEVERITY = {
   mantelcontract: 'info',
   deelcontract: 'warn',

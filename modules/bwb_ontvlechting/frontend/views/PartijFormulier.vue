@@ -26,6 +26,16 @@ const bezig = ref(false)
 const AARD_OPTIES = ['externe_partij', 'organisatie', 'organisatie_eenheid', 'persoon']
 const aardLabel = (a) => label(PARTIJ_AARD, a)
 
+// ADR-038 — intern/extern. Kiesbaar bij een organisatie (default extern); vast "extern" bij een
+// externe partij; niet getoond bij afdeling/persoon (die erven van hun organisatie).
+const SCOPE_OPTIES = [
+  { waarde: 'intern', label: 'Intern', subtekst: 'Onze eigen organisatie.' },
+  { waarde: 'extern', label: 'Extern', subtekst: 'Partij buiten onze organisatie.' },
+]
+const scope = ref('extern')
+const magScope = computed(() => aard.value === 'organisatie')       // kiesbaar
+const scopeVast = computed(() => aard.value === 'externe_partij')   // vast "extern"
+
 const VELDEN = [
   'naam', 'straat_huisnummer', 'postcode', 'plaats',
   'contactpersoon', 'telefoon', 'mobiel', 'email', 'functietitel', 'omschrijving',
@@ -93,6 +103,7 @@ async function init() {
     for (const v of VELDEN) form[v] = p[v] || ''
     aard.value = p.aard || ''
     soort.value = p.soort || ''
+    scope.value = p.scope || 'extern'  // ADR-038 — voorvullen bij bewerken (organisatie/externe partij)
     organisatieId.value = p.organisatie_id || ''
     afdelingId.value = p.afdeling_id || ''
     await _zetInitieelLabels()             // ná het zetten van de ids (ZoekSelect-weergave)
@@ -118,6 +129,9 @@ function _payload() {
     uit[v] = v === 'naam' ? w : w || null
   }
   uit.soort = soort.value || null
+  // ADR-038 — intern/extern: de gekozen waarde bij een organisatie; vast "extern" bij een externe
+  // partij; niets (null) bij afdeling/persoon (afgeleid; de backend weigert er een waarde op).
+  uit.scope = magScope.value ? scope.value : scopeVast.value ? 'extern' : null
   // Lidmaatschap: organisatie alleen voor persoon/afdeling; afdeling alleen voor persoon.
   uit.organisatie_id = heeftOrgOuder.value ? organisatieId.value || null : null
   uit.afdeling_id = magAfdeling.value ? afdelingId.value || null : null
@@ -131,7 +145,7 @@ function _serverveldfouten(e) {
     let t = false
     for (const d of e.detail) {
       const veld = Array.isArray(d.loc) ? d.loc[d.loc.length - 1] : null
-      if (veld && (veld in form || ['aard', 'soort', 'organisatie_id', 'afdeling_id'].includes(veld))) {
+      if (veld && (veld in form || ['aard', 'soort', 'scope', 'organisatie_id', 'afdeling_id'].includes(veld))) {
         fouten[veld] = d.msg || 'Ongeldige waarde.'
         t = true
       }
@@ -218,6 +232,34 @@ const TEKSTVELDEN = [
         </select>
         <span v-else data-testid="aard-readonly" class="text-[var(--lk-color-text-muted)]">{{ aardLabel(aard) }} (vast)</span>
         <span v-if="fouten.aard" role="alert" data-testid="fout-aard" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.aard }}</span>
+      </div>
+
+      <!-- ADR-038 — intern/extern: kiesbaar bij een organisatie (default extern), vast bij een externe
+           partij, niet getoond bij afdeling/persoon (afgeleid van de organisatie). -->
+      <div v-if="magScope" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="veld-scope-wrap">
+        <span class="font-semibold">Intern of extern</span>
+        <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+          Markeer je eigen organisatie als intern. Deelnemende gemeenten, partners en burger-doelgroepen zijn extern.
+        </p>
+        <div class="flex gap-[var(--lk-space-md)]">
+          <label
+            v-for="opt in SCOPE_OPTIES"
+            :key="opt.waarde"
+            :data-testid="`scope-optie-${opt.waarde}`"
+            class="flex-1 cursor-pointer rounded-[var(--lk-radius-input)] border p-[var(--lk-space-sm)] flex flex-col gap-[2px]"
+            :class="scope === opt.waarde ? 'border-[var(--lk-color-primary)] bg-[var(--lk-color-accent)]' : 'border-[var(--lk-color-border)]'"
+          >
+            <span class="flex items-center gap-[var(--lk-space-xs)]">
+              <input type="radio" name="scope" :value="opt.waarde" v-model="scope" :data-testid="`scope-radio-${opt.waarde}`" />
+              <span class="font-semibold">{{ opt.label }}</span>
+            </span>
+            <span class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">{{ opt.subtekst }}</span>
+          </label>
+        </div>
+      </div>
+      <div v-else-if="scopeVast" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="veld-scope-vast">
+        <span class="font-semibold">Intern of extern</span>
+        <span class="text-[var(--lk-color-text-muted)]">Extern — vast (een externe partij is altijd extern).</span>
       </div>
 
       <!-- "Hoort bij": organisatie verplicht voor persoon/afdeling; afdeling optioneel voor persoon.
