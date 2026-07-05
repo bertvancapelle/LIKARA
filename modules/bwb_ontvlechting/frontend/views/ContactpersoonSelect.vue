@@ -11,6 +11,7 @@ import { computed, ref } from 'vue'
 import { InputText, useToast } from '@/primevue'
 import { api } from '@/api'
 import ZoekSelect from './ZoekSelect.vue'
+import AfdelingSelect from './AfdelingSelect.vue'
 
 const props = defineProps({
   partijId: { type: String, required: true },   // "deze partij" (organisatie/externe partij)
@@ -25,10 +26,6 @@ const toast = useToast()
 // keuze die bij opslaan 422 oplevert).
 const zoekPersonen = (params) =>
   api.partijen.lijst({ ...params, aard: 'persoon', organisatie_id: props.partijId })
-// Afdeling-picker in het inline-formulier: afdelingen van déze partij (kan leeg starten bij een
-// externe partij zonder afdelingen — dat is correct, het veld is optioneel).
-const zoekAfdelingen = (params) =>
-  api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: props.partijId })
 
 const persoonKey = ref(0)
 // De weergavenaam voor de ZoekSelect: volgt de (async binnenkomende) `initieelWeergave`-prop, of de
@@ -116,11 +113,11 @@ async function maakAan() {
       </template>
     </ZoekSelect>
 
-    <!-- Klein inline-formulier (verschijnt onder de picker; naam voorgevuld met de zoekterm). -->
+    <!-- Inline aanmaak-zijstap (niveau 1): getinte, omrande afbakening; naam voorgevuld met de zoekterm. -->
     <div
       v-if="aanmaakOpen"
       data-testid="cp-aanmaak-form"
-      class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] p-[var(--lk-space-sm)] flex flex-col gap-[var(--lk-space-sm)]"
+      class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-primary-100)] bg-[var(--lk-color-primary-50)] p-[var(--lk-space-sm)] flex flex-col gap-[var(--lk-space-sm)]"
     >
       <span class="font-semibold text-[length:var(--lk-text-sm)]">Nieuwe contactpersoon</span>
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
@@ -146,11 +143,15 @@ async function maakAan() {
       </div>
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
         <label for="cp-afd" class="text-[length:var(--lk-text-sm)]">Afdeling (binnen deze partij)</label>
-        <ZoekSelect
+        <!-- Genest aanmaakblok (niveau 2): een afdeling die nog niet bestaat kan hier ter plekke,
+             één tint dieper. Afdeling = naam-only → bladniveau, geen laag 3. -->
+        <AfdelingSelect
           id="cp-afd"
           testid="cp-afdeling"
+          :partij-id="props.partijId"
           :model-value="nieuw.afdeling_id"
-          :zoek-functie="zoekAfdelingen"
+          :mag-aanmaken="props.magAanmaken"
+          genest
           placeholder="Zoek een afdeling (optioneel)…"
           @update:model-value="(v) => (nieuw.afdeling_id = v || null)"
         />

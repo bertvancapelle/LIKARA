@@ -15,6 +15,7 @@ import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 import ContactpersoonSelect from './ContactpersoonSelect.vue'
+import AfdelingSelect from './AfdelingSelect.vue'
 import { useAuthStore } from '@/store/auth'
 
 const props = defineProps({ id: { type: String, default: null } })
@@ -66,16 +67,16 @@ const magAfdeling = computed(() => aard.value === 'persoon')
 const contactpersoonId = ref('')
 const cpInitieel = ref('')
 const magAanmaakContactpersoon = computed(() => auth.hasRole('medewerker', 'beheerder'))
+// LI032 — afdeling ter plekke aanmaken (zelfde recht als een lid toevoegen).
+const magAanmaakAfdeling = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const isPartijMetAanspreekpunt = computed(() => ['organisatie', 'externe_partij'].includes(aard.value))
 const magContactpersoon = computed(() => bewerken.value && isPartijMetAanspreekpunt.value)
 function onContactpersoon(id) {
   contactpersoonId.value = id || ''
 }
 
-// Zoekfuncties (server-side; ZoekSelect roept ze met { zoek, limit, ...extraFilters } aan).
+// Zoekfunctie voor de organisatie-picker (server-side). De afdeling-picker zoekt zelf (AfdelingSelect).
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
-const zoekAfdelingen = (params) =>
-  api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: organisatieId.value })
 
 // Gebruiker kiest een (andere) organisatie → reset de nu mogelijk niet-passende afdelingkeuze.
 function onOrgKies(val) {
@@ -310,15 +311,17 @@ const TEKSTVELDEN = [
           <label for="pf-afdeling" class="font-semibold">Afdeling (optioneel)</label>
           <VeldUitleg veld="partij_afdeling" />
         </div>
-        <ZoekSelect
+        <!-- LI032 — afdeling die nog niet bestaat kan hier ter plekke aangemaakt worden (binnen de
+             gekozen organisatie), zodat het veld niet doodloopt. -->
+        <AfdelingSelect
           id="pf-afdeling"
           testid="veld-afdeling"
           :key="organisatieId"
           v-model="afdelingId"
-          :zoek-functie="zoekAfdelingen"
+          :partij-id="organisatieId"
           :initieel-weergave="afdInitieel"
-          :invalid="!!fouten.afdeling_id"
-          aria-describedby="fout-afdeling_id"
+          :mag-aanmaken="magAanmaakAfdeling"
+          :org-naam="orgInitieel"
           placeholder="Zoek een afdeling…"
         />
         <span v-if="fouten.afdeling_id" id="fout-afdeling_id" role="alert" data-testid="fout-afdeling_id" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.afdeling_id }}</span>

@@ -1033,3 +1033,31 @@ In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landsch
 - **Backend-zoek-conventie:** elk lijst-endpoint met `zoek` doet `Naam.ilike(f"%{_escape_like(zoek)}%",
   escape=…)` (partieel, case-insensitief, ge-escapet). Observatie: `_escape_like` is per service
   gedupliceerd (6×, identiek) — cosmetisch consolideerbaar tot één helper, geen gedragsfout.
+
+## Ter-plekke-aanmaken bij keuzevelden (LI032, gedeelde bouwstenen)
+
+- **`#leeg`-override op `ZoekSelect` = de dwingende plek** voor search-first aanmaken. Twee gedeelde
+  bouwstenen: **`ContactpersoonSelect.vue`** (persoon van deze partij) en **`AfdelingSelect.vue`**
+  (organisatie_eenheid van deze partij). Een nieuw afdelingsveld gebruikt `AfdelingSelect` (props
+  `partijId`, `modelValue`, `initieelWeergave`, `magAanmaken`, `orgNaam`, `genest`, `testid`) en erft
+  het gedrag gratis — **geen** losse her-implementatie per veld.
+- **Aanmaken via een bestaand endpoint, geen schemawerk.** Afdeling: `api.partijen.maak({aard:
+  'organisatie_eenheid', naam:<zoekterm>, organisatie_id:<deze partij>})`. Persoon: idem met
+  `aard:'persoon'`. Na aanmaak: `naAanmaakNaam` + remount-`:key` + `emit('update:modelValue', id)` →
+  de nieuwe waarde staat meteen geselecteerd + gelabeld (spiegel van het `initieel-weergave`-patroon).
+- **Picker-scope spiegelt de backend-regel** (`aard` + `organisatie_id` = deze partij) — nooit een optie
+  die bij opslaan 422 geeft. Soepel zoeken (ilike) vindt bestaande vóór iemand dubbel aanmaakt.
+- **Visueel — getinte, omrande aanmaak-zijstap.** Blok-klassen met bestaande tokens: niveau 1 =
+  `bg-[var(--lk-color-primary-50)]` + `border-[var(--lk-color-primary-100)]`; **genest** (niveau 2) =
+  `bg-[var(--lk-color-primary-100)]` (`genest`-prop op `AfdelingSelect`). Begin/eind = "Aanmaken en
+  kiezen / Annuleren". **Max twee niveaus** — feitelijk geborgd doordat een afdeling **naam-only** is
+  (bladniveau, geen entiteit-keuzeveld → geen laag 3). Tailwind genereert deze arbitrary-utilities uit
+  `modules/` mits de `@source`-glob staat (die staat er); geverifieerd in de dist-CSS.
+- **Rechten:** aanmaken alleen tonen aan wie personen/afdelingen mag aanmaken (`hasRole('medewerker',
+  'beheerder')`); de backend handhaaft. Borging: `AfdelingSelect.test.js` (search-first, endpoint-args,
+  soepel-zoeken-vóór-dubbel, voorvulling, genest-tint + geen laag 3) + nesting-test in
+  `ContactpersoonSelect.test.js` (blok-in-blok, twee niveaus).
+- **Niet elk keuzeveld hoort dit te krijgen** — zie de UX-norm (open-ended vs. formele opvoer). Bekend
+  gat (LI032): `GebruikersbeheerView`'s afdeling-picker is **ongescoped** (geen organisatie in de form)
+  → ter-plekke-aanmaken vergt daar eerst een organisatie-context; bewust buiten de eerste toepassing
+  gehouden (aparte beslissing).

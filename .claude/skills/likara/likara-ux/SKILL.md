@@ -329,3 +329,25 @@ gelijk. Elk zoekveld:
 Deze norm is grotendeels **structureel geërfd** (gedeelde `ZoekSelect`-component + `ILIKE`-backend-
 conventie); een nieuw zoekveld op een bestaand zoek-endpoint krijgt 1–3 gratis. Nieuw endpoint = het
 `ILIKE`-patroon meenemen (likara-frontend/likara-db).
+
+## Nooit een doodlopend keuzeveld (LI032, norm)
+
+**Een keuzeveld dat verwijst naar iets wat de gebruiker redelijkerwijs ter plekke kan aanmaken, loopt
+nooit dood.** Typ je iets dat nog niet bestaat, dan biedt het veld **search-first** het aanmaken aan —
+**zonder de flow te verlaten** — met **soepel zoeken vooraf** (geen dubbelen) en **landing in de juiste
+context** (bv. de afdeling landt binnen déze partij, `organisatie_id` = deze partij). De nieuwe waarde
+wordt meteen gekozen.
+
+- **Toepassing is een bewuste keuze per veld**, niet automatisch overal aan. **Wél** zinvol voor
+  open-ended, licht-gewicht doelen (afdeling, persoon). **Bewust niet** voor entiteiten die een eigen
+  formele opvoer horen te hebben (contract, component, leverancier) of context-zwaar zijn (organisatie,
+  verantwoordelijke) — die blijven "kiezen uit bestaande" tot een expliciet besluit per veld.
+- **Visueel — inline aanmaak-zijstap.** Een ter-plekke-aanmaak-blok is een herkenbare **getinte,
+  omrande zijstap** met **"Aanmaken en kiezen / Annuleren"** als begin en eind, zodat de gebruiker ziet
+  dat hij in een aanmaak-zijstapje zit. Een **genest** aanmaakblok (aanmaken-in-aanmaken) krijgt **één
+  stap diepere tint**. **Grens: maximaal twee niveaus** met tint onderscheiden. Kom je dieper uit, dan is
+  dát het signaal dat de flow herzien moet worden — niet dieper kleuren.
+- **Consistentie:** hetzelfde doel gedraagt zich overal gelijk. Afdeling-ter-plekke-aanmaken leeft in de
+  gedeelde `AfdelingSelect`-bouwsteen (spiegel van `ContactpersoonSelect` voor persoon); een nieuw
+  afdelingsveld erft het gratis. Historie: vóór LI032 bood alleen `GebruikersgroepSectie` het aan,
+  terwijl `PartijFormulier`/`ContactpersoonSelect` doodliepen — inconsistent voor identiek doel.

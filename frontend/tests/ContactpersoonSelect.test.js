@@ -89,4 +89,36 @@ describe('ContactpersoonSelect', () => {
     expect(w.emitted('update:modelValue')?.at(-1)).toEqual(['nieuw1'])
     expect(w.find('[data-testid="cp-aanmaak-form"]').exists()).toBe(false)  // sluit na aanmaak
   })
+
+  // LI032 — genest ter-plekke-aanmaken: het afdelingsveld in het contactpersoon-blok (niveau 1) is
+  // een AfdelingSelect; een niet-bestaande afdeling kan hier ter plekke (niveau 2). Bladniveau → geen 3.
+  it('afdelingsveld in het nieuwe-contactpersoon-blok kan ter plekke een afdeling aanmaken (2 niveaus)', async () => {
+    api.partijen.maak.mockResolvedValueOnce({ id: 'afd9', naam: 'Directie' })
+    const w = mountCp({ partijId: 'part9' })
+    await opendropdown(w)
+    await w.find('[data-testid="cp-aanmaak-open"]').trigger('mousedown')
+    await w.find('[data-testid="cp-aanmaak-open"]').trigger('click')
+    await flushPromises()
+    // Niveau 1 = het contactpersoon-blok met de tint; daarin de afdeling-picker (AfdelingSelect).
+    expect(w.find('[data-testid="cp-aanmaak-form"]').attributes('class')).toContain('primary-50')
+    expect(w.find('[data-testid="cp-afdeling-input"]').exists()).toBe(true)
+    // Open het geneste afdeling-aanmaakblok (niveau 2) via de lege zoekstaat.
+    await w.find('[data-testid="cp-afdeling-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="cp-afdeling-aanmaak-open"]').trigger('mousedown')
+    await w.find('[data-testid="cp-afdeling-aanmaak-open"]').trigger('click')
+    await flushPromises()
+    const genest = w.find('[data-testid="cp-afdeling-aanmaak-form"]')
+    expect(genest.exists()).toBe(true)
+    expect(genest.attributes('class')).toContain('primary-100') // niveau 2 = dieper
+    // Geen derde laag: het afdeling-blok bevat geen verder entiteit-keuzeveld.
+    expect(genest.find('[role="combobox"]').exists()).toBe(false)
+    // Aanmaken landt binnen déze partij.
+    await w.find('[data-testid="cp-afdeling-naam"]').setValue('Directie')
+    await w.find('[data-testid="cp-afdeling-aanmaak-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.partijen.maak).toHaveBeenCalledWith({
+      aard: 'organisatie_eenheid', naam: 'Directie', organisatie_id: 'part9',
+    })
+  })
 })
