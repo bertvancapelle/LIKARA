@@ -5,8 +5,11 @@ const BASE = '/api/v1'
 
 // Single-flight refresh: gelijktijdige 401's delen één lopende /auth/refresh-poging
 // (geen stampede). Resolved op de HTTP-status van /auth/refresh (geen body/code).
+// Raw fetch (NIET via request()) → de refresh-respons voedt de refresh-on-401-logica nooit
+// terug (geen lus). Geëxporteerd zodat de sessiecheck (store/auth.js) dezelfde single-flight
+// refresh kan proberen vóór hij een sessie opgeeft (consistent met de data-fetches).
 let _refreshPromise = null
-function _refreshSessie() {
+export function refreshSessie() {
   if (!_refreshPromise) {
     _refreshPromise = fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' })
       .then((r) => r.ok)
@@ -18,6 +21,28 @@ function _refreshSessie() {
   return _refreshPromise
 }
 
+// Centrale verlopen-sessie-vangrail. `api.js` blijft framework-loos (geen router/store-import):
+// de app registreert bij init één handler (registreerSessieVerlopenHandler) die de sessie als
+// verlopen afhandelt (user=null + redirect naar login?sessie_verlopen=1&next=<pad>). De hook wordt
+// UITSLUITEND aangeroepen op het bewezen-gefaalde-refresh-punt (zie request()), dus nooit terwijl
+// een sessie nog te redden is. Single-flight: bij een storm van gelijktijdige 401's grijpt hij
+// éénmaal; een geslaagde (2xx) respons reset de vlag (sessie weer levend).
+let _sessieVerlopenHandler = null
+let _sessieVerloopBezig = false
+export function registreerSessieVerlopenHandler(fn) {
+  _sessieVerlopenHandler = fn
+  _sessieVerloopBezig = false // (her)registratie = schone staat
+}
+function _meldSessieVerlopen() {
+  if (_sessieVerloopBezig) return
+  _sessieVerloopBezig = true
+  try {
+    _sessieVerlopenHandler?.()
+  } catch {
+    /* een fout in de handler mag de app niet breken */
+  }
+}
+
 async function request(path, options = {}, _isRetry = false) {
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
@@ -27,17 +52,22 @@ async function request(path, options = {}, _isRetry = false) {
   if (res.status === 401 && !_isRetry) {
     // Eén refresh-poging (gedeeld); bij succes de oorspronkelijke request éénmalig
     // herproberen. Keyt op HTTP-status (ADR-014/CD005), niet op body/code.
-    const vernieuwd = await _refreshSessie()
+    const vernieuwd = await refreshSessie()
     if (vernieuwd) return request(path, options, true)
   }
   if (res.status === 401) {
-    // Refresh mislukt of al een retry → sessie-verloop (caller/guard → login).
+    // Bewezen-gefaalde refresh (of al een retry) → sessie onherstelbaar verlopen. Centrale
+    // vangrail: één keer netjes naar login leiden (geen rauwe code in beeld). De fout blijft
+    // `.status===401` dragen zodat lokale catches desgewenst nog kunnen onderscheiden.
+    _meldSessieVerlopen()
     const body = await res.json().catch(() => ({}))
     const err = new Error('NIET_GEAUTHENTICEERD')
     err.status = 401
     err.code = body?.fout?.code || 'NIET_GEAUTHENTICEERD'
     throw err
   }
+  // Geslaagde respons ⇒ sessie leeft (weer); reset de vangrail-vlag voor een volgende cyclus.
+  if (res.ok) _sessieVerloopBezig = false
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     const err = new Error(body?.fout?.bericht || `HTTP ${res.status}`)

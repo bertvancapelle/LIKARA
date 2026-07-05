@@ -28,7 +28,7 @@ async function analyseer() {
     data.value = await api.componenten.impact(props.componentId)
     geladen.value = true
   } catch (e) {
-    fout.value = e?.message || 'Impactanalyse mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Impactanalyse mislukt.'
   } finally {
     laden.value = false
   }

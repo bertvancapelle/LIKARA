@@ -265,7 +265,7 @@ async function herlaadGraaf() {
     }
   } catch (e) {
     if (gen === _laadGen) {
-      fout.value = e?.message || 'Laden van de landschapskaart mislukt.'
+      fout.value = e?.status === 401 ? null : e?.message || 'Laden van de landschapskaart mislukt.'
       tekenVoortgang.value = null
     }
   } finally {

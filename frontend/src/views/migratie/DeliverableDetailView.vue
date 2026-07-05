@@ -43,6 +43,7 @@ function _foutMelding(e) {
   )
 }
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   toast.add({ severity: 'error', summary: 'Fout', detail: _foutMelding(e), life: 6000 })
 }
 
@@ -56,7 +57,7 @@ async function laad() {
     deliverable.value = await api.deliverables.haal(props.id)
     await laadKeten()
   } catch (e) {
-    fout.value = e?.message || 'De deliverable kon niet worden geladen.'
+    fout.value = e?.status === 401 ? null : e?.message || 'De deliverable kon niet worden geladen.'
   } finally {
     laden.value = false
   }

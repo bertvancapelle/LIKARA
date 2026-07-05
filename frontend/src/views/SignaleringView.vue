@@ -65,7 +65,7 @@ async function laadGaten() {
     const r = await api.signalering.registratiegaten()
     data.value = { kritiek: r?.kritiek || {}, aandacht: r?.aandacht || {} }
   } catch (e) {
-    fout.value = e?.message || 'Laden van de registratiegaten mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de registratiegaten mislukt.'
   } finally {
     laden.value = false
     eersteGeladen.value = true

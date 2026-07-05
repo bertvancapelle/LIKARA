@@ -136,6 +136,7 @@ const categorieen = computed(() => {
 })
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const per = { 403: 'Geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: 'Conflict.' }
   toast.add({ severity: 'error', summary: 'Fout', detail: per[e?.status] || e?.message || 'Er ging iets mis.', life: 5000 })
 }
@@ -197,7 +198,7 @@ async function laad() {
     // Deep-link-markering: de rij `cs-rij-<code>` bestaat pas ná dit punt → nu (her)toepassen.
     if (props.markeerCode) _pasMarkeringToe(props.markeerCode)
   } catch (e) {
-    fout.value = e?.message || 'Laden van de checklist mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de checklist mislukt.'
   } finally {
     laden.value = false
   }

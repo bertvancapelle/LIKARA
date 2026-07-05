@@ -39,6 +39,7 @@ const zoekPartijen = (params) => api.partijen.lijst(params)
 const partijWeergave = (p) => `${p.naam} — ${aardLabel(p.aard)}`
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     { 403: 'Je hebt geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Deze toewijzing bestaat al.' }[
       e?.status
@@ -54,7 +55,7 @@ async function laad() {
   try {
     items.value = await api.roltoewijzingen.lijst({ object_id: props.objectId })
   } catch (e) {
-    fout.value = e?.message || 'Laden van verantwoordelijkheden mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van verantwoordelijkheden mislukt.'
   } finally {
     laden.value = false
   }

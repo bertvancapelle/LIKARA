@@ -34,7 +34,7 @@ async function laad() {
   try {
     data.value = await api.dashboard()
   } catch (e) {
-    fout.value = e?.message || 'Er ging iets mis bij het laden van het dashboard.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Er ging iets mis bij het laden van het dashboard.'
   } finally {
     laden.value = false
     geladen.value = true

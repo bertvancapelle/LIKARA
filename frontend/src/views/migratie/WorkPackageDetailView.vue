@@ -46,6 +46,7 @@ function _foutMelding(e) {
   )
 }
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   toast.add({ severity: 'error', summary: 'Fout', detail: _foutMelding(e), life: 6000 })
 }
 
@@ -59,7 +60,7 @@ async function laad() {
       ? await api.workPackages.haal(wp.value.bovenliggend_id).catch(() => null)
       : null
   } catch (e) {
-    fout.value = e?.message || 'Het werkpakket kon niet worden geladen.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Het werkpakket kon niet worden geladen.'
   } finally {
     laden.value = false
   }

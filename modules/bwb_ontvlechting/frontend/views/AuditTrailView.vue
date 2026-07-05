@@ -70,7 +70,7 @@ async function laad({ meer = false } = {}) {
     gebeurtenissen.value = meer ? [...gebeurtenissen.value, ...items] : items
     cursor.value = pagina.volgende_cursor || null
   } catch (e) {
-    fout.value = e?.message || 'Laden van het auditspoor mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van het auditspoor mislukt.'
   } finally {
     laden.value = false
   }

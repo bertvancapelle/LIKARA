@@ -57,7 +57,7 @@ async function laad() {
   try {
     opties.value = await api.platformComponentrolconfig.lijst()
   } catch (e) {
-    fout.value = e?.message || 'Laden van de catalogus mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de catalogus mislukt.'
   } finally {
     laden.value = false
   }

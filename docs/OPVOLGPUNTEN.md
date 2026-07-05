@@ -7,6 +7,20 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Auth-cluster (LI032 — na de verlopen-sessie-vangrail)
+
+- **#5c — echte end-to-end auth-keten-test (eerste vervolg binnen het auth-cluster).** De 401→refresh→
+  retry-logica is nu **structureel** gedekt (offline, gemockt): frontend `api.test.js` (3 refresh-takken +
+  vangrail-handler), backend `test_auth_pkce.py` (`/auth/refresh` happy + 3 faalpaden). **Het gat:** geen
+  test die de seams samen bewijst — een kortlevende `lk_session` → echte `/auth/refresh` → echte Keycloak
+  refresh-grant → echte Redis-handle-rotatie → geslaagde retry, plus een écht-verlopen refresh die naar
+  login leidt. Vergt de volledige stack + een manier om access-token-expiry te forceren (korte TTL).
+- **Reseed/herstart doodt sessies stil (dev-ergonomie).** Een stack-reset (Redis/Keycloak weg) →
+  `auth_refresh:{sessie_id}` verdwijnt → refresh faalt → 401. De centrale vangrail (LI032) vangt het
+  symptoom nu **netjes** af (redirect naar login i.p.v. rauwe code). Resteren: na een reseed opnieuw
+  inloggen is verwacht gedrag; Redis/Keycloak-persistentie over een reset heen is een aparte,
+  lager-geprioriteerde afweging.
+
 ### Stand V032 (sessie-afsluiting LI031 — ADR-038 gebruikersgroep-consolidatie + intern/extern, 2026-07-04)
 
 Build **V031 → V032**. Eén consistent model: een gebruikersgroep hoort **altijd** bij een organisatie;

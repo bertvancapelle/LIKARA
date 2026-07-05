@@ -42,6 +42,7 @@ const heeftAfwijking = computed(() => isKlaar.value && props.aantalVragen > 0 &&
 const toontVragenContext = computed(() => !isKlaar.value && props.aantalVragen > 0 && openVragen.value > 0)
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     (e?.code && REGISTER_FOUT[e.code] ? e?.message || REGISTER_FOUT[e.code] : null) ||
     { 403: 'Je hebt geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Conflict.' }[e?.status] ||

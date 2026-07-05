@@ -54,7 +54,7 @@ async function laadAlles() {
     }
     elementen.value = acc
   } catch (e) {
-    fout.value = e?.message || 'Er ging iets mis bij het laden van het architectuuroverzicht.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Er ging iets mis bij het laden van het architectuuroverzicht.'
   } finally {
     laden.value = false
   }

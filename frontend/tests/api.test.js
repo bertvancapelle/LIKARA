@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-import { api } from '@/api'
+import { api, registreerSessieVerlopenHandler } from '@/api'
 import { useAuthStore } from '@/store/auth'
 
 function _resp({ status, body }) {
@@ -138,5 +138,47 @@ describe('api.request — single-flight refresh-on-401 (ADR-015 B6)', () => {
     expect(refreshCalls).toBe(1) // één refresh voor beide gelijktijdige 401's
     expect(a).toEqual({ ok: true })
     expect(b).toEqual({ ok: true })
+  })
+})
+
+describe('api.request — centrale verlopen-sessie-vangrail', () => {
+  it('roept de geregistreerde handler één keer aan ná een gefaalde refresh (geen storm)', async () => {
+    const handler = vi.fn()
+    registreerSessieVerlopenHandler(handler) // reset ook de single-flight-vlag
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(_resp({ status: 401, body: { fout: { code: 'NIET_GEAUTHENTICEERD' } } })),
+    ))
+    // Twee gelijktijdige 401's ná gefaalde refresh → precies één redirect (single-flight).
+    await Promise.all([
+      api.componenten.lijst().catch(() => {}),
+      api.componenten.haal('1').catch(() => {}),
+    ])
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it('roept de handler NIET aan als de refresh slaagt (sessie nog te redden)', async () => {
+    const handler = vi.fn()
+    registreerSessieVerlopenHandler(handler)
+    let data = 0
+    vi.stubGlobal('fetch', vi.fn((url) => {
+      if (url.endsWith('/auth/refresh')) return Promise.resolve(_resp({ status: 204, body: null }))
+      data++
+      return Promise.resolve(
+        data === 1
+          ? _resp({ status: 401, body: { fout: { code: 'NIET_GEAUTHENTICEERD' } } })
+          : _resp({ status: 200, body: { ok: true } }),
+      )
+    }))
+    const res = await api.componenten.lijst()
+    expect(res).toEqual({ ok: true })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('de doorgezette fout blijft .status===401 dragen (lokale catches kunnen onderscheiden)', async () => {
+    registreerSessieVerlopenHandler(vi.fn())
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(_resp({ status: 401, body: { fout: { code: 'NIET_GEAUTHENTICEERD' } } })),
+    ))
+    await expect(api.componenten.lijst()).rejects.toMatchObject({ status: 401 })
   })
 })

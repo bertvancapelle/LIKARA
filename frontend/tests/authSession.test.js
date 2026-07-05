@@ -48,11 +48,42 @@ describe('auth.fetchSession — sessietype', () => {
   })
 
   it('geen sessie: beide falen → null', async () => {
-    _stubFetch({ '/auth/platform/me': _fail(401), '/auth/me': _fail(401) })
+    _stubFetch({ '/auth/platform/me': _fail(401), '/auth/me': _fail(401), '/auth/refresh': _fail(401) })
     const auth = useAuthStore()
     await auth.fetchSession()
     expect(auth.user).toBeNull()
     expect(auth.sessionType).toBeNull()
     expect(auth.isAuthenticated).toBe(false)
+  })
+
+  // Scheefje gladgestreken: de sessiecheck probeert eerst een stille refresh vóór ze opgeeft.
+  it('verlopen-maar-verversbaar: 401 → stille refresh slaagt → sessie hersteld', async () => {
+    let meCalls = 0
+    let refreshCalls = 0
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('/auth/refresh')) { refreshCalls++; return { ok: true, status: 204, json: async () => null } }
+      if (url.includes('/auth/platform/me')) return _fail(401)
+      // /auth/me: eerst 401 (access-token verlopen), ná de refresh 200.
+      meCalls++
+      return meCalls === 1 ? _fail(401) : _ok({ sub: 't', tenant_id: 'x', email: 't@x.nl', roles: ['viewer'] })
+    }))
+    const auth = useAuthStore()
+    await auth.fetchSession()
+    expect(refreshCalls).toBe(1) // eerst een stille refresh-poging
+    expect(auth.sessionType).toBe('tenant')
+    expect(auth.isAuthenticated).toBe(true)
+  })
+
+  it('onherstelbaar: 401 en refresh faalt → geen sessie (null)', async () => {
+    let refreshCalls = 0
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      if (url.includes('/auth/refresh')) { refreshCalls++; return _fail(401) }
+      return _fail(401)
+    }))
+    const auth = useAuthStore()
+    await auth.fetchSession()
+    expect(refreshCalls).toBe(1) // refresh geprobeerd
+    expect(auth.user).toBeNull()
+    expect(auth.sessionType).toBeNull()
   })
 })

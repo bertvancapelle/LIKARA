@@ -310,3 +310,22 @@ Buiten history (_toestandSig).
 In kaart-modus (beginscherm dicht): zoekresultaten verschijnen inline onder de
 zoekbalk bij zoekterm.trim() || filterActief. Per rij een +-knop (toggleSet) en
 ✓ als al in beeld. Beginscherm heeft een eigen server-side zoek (los pad).
+
+## Zoekveld-norm (platform-breed, niet-onderhandelbaar — LI032)
+
+Waar de gebruiker ook zoekt (persoon, leverancier, applicatie, contract, plateau, …), het gedrag is
+gelijk. Elk zoekveld:
+1. **Zoekt soepel** — partieel, hoofdletter- én spatie-ongevoelig (client trimt; backend `ILIKE %frag%`
+   ge-escapet). Nooit exact/case-sensitive.
+2. **Toont een nette lege staat** — "Geen resultaten." (of een contextuele actie, bv. ter-plekke
+   aanmaken), nooit een leeg-ogend of doods veld.
+3. **Toont NOOIT een rauwe foutcode.** Een technische fout → een generieke, leesbare melding
+   ("Zoeken mislukt."); nooit `e.message`/`NIET_GEAUTHENTICEERD` blind in beeld.
+4. **Verlopen sessie → opnieuw inloggen.** Is de sessie onherstelbaar verlopen, dan leidt de centrale
+   vangrail (zie likara-frontend) de gebruiker naar de inlogpagina met "je sessie is verlopen" + behoud
+   van waar hij was — geen rauwe code, geen dood veld. Dit geldt óók voor lijsten, formulieren en
+   detail-schermen: nergens verschijnt een rauwe 401-code.
+
+Deze norm is grotendeels **structureel geërfd** (gedeelde `ZoekSelect`-component + `ILIKE`-backend-
+conventie); een nieuw zoekveld op een bestaand zoek-endpoint krijgt 1–3 gratis. Nieuw endpoint = het
+`ILIKE`-patroon meenemen (likara-frontend/likara-db).

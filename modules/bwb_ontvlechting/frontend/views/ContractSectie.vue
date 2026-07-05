@@ -43,6 +43,7 @@ const form = reactive({ contract_id: '', relatie_rol: '' })
 const fouten = reactive({})
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     e?.code && REGISTER_FOUT[e.code]
       ? e?.message || REGISTER_FOUT[e.code]
@@ -59,7 +60,7 @@ async function laad() {
     items.value = await api.componenten.contracten(props.applicatieId)
     await laadDekking()
   } catch (e) {
-    fout.value = e?.message || 'Laden van gekoppelde contracten mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van gekoppelde contracten mislukt.'
   } finally {
     laden.value = false
   }

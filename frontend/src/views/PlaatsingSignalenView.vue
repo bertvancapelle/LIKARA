@@ -32,7 +32,7 @@ async function laad() {
   try {
     items.value = await api.signalen.plaatsing()
   } catch (e) {
-    fout.value = e?.message || 'Er ging iets mis bij het laden van de plaatsingssignalen.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Er ging iets mis bij het laden van de plaatsingssignalen.'
   } finally {
     laden.value = false
     eersteGeladen.value = true

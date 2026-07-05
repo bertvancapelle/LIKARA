@@ -45,6 +45,7 @@ const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     e?.status === 409
       ? e?.message || REGISTER_FOUT[e?.code] || 'Dit contract is nog in gebruik.'
@@ -59,7 +60,7 @@ async function laad() {
   try {
     contract.value = await api.contracten.haal(props.id)
   } catch (e) {
-    fout.value = e?.status === 404 ? 'Dit contract bestaat niet (meer).' : e?.message || 'Er ging iets mis.'
+    fout.value = e?.status === 401 ? null : e?.status === 404 ? 'Dit contract bestaat niet (meer).' : e?.message || 'Er ging iets mis.'
     _toastFout(e)
     return
   }

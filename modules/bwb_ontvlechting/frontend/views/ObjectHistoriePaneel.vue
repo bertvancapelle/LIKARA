@@ -51,7 +51,7 @@ async function laad({ meer = false } = {}) {
     cursor.value = pagina.volgende_cursor || null
     geladenVoor = props.entiteitId
   } catch (e) {
-    fout.value = e?.message || 'Laden van de geschiedenis mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de geschiedenis mislukt.'
   } finally {
     laden.value = false
   }

@@ -72,7 +72,9 @@ async function zoek() {
     resultaten.value = items.slice(0, VENSTER)
     actieveIndex.value = resultaten.value.length ? 0 : -1
   } catch (e) {
-    fout.value = e?.message || 'Zoeken mislukt.'
+    // Nooit de rauwe foutcode tonen. Bij een verlopen sessie (401) leidt de centrale vangrail
+    // (api.js) al naar login → geen melding hier; overige fouten krijgen een generieke tekst.
+    fout.value = e?.status === 401 ? '' : 'Zoeken mislukt.'
     resultaten.value = []
     meer.value = false
   } finally {

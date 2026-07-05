@@ -48,7 +48,7 @@ async function laad() {
     // GET /gebruikers levert (Fase 2) een platte lijst — geen cursor; toon de set.
     gebruikers.value = await api.gebruikers.lijst({ limit: 100 })
   } catch (e) {
-    fout.value = e?.message || 'Laden van gebruikers mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van gebruikers mislukt.'
   } finally {
     laden.value = false
   }
@@ -80,6 +80,7 @@ function _valideer() {
 }
 
 function _mapFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   // Native 422 (Pydantic) → veldfouten op loc.
   if (e?.status === 422 && Array.isArray(e.detail)) {
     for (const d of e.detail) {
@@ -179,6 +180,7 @@ const _GUARD = {
   EIGEN_BEHEERROL: 'Je kunt jezelf niet de beheerrol ontnemen.',
 }
 function _mapBeheerFout(e, { veld = false } = {}) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   if (veld && e?.status === 422 && Array.isArray(e.detail)) {
     let raak = false
     for (const d of e.detail) {

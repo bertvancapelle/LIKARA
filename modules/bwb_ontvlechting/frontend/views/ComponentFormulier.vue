@@ -75,6 +75,7 @@ const TRANSITIE_VELDEN = [
 const transitieLabel = (map, code) => label(map, code)
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     e?.code && REGISTER_FOUT[e.code]
       ? e?.message || REGISTER_FOUT[e.code]

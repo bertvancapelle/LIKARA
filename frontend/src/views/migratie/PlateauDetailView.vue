@@ -42,6 +42,7 @@ function formatDatum(iso) {
 }
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     { 403: 'Je hebt geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Dit lid zit al in dit plateau.' }[
       e?.status
@@ -62,7 +63,7 @@ async function laad() {
     plateau.value = await api.plateaus.haal(props.id)
     await laadLeden()
   } catch (e) {
-    fout.value = e?.message || 'Het plateau kon niet worden geladen.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Het plateau kon niet worden geladen.'
   } finally {
     laden.value = false
   }

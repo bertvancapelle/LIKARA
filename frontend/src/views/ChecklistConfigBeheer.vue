@@ -109,7 +109,7 @@ async function laad() {
     componenttypeOpties.value = opties?.componenttype || []
     betekenisOpties.value = betekenissen || []
   } catch (e) {
-    fout.value = e?.message || 'Laden van de configuratie mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de configuratie mislukt.'
   } finally {
     laden.value = false
   }

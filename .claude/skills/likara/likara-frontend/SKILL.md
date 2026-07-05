@@ -1009,3 +1009,27 @@ In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landsch
   (géén nieuwe vulkleur). BIV-drempel client-side op de ordinale positie uit `biv_niveaus`.
 - **SignaleringBadge**: optionele `signalen`-prop (sleutels) → sprekende tooltip via de gedeelde
   `SIGNAAL_LABEL`-map (labels.js); zonder `signalen` valt hij terug op de generieke telling.
+
+## Centrale verlopen-sessie-vangrail + zoekveld-fout-staat (LI032, niet-onderhandelbaar)
+
+- **Eén aanhaakpunt: het bewezen-gefaalde-refresh-punt in `api.js`.** `request()` doet bij een 401
+  eerst de single-flight `refreshSessie()` (raw fetch → geen lus) + één retry (`_isRetry`-guard). Pas
+  als dat bewezen faalt, wordt de 401 doorgezet (`throw`, `.status===401`). **Uitsluitend dáár** roept
+  `api.js` de centrale vangrail (`_meldSessieVerlopen`) aan — dus nóóit terwijl een sessie nog te redden
+  is. Single-flight (`_sessieVerloopBezig`) → één redirect bij een storm; een geslaagde 2xx reset de vlag.
+- **Framework-loze bedrading (verplicht).** `api.js` importeert géén router/store (offline testbaar).
+  De app registreert bij init één handler via `registreerSessieVerlopenHandler(fn)`; de handler-fabriek
+  `sessieVerlopenHandler(router, auth)` (`src/sessieVangrail.js`) wist de sessie + `router.push` naar
+  `login?sessie_verlopen=1&next=<huidig fullPath>` (geen `next` op de wortel; niet op publieke routes).
+- **Sessiecheck symmetrisch met data-fetches.** `store/auth.js fetchSession` probeert bij een 401 op
+  `/auth/me` **eerst** `refreshSessie()` vóór ze de sessie opgeeft — zodat navigatie een nog-te-redden
+  sessie (access verlopen, refresh geldig) niet afbreekt. `routeBeslissing` blijft puur/testbaar.
+- **Geen rauwe foutcode in beeld — overal.** `ZoekSelect.zoek()`-catch: op 401 leeg (vangrail redirect),
+  overige fouten → generieke "Zoeken mislukt." (**nooit** `e.message`). Load-catches (`fout.value = …`):
+  op 401 `null` (geen banner). `_toastFout`/inline toasts: **vroege terugkeer op 401**. De bestaande
+  403/404/409/422-mappings (waar `e.message` de nette backend-`bericht` is) blijven ongemoeid — alleen de
+  401-tak werd afgevangen. Borging: `api.test.js` (handler één keer / niet bij succes), `sessieVangrail.test.js`
+  (redirect + next), `authSession.test.js` (refresh-vóór-opgeven), `ZoekSelect`/`PartijLijst` (geen rauwe code).
+- **Backend-zoek-conventie:** elk lijst-endpoint met `zoek` doet `Naam.ilike(f"%{_escape_like(zoek)}%",
+  escape=…)` (partieel, case-insensitief, ge-escapet). Observatie: `_escape_like` is per service
+  gedupliceerd (6×, identiek) — cosmetisch consolideerbaar tot één helper, geen gedragsfout.

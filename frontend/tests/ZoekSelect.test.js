@@ -102,4 +102,25 @@ describe('ZoekSelect', () => {
     await flushPromises()
     expect(w.find('[data-testid="zs-fout"]').attributes('role')).toBe('alert')
   })
+
+  it('een niet-401-fout toont een generieke tekst, NOOIT de rauwe boodschap', async () => {
+    const zoekFunctie = vi.fn().mockRejectedValue(new Error('DB kapot xyz'))
+    const { w, input } = mountZS({ zoekFunctie })
+    await input().trigger('focus')
+    await flushPromises()
+    const t = w.find('[data-testid="zs-fout"]').text()
+    expect(t).toContain('Zoeken mislukt')
+    expect(t).not.toContain('DB kapot')
+  })
+
+  it('bij een 401 (verlopen sessie) toont het geen rauwe code — de centrale vangrail redirect', async () => {
+    const err = new Error('NIET_GEAUTHENTICEERD')
+    err.status = 401
+    const zoekFunctie = vi.fn().mockRejectedValue(err)
+    const { w, input } = mountZS({ zoekFunctie })
+    await input().trigger('focus')
+    await flushPromises()
+    expect(w.text()).not.toContain('NIET_GEAUTHENTICEERD')
+    expect(w.find('[data-testid="zs-fout"]').exists()).toBe(false) // leeg → geen fout-li
+  })
 })

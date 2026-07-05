@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { refreshSessie } from '../api'
 
 // Auth store patroon — framework-basis, zonder applicatie-specifieke logica.
 // Sessie loopt via httpOnly cookie (ADR-004); nooit localStorage.
@@ -22,19 +23,34 @@ export const useAuthStore = defineStore('auth', {
       // Sessietype-detectie (ADR-012 / 2E-b): tenant-account → /auth/me (heeft
       // tenant_id); platform-account → /auth/me geeft 403 (TENANT_MISMATCH), dan
       // /auth/platform/me. Beide via dezelfde httpOnly-cookie.
-      try {
+      //
+      // Scheefje gladgestreken: waar een data-fetch bij een 401 eerst stil ververst
+      // (api.js), doet de sessiecheck dat nu óók — vóór hij de sessie opgeeft. Zo wordt een
+      // nog-te-redden sessie (access-token verlopen, refresh nog geldig) bij navigatie niet
+      // onnodig afgebroken. Pas ná een bewezen-gefaalde refresh geldt de sessie als verlopen.
+      const detecteer = async () => {
         const me = await fetch('/api/v1/auth/me', { credentials: 'include' })
         if (me.ok) {
           this.user = await me.json()
           this.sessionType = 'tenant'
-          return
+          return { ok: true }
         }
         const pme = await fetch('/api/v1/auth/platform/me', { credentials: 'include' })
         if (pme.ok) {
           this.user = await pme.json()
           this.sessionType = 'platform'
-          return
+          return { ok: true }
         }
+        // 401 op beide = geen levende sessie (mogelijk nog te verversen); 403 = verkeerd
+        // sessietype (geen refresh die dat oplost).
+        return { ok: false, verlopen: me.status === 401 || pme.status === 401 }
+      }
+      try {
+        let r = await detecteer()
+        if (!r.ok && r.verlopen && (await refreshSessie())) {
+          r = await detecteer() // stille refresh geslaagd → sessie opnieuw ophalen
+        }
+        if (r.ok) return
       } catch {
         /* netwerkfout → geen sessie */
       }

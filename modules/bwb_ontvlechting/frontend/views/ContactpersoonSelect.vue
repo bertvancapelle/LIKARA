@@ -80,8 +80,10 @@ async function maakAan() {
     aanmaakOpen.value = false
     toast.add({ severity: 'success', summary: 'Aanspreekpunt aangemaakt', life: 3000 })
   } catch (e) {
-    const per = { 403: 'Geen rechten voor deze actie.', 409: e?.message || 'Conflict.' }
-    toast.add({ severity: 'error', summary: 'Fout', detail: per[e?.status] || e?.message || 'Er ging iets mis.', life: 5000 })
+    if (e?.status !== 401) { // 401 → centrale vangrail leidt al naar login (geen rauwe code)
+      const per = { 403: 'Geen rechten voor deze actie.', 409: e?.message || 'Conflict.' }
+      toast.add({ severity: 'error', summary: 'Fout', detail: per[e?.status] || e?.message || 'Er ging iets mis.', life: 5000 })
+    }
   } finally {
     bezig.value = false
   }

@@ -52,6 +52,7 @@ const form = reactive({ object_id: '', rol: '' })
 const fouten = reactive({})
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     { 403: 'Je hebt geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Deze toewijzing bestaat al.' }[
       e?.status

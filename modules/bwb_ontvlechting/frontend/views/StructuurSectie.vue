@@ -47,6 +47,7 @@ const form = reactive({ op_component_id: '', omschrijving: '' })
 const fouten = reactive({})
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     e?.code && REGISTER_FOUT[e.code]
       ? e?.message || REGISTER_FOUT[e.code]
@@ -64,7 +65,7 @@ async function laad() {
     draaitOp.value = overzicht.draait_op || []
     gebruiktDoor.value = overzicht.gebruikt_door || []
   } catch (e) {
-    fout.value = e?.message || 'Laden van de opbouw mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de opbouw mislukt.'
   } finally {
     laden.value = false
   }

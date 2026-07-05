@@ -111,6 +111,15 @@ describe('PartijLijst', () => {
     expect(w.find('[data-testid="lijst-fout"]').attributes('role')).toBe('alert')
   })
 
+  it('bij een 401 (verlopen sessie) toont de lijst geen rauwe code (vangrail redirect)', async () => {
+    const err = new Error('NIET_GEAUTHENTICEERD')
+    err.status = 401
+    api.partijen.lijst.mockRejectedValueOnce(err)
+    const w = await mountLijst()
+    expect(w.text()).not.toContain('NIET_GEAUTHENTICEERD')
+    expect(w.find('[data-testid="lijst-fout"]').exists()).toBe(false) // fout=null → geen banner
+  })
+
   it('rol-gating: aanmaak-knop alleen voor medewerker+', async () => {
     api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     expect((await mountLijst({ rollen: ['medewerker'] })).find('[data-testid="nieuwe-partij"]').exists()).toBe(true)

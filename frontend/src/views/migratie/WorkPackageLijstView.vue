@@ -32,7 +32,7 @@ async function laad({ reset = false } = {}) {
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
     cursor.value = pagina.volgende_cursor
   } catch (e) {
-    fout.value = e?.message || 'Er ging iets mis bij het laden van de werkpakketten.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Er ging iets mis bij het laden van de werkpakketten.'
   } finally {
     laden.value = false
     eersteGeladen.value = true

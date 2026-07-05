@@ -101,6 +101,7 @@ const eersteVeld = ref(null)
 let laatsteTrigger = null
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const per = { 403: 'Geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Deze koppeling bestaat al of is ongeldig.' }
   toast.add({ severity: 'error', summary: 'Fout', detail: per[e?.status] || e?.message || 'Er ging iets mis.', life: 5000 })
 }
@@ -117,7 +118,7 @@ async function _laadRichting(state, params, reset) {
     state.items = reset ? mapped : state.items.concat(mapped)
     state.cursor = p.volgende_cursor
   } catch (e) {
-    fout.value = e?.message || 'Laden van koppelingen mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van koppelingen mislukt.'
   } finally {
     state.laden = false
   }

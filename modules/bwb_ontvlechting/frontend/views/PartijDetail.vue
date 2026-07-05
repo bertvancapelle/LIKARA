@@ -159,6 +159,7 @@ async function laadSamenhang() {
 }
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const detail =
     e?.status === 409
       ? e?.message || REGISTER_FOUT[e?.code] || 'Deze partij is nog in gebruik.'
@@ -173,7 +174,7 @@ async function laad() {
   try {
     partij.value = await api.partijen.haal(props.id)
   } catch (e) {
-    fout.value = e?.status === 404 ? 'Deze partij bestaat niet (meer).' : e?.message || 'Er ging iets mis.'
+    fout.value = e?.status === 401 ? null : e?.status === 404 ? 'Deze partij bestaat niet (meer).' : e?.message || 'Er ging iets mis.'
     _toastFout(e)
   }
 }

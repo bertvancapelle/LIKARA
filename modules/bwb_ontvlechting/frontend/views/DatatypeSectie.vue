@@ -43,6 +43,7 @@ const eersteVeld = ref(null)
 let laatsteTrigger = null
 
 function _toastFout(e) {
+  if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
   const per = { 403: 'Geen rechten voor deze actie.', 404: 'Niet gevonden.', 409: e?.message || 'Conflict.' }
   toast.add({ severity: 'error', summary: 'Fout', detail: per[e?.status] || e?.message || 'Er ging iets mis.', life: 5000 })
 }
@@ -60,7 +61,7 @@ async function laad({ reset = false } = {}) {
     items.value = reset ? p.items : items.value.concat(p.items)
     cursor.value = p.volgende_cursor
   } catch (e) {
-    fout.value = e?.message || 'Laden van datatypes mislukt.'
+    fout.value = e?.status === 401 ? null : e?.message || 'Laden van datatypes mislukt.'
   } finally {
     laden.value = false
   }
