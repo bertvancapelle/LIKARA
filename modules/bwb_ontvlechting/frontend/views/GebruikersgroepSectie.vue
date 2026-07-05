@@ -10,13 +10,12 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
+import AfdelingSelect from './AfdelingSelect.vue'
 
 // Organisatie-keuze: server-side zoeken, beperkt tot organisaties (ADR-038 — burger-doelgroepen
 // zijn gewone externe organisaties; de aparte `burger`-aard bestaat niet meer).
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard_in: ['organisatie'] })
-// Afdeling-keuze: alleen organisatie_eenheden binnen de gekozen organisatie.
-const zoekAfdelingen = (params) =>
-  api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: form.organisatie_id })
+// De afdeling-keuze (incl. soepel zoeken + ter-plekke-aanmaken) loopt via de gedeelde AfdelingSelect.
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
 const auth = useAuthStore()
@@ -61,15 +60,9 @@ const afdelingKey = ref(0)
 // `aard=organisatie`; de aparte burger-aard bestaat niet meer, dus een aard-check is overbodig).
 const toonAfdeling = computed(() => !!form.organisatie_id)
 
-// Search-first: ter-plekke aanmaken leeft in de LEGE zoekstaat van de afdeling-picker. `aanmaakBevestig`
-// = de zoekterm waarvoor de inline bevestiging open staat.
-const aanmaakBevestig = ref('')
-const afdelingBezig = ref(false)
-
 function _resetAfdeling() {
   form.afdeling_id = null
   afInitieel.value = ''
-  aanmaakBevestig.value = ''
   afdelingKey.value += 1
 }
 
@@ -84,24 +77,6 @@ async function onOrgKies(id) {
 
 function onAfdelingKies(id) {
   form.afdeling_id = id || null
-}
-
-// Aanmaken vanuit de lege-zoekstaat: de naam is vastgeklonken aan de zoekterm (geen apart tekstveld).
-async function maakNieuweAfdeling(naam) {
-  const n = (naam || '').trim()
-  if (!n || !form.organisatie_id) return
-  afdelingBezig.value = true
-  try {
-    const p = await api.partijen.maak({ aard: 'organisatie_eenheid', naam: n, organisatie_id: form.organisatie_id })
-    form.afdeling_id = p.id
-    afInitieel.value = p.naam       // toon + selecteer de nieuwe afdeling (remount bewijst 'in de lijst')
-    aanmaakBevestig.value = ''
-    afdelingKey.value += 1
-  } catch (e) {
-    _toastFout(e)
-  } finally {
-    afdelingBezig.value = false
-  }
 }
 
 function _toastFout(e) {
@@ -327,48 +302,26 @@ laad({ reset: true })
           </div>
           <span v-if="fouten.organisatie_id" id="gg-fout-organisatie" role="alert" data-testid="gg-fout-organisatie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.organisatie_id }}</span>
         </div>
-        <!-- Afdeling (ADR-036a): kies een bestaande organisatie_eenheid van de organisatie, of maak er
-             ter plekke een aan. Alleen bij een échte organisatie (geen burger, geen org-loze groep). -->
+        <!-- Afdeling (ADR-036a / LI032): kies een bestaande organisatie_eenheid van de organisatie, of
+             maak er ter plekke een aan — via de gedeelde AfdelingSelect (getinte omrande aanmaak-zijstap,
+             soepel zoeken vóór dubbel). Verschijnt zodra er een organisatie is. -->
         <div v-if="toonAfdeling" class="flex flex-col gap-[var(--lk-space-xs)]">
           <div class="flex items-center gap-[var(--lk-space-xs)]">
             <label for="gg-afdeling" class="font-semibold">Afdeling</label>
             <VeldUitleg veld="gg_afdeling" />
           </div>
-          <!-- Search-first: bij een lege zoekuitkomst verschijnt (met aanmaakrecht) de aanmaak-actie
-               ín de dropdown, contextueel met de zoekterm + organisatie; met inline bevestiging. -->
-          <ZoekSelect
+          <AfdelingSelect
             id="gg-afdeling"
+            testid="gg-afdeling"
             :key="`${form.organisatie_id}-${afdelingKey}`"
-            testid="gg-veld-afdeling"
             :model-value="form.afdeling_id"
-            :zoek-functie="zoekAfdelingen"
+            :partij-id="form.organisatie_id"
             :initieel-weergave="afInitieel"
+            :mag-aanmaken="mag"
+            :org-naam="orgNaam"
             placeholder="Zoek een afdeling (optioneel)…"
             @update:model-value="onAfdelingKies"
-          >
-            <template #leeg="{ query }">
-              <template v-if="mag && query">
-                <button
-                  v-if="aanmaakBevestig !== query"
-                  type="button" data-testid="gg-afd-aanmaak"
-                  class="w-full text-left text-[var(--lk-color-primary)] hover:underline"
-                  @mousedown.prevent @click="aanmaakBevestig = query"
-                >Geen afdeling ‘{{ query }}’ gevonden — ‘{{ query }}’ aanmaken onder {{ orgNaam }}</button>
-                <div v-else class="flex flex-col gap-[var(--lk-space-xs)]">
-                  <span class="text-[var(--lk-color-text)]">Weet je zeker? Dit maakt een nieuwe afdeling die overal herbruikbaar is.</span>
-                  <span class="flex gap-[var(--lk-space-md)]">
-                    <button
-                      type="button" data-testid="gg-afd-aanmaak-bevestig"
-                      class="font-semibold text-[var(--lk-color-primary)] hover:underline disabled:opacity-60"
-                      :disabled="afdelingBezig" @mousedown.prevent @click="maakNieuweAfdeling(query)"
-                    >‘{{ query }}’ aanmaken</button>
-                    <button type="button" class="text-[var(--lk-color-text-muted)] hover:underline" @mousedown.prevent @click="aanmaakBevestig = ''">Annuleren</button>
-                  </span>
-                </div>
-              </template>
-              <span v-else>Geen afdeling gevonden.</span>
-            </template>
-          </ZoekSelect>
+          />
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="gg-aantal" class="font-semibold">Aantal gebruikers</label>

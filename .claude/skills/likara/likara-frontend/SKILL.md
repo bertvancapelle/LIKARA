@@ -606,7 +606,8 @@ Voor ZoekSelect die alleen bepaalde aarden moet tonen:
 - Backend: voeg `aard_in: list[str] | None = Query(None)` toe aan het lijstendpunt.
 - Service: filter `WHERE aard = ANY(:aard_in)` indien meegegeven.
 - api.js allowlist: `aard_in` toevoegen.
-- Voorbeeld: GebruikersgroepSectie organisatie-picker → `aard_in: ['organisatie','burger']`.
+- Voorbeeld: GebruikersgroepSectie organisatie-picker → `aard_in: ['organisatie']` (ADR-038 — de
+  `burger`-aard is verwijderd; burger-doelgroepen zijn gewone externe organisaties).
 
 ## Detail-view patroon — props.id watch (VERPLICHT, LI018)
 

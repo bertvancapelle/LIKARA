@@ -130,13 +130,13 @@ describe('GebruikersgroepSectie', () => {
     await w.find('[data-testid="gg-toevoegen"]').trigger('click')
     await flushPromises()
     // zonder organisatie → geen afdeling-picker
-    expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(false)
+    expect(w.find('[data-testid="gg-afdeling-input"]').exists()).toBe(false)
     // organisatie kiezen → afdeling-picker verschijnt (ADR-038 — geen aard-check meer)
     await w.find('[data-testid="gg-veld-organisatie-input"]').trigger('focus')
     await flushPromises()
     await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
     await flushPromises()
-    expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(true)
+    expect(w.find('[data-testid="gg-afdeling-input"]').exists()).toBe(true)
   })
 
   it('blokkeert opslaan zonder organisatie met een inline-melding (client-side)', async () => {
@@ -162,9 +162,9 @@ describe('GebruikersgroepSectie', () => {
     // afdeling kiezen (structurele verwijzing: afdeling_id)
     api.partijen.lijst.mockResolvedValue({ items: [{ id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' }], volgende_cursor: null })
     api.partijen.haal.mockResolvedValue({ id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' })
-    await w.find('[data-testid="gg-veld-afdeling-input"]').trigger('focus')
+    await w.find('[data-testid="gg-afdeling-input"]').trigger('focus')
     await flushPromises()
-    await w.find('[data-testid="gg-veld-afdeling-optie-afd-1"]').trigger('mousedown')
+    await w.find('[data-testid="gg-afdeling-optie-afd-1"]').trigger('mousedown')
     await flushPromises()
     // wissel naar een andere organisatie → afdeling reset
     api.partijen.lijst.mockResolvedValue({ items: [{ id: 'org-2', naam: 'Andere org', aard: 'organisatie' }], volgende_cursor: null })
@@ -188,9 +188,9 @@ describe('GebruikersgroepSectie', () => {
     await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
     await flushPromises()
     api.partijen.lijst.mockResolvedValue({ items: [{ id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' }], volgende_cursor: null })
-    await w.find('[data-testid="gg-veld-afdeling-input"]').trigger('focus')
+    await w.find('[data-testid="gg-afdeling-input"]').trigger('focus')
     await flushPromises()
-    await w.find('[data-testid="gg-veld-afdeling-optie-afd-1"]').trigger('mousedown')
+    await w.find('[data-testid="gg-afdeling-optie-afd-1"]').trigger('mousedown')
     await flushPromises()
     await w.find('[data-testid="gg-form"]').trigger('submit')
     await flushPromises()
@@ -209,20 +209,22 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises()
     await w.find('[data-testid="gg-veld-organisatie-optie-org-1"]').trigger('mousedown')
     await flushPromises()
-    // Afdeling-zoek levert geen match → aanmaak-regel verschijnt ín de lege zoekstaat (met de zoekterm).
+    // Afdeling-zoek levert geen match → aanmaak-actie verschijnt ín de lege zoekstaat (gedeelde
+    // AfdelingSelect: getinte omrande zijstap, geen twee-staps-waarschuwing meer).
     api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     vi.useFakeTimers()
-    await w.find('[data-testid="gg-veld-afdeling-input"]').setValue('Finance')
+    await w.find('[data-testid="gg-afdeling-input"]').setValue('Finance')
     vi.advanceTimersByTime(300)
     vi.useRealTimers()
     await flushPromises()
-    const aanmaak = w.find('[data-testid="gg-afd-aanmaak"]')
+    const aanmaak = w.find('[data-testid="gg-afdeling-aanmaak-open"]')
     expect(aanmaak.exists()).toBe(true)
-    expect(aanmaak.text()).toContain('Finance')
-    // Klik → inline bevestiging (geen apart modaal) → bevestigen → aanmaken op de zoekterm.
+    // Open het aanmaak-blok (getinte zijstap); naam voorgevuld met de zoekterm; aanmaken en kiezen.
+    await aanmaak.trigger('mousedown')
     await aanmaak.trigger('click')
-    expect(w.find('[data-testid="gg-afd-aanmaak-bevestig"]').exists()).toBe(true)
-    await w.find('[data-testid="gg-afd-aanmaak-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="gg-afdeling-naam"]').element.value).toBe('Finance')
+    await w.find('[data-testid="gg-afdeling-aanmaak-bevestig"]').trigger('click')
     await flushPromises()
     expect(api.partijen.maak).toHaveBeenCalledWith({ aard: 'organisatie_eenheid', naam: 'Finance', organisatie_id: 'org-1' })
     // Nieuwe afdeling is geselecteerd → save stuurt afdeling_id.
@@ -242,7 +244,7 @@ describe('GebruikersgroepSectie', () => {
     await flushPromises() // openBewerken → api.partijen.haal (orgAard/orgNaam)
     // Voorvulling: organisatie-naam zichtbaar (ADR-036: uit organisatie_naam), afdeling + aantal ingevuld.
     expect(w.find('[data-testid="gg-veld-organisatie-input"]').element.value).toBe('Gemeente Tiel')
-    expect(w.find('[data-testid="gg-veld-afdeling-input"]').element.value).toBe('Burgerzaken')
+    expect(w.find('[data-testid="gg-afdeling-input"]').element.value).toBe('Burgerzaken')
     expect(w.find('[data-testid="gg-veld-aantal"]').element.value).toBe('12')
     // Direct opslaan zonder wijziging → koppelingen ongemoeid (geen stille ontkoppeling).
     await w.find('[data-testid="gg-form"]').trigger('submit')
@@ -263,7 +265,7 @@ describe('GebruikersgroepSectie', () => {
     await w.find('[data-testid="gg-bewerk-g2"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-testid="gg-veld-organisatie-input"]').element.value).toBe('')
-    expect(w.find('[data-testid="gg-veld-afdeling-input"]').exists()).toBe(false)
+    expect(w.find('[data-testid="gg-afdeling-input"]').exists()).toBe(false)
     expect(w.find('[data-testid="gg-veld-aantal"]').element.value).toBe('5')
   })
 })
