@@ -263,6 +263,17 @@ soepel (debounce). Regressietest: mount met `modelValue` + `initieelWeergave` en
 Referentie: `ZoekSelect.vue` `openen()`/`zoek(term)`; tests in `ZoekSelect.test.js` +
 `GebruikersbeheerView.test.js` (beheer-afdeling-picker toont alle org-afdelingen).
 
+**5. Een picker in een voortlevende dialog krijgt een `:key`, opgehoogd bij openen (LI032).** Zit een
+voorgevulde `ZoekSelect`/`AfdelingSelect` in een beheer-/bewerk-dialog die tussen entiteiten **niet
+opnieuw mount** (dialog blijft leven, alleen de inhoud wisselt), geef 'm dan een `:key` die je in de
+open-handler ophoogt (bv. `beheerOrgKey`/`beheerAfdKey` in `openBeheer`). Zonder remount blijft het
+`gekozenLabel` van de vorige entiteit hangen — de `initieelWeergave`-watch update alleen `if
+(!gekozenLabel)`, dus het label wordt **stale**. **Symmetrisch voor org- én afdeling-picker** (de ene
+wél en de andere niet keyen is precies hoe de stale-label-bug ontstond). Onzichtbaar zolang alle
+entiteiten dezelfde waarde delen (bv. één interne organisatie), fout zodra er meer zijn. Referentie:
+`GebruikersbeheerView.vue` (`beheerOrgKey`/`beheerAfdKey`); regressie: open twee gebruikers na elkaar
+en assert dat het label meebeweegt (`GebruikersbeheerView.test.js`, geen-stale-label).
+
 ## Cytoscape.js Vue 3 integratiepatroon (DC013, niet-onderhandelbaar)
 
 Cytoscape.js in een Vue 3 flex-container vereist vier dingen voor een correcte render.
@@ -1052,8 +1063,11 @@ In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landsch
 - **`#leeg`-override op `ZoekSelect` = de dwingende plek** voor search-first aanmaken. Twee gedeelde
   bouwstenen: **`ContactpersoonSelect.vue`** (persoon van deze partij) en **`AfdelingSelect.vue`**
   (organisatie_eenheid van deze partij). Een nieuw afdelingsveld gebruikt `AfdelingSelect` (props
-  `partijId`, `modelValue`, `initieelWeergave`, `magAanmaken`, `orgNaam`, `genest`, `testid`) en erft
-  het gedrag gratis — **geen** losse her-implementatie per veld.
+  `partijId`, `modelValue`, `initieelWeergave`, `magAanmaken`, `orgNaam`, `genest`, `disabled`,
+  `testid`) en erft het gedrag gratis — **geen** losse her-implementatie per veld. **Vier gebruikers**
+  van `AfdelingSelect`: `PartijFormulier`, `ContactpersoonSelect`, `GebruikersbeheerView` (aanmaak- én
+  beheer-paneel) en `GebruikersgroepSectie`. Er bestaat **geen** tweede afdeling-inline-aanmaak-
+  implementatie; een nieuw afdelingsveld hangt aan deze bouwsteen.
 - **Aanmaken via een bestaand endpoint, geen schemawerk.** Afdeling: `api.partijen.maak({aard:
   'organisatie_eenheid', naam:<zoekterm>, organisatie_id:<deze partij>})`. Persoon: idem met
   `aard:'persoon'`. Na aanmaak: `naAanmaakNaam` + remount-`:key` + `emit('update:modelValue', id)` →
@@ -1070,7 +1084,7 @@ In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landsch
   'beheerder')`); de backend handhaaft. Borging: `AfdelingSelect.test.js` (search-first, endpoint-args,
   soepel-zoeken-vóór-dubbel, voorvulling, genest-tint + geen laag 3) + nesting-test in
   `ContactpersoonSelect.test.js` (blok-in-blok, twee niveaus).
-- **Niet elk keuzeveld hoort dit te krijgen** — zie de UX-norm (open-ended vs. formele opvoer). Bekend
-  gat (LI032): `GebruikersbeheerView`'s afdeling-picker is **ongescoped** (geen organisatie in de form)
-  → ter-plekke-aanmaken vergt daar eerst een organisatie-context; bewust buiten de eerste toepassing
-  gehouden (aparte beslissing).
+- **Niet elk keuzeveld hoort dit te krijgen** — zie de UX-norm (open-ended vs. formele opvoer).
+  `GebruikersbeheerView` heeft inmiddels een **organisatie-picker (intern-only)** die de afdeling
+  scoopt (aanmaak én beheer); de afdeling-picker is daar dus **wél** gescoped + ter-plekke-aanmaakbaar
+  (het eerdere "ongescoped"-gat is gedicht — zie de organisatie→afdeling-keuzeopzet in likara-ux).

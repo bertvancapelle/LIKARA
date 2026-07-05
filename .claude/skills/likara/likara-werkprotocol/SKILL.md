@@ -68,6 +68,29 @@ Correctie: terug naar de gebruikersvraag. Altijd.
 
 ---
 
+## Browsercheck vóór commit — niet-optioneel bij UX-/picker-/auth-slices (LI032)
+
+Een **groene testrun betrapt geen kapotte UX**: mocks verbergen een verkeerde picker-bron, een
+lege/onleesbare picker, voorvul-verdringing, een stale label, en een onnodige/foutgevoelige
+account-aanroep. Bewezen deze sessie — drie keer bleef de suite groen terwijl het scherm in de
+browser stuk was. Daarom: bij elke slice die **UX, keuzevelden (pickers), of auth/provisioning**
+raakt, verifieert **Bert de betrokken schermen in de echte browser vóór `AKKOORD: commit`**. Het
+gate-rapport levert daarvoor een **browsercheck-draaiboek** (per stap: handeling → verwacht
+resultaat). Groene tests ≠ commit-toestemming.
+
+## Geen schuld laten ontstaan (LI032)
+
+- Een bekende (rand)bug wordt **óf in de slice dichtgetimmerd, óf expliciet als eigen benoemd
+  vervolgpunt** vastgelegd (OPVOLGPUNTEN.md) — **nooit stil geparkeerd**. Een half-gedichte bug die
+  groen-maar-kapot blijft, komt gegarandeerd bij de volgende klik terug.
+- Een **tweede implementatie van iets bestaands wordt naar de gedeelde bouwsteen geconvergeerd**,
+  niet ernaast laten bestaan (bv. afdeling-inline-aanmaak → één `AfdelingSelect`).
+- **Reparatie mag bovenop een ongecommitte gate-staat** verder bouwen, met de **laatste schone
+  commit als expliciete terugval**; terugdraaien alleen als de gerichte fix niet lukt (niet als
+  eerste reflex).
+
+---
+
 ## CC-autonomiescope
 
 - CC draait autonoom tot eindrapport **uitsluitend binnen de LIKARA projectroot**.

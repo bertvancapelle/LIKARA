@@ -311,10 +311,40 @@ Meerdere partijen per rol op hetzelfde object = meerdere losse rijen.
 Niets geforceerd (geen "één eigenaar per object").
 
 ### Contactvelden op partij (DC013, migratie 0033)
-- `email` (255), `telefoon` (40), `mobiel` (40), `contactpersoon` (255):
-  platform-breed, gedeeld over alle aarden.
+- `email` (255), `telefoon` (40), `mobiel` (40): platform-breed, gedeeld over alle aarden.
 - `functietitel` (150): NIEUW, nullable — uitsluitend voor aard=persoon.
   Service dwingt af: andere aarden → 422 FUNCTIETITEL_ALLEEN_PERSOON.
+- Het vrije-tekstveld `contactpersoon` (255) is **vervallen** — vervangen door de FK
+  `contactpersoon_id` (ADR-039, migratie 0054; zie hieronder).
+
+### Contactpersoon = verwijzing naar een persoon (ADR-039, migratie 0054)
+- `partij.contactpersoon_id` = optionele composiet-FK `(tenant_id, contactpersoon_id) → element`,
+  **ON DELETE SET NULL** (kolom-specifiek, PostgreSQL 15+; een kale SET NULL zou de gedeelde
+  `tenant_id` mee-nullen). Vervangt het oude vrije-tekstveld: het aanspreekpunt is nu een echte
+  verwijzing, geen losse string die stil kan gaan afwijken.
+- **Leeft alleen op aard ∈ {organisatie, externe_partij}** (`_ORGANISATIE_ACHTIG`,
+  `partij_service.py:26`). Andere aarden met een `contactpersoon_id` → 422
+  (`_valideer_contactpersoon_aard`, ADR-039-aard-restrictie).
+- **De persoon moet bij déze partij horen**: `persoon.aard = persoon` én
+  `persoon.organisatie_id == deze partij` (`_valideer_contactpersoon`, `partij_service.py:143`);
+  anders 422. Het aanspreekpunt wordt in de **bewerk**-flow gezet (bij Create levert
+  `contactpersoon_id` terecht 422 — de persoon bestaat dan nog niet).
+- Read-verrijking `contactpersoon_naam` op de lijst-/detail-items (`_verrijk_context`,
+  `partij_service.py:212`). Een `externe_partij` **kán** personen dragen (organisatie-achtig).
+
+### Gebruiker (persoon-partij): organisatie via afdeling + in-place wijzigen (LI032)
+- **Een gebruiker hoort altijd bij een organisatie.** Bij aanmaken/wijzigen draagt de
+  persoon-partij altijd een organisatie; die wordt **afgeleid uit de verplichte afdeling**
+  (`maak_persoon_flush` / `werk_bij` → `_valideer_lidmaatschap`: afdeling = organisatie_eenheid
+  binnen die organisatie). Org + afdeling worden **samen gezet en tegen elkaar gevalideerd**;
+  tegenstrijdig → 422 (`ONGELDIGE_AFDELING`).
+- **Aanspreekpunt-blokkade bij organisatiewissel.** Verplaats je een persoon naar een **andere**
+  organisatie terwijl die persoon nog `contactpersoon_id` is van een partij die hij achterlaat →
+  **weigeren** met 409 `AANSPREEKPUNT_BLOKKEERT_VERPLAATSING` (mét partijnaam;
+  `gebruiker_service.py:285`), géén stille opschoning. Anders zou een registratie stil gaan liegen.
+- **Wijzigen is in-place; "opheffen-en-opnieuw-aanmaken" als wijzigmechanisme is afgewezen** — dat
+  breekt rollen / gebruikersgroep-lidmaatschap / aanspreekpunt / audit-continuïteit (die hangen aan
+  de stabiele persoon-id). "Gebruiker opheffen" blijft een aparte, expliciete handeling.
 
 ### Contract → leverancier (huidig na DC013)
 - FK-target: `(tenant_id, leverancier_id) → element(tenant_id, id)`, ON DELETE RESTRICT.

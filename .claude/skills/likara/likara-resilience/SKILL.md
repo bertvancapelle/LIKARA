@@ -77,6 +77,27 @@ depends_on:
 Elke service heeft een `healthcheck`; de API start pas als alle
 afhankelijkheden healthy zijn.
 
+## Centrale verlopen-sessie-vangrail (client-side, LI032)
+
+Eén centraal afhandelpunt in `frontend/src/api.js` vangt een verlopen sessie af, i.p.v. per
+aanroeper losse 401-afhandeling (die lekt of vergeet). Kernregels:
+- **Afhandelen pas op het bewezen-gefaalde-refresh-punt.** `request()` doet een **single-flight**
+  token-refresh + één retry; pas als díé faalt, roept `api.js` de centrale vangrail
+  (`_meldSessieVerlopen`) aan → **nooit** terwijl de sessie nog te redden is. Zo geen valse
+  "sessie verlopen" bij een herstelbare 401.
+- **Framework-loze bedrading.** De vangrail wordt bedraad via **callback-registratie**
+  (`registreerSessieVerlopenHandler`) — géén harde `router`/`store`-import in `api.js`. Dat behoudt
+  de offline testbaarheid van de api-laag (geen Vue/router-context nodig in de test). De concrete
+  handler (`src/sessieVangrail.js` → `sessieVerlopenHandler(router, auth)`) wist de sessie en doet
+  `router.push` naar `login?sessie_verlopen=1&next=<pad>` (behoud van de bestemming).
+- **Dekt alle oppervlakken die via `request()` lopen** — één keer goed i.p.v. per component.
+  **Nooit een rauwe `NIET_GEAUTHENTICEERD` in beeld**: catch-blokken tonen op 401 niets (de vangrail
+  redirect), overige fouten een generieke tekst. Het navigatie-pad probeert eerst **stil te
+  vernieuwen** vóór het naar login stuurt.
+- Borging: `api.test.js` (handler één keer / niet bij succes), `sessieVangrail.test.js` (redirect +
+  next), `authSession.test.js` (refresh-vóór-opgeven). Volledige technische uitwerking: likara-frontend
+  §Centrale verlopen-sessie-vangrail.
+
 ## Afwezig in V001 — toekomstige resilience-patronen
 
 | Patroon | Status |

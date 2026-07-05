@@ -353,3 +353,17 @@ wordt meteen gekozen.
   gedeelde `AfdelingSelect`-bouwsteen (spiegel van `ContactpersoonSelect` voor persoon); een nieuw
   afdelingsveld erft het gratis. Historie: vóór LI032 bood alleen `GebruikersgroepSectie` het aan,
   terwijl `PartijFormulier`/`ContactpersoonSelect` doodliepen — inconsistent voor identiek doel.
+
+## Organisatie → afdeling-keuzeopzet (LI032, norm)
+
+Overal waar een gebruiker/lid bij een **organisatie + afdeling** hoort (gebruiker aanmaken én
+bewerken; gebruikersgroep), is de opzet **identiek**:
+- **Organisatie eerst**, verplicht, **alleen interne organisaties** (de picker spiegelt
+  `aard='organisatie', scope='intern'` — een gebruiker is een account van de eigen organisatie).
+- **Afdeling daaronder**, **gescoped op de gekozen organisatie** (`organisatie_eenheid` binnen die
+  organisatie), en **uitgeschakeld-met-hint** ("Kies eerst een organisatie") zolang er geen
+  organisatie is — nooit een actief-maar-leeg afdelingsveld.
+- **Org-wissel reset de afdeling** (de oude keuze is niet meer geldig) en remount de afdeling-picker.
+- **Aanmaken en bewerken gedragen zich gelijk** — dezelfde volgorde, scoping en reset; een
+  bewerk-scherm is geen uitzondering. Bij bewerken zijn org + afdeling **voorgevuld** op de huidige
+  waarden (zie de voorgevuld-openen-regel in de picker-patronen).

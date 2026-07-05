@@ -7,6 +7,25 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V033 (sluitprotocol LI032 — gebruiker-cluster, 2026-07-05)
+
+Build **V032 → V033**. Geland: contactpersoon uit register (ADR-039, migratie 0054), centrale
+sessie-vangrail, ter-plekke-aanmaken afdeling (gedeelde `AfdelingSelect`, 4 plekken), gebruiker
+aanmaken + bewerken (organisatie intern-only + gescoopte afdeling), account-/picker-reparaties
+(conditionele Keycloak-aanroep, PUT zonder username, 2e interne testorganisatie, stale-label-`:key`,
+param-filterende picker-integratie-testhelper), en 18 LI032-skillpatronen. Tests: backend 866+80,
+frontend 825; migratie-head 0054.
+
+**Nieuw geparkeerd deze sluiting:**
+- **Provisioning username==email-aannames.** De update-PUT stuurt geen `username` meer (opgelost in
+  `ca8c999`); controleer of elders in de provisioning-flow nog impliciete `username==email`-aannames
+  zitten. Laag, auth.
+- **404 op een verdwenen bewerk-/detailitem** vriendelijker tonen — inline "bestaat niet (meer)"
+  i.p.v. een toast op een leeg formulier. Laag, UX (kwam op bij de reseed-stale-id-casus).
+- **`LandschapskaartView.test.js` / `LandschapskaartPopups` parallel-flake** (cytoscape
+  unhandled-rejections bij teardown) — geen falende test; mee te nemen bij de impact-verkenner-
+  render-herbouw.
+
 ### Auth-cluster (LI032 — na de verlopen-sessie-vangrail)
 
 - **#5c — echte end-to-end auth-keten-test (eerste vervolg binnen het auth-cluster).** De 401→refresh→
