@@ -28,3 +28,17 @@ class OrganisatiegebruikRead(BaseModel):
     heeft_verfijning: bool = False
     created_at: datetime
     updated_at: datetime
+
+
+class OrganisatieComponentRead(BaseModel):
+    """De applicaties die één organisatie gebruikt (grove feit → applicatie-component). Gedeelde
+    rij-vorm met de gebruiker-context-componenten (`ContextComponentRead`) + de Landschapskaart-
+    subgraaf, aangevuld met `verfijnd`: hangt er een afdeling/gebruikersgroep onder dit grove feit
+    (False = grof-only, "nog niet verfijnd"). Read-only afgeleid."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    component_id: uuid.UUID
+    component_naam: str
+    componenttype: str
+    verfijnd: bool = False

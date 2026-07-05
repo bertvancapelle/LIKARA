@@ -16,6 +16,7 @@ import { api } from '@/api'
 import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, PARTIJ_AARD, PARTIJ_SCOPE, REGISTER_FOUT, label } from '../labels'
 import PartijRollenSectie from './PartijRollenSectie.vue'
 import ObjectHistoriePaneel from './ObjectHistoriePaneel.vue'
+import GebruikteApplicatiesSectie from './GebruikteApplicatiesSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -89,6 +90,11 @@ async function laadLeverancierComponenten() {
 const isOrganisatieAchtig = computed(() => ['organisatie', 'externe_partij'].includes(partij.value?.aard))
 const isAfdeling = computed(() => partij.value?.aard === 'organisatie_eenheid')
 const isPersoon = computed(() => partij.value?.aard === 'persoon')
+// LI033 — "Gebruikte applicaties" leeft op de organisatie (grove feit) én de afdeling (afgeleid uit
+// de groepen). NIET op een externe partij (die is geen applicatie-gebruikende eigen organisatie) of
+// een persoon.
+const isZuivereOrganisatie = computed(() => partij.value?.aard === 'organisatie')
+const toonGebruikteApplicaties = computed(() => isZuivereOrganisatie.value || isAfdeling.value)
 const heeftLeden = computed(() => isOrganisatieAchtig.value || isAfdeling.value)
 const ouderOrgNaam = ref(null)
 const ouderAfdelingNaam = ref(null)
@@ -333,6 +339,16 @@ const RIJEN = [
       <!-- ADR-024 slice 2b — rollen die deze partij vervult op objecten (alleen-lezen) -->
       <div class="mt-[var(--lk-space-lg)]">
         <PartijRollenSectie :key="props.id" :partij-id="props.id" />
+      </div>
+
+      <!-- LI033 — gebruikte applicaties (organisatie = grove feit incl. grof-only; afdeling = afgeleid). -->
+      <div v-if="toonGebruikteApplicaties" class="mt-[var(--lk-space-lg)]">
+        <GebruikteApplicatiesSectie
+          :key="props.id"
+          :niveau="isAfdeling ? 'afdeling' : 'organisatie'"
+          :organisatie-id="isAfdeling ? partij.organisatie_id : partij.id"
+          :afdeling-id="isAfdeling ? partij.id : null"
+        />
       </div>
 
       <!-- Contracten (tegenpartij-koppeling) — alleen voor een externe partij -->

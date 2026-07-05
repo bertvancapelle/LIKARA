@@ -32,8 +32,12 @@ vi.mock('@/api', () => ({
   },
 }))
 
+// LI033 — de blok→kaart handoff (default: niets klaar → null; specifieke test overschrijft).
+vi.mock('@/composables/kaartHandoff', () => ({ neemKaartHandoff: vi.fn(() => null) }))
+
 import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
+import { neemKaartHandoff } from '@/composables/kaartHandoff'
 import LandschapskaartView from '@modules/bwb_ontvlechting/frontend/views/LandschapskaartView.vue'
 import KaartBeginscherm from '@modules/bwb_ontvlechting/frontend/views/KaartBeginscherm.vue'
 
@@ -2210,6 +2214,35 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm._filterMatch(app(null))).toBe(false) // geen waarde → valt weg bij drempel
       // context-node zonder BIV blijft exempt (geen componentrol)
       expect(w.vm._filterMatch({ element_type: 'partij', soort: 'organisatie' })).toBe(true)
+    })
+  })
+
+  // LI033 — grof-only markering (client-side) + blok→kaart handoff.
+  describe('LI033 — grof-only + handoff', () => {
+    it('voegComponentenToeAanSet markeert alléén componenten met grofOnly:true', async () => {
+      const { w } = await mountView({ heleLandschap: false })
+      w.vm.voegComponentenToeAanSet([{ id: 'a1', grofOnly: true }, { id: 'a2' }])
+      await flushPromises()
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+      expect([...w.vm.grofOnlyIds]).toEqual(['a1'])
+    })
+
+    it('wisSet leegt óók de grof-only-markering', async () => {
+      const { w } = await mountView({ heleLandschap: false })
+      w.vm.voegComponentenToeAanSet([{ id: 'a1', grofOnly: true }])
+      await flushPromises()
+      expect([...w.vm.grofOnlyIds]).toEqual(['a1'])
+      w.vm.wisSet()
+      await flushPromises()
+      expect([...w.vm.grofOnlyIds]).toEqual([])
+    })
+
+    it('handoff bij mount → opent exact die set + draagt de grof-only-markering', async () => {
+      neemKaartHandoff.mockReturnValueOnce({ componentIds: ['a1', 'a2'], grofOnlyIds: ['a2'] })
+      const { w } = await mountView({ heleLandschap: false })
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+      expect([...w.vm.grofOnlyIds]).toEqual(['a2'])
+      expect(w.vm.beginschermOpen).toBe(false)
     })
   })
 })

@@ -184,3 +184,41 @@ async def lijst_voor_applicatie(session: AsyncSession, tenant_id, applicatie_id)
         }
         for r in rijen
     ]
+
+
+async def lijst_voor_organisatie(session: AsyncSession, tenant_id, organisatie_id) -> list[dict]:
+    """De applicaties die één organisatie gebruikt: het grove feit gefilterd op `organisatie_id`,
+    gejoined met de applicatie-component voor naam + type, plus `verfijnd` = of er minstens één
+    gebruikersgroep (afdeling-verfijning) ónder dit feit hangt (False = grof-only, "nog niet
+    verfijnd"). Inclusief grof-only feiten (organisatie zónder afdeling/groep). Elke applicatie
+    precies één keer (UNIQUE(tenant, org, app)). Levert de **gedeelde rij-vorm**
+    (`component_id`/`component_naam`/`componenttype`/`verfijnd`) die zowel het "Gebruikte
+    applicaties"-blok als de Landschapskaart-subgraaf voedt. Begrensde afgeleide lijst (bewust geen
+    keyset — het aantal applicaties per organisatie is klein/begrensd, consistent met de zuster-
+    context-endpoints). Read-only."""
+    tid = _tenant_uuid(tenant_id)
+    verfijnd = exists(
+        select(Gebruikersgroep.id).where(
+            Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id == Organisatiegebruik.id
+        )
+    ).label("verfijnd")
+    rijen = (
+        await session.execute(
+            select(
+                Organisatiegebruik.applicatie_id.label("component_id"),
+                Component.naam.label("component_naam"),
+                Component.componenttype.label("componenttype"),
+                verfijnd,
+            )
+            .join(Component, and_(Component.id == Organisatiegebruik.applicatie_id, Component.tenant_id == tid))
+            .where(Organisatiegebruik.tenant_id == tid, Organisatiegebruik.organisatie_id == organisatie_id)
+            .order_by(Component.naam.asc(), Organisatiegebruik.applicatie_id.asc())
+        )
+    ).all()
+    return [
+        {
+            "component_id": r.component_id, "component_naam": r.component_naam,
+            "componenttype": r.componenttype, "verfijnd": bool(r.verfijnd),
+        }
+        for r in rijen
+    ]

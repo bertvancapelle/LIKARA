@@ -14,6 +14,7 @@ import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
+import { neemKaartHandoff } from '@/composables/kaartHandoff'
 import { humaniseer } from '../labels'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 import KaartBeginscherm from './KaartBeginscherm.vue'
@@ -99,6 +100,11 @@ const filterLifecycle = ref([]) // LI019 1b-v2 — lifecycle-multiselect (status
 // Standaard staan alle ringen aan, behalve de context-ringen in RING_DEFAULT_UIT (Organisatiestructuur).
 const ringAan = ref(new Set(RINGEN.filter((r) => !RING_DEFAULT_UIT.has(r))))
 const actieveSet = ref(new Set())
+// LI033 — component-ids die "grof-only" zijn (organisatie gebruikt de applicatie, nog géén afdeling/
+// groep als verfijning). Puur client-side afgeleid uit de org-ingang / het blok-handoff; voedt een
+// rustige node-markering ("nog niet verfijnd") zónder node-attribuut of engine-raakvlak. Leeg = geen
+// markering.
+const grofOnlyIds = ref(new Set())
 // ADR-033 — de weergavemodus is AFGELEID uit de actieve set (geen handmatige view-tabs meer):
 // lege set → Geheel model; 1 component → Ego-view; ≥2 componenten → Impact-verkenner.
 const modus = computed(() => {
@@ -596,8 +602,16 @@ function voegAlleGefilterdeToe() {
 // duplicaten); de set-watch haalt vervolgens de subgraaf van de bijgewerkte set op.
 function voegComponentenToeAanSet(componenten) {
   const s = new Set(actieveSet.value)
-  for (const c of componenten || []) if (c?.id) s.add(c.id)
+  const g = new Set(grofOnlyIds.value)
+  for (const c of componenten || []) {
+    if (!c?.id) continue
+    s.add(c.id)
+    // LI033 — de org-ingang markeert grof-only componenten (verfijnd === false) mee; andere ingangen
+    // dragen de vlag niet (blijven ongemarkeerd).
+    if (c.grofOnly === true) g.add(c.id)
+  }
   actieveSet.value = s
+  grofOnlyIds.value = g
   heleLandschap.value = false
 }
 // Slice 5 (LI023) — directe COMPONENT-buren van een node, afgeleid uit de al-geladen graaf.
@@ -636,6 +650,7 @@ const focusOpSet = ref(false)
 // herfetch-watch leegt vervolgens de graaf (beginscherm-tak) → terug naar het lege beginscherm.
 function wisSet() {
   actieveSet.value = new Set()
+  grofOnlyIds.value = new Set() // LI033 — verse start → grof-only-markering weg
   heleLandschap.value = false
   beginschermOpen.value = true // "Begin opnieuw"/"Wis alles" = volledige reset → terug naar het beginscherm
   beginschermSleutel.value += 1 // LI052 — forceer een verse picker (buffer/vinkjes/zoekresultaten leeg)
@@ -648,6 +663,7 @@ function wisSet() {
 function toonHeleLandschap() {
   toonStartscherm.value = false
   actieveSet.value = new Set()
+  grofOnlyIds.value = new Set() // LI033 — het hele landschap heeft geen org-gescoopte grof-only-context
   heleLandschap.value = true
   beginschermOpen.value = false // hele landschap = bewuste ingang → sluit het beginscherm
 }
@@ -1561,6 +1577,9 @@ function _nodeData(n) {
     // ADR-028 — randbehandeling: alléén externe dataproviders krijgen een afwijkende (gestippelde)
     // rand (CY-selector node[rol="externe_dataprovider"]). Andere rollen dragen géén randsignaal.
     rol: n.componentrol === 'externe_dataprovider' ? 'externe_dataprovider' : null,
+    // LI033 — grof-only ("nog niet verfijnd"): rustige node-markering (gestippelde rand). Alleen
+    // aanwezig als de node in de grof-only-set zit (undefined → CY-selector `node[?grofOnly]` matcht niet).
+    grofOnly: grofOnlyIds.value.has(n.id) ? true : undefined,
   }
 }
 function _edgeData(e, i) {
@@ -1830,6 +1849,10 @@ const CY_STYLE = [
   // vorm blijft = type, vulkleur blijft = lifecycle; de rand-KLEUR blijft data(border). Selectie/
   // highlight-regels hieronder winnen (staan later en zetten border-style terug op solid).
   { selector: 'node[rol="externe_dataprovider"]', style: { 'border-style': 'dashed', 'border-width': 3 } },
+  // LI033 — grof-only ("nog niet verfijnd"): rustige, gestippelde rand. Géén nieuwe vulkleur; de
+  // rand-KLEUR blijft data(border) (lifecycle). Onderscheidbaar van de gestreepte externe-dataprovider;
+  // selectie/highlight-regels hieronder winnen (staan later en zetten border-style terug op solid).
+  { selector: 'node[?grofOnly]', style: { 'border-style': 'dotted', 'border-width': 3 } },
   {
     selector: 'edge',
     style: {
@@ -1914,8 +1937,15 @@ onMounted(async () => {
   // ADR-033 — deep-link ?center=<applicatie-id> (vanuit het applicatie-detail): de component
   // wordt als enige in de actieve set gezet → Ego-view (afgeleide modus), centraal op de kaart.
   // De oude ?modus-param is vervallen (de modus volgt voortaan de actieve set) en wordt genegeerd.
+  // LI033 — handoff vanuit het "Gebruikte applicaties"-blok (consume-once): open exact díé set +
+  // draag de grof-only-markering mee. Heeft voorrang op deep-link én bewaarde state.
+  const _handoff = neemKaartHandoff()
   const qCenter = route.query?.center ? String(route.query.center) : null
-  if (qCenter) {
+  if (_handoff && Array.isArray(_handoff.componentIds) && _handoff.componentIds.length) {
+    actieveSet.value = new Set(_handoff.componentIds)
+    grofOnlyIds.value = new Set(_handoff.grofOnlyIds || [])
+    beginschermOpen.value = false
+  } else if (qCenter) {
     // Expliciete deep-link heeft voorrang op bewaarde state.
     actieveSet.value = new Set([qCenter])
     egoStartId.value = qCenter
@@ -1984,7 +2014,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 

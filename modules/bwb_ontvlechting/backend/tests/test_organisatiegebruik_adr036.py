@@ -597,6 +597,79 @@ def test_creatie_afdeling_met_org_borgt_grof_feit_live():
     assert asyncio.run(_run_rls(_flow)) is True
 
 
+# ── LI033 — org-bron "gebruikte applicaties" (grove feit → applicatie, met verfijnd-vlag) ──
+def test_lijst_voor_organisatie_is_read_only():
+    """LI033 engine-/read-borging (offline) — de nieuwe org-bron is puur lezend: de functie-bron
+    bevat geen schrijf-operaties. Function-scan met ast-docstring-strip (LI022-patroon) zodat de
+    toelichting geen valse treffer geeft."""
+    import ast
+    import inspect
+
+    from services import organisatiegebruik_service as svc
+
+    boom = ast.parse(inspect.getsource(svc.lijst_voor_organisatie))
+    fn = boom.body[0]
+    if (fn.body and isinstance(fn.body[0], ast.Expr)
+            and isinstance(getattr(fn.body[0], "value", None), ast.Constant)
+            and isinstance(fn.body[0].value.value, str)):
+        fn.body = fn.body[1:]  # docstring strippen
+    schoon = ast.unparse(fn)
+    for verboden in (".add(", ".commit(", ".flush(", ".delete("):
+        assert verboden not in schoon, f"lijst_voor_organisatie doet onverwacht {verboden}"
+
+
+@integratie
+def test_lijst_voor_organisatie_live():
+    """LI033 — welke applicaties gebruikt één organisatie: het grove feit gefilterd op de organisatie,
+    mét component-naam/type + de `verfijnd`-vlag (grof-only = False). Filtert op de organisatie (apps
+    van een andere org vallen weg); elke applicatie precies één keer; grof-only verschijnt óók."""
+    from sqlalchemy import text as _text
+
+    from schemas.gebruikersgroep import GebruikersgroepCreate
+    from schemas.organisatiegebruik import OrganisatiegebruikCreate
+    from services import gebruikersgroep_service as gg
+    from services import organisatiegebruik_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            org_id = await _maak_org(s, tid, "WT-LVO-Org")
+            ander_org = await _maak_org(s, tid, "WT-LVO-AnderOrg")
+            app_a = await _maak_app(s, tid, "WT-LVO-AppA")   # grof-only
+            app_b = await _maak_app(s, tid, "WT-LVO-AppB")   # verfijnd (afdeling-groep)
+            app_c = await _maak_app(s, tid, "WT-LVO-AppC")   # van de andere organisatie
+            afd = await _maak_afdeling(s, tid, "WT-LVO-Afd", org_id)
+            await s.commit(); ids += [org_id, ander_org, app_a, app_b, app_c, afd]
+
+            # app_a: grof-only feit (geen groep). app_b: grof feit + afdeling-groep → verfijnd.
+            await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=app_a))
+            g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
+                applicatie_id=app_b, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=15))
+            ids.append(g["id"])
+            # app_c hangt aan de ándere organisatie → mag NIET in de org-lijst verschijnen.
+            await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=ander_org, applicatie_id=app_c))
+            await s.commit()
+
+            rijen = await svc.lijst_voor_organisatie(s, tid, org_id)
+            # Precies app_a + app_b, op naam gesorteerd; app_c (andere org) valt weg.
+            assert [r["component_id"] for r in rijen] == [app_a, app_b]
+            per_id = {r["component_id"]: r for r in rijen}
+            assert per_id[app_a]["component_naam"] == "WT-LVO-AppA"
+            assert per_id[app_a]["componenttype"] == "applicatie"
+            assert per_id[app_a]["verfijnd"] is False   # grof-only
+            assert per_id[app_b]["verfijnd"] is True     # afdeling-groep eronder
+            assert app_c not in per_id
+            return True
+        finally:
+            for eid in reversed(ids):
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run_rls(_flow)) is True
+
+
 # ── ADR-036a — afdeling structureel ──────────────────────────────────────────────
 def test_gebruikersgroep_service_geen_engine_symbolen():
     """ADR-036a engine-borging (offline) — de gewijzigde gebruikersgroep-service noemt geen

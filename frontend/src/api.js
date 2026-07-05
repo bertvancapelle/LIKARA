@@ -191,6 +191,15 @@ export const api = {
       ),
   },
 
+  // ADR-036 grof gebruiksfeit — "organisatie gebruikt applicatie". LI033: `lijstVoorOrganisatie`
+  // levert de applicaties die één organisatie gebruikt (grove feit + component-naam + `verfijnd`-vlag,
+  // grof-only incluis) in de gedeelde rij-vorm — één bron voor het "Gebruikte applicaties"-blok én de
+  // Landschapskaart-subgraaf.
+  organisatiegebruik: {
+    lijstVoorOrganisatie: (params = {}) =>
+      request(`/organisatiegebruik${_filterQuery('organisatiegebruik.lijstVoorOrganisatie', params, ['organisatie_id'])}`),
+  },
+
   // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.
   // Het contract-domein hergebruikt deze client voor de leverancier-picker (aard externe_partij).
   partijen: {

@@ -75,6 +75,12 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('biv_beschikbaarheid_min=midden')
     expect(laatsteUrl).toContain('biv_vertrouwelijkheid_min=hoog')
   })
+
+  it('LI033: organisatiegebruik.lijstVoorOrganisatie zet organisatie_id in de URL', async () => {
+    await api.organisatiegebruik.lijstVoorOrganisatie({ organisatie_id: 'org-1' })
+    expect(laatsteUrl).toContain('/organisatiegebruik')
+    expect(laatsteUrl).toContain('organisatie_id=org-1')
+  })
 })
 
 describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', () => {
@@ -92,5 +98,11 @@ describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', ()
 
   it('ADR-028: een BIV-typo (biv_vertrouwelijkheid zonder _min) gooit LUID', () => {
     expect(() => api.componenten.lijst({ biv_vertrouwelijkheid: 'hoog' })).toThrow(/onbekende filter-parameter 'biv_vertrouwelijkheid'/)
+  })
+
+  it('LI033: organisatiegebruik.lijstVoorOrganisatie met camelCase organisatieId gooit LUID', () => {
+    expect(() => api.organisatiegebruik.lijstVoorOrganisatie({ organisatieId: 'x' })).toThrow(
+      /onbekende filter-parameter 'organisatieId' voor organisatiegebruik\.lijstVoorOrganisatie/,
+    )
   })
 })

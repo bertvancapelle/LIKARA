@@ -9,6 +9,8 @@ vi.mock('@/api', () => ({
     partijen: { lijst: vi.fn(), componentenViaContract: vi.fn() },
     contracten: { lijst: vi.fn(), componenten: vi.fn() },
     gebruikersgroepen: { contexten: vi.fn(), contextComponenten: vi.fn() },
+    // LI033 — inzoom-flow: de org-bron (grove feit, grof-only incluis).
+    organisatiegebruik: { lijstVoorOrganisatie: vi.fn() },
   },
 }))
 
@@ -41,6 +43,11 @@ beforeEach(() => {
   ])
   api.gebruikersgroepen.contextComponenten.mockResolvedValue([
     { component_id: 'c4', component_naam: 'Burgerportaal', componenttype: 'applicatie' },
+  ])
+  // LI033 — org-bron: BRP grof-only (verfijnd:false), Zaaksysteem verfijnd (true).
+  api.organisatiegebruik.lijstVoorOrganisatie.mockResolvedValue([
+    { component_id: 'c5', component_naam: 'BRP', componenttype: 'applicatie', verfijnd: false },
+    { component_id: 'c6', component_naam: 'Zaaksysteem', componenttype: 'applicatie', verfijnd: true },
   ])
 })
 afterEach(() => vi.restoreAllMocks())
@@ -102,12 +109,33 @@ describe('KaartBeginscherm', () => {
     expect(w.emitted('voegComponentenToe')[0][0]).toEqual([{ id: 'c3', naam: 'DMS', componenttype: 'applicatie' }])
   })
 
-  it('gebruikerscontext selecteren → contextComponenten met (organisatie_id, afdeling_id) → voegComponentenToe', async () => {
+  it('LI033: organisatie kiezen → lijstVoorOrganisatie → voegComponentenToe met de grofOnly-vlag', async () => {
     const w = mountKB()
-    await zs(w, 'kb-context').vm.$emit('keuze', { organisatie_id: 'o1', afdeling_id: 'a1', afdeling: 'Burgerzaken', _key: 'o1|a1' })
+    // De afdeling-picker is nog niet zichtbaar zolang er geen organisatie gekozen is.
+    expect(zs(w, 'kb-afdeling')).toBeUndefined()
+    await zs(w, 'kb-organisatie').vm.$emit('keuze', { id: 'o1', naam: 'Tiel' })
+    await flushPromises()
+    expect(api.organisatiegebruik.lijstVoorOrganisatie).toHaveBeenCalledWith({ organisatie_id: 'o1' })
+    // Grof-only (verfijnd:false) → grofOnly:true; verfijnd → grofOnly:false.
+    expect(w.emitted('voegComponentenToe')[0][0]).toEqual([
+      { id: 'c5', naam: 'BRP', componenttype: 'applicatie', grofOnly: true },
+      { id: 'c6', naam: 'Zaaksysteem', componenttype: 'applicatie', grofOnly: false },
+    ])
+  })
+
+  it('LI033: afdeling-picker verschijnt ná org-keuze en verfijnt via contextComponenten (geen grofOnly)', async () => {
+    const w = mountKB()
+    await zs(w, 'kb-organisatie').vm.$emit('keuze', { id: 'o1', naam: 'Tiel' })
+    await flushPromises()
+    const afd = zs(w, 'kb-afdeling')
+    expect(afd).toBeTruthy()
+    await afd.vm.$emit('keuze', { id: 'a1', naam: 'Burgerzaken' })
     await flushPromises()
     expect(api.gebruikersgroepen.contextComponenten).toHaveBeenCalledWith({ organisatie_id: 'o1', afdeling_id: 'a1' })
-    expect(w.emitted('voegComponentenToe')[0][0]).toEqual([{ id: 'c4', naam: 'Burgerportaal', componenttype: 'applicatie' }])
+    // Afdeling-emit draagt geen grofOnly (de afdeling ís de verfijning).
+    expect(w.emitted('voegComponentenToe').at(-1)[0]).toEqual([
+      { id: 'c4', naam: 'Burgerportaal', componenttype: 'applicatie' },
+    ])
   })
 
   it('"toon het hele landschap" → toonHeleLandschap-event', async () => {
