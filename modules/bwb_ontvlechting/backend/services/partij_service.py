@@ -218,6 +218,7 @@ async def lijst(
     *,
     aard: PartijAard | None = None,
     aard_in: list[PartijAard] | None = None,
+    scope: PartijScope | None = None,
     organisatie_id=None,
     afdeling_id=None,
     limit: int = _STANDAARD_LIMIT,
@@ -243,6 +244,10 @@ async def lijst(
         stmt = stmt.where(Partij.aard == aard)
     if aard_in:
         stmt = stmt.where(Partij.aard.in_(aard_in))
+    # ADR-038 — intern/extern-filter (bv. de gebruiker-organisatie-picker = alleen interne
+    # organisaties). Guarded: alleen toevoegen als er een scope is (default-pad byte-identiek).
+    if scope is not None:
+        stmt = stmt.where(Partij.scope == scope)
     if organisatie_id is not None:
         stmt = stmt.where(Partij.organisatie_id == organisatie_id)
     if afdeling_id is not None:

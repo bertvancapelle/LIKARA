@@ -14,6 +14,7 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { GEBRUIKER_ROL, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import ZoekSelect from './ZoekSelect.vue'
+import AfdelingSelect from './AfdelingSelect.vue'
 
 // ADR-029 Fase 2b — de vier toewijsbare tenant-rollen (rol-wijziging).
 const ROL_OPTIES = ['viewer', 'medewerker', 'beheerder', 'auditor']
@@ -28,15 +29,30 @@ const fout = ref(null)
 
 const dialogOpen = ref(false)
 const bezig = ref(false)
-const form = reactive({ naam: '', email: '', afdelingId: '', functietitel: '', rol: 'medewerker' })
+// LI032 — een gebruiker hoort altijd bij een organisatie: eerst de organisatie kiezen (verplicht),
+// die scoopt de afdeling. `organisatieId` blijft frontend-only (naar de backend gaat alleen
+// `afdeling_id`; de organisatie wordt daaruit afgeleid — de gescoopte afdeling borgt de consistentie).
+const form = reactive({ naam: '', email: '', organisatieId: '', afdelingId: '', functietitel: '', rol: 'medewerker' })
 const fouten = reactive({})
+const orgInitieel = ref('')
+const afdKey = ref(0) // remount de afdeling-picker bij een org-wissel (reset de weergave)
 // Tweede dialog-staat: na succes het eenmalige wachtwoord tonen (niet gepersisteerd).
 const resultaat = ref(null) // { naam, wachtwoord } | null
 const eersteVeld = ref(null)
 let laatsteTrigger = null
 
-// Afdeling-keuze: server-side zoeken op aard=organisatie_eenheid (hergebruik partijen-lijst).
-const zoekAfdelingen = (params) => api.partijen.lijst({ ...params, aard: 'organisatie_eenheid' })
+// Organisatie-picker: alleen de eigen INTERNE organisatie(s) (ADR-038 scope=intern) — geen
+// leveranciers/externe partijen. Een gebruiker is een inlog-account van de eigen organisatie.
+const zoekInterneOrganisaties = (params) =>
+  api.partijen.lijst({ ...params, aard: 'organisatie', scope: 'intern' })
+const magAanmaakAfdeling = computed(() => auth.hasRole('beheerder'))
+
+// Een andere organisatie kiezen → de al gekozen afdeling is niet meer geldig: resetten + remount.
+function onOrgKies(id) {
+  form.organisatieId = id || ''
+  form.afdelingId = ''
+  afdKey.value += 1
+}
 
 const _datum = (iso) =>
   iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }) : ''
@@ -56,7 +72,9 @@ async function laad() {
 
 function openDialog(event) {
   laatsteTrigger = event?.currentTarget ?? document.activeElement
-  Object.assign(form, { naam: '', email: '', afdelingId: '', functietitel: '', rol: 'medewerker' })
+  Object.assign(form, { naam: '', email: '', organisatieId: '', afdelingId: '', functietitel: '', rol: 'medewerker' })
+  orgInitieel.value = ''
+  afdKey.value += 1
   Object.keys(fouten).forEach((k) => delete fouten[k])
   resultaat.value = null
   dialogOpen.value = true
@@ -74,6 +92,8 @@ function _valideer() {
   if (!form.naam.trim()) fouten.naam = 'Naam is verplicht.'
   if (!form.email.trim()) fouten.email = 'E-mail is verplicht.'
   else if (!_EMAIL.test(form.email.trim())) fouten.email = 'Geef een geldig e-mailadres op.'
+  // LI032 — organisatie verplicht (scoopt de afdeling); een gebruiker hoort altijd bij een organisatie.
+  if (!form.organisatieId) fouten.organisatie = 'Kies een organisatie.'
   // Backend (ADR-029 Fase 2) vereist een afdeling (AFDELING_VERPLICHT) → hier ook verplicht.
   if (!form.afdelingId) fouten.afdeling = 'Kies een afdeling.'
   return Object.keys(fouten).length === 0
@@ -358,14 +378,37 @@ onMounted(laad)
           <InputText id="gebr-email" v-model="form.email" type="email" data-testid="gebr-email" :aria-invalid="!!fouten.email" aria-describedby="gebr-fout-email" />
           <span v-if="fouten.email" id="gebr-fout-email" role="alert" data-testid="gebr-fout-email" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.email }}</span>
         </div>
+        <!-- LI032 — eerst de organisatie (verplicht, alleen interne organisaties); die scoopt de afdeling. -->
+        <div class="flex flex-col gap-[var(--lk-space-xs)]">
+          <label for="gebr-organisatie" class="font-semibold">Organisatie *</label>
+          <ZoekSelect
+            id="gebr-organisatie"
+            testid="gebr-organisatie"
+            :model-value="form.organisatieId"
+            :zoek-functie="zoekInterneOrganisaties"
+            :initieel-weergave="orgInitieel"
+            :invalid="!!fouten.organisatie"
+            aria-describedby="gebr-fout-organisatie"
+            placeholder="Zoek een organisatie…"
+            @update:model-value="onOrgKies"
+          />
+          <span v-if="fouten.organisatie" id="gebr-fout-organisatie" role="alert" data-testid="gebr-fout-organisatie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.organisatie }}</span>
+        </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="gebr-afdeling" class="font-semibold">Afdeling *</label>
-          <ZoekSelect
-            v-model="form.afdelingId"
-            :zoek-functie="zoekAfdelingen"
-            placeholder="Zoek een afdeling…"
+          <!-- Uitgeschakeld tot er een organisatie is; daarna gescoped + ter-plekke-aanmaakbaar. -->
+          <AfdelingSelect
+            id="gebr-afdeling"
             testid="gebr-afdeling"
+            :key="afdKey"
+            v-model="form.afdelingId"
+            :partij-id="form.organisatieId"
+            :disabled="!form.organisatieId"
+            :mag-aanmaken="magAanmaakAfdeling"
+            :org-naam="orgInitieel"
+            :placeholder="form.organisatieId ? 'Zoek een afdeling…' : 'Kies eerst een organisatie'"
           />
+          <span v-if="!form.organisatieId" data-testid="gebr-afdeling-hint" class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Kies eerst een organisatie.</span>
           <span v-if="fouten.afdeling" role="alert" data-testid="gebr-fout-afdeling" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.afdeling }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">

@@ -15,7 +15,7 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
-from models.models import PartijAard
+from models.models import PartijAard, PartijScope
 from schemas.partij import (
     LeverancierComponentRead,
     PartijCreate,
@@ -51,6 +51,7 @@ async def lijst_soorten(
 async def lijst_partijen(
     aard: PartijAard | None = Query(None),
     aard_in: list[PartijAard] | None = Query(None),
+    scope: PartijScope | None = Query(None),
     organisatie_id: uuid.UUID | None = Query(None),
     afdeling_id: uuid.UUID | None = Query(None),
     limit: int = Query(25, ge=1, le=100),
@@ -64,7 +65,7 @@ async def lijst_partijen(
     try:
         items, volgende = await svc.lijst(
             session, user.tenant_id,
-            aard=aard, aard_in=aard_in, organisatie_id=organisatie_id, afdeling_id=afdeling_id,
+            aard=aard, aard_in=aard_in, scope=scope, organisatie_id=organisatie_id, afdeling_id=afdeling_id,
             limit=limit, after=after, sort=sort.value, order=order.value, zoek=zoek,
         )
     except ValueError:

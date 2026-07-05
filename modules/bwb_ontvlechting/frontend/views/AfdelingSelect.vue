@@ -19,6 +19,7 @@ const props = defineProps({
   magAanmaken: { type: Boolean, default: false },
   orgNaam: { type: String, default: '' },        // contexttekst "aanmaken onder <org>"
   genest: { type: Boolean, default: false },     // aanmaakblok binnen een ander aanmaakblok → dieper
+  disabled: { type: Boolean, default: false },   // bv. zolang er nog geen organisatie is gekozen
   placeholder: { type: String, default: 'Zoek een afdeling…' },
   id: { type: String, default: null },
   testid: { type: String, default: 'afd' },
@@ -89,6 +90,7 @@ async function maakAan() {
       :zoek-functie="zoekAfdelingen"
       :initieel-weergave="afdInitieel"
       :placeholder="props.placeholder"
+      :disabled="props.disabled"
       @update:model-value="onKies"
     >
       <template #leeg="{ query }">

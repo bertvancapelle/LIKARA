@@ -11,7 +11,7 @@ vi.mock('@/api', () => ({
       lijst: vi.fn(), maak: vi.fn(),
       wachtwoordReset: vi.fn(), wijzigRol: vi.fn(), wijzigStatus: vi.fn(), corrigeer: vi.fn(),
     },
-    partijen: { lijst: vi.fn(() => Promise.resolve({ items: [] })) },
+    partijen: { lijst: vi.fn(() => Promise.resolve({ items: [] })), maak: vi.fn() },
   },
 }))
 
@@ -19,6 +19,7 @@ import { api } from '@/api'
 import { useAuthStore } from '@/store/auth'
 import GebruikersbeheerView from '@modules/bwb_ontvlechting/frontend/views/GebruikersbeheerView.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
+import AfdelingSelect from '@modules/bwb_ontvlechting/frontend/views/AfdelingSelect.vue'
 
 const _gebruikers = () => [
   { id: 'g1', keycloak_sub: 's1', persoon_id: 'p1', naam: 'Jan de Vries', email: 'jan@org.nl', aangemaakt_op: '2026-06-20T10:00:00Z' },
@@ -37,13 +38,23 @@ async function mountView({ rollen = ['beheerder'] } = {}) {
   return w
 }
 
-async function _vulFormulier(w, { naam = 'Wendy Test', email = 'wendy@org.nl', afdeling = 'afd-1' } = {}) {
+async function _vulFormulier(
+  w,
+  { naam = 'Wendy Test', email = 'wendy@org.nl', organisatie = 'org-1', afdeling = 'afd-1' } = {},
+) {
   await w.find('[data-testid="gebr-toevoegen"]').trigger('click')
   await flushPromises()
   if (naam !== null) await w.find('[data-testid="gebr-naam"]').setValue(naam)
   if (email !== null) await w.find('[data-testid="gebr-email"]').setValue(email)
-  if (afdeling !== null) w.findComponent(ZoekSelect).vm.$emit('update:modelValue', afdeling)
-  await flushPromises()
+  // Organisatie eerst (eerste ZoekSelect) → scoopt + reset de afdeling; dan de afdeling (AfdelingSelect).
+  if (organisatie !== null) {
+    w.findComponent(ZoekSelect).vm.$emit('update:modelValue', organisatie)
+    await flushPromises()
+  }
+  if (afdeling !== null) {
+    w.findComponent(AfdelingSelect).vm.$emit('update:modelValue', afdeling)
+    await flushPromises()
+  }
 }
 
 beforeEach(() => {
@@ -68,12 +79,73 @@ describe('GebruikersbeheerView — lijst + gating', () => {
 })
 
 describe('GebruikersbeheerView — aanmaak-dialog', () => {
-  it('valideert verplichte velden (geen API-call)', async () => {
+  it('valideert verplichte velden — naam, email, organisatie én afdeling (geen API-call)', async () => {
     const w = await mountView()
-    await _vulFormulier(w, { naam: '', email: '', afdeling: null })
+    await _vulFormulier(w, { naam: '', email: '', organisatie: null, afdeling: null })
     await w.find('[data-testid="gebr-form"]').trigger('submit')
     expect(w.find('[data-testid="gebr-fout-naam"]').exists()).toBe(true)
     expect(w.find('[data-testid="gebr-fout-email"]').exists()).toBe(true)
+    expect(w.find('[data-testid="gebr-fout-organisatie"]').exists()).toBe(true)
+    expect(w.find('[data-testid="gebr-fout-afdeling"]').exists()).toBe(true)
+    expect(api.gebruikers.maak).not.toHaveBeenCalled()
+  })
+
+  // LI032 — organisatie-keuze scoopt de afdeling; picker = alleen interne organisaties.
+  it('organisatie-picker zoekt alleen interne organisaties (scope=intern)', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="gebr-toevoegen"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="gebr-organisatie-input"]').trigger('focus')
+    await flushPromises()
+    expect(api.partijen.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({ aard: 'organisatie', scope: 'intern' }),
+    )
+  })
+
+  it('afdelingsveld is uitgeschakeld met hint zolang er geen organisatie is', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="gebr-toevoegen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="gebr-afdeling-hint"]').exists()).toBe(true)
+    expect(w.find('[data-testid="gebr-afdeling-input"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('na organisatie-keuze: afdeling actief + gescoped op die organisatie; ter-plekke-aanmaken', async () => {
+    api.partijen.maak.mockResolvedValueOnce({ id: 'afdN', naam: 'Directie' })
+    const w = await mountView()
+    await w.find('[data-testid="gebr-toevoegen"]').trigger('click')
+    await flushPromises()
+    w.findComponent(ZoekSelect).vm.$emit('update:modelValue', 'org-9') // organisatie kiezen
+    await flushPromises()
+    expect(w.find('[data-testid="gebr-afdeling-hint"]').exists()).toBe(false) // hint weg
+    // afdeling-picker zoekt nu gescoped op de gekozen organisatie
+    await w.find('[data-testid="gebr-afdeling-input"]').trigger('focus')
+    await flushPromises()
+    expect(api.partijen.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({ aard: 'organisatie_eenheid', organisatie_id: 'org-9' }),
+    )
+    // ter-plekke aanmaken landt binnen die organisatie
+    await w.find('[data-testid="gebr-afdeling-aanmaak-open"]').trigger('mousedown')
+    await w.find('[data-testid="gebr-afdeling-aanmaak-open"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="gebr-afdeling-naam"]').setValue('Directie')
+    await w.find('[data-testid="gebr-afdeling-aanmaak-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.partijen.maak).toHaveBeenCalledWith({
+      aard: 'organisatie_eenheid', naam: 'Directie', organisatie_id: 'org-9',
+    })
+  })
+
+  it('een andere organisatie kiezen reset de al gekozen afdeling', async () => {
+    api.gebruikers.maak.mockResolvedValue({ gebruiker: {}, tijdelijk_wachtwoord: 'x' })
+    const w = await mountView()
+    await _vulFormulier(w, { organisatie: 'org-A', afdeling: 'afd-A' })
+    // andere organisatie kiezen → afdeling gewist
+    w.findComponent(ZoekSelect).vm.$emit('update:modelValue', 'org-B')
+    await flushPromises()
+    await w.find('[data-testid="gebr-form"]').trigger('submit')
+    await flushPromises()
+    // afdeling is gereset → validatiefout, geen aanmaak (bewijst dat afd-A niet meelekt onder org-B)
     expect(w.find('[data-testid="gebr-fout-afdeling"]').exists()).toBe(true)
     expect(api.gebruikers.maak).not.toHaveBeenCalled()
   })

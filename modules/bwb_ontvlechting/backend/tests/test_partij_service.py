@@ -492,6 +492,41 @@ def test_live_contactpersoon_end_to_end():
     asyncio.run(_run_rls(_flow))
 
 
+@live_svc
+def test_live_scope_filter_intern_only():
+    """ADR-038 — `lijst(scope=intern)` levert alleen interne organisaties; zonder param ongewijzigd.
+    Guarded filter (default-pad byte-identiek). Ruimt eigen rijen op."""
+    from models.models import PartijAard, PartijScope
+    from schemas.partij import PartijCreate
+    from services import partij_service as svc
+
+    async def _flow(s):
+        ids = []
+        try:
+            intern = await svc.maak_aan(s, _DEV_TENANT, PartijCreate(
+                aard=PartijAard.organisatie, naam="WT-ScopeF-Intern", scope=PartijScope.intern))
+            ids.append(intern.id)
+            extern = await svc.maak_aan(s, _DEV_TENANT, PartijCreate(
+                aard=PartijAard.organisatie, naam="WT-ScopeF-Extern", scope=PartijScope.extern))
+            ids.append(extern.id)
+
+            # scope=intern → alleen de interne organisatie in de eigen zoekset.
+            met, _ = await svc.lijst(s, _DEV_TENANT, aard=PartijAard.organisatie,
+                                     scope=PartijScope.intern, zoek="WT-ScopeF")
+            namen = {p.naam for p in met}
+            assert "WT-ScopeF-Intern" in namen
+            assert "WT-ScopeF-Extern" not in namen
+
+            # zonder scope → beide (ongewijzigd default-gedrag).
+            zonder, _ = await svc.lijst(s, _DEV_TENANT, aard=PartijAard.organisatie, zoek="WT-ScopeF")
+            znamen = {p.naam for p in zonder}
+            assert {"WT-ScopeF-Intern", "WT-ScopeF-Extern"} <= znamen
+        finally:
+            await _opruimen(s, ids)
+
+    asyncio.run(_run_rls(_flow))
+
+
 # ── ADR-037: aard-validatie van de antwoord-verantwoordelijke ────────────────────
 
 def test_valideer_verantwoordelijke_persoon_en_afdeling_ok():
