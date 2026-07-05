@@ -54,6 +54,12 @@ class GebruikerPersoonRead(BaseModel):
     naam: str
     email: str | None = None
     aangemaakt_op: datetime
+    # LI032 — huidige organisatie + afdeling van de persoon (id + naam), zodat het bewerk-scherm
+    # ze voorvult en het overzicht ze kan tonen. Read-verrijkt (geen ORM-veld).
+    organisatie_id: uuid.UUID | None = None
+    organisatie_naam: str | None = None
+    afdeling_id: uuid.UUID | None = None
+    afdeling: str | None = None
     # ADR-029 Fase 2b — verrijking uit Keycloak (best-effort; None als onbekend/onbereikbaar):
     # de huidige realm-rol + de account-status, zodat de voorkant per rij rol + status toont.
     rol: str | None = None
@@ -93,6 +99,8 @@ class GebruikerCorrectieRequest(BaseModel):
 
     naam: str
     email: str
+    # LI032 — afdeling wijzigen (organisatie volgt uit de afdeling). Optioneel: weglaten = ongewijzigd.
+    afdeling_id: uuid.UUID | None = None
 
     @field_validator("naam")
     @classmethod

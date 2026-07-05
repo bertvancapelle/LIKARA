@@ -100,12 +100,14 @@ Elke lege lijst krijgt een lege-staat die óf een route naar de actie biedt ("+ 
 applicatie of het contract."). **Een lege lijst zonder knop en zonder uitleg is een bug,
 geen neutrale toestand.**
 
-> **Picker-patronen (keuzelijsten).** Drie beproefde regels voor `ZoekSelect`-pickers staan in
+> **Picker-patronen (keuzelijsten).** Vier beproefde regels voor `ZoekSelect`-pickers staan in
 > `likara-frontend` §ZoekSelect-patronen (V030): (1) **picker-scope spiegelt de backend-regel** —
 > toon nooit een optie die bij opslaan een 422 geeft; (2) **bewerken leest uit de actuele bron** +
 > `initieel-weergave` zodat een voorgevuld id ook zijn naam toont; (3) **search-first
 > create-in-lege-zoekstaat** — aanmaken pas in de lege zoekuitkomst, met vergevingsgezinde zoek
-> tegen duplicaten.
+> tegen duplicaten; (4) **voorgevuld openen toont de volledige (scope-)lijst** — de voorgevulde
+> waarde is een label, nooit een zoekfilter, zodat de gebruiker niet vastzit aan zijn bestaande
+> keuze; de eerste toetsaanslag vervangt de voorgevulde tekst (LI032).
 
 ### 5. Terminologie
 Labels en koppen volgen hoe de gebruiker denkt, niet de tabelnamen. "Verantwoordelijkheden",

@@ -28,6 +28,43 @@ describe('ZoekSelect', () => {
     expect(zoekFunctie).toHaveBeenCalledWith(expect.objectContaining({ zoek: undefined, limit: 11 }))
   })
 
+  it('voorgevulde picker toont bij openen de VOLLEDIGE lijst — prefill niet als zoekfilter (LI032)', async () => {
+    const alle = [
+      { id: 'a1', naam: 'Beheer & Exploitatie' },
+      { id: 'a2', naam: 'Directie' },
+      { id: 'a3', naam: 'Informatievoorziening' },
+      { id: 'a4', naam: 'Klantbeheer & Relatiebeheer' },
+    ]
+    // Realistische mock: filtert op de zoekterm (zoals de backend-ILIKE) — zo betrapt de test de bug.
+    const zoekFunctie = vi.fn((params) =>
+      Promise.resolve({
+        items: params.zoek ? alle.filter((a) => a.naam.toLowerCase().includes(params.zoek.toLowerCase())) : alle,
+        volgende_cursor: null,
+      }),
+    )
+    const { w, input } = mountZS({ zoekFunctie, modelValue: 'a3', initieelWeergave: 'Informatievoorziening' })
+    await flushPromises()
+    expect(input().element.value).toBe('Informatievoorziening') // label voorgevuld
+    await input().trigger('focus')
+    await flushPromises()
+    // Bij openen: zoek met lege term (NIET de prefill) → volledige lijst zichtbaar.
+    expect(zoekFunctie).toHaveBeenLastCalledWith(expect.objectContaining({ zoek: undefined }))
+    expect(w.findAll('[role="option"]').length).toBe(4)
+  })
+
+  it('typen ná openen filtert wél soepel op de getypte term', async () => {
+    const zoekFunctie = vi.fn().mockResolvedValue({ items: [], volgende_cursor: null })
+    const { input } = mountZS({ zoekFunctie, modelValue: 'a3', initieelWeergave: 'Informatievoorziening' })
+    await input().trigger('focus')
+    await flushPromises()
+    vi.useFakeTimers()
+    await input().setValue('Dir')
+    vi.advanceTimersByTime(300)
+    vi.useRealTimers()
+    await flushPromises()
+    expect(zoekFunctie).toHaveBeenLastCalledWith(expect.objectContaining({ zoek: 'Dir' }))
+  })
+
   it('debounced zoeken roept zoekFunctie met de zoekterm', async () => {
     const zoekFunctie = vi.fn().mockResolvedValue({ items: [], volgende_cursor: null })
     const { input } = mountZS({ zoekFunctie })

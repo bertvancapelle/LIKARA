@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/auth'
 import GebruikersbeheerView from '@modules/bwb_ontvlechting/frontend/views/GebruikersbeheerView.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import AfdelingSelect from '@modules/bwb_ontvlechting/frontend/views/AfdelingSelect.vue'
+import { partijLijstFake } from './helpers/partijMock.js'
 
 const _gebruikers = () => [
   { id: 'g1', keycloak_sub: 's1', persoon_id: 'p1', naam: 'Jan de Vries', email: 'jan@org.nl', aangemaakt_op: '2026-06-20T10:00:00Z' },
@@ -225,8 +226,8 @@ describe('GebruikersbeheerView — aanmaak-dialog', () => {
 describe('GebruikersbeheerView — beheer-paneel', () => {
   // s1 = een andere gebruiker (beheerder, actief); s = het eigen account (medewerker, actief).
   const _met_rol_status = () => [
-    { id: 'g1', keycloak_sub: 's1', persoon_id: 'p1', naam: 'Jan de Vries', email: 'jan@org.nl', aangemaakt_op: '2026-06-20T10:00:00Z', rol: 'beheerder', enabled: true },
-    { id: 'g2', keycloak_sub: 's2', persoon_id: 'p2', naam: 'Piet Paulusma', email: 'piet@org.nl', aangemaakt_op: '2026-06-20T11:00:00Z', rol: 'medewerker', enabled: false },
+    { id: 'g1', keycloak_sub: 's1', persoon_id: 'p1', naam: 'Jan de Vries', email: 'jan@org.nl', aangemaakt_op: '2026-06-20T10:00:00Z', rol: 'beheerder', enabled: true, organisatie_id: 'org-1', organisatie_naam: 'Gemeente Tiel', afdeling_id: 'afd-1', afdeling: 'Burgerzaken' },
+    { id: 'g2', keycloak_sub: 's2', persoon_id: 'p2', naam: 'Piet Paulusma', email: 'piet@org.nl', aangemaakt_op: '2026-06-20T11:00:00Z', rol: 'medewerker', enabled: false, organisatie_id: 'org-1', organisatie_naam: 'Gemeente Tiel', afdeling_id: 'afd-1', afdeling: 'Burgerzaken' },
     { id: 'g3', keycloak_sub: 's3', persoon_id: 'p3', naam: 'Onbekend Account', email: 'x@org.nl', aangemaakt_op: '2026-06-20T11:00:00Z', rol: null, enabled: null },
   ]
 
@@ -301,16 +302,130 @@ describe('GebruikersbeheerView — beheer-paneel', () => {
     expect(api.gebruikers.wijzigStatus).toHaveBeenCalledWith('g2', true)
   })
 
-  it('gegevens corrigeren → PATCH naam/e-mail', async () => {
+  it('gegevens corrigeren → PATCH naam/e-mail (+ afdeling, voorgevuld)', async () => {
     api.gebruikers.lijst.mockResolvedValue(_met_rol_status())
     api.gebruikers.corrigeer.mockResolvedValue({ id: 'g1', naam: 'Jan Nieuw', email: 'jan.nieuw@org.nl' })
     const w = await mountView()
     await _openBeheer(w, 'g1')
+    // Organisatie/afdeling zijn voorgevuld (uit de verrijkte read) → geen extra keuze nodig.
+    expect(w.find('[data-testid="gebr-beheer-organisatie-input"]').element.value).toBe('Gemeente Tiel')
+    expect(w.find('[data-testid="gebr-beheer-afdeling-input"]').element.value).toBe('Burgerzaken')
     await w.find('[data-testid="gebr-beheer-naam"]').setValue('Jan Nieuw')
     await w.find('[data-testid="gebr-beheer-email"]').setValue('jan.nieuw@org.nl')
     await w.find('[data-testid="gebr-gegevens-opslaan"]').trigger('click')
     await flushPromises()
-    expect(api.gebruikers.corrigeer).toHaveBeenCalledWith('g1', { naam: 'Jan Nieuw', email: 'jan.nieuw@org.nl' })
+    expect(api.gebruikers.corrigeer).toHaveBeenCalledWith('g1', { naam: 'Jan Nieuw', email: 'jan.nieuw@org.nl', afdeling_id: 'afd-1' })
+  })
+
+  it('bewerk: de afdeling-picker toont ALLE afdelingen van de organisatie, niet alleen de huidige (LI032)', async () => {
+    const afdelingen = [
+      { id: 'afd-1', naam: 'Burgerzaken', aard: 'organisatie_eenheid' },
+      { id: 'afd-2', naam: 'Directie', aard: 'organisatie_eenheid' },
+      { id: 'afd-3', naam: 'Informatievoorziening', aard: 'organisatie_eenheid' },
+    ]
+    api.gebruikers.lijst.mockResolvedValue(_met_rol_status())
+    // Realistische mock: de afdeling-lijst filtert op de zoekterm (zoals de backend-ILIKE).
+    api.partijen.lijst.mockImplementation((params) => {
+      if (params?.aard === 'organisatie_eenheid') {
+        return Promise.resolve({
+          items: params.zoek
+            ? afdelingen.filter((a) => a.naam.toLowerCase().includes(params.zoek.toLowerCase()))
+            : afdelingen,
+          volgende_cursor: null,
+        })
+      }
+      return Promise.resolve({ items: [], volgende_cursor: null })
+    })
+    const w = await mountView()
+    await _openBeheer(w, 'g1') // afdeling voorgevuld op 'Burgerzaken'
+    await w.find('[data-testid="gebr-beheer-afdeling-input"]').trigger('focus')
+    await flushPromises()
+    // Bij openen zichtbaar: ALLE afdelingen van de organisatie — niet alleen de huidige.
+    expect(w.find('[data-testid="gebr-beheer-afdeling-optie-afd-2"]').exists()).toBe(true) // Directie
+    expect(w.find('[data-testid="gebr-beheer-afdeling-optie-afd-3"]').exists()).toBe(true) // Informatievoorziening
+    expect(w.findAll('[data-testid^="gebr-beheer-afdeling-optie-"]').length).toBe(3)
+  })
+
+  // ── Picker-integratie (LI032): param-filterende mock + open-picker-assert ─────────────
+  // Toont dat elke picker de JUISTE entiteitsoort/scope aanroept — een verkeerde bron valt hier om.
+  const _bvowbGebruiker = () => [
+    { id: 'g1', keycloak_sub: 's1', persoon_id: 'p1', naam: 'Jan de Vries', email: 'jan@org.nl', aangemaakt_op: '2026-06-20T10:00:00Z', rol: 'beheerder', enabled: true, organisatie_id: 'org-bvowb', organisatie_naam: 'BvoWB', afdeling_id: 'afd-iv', afdeling: 'Informatievoorziening' },
+  ]
+
+  it('bewerk: de organisatie-picker toont ALLEEN interne organisaties — geen afdelingen/externe (LI032)', async () => {
+    api.gebruikers.lijst.mockResolvedValue(_bvowbGebruiker())
+    api.partijen.lijst.mockImplementation(partijLijstFake())
+    const w = await mountView()
+    await _openBeheer(w, 'g1')
+    await w.find('[data-testid="gebr-beheer-organisatie-input"]').trigger('focus')
+    await flushPromises()
+    // Alleen de twee interne organisaties; GEEN afdeling (organisatie_eenheid), GEEN externe organisatie.
+    expect(w.find('[data-testid="gebr-beheer-organisatie-optie-org-bvowb"]').exists()).toBe(true)
+    expect(w.find('[data-testid="gebr-beheer-organisatie-optie-org-rid"]').exists()).toBe(true)
+    expect(w.findAll('[data-testid^="gebr-beheer-organisatie-optie-"]').length).toBe(2)
+    expect(api.partijen.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({ aard: 'organisatie', scope: 'intern' }),
+    )
+  })
+
+  it('bewerk: na org-wissel toont de afdeling-picker de afdelingen van de NIEUWE organisatie (LI032)', async () => {
+    api.gebruikers.lijst.mockResolvedValue(_bvowbGebruiker())
+    api.partijen.lijst.mockImplementation(partijLijstFake())
+    const w = await mountView()
+    await _openBeheer(w, 'g1')
+    // Wissel van organisatie via de org-picker (open → kies RID Rivierenland).
+    await w.find('[data-testid="gebr-beheer-organisatie-input"]').trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="gebr-beheer-organisatie-optie-org-rid"]').trigger('mousedown')
+    await flushPromises()
+    // De afdeling-picker (geremount) toont nu ALLEEN RID's afdelingen, niet die van BvoWB.
+    await w.find('[data-testid="gebr-beheer-afdeling-input"]').trigger('focus')
+    await flushPromises()
+    expect(w.find('[data-testid="gebr-beheer-afdeling-optie-afd-sd"]').exists()).toBe(true) // Servicedesk
+    expect(w.find('[data-testid="gebr-beheer-afdeling-optie-afd-pa"]').exists()).toBe(true) // Projecten & Advies
+    expect(w.findAll('[data-testid^="gebr-beheer-afdeling-optie-"]').length).toBe(2)
+    expect(api.partijen.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({ aard: 'organisatie_eenheid', organisatie_id: 'org-rid' }),
+    )
+  })
+
+  it('bewerk: elke geopende gebruiker toont zijn EIGEN organisatie — geen stale label (LI032)', async () => {
+    // Twee gebruikers bij verschillende interne organisaties; open beide na elkaar.
+    api.gebruikers.lijst.mockResolvedValue([
+      { id: 'g1', keycloak_sub: 's1', persoon_id: 'p1', naam: 'Jan de Vries', email: 'jan@org.nl', aangemaakt_op: '2026-06-20T10:00:00Z', rol: 'beheerder', enabled: true, organisatie_id: 'org-bvowb', organisatie_naam: 'BvoWB', afdeling_id: 'afd-iv', afdeling: 'Informatievoorziening' },
+      { id: 'g2', keycloak_sub: 's2', persoon_id: 'p2', naam: 'Kees Rijk', email: 'kees@org.nl', aangemaakt_op: '2026-06-20T11:00:00Z', rol: 'medewerker', enabled: true, organisatie_id: 'org-rid', organisatie_naam: 'RID Rivierenland', afdeling_id: 'afd-sd', afdeling: 'Servicedesk' },
+    ])
+    api.partijen.lijst.mockImplementation(partijLijstFake())
+    const w = await mountView()
+    await _openBeheer(w, 'g1')
+    expect(w.find('[data-testid="gebr-beheer-organisatie-input"]').element.value).toBe('BvoWB')
+    await w.find('[data-testid="gebr-beheer-sluit"]').trigger('click')
+    await flushPromises()
+    await _openBeheer(w, 'g2') // andere gebruiker → mag GEEN 'BvoWB' meer tonen (stale label)
+    expect(w.find('[data-testid="gebr-beheer-organisatie-input"]').element.value).toBe('RID Rivierenland')
+  })
+
+  it('org-wissel reset de afdeling + blokkade-uitleg (aanspreekpunt) wordt getoond, geen rauwe code', async () => {
+    api.gebruikers.lijst.mockResolvedValue(_met_rol_status())
+    api.gebruikers.corrigeer.mockRejectedValue(Object.assign(
+      new Error('Deze persoon is nog aanspreekpunt van GemSoft B.V.; maak dat eerst los.'),
+      { status: 409, code: 'AANSPREEKPUNT_BLOKKEERT_VERPLAATSING' },
+    ))
+    const w = await mountView()
+    await _openBeheer(w, 'g1')
+    // andere organisatie kiezen → de al gekozen afdeling wordt gereset (veld leeg)
+    w.findAllComponents(ZoekSelect).find((c) => c.props('testid') === 'gebr-beheer-organisatie')
+      .vm.$emit('update:modelValue', 'org-9')
+    await flushPromises()
+    expect(w.find('[data-testid="gebr-beheer-afdeling-input"]').element.value).toBe('') // afdeling gereset
+    // een afdeling onder de nieuwe organisatie kiezen, opslaan → blokkade → nette melding, dialog blijft
+    w.findComponent(AfdelingSelect).vm.$emit('update:modelValue', 'afd-9')
+    await flushPromises()
+    await w.find('[data-testid="gebr-gegevens-opslaan"]').trigger('click')
+    await flushPromises()
+    expect(api.gebruikers.corrigeer).toHaveBeenCalledWith('g1', expect.objectContaining({ afdeling_id: 'afd-9' }))
+    expect(w.find('[data-testid="gebr-beheer-dialog"]').exists()).toBe(true) // dialog blijft open bij blokkade
+    expect(w.text()).not.toContain('AANSPREEKPUNT_BLOKKEERT_VERPLAATSING') // geen rauwe code
   })
 
   it('geen zinloze affordances op het eigen account (uitschakelen + de-beheerrol verborgen)', async () => {

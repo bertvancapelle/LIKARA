@@ -163,6 +163,17 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
   en een geselecteerd-item-label dat afweek van de lijst-identiteit. Assert daarom óók de knop-stijl-class
   (primaire token, **niet** `accent`) én het geselecteerde-item-label (`veld == lijst`); en bekijk
   UX-rakende schermen vóór commit in de **echte browser** (mocks tonen de styling/selectie-staat niet).
+- **Picker-integratietests: param-filterende mock + open-picker-assert (LI032, niet-onderhandelbaar).**
+  Een `api.*.lijst`-mock die een **vaste set** teruggeeft en de `aard`/`scope`/`organisatie_id`/`zoek`-params
+  **negeert**, laat een picker die de **verkeerde bron** aanroept (afdelingen i.p.v. organisaties, extern
+  i.p.v. intern, ongescoopt) nooit falen — de fout komt dan pas in de browser boven (drie keer gebeurd op het
+  gebruiker-scherm). Gebruik daarom de gedeelde **`tests/helpers/partijMock.js`** (`partijLijstFake()`): die
+  filtert net als de backend. Toets vervolgens door de picker **echt te openen** en te asserten welke
+  **entiteitsoort/scope** verschijnt: organisatie-picker → alleen `organisatie`+`intern`; afdeling-picker →
+  alleen `organisatie_eenheid` van de gekozen organisatie; na org-wissel verschuift de afdelinglijst mee; en
+  bij een remount-gevoelige picker: open twee entiteiten na elkaar en assert dat het label niet **stale**
+  blijft (het geval dat de ontbrekende `:key` verraadt). Referentie: `GebruikersbeheerView.test.js`
+  (org-picker-bron, org-wissel→afdeling, geen-stale-label).
 
 ## Offline-grens (bewust)
 

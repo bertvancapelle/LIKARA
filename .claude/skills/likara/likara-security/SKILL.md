@@ -243,6 +243,19 @@ is onjuist — openstaand vervolgpunt.)
   dat de rolmapping correct is geïmporteerd (een stille mismatch geeft pas bij provisioning een
   403). `get_provisioning_token()` in `app/core/keycloak.py`; secret is dev-default `changeme_dev`
   (productie-hardening + MFA hoort bij realm-hardening/OP-28).
+- **Account-mutatie alleen bij een echt account-relevante wijziging; geen `username` in de update-PUT (LI032).**
+  Het accountsysteem (Keycloak) wordt bij gebruikersbeheer **alleen** aangeroepen voor wat écht bij het
+  account hoort: aanmaken, wachtwoord, toegang (enable/disable + logout), rol. Een puur **interne**
+  registratie — afdeling/organisatie — raakt het account **niet**. Concreet in `corrigeer_gegevens`:
+  `werk_keycloak_gegevens_bij` wordt uitsluitend aangeroepen als **naam of e-mail daadwerkelijk wijzigt**
+  (oude waarde vóór het overschrijven bewaren en vergelijken); anders zou een afdeling-only wissel op een
+  onnodige account-aanroep kunnen struikelen én bij een storing via `session.rollback()` de interne
+  wijziging verliezen. De update-PUT stuurt **alleen** `email`/`firstName`/`lastName` — **nooit** `username`:
+  onder `editUsernameAllowed=False` faalt een username-wijziging (username≠email), terwijl login via e-mail
+  loopt (`loginWithEmailAllowed=True`) en de identiteit aan het stabiele `sub` hangt — username is dus
+  login-neutraal en hoort niet in de payload. Vindplaats: `keycloak.werk_keycloak_gegevens_bij`,
+  `gebruiker_service.corrigeer_gegevens`. Regressie: afdeling-only → account `assert_not_awaited`;
+  naam/e-mail → PUT-payload zonder `username`.
 - **Server-gegenereerd tijdelijk wachtwoord.** Bij gebruikersaanmaak genereert de backend een
   sterk wachtwoord (`secrets`, ≥16, mix), zet `UPDATE_PASSWORD` als Keycloak required action, en
   geeft het **eenmalig** terug in de 201-respons. Nooit loggen, nergens persisteren; geen

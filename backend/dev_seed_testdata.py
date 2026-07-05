@@ -1016,6 +1016,9 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     # gemeenten staan erbuiten (extern).
     organisaties = [
         ("BvoWB", None, "Markt 1", "4001 AA", "Tiel", "0344-678900", "info@bvowb.test", PartijScope.intern),
+        # Tweede eigen (interne) organisatie: maakt de organisatie-keuze op het gebruiker-scherm
+        # écht een keuze (meer dan één interne organisatie) en verplaatsen tussen organisaties testbaar.
+        ("RID Rivierenland", None, "Stationsweg 20", "4001 CE", "Tiel", "0344-678940", "info@rid-rivierenland.test", PartijScope.intern),
         ("Gemeente Tiel", None, "Achterweg 2", "4001 BB", "Tiel", "0344-678910", "info@gemeentetiel.test", PartijScope.extern),
         ("Gemeente Culemborg", None, "Herenstraat 3", "4101 CC", "Culemborg", "0345-678920", "info@culemborg.test", PartijScope.extern),
         ("Gemeente West Betuwe", None, "Dorpsstraat 4", "4021 DD", "West Betuwe", "0344-678930", "info@westbetuwe.test", PartijScope.extern),
@@ -1063,6 +1066,16 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     ]
     for naam, straat, pc, plaats, tel, mail in afdelingen:
         await _partij(PartijAard.organisatie_eenheid, naam, "afdelingen", organisatie_id=bvowb_id,
+                      straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
+
+    # ── 4b. Afdelingen RID Rivierenland (tweede interne organisatie) ──
+    rid_id = partij_id["RID Rivierenland"]
+    rid_afdelingen = [
+        ("Servicedesk", "Stationsweg 20", "4001 CE", "Tiel", "0344-678941", "servicedesk@rid-rivierenland.test"),
+        ("Projecten & Advies", "Stationsweg 20", "4001 CE", "Tiel", "0344-678942", "projecten@rid-rivierenland.test"),
+    ]
+    for naam, straat, pc, plaats, tel, mail in rid_afdelingen:
+        await _partij(PartijAard.organisatie_eenheid, naam, "afdelingen", organisatie_id=rid_id,
                       straat_huisnummer=straat, postcode=pc, plaats=plaats, telefoon=tel, email=mail)
 
     # ── 5. BvoWB-medewerkers (org=BvoWB, afdeling=…) ──

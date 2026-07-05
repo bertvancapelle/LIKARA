@@ -99,5 +99,9 @@ async def corrigeer_gegevens(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSBEHEER, Actie.WIJZIGEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Naam/e-mail corrigeren op de persoon-partij én het Keycloak-account."""
-    return await svc.corrigeer_gegevens(session, user.tenant_id, gebruiker_id, naam=body.naam, email=body.email)
+    """Naam/e-mail (+ optioneel afdeling/organisatie) corrigeren op de persoon-partij én het
+    Keycloak-account (naam/e-mail)."""
+    return await svc.corrigeer_gegevens(
+        session, user.tenant_id, gebruiker_id,
+        naam=body.naam, email=body.email, afdeling_id=body.afdeling_id,
+    )

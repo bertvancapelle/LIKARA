@@ -61,11 +61,13 @@ function _label(item) {
   return props.weergave(item)
 }
 
-async function zoek() {
+async function zoek(term) {
   laden.value = true
   fout.value = null
   try {
-    const params = { zoek: query.value.trim() || undefined, limit: VENSTER + 1, ...props.extraFilters }
+    // `term` expliciet meegegeven (bv. '' bij openen → volledige startlijst); anders de getypte query.
+    const zoekterm = (term ?? query.value).trim() || undefined
+    const params = { zoek: zoekterm, limit: VENSTER + 1, ...props.extraFilters }
     const pagina = await props.zoekFunctie(params)
     const items = Array.isArray(pagina) ? pagina : pagina?.items ?? []
     meer.value = items.length > VENSTER
@@ -92,7 +94,10 @@ onBeforeUnmount(() => clearTimeout(_timer))
 function openen() {
   if (props.disabled) return
   open.value = true
-  zoek() // leeg → startlijst
+  // Bij openen ALTIJD de volledige (scope-)startlijst tonen — nooit filteren op een voorgevulde
+  // waarde (LI032). De input-tekst selecteren zodat de eerste toetsaanslag de prefill vervangt.
+  inputRef.value?.select?.()
+  zoek('') // expliciet lege term → startlijst, ook als er een label voorgevuld is
 }
 
 function _herstelWeergave() {

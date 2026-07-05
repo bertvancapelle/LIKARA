@@ -340,15 +340,19 @@ async def logout_keycloak_gebruiker(keycloak_sub: str) -> None:
 
 
 async def werk_keycloak_gegevens_bij(keycloak_sub: str, *, naam: str, email: str) -> None:
-    """Corrigeer naam/e-mail (+ username) op het Keycloak-account, consistent met de
-    persoon-partij. Raise bij fout."""
+    """Corrigeer naam/e-mail op het Keycloak-account, consistent met de persoon-partij. Raise bij fout.
+
+    De `username` wordt BEWUST niet meegestuurd (LI032): onder `editUsernameAllowed=False` zou een
+    username-wijziging (username≠email) de PUT laten falen. Inloggen gaat via e-mail
+    (`loginWithEmailAllowed=True`) en de identiteit hangt aan het stabiele `sub`, dus een
+    afwijkende username is login-neutraal. Alleen email/firstName/lastName syncen."""
     token = await get_provisioning_token()
     voornaam, achternaam = _splits_naam(naam)
     async with httpx.AsyncClient() as client:
         resp = await client.put(
             f"{ADMIN_BASE}/users/{keycloak_sub}",
             headers={"Authorization": f"Bearer {token}"},
-            json={"username": email, "email": email, "firstName": voornaam, "lastName": achternaam},
+            json={"email": email, "firstName": voornaam, "lastName": achternaam},
         )
         if resp.status_code not in (200, 204):
             raise KeycloakProvisioningFout("Bijwerken gebruikersgegevens mislukt.", resp.status_code)

@@ -106,6 +106,28 @@ def test_wachtwoord_generator_sterk_en_uniek():
         assert any(c.isupper() for c in pw) and any(c.isdigit() for c in pw)
 
 
+# ── Offline: provisioning-PUT-payload (LI032 — geen username meesturen) ─────────
+def test_werk_keycloak_gegevens_bij_stuurt_geen_username(monkeypatch):
+    """De update-PUT synct ALLEEN email/firstName/lastName — NOOIT `username`. Een username-
+    wijziging (username≠email) faalt onder editUsernameAllowed=False; login gaat via e-mail en
+    de identiteit hangt aan `sub`, dus username hoort niet in de payload (LI032)."""
+    from app.core import keycloak
+
+    monkeypatch.setattr(keycloak, "get_provisioning_token", AsyncMock(return_value="tok"))
+    put_mock = AsyncMock(return_value=SimpleNamespace(status_code=204))
+    client = MagicMock()
+    client.__aenter__ = AsyncMock(return_value=SimpleNamespace(put=put_mock))
+    client.__aexit__ = AsyncMock(return_value=False)
+    monkeypatch.setattr(keycloak.httpx, "AsyncClient", lambda *a, **k: client)
+
+    asyncio.run(keycloak.werk_keycloak_gegevens_bij("sub-x", naam="Jan de Vries", email="jan@org.test"))
+
+    put_mock.assert_awaited_once()
+    payload = put_mock.await_args.kwargs["json"]
+    assert "username" not in payload  # kern van de fix
+    assert payload == {"email": "jan@org.test", "firstName": "Jan", "lastName": "de Vries"}
+
+
 # ── Offline: service-foutpaden (gemockte sessie + Keycloak) ─────────────────────
 def _patch_kc(monkeypatch, *, sub="kc-sub-1", fout=False):
     import services.gebruiker_service as svc
@@ -407,7 +429,8 @@ def test_corrigeer_gegevens_live(monkeypatch):
         try:
             read = await svc.corrigeer_gegevens(s, tid, koppel.id, naam="Nieuwe Naam", email=nieuw_email)
             assert read.naam == "Nieuwe Naam" and read.email == nieuw_email
-            werk_mock.assert_awaited_once()
+            # Naam/e-mail wijzigen → account WÉL gesynct, met de juiste sub/naam/e-mail.
+            werk_mock.assert_awaited_once_with("kc-corr", naam="Nieuwe Naam", email=nieuw_email)
             row = (await s.execute(_text("SELECT naam, email FROM partij WHERE id=:i"),
                                    {"i": str(koppel.persoon_id)})).first()
             assert row.naam == "Nieuwe Naam" and row.email == nieuw_email
@@ -505,6 +528,177 @@ def test_lijst_verrijkt_met_rol_en_status_live(monkeypatch):
             assert mij.rol == "auditor" and mij.enabled is False
         finally:
             for eid in reversed(ids):
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    asyncio.run(_run_rls(_flow))
+
+
+# ── LI032 — gebruiker bewerken: organisatie/afdeling ──────────────────────────────
+
+def test_correctie_request_accepteert_afdeling_en_read_verrijkt():
+    """Schema: `afdeling_id` op de correctie-request; org/afdeling (id + naam) op de read."""
+    from schemas.gebruiker import GebruikerCorrectieRequest, GebruikerPersoonRead
+
+    assert "afdeling_id" in GebruikerCorrectieRequest.model_fields
+    for veld in ("organisatie_id", "organisatie_naam", "afdeling_id", "afdeling"):
+        assert veld in GebruikerPersoonRead.model_fields
+
+
+@integratie
+def test_corrigeer_wijzigt_afdeling_en_read_verrijkt_live(monkeypatch):
+    """Afdeling wijzigen binnen dezelfde organisatie: persoon.afdeling_id verandert, organisatie
+    blijft; de read (detail + lijst) levert organisatie/afdeling (id + naam)."""
+    from sqlalchemy import text as _text
+    from unittest.mock import AsyncMock as _AM
+
+    from schemas.partij import PartijCreate
+    from services import gebruiker_service as svc, partij_service
+    from models.models import PartijAard
+
+    werk_mock = _AM()
+    monkeypatch.setattr(svc.keycloak, "werk_keycloak_gegevens_bij", werk_mock)
+    tid = uuid.UUID(_TID)
+    mail = f"corr-{uuid.uuid4().hex[:8]}@org.test"
+
+    async def _flow(s):
+        koppel, ids = await _maak_koppel(s, tid, sub="kc-corr-afd", naam="Doel Gebruiker", email=mail)
+        org_id, afd1_id, persoon_id = ids
+        afd2 = await partij_service.maak_aan(s, tid, PartijCreate(
+            aard=PartijAard.organisatie_eenheid, naam="WT-Afd2b-tweede", organisatie_id=org_id))
+        try:
+            read = await svc.corrigeer_gegevens(
+                s, tid, koppel.id, naam="Doel Gebruiker", email=mail, afdeling_id=afd2.id)
+            # LI032 — afdeling-only wissel (naam/e-mail ongewijzigd): het account wordt NIET aangeroepen.
+            werk_mock.assert_not_awaited()
+            assert read.afdeling_id == afd2.id and read.afdeling == "WT-Afd2b-tweede"
+            assert read.organisatie_id == org_id and read.organisatie_naam == "WT-Org2b"
+            row = (await s.execute(
+                _text("SELECT organisatie_id, afdeling_id FROM partij WHERE id=:i"), {"i": str(persoon_id)}
+            )).one()
+            assert str(row[0]) == str(org_id) and str(row[1]) == str(afd2.id)  # org onveranderd, afd gewijzigd
+            items, _ = await svc.lijst_gebruikers(s, tid, limit=100, verrijk=False)
+            it = next(i for i in items if i.persoon_id == persoon_id)
+            assert it.organisatie_naam == "WT-Org2b" and it.afdeling == "WT-Afd2b-tweede"
+        finally:
+            for eid in [persoon_id, afd1_id, afd2.id, org_id]:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    asyncio.run(_run_rls(_flow))
+
+
+@integratie
+def test_corrigeer_ongeldige_afdeling_live(monkeypatch):
+    """Een niet-afdeling als `afdeling_id` (bv. een organisatie-id) → 422 ONGELDIGE_AFDELING."""
+    from sqlalchemy import text as _text
+    from unittest.mock import AsyncMock as _AM
+
+    from services import gebruiker_service as svc
+    from services.errors import OngeldigeRegistratie
+
+    monkeypatch.setattr(svc.keycloak, "werk_keycloak_gegevens_bij", _AM())
+    tid = uuid.UUID(_TID)
+    mail = f"corr-{uuid.uuid4().hex[:8]}@org.test"
+
+    async def _flow(s):
+        koppel, ids = await _maak_koppel(s, tid, sub="kc-corr-ong", email=mail)
+        org_id, afd1_id, persoon_id = ids
+        try:
+            with pytest.raises(OngeldigeRegistratie) as ei:
+                await svc.corrigeer_gegevens(
+                    s, tid, koppel.id, naam="Doel Gebruiker", email=mail, afdeling_id=org_id)  # org, geen afdeling
+            assert ei.value.code == "ONGELDIGE_AFDELING"
+        finally:
+            for eid in [persoon_id, afd1_id, org_id]:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    asyncio.run(_run_rls(_flow))
+
+
+@integratie
+def test_corrigeer_org_wissel_geblokkeerd_door_aanspreekpunt_live(monkeypatch):
+    """Verplaats geen persoon die nog aanspreekpunt is van een achtergelaten partij → 409
+    AANSPREEKPUNT_BLOKKEERT_VERPLAATSING met de partijnaam; GEEN mutatie."""
+    from sqlalchemy import text as _text
+    from unittest.mock import AsyncMock as _AM
+
+    from schemas.partij import PartijCreate, PartijUpdate
+    from services import gebruiker_service as svc, partij_service
+    from services.errors import RegistratieConflict
+    from models.models import PartijAard
+
+    monkeypatch.setattr(svc.keycloak, "werk_keycloak_gegevens_bij", _AM())
+    tid = uuid.UUID(_TID)
+    mail = f"blok-{uuid.uuid4().hex[:8]}@org.test"
+
+    async def _flow(s):
+        koppel, ids = await _maak_koppel(s, tid, sub="kc-corr-blok", email=mail)
+        org1_id, afd1_id, persoon_id = ids
+        # Maak de persoon aanspreekpunt van zijn eigen organisatie (org1).
+        await partij_service.werk_bij(s, tid, org1_id, PartijUpdate(contactpersoon_id=persoon_id))
+        # Tweede organisatie + afdeling om naartoe te verplaatsen.
+        org2 = await partij_service.maak_aan(s, tid, PartijCreate(aard=PartijAard.organisatie, naam="WT-Org2b-ander"))
+        afd2 = await partij_service.maak_aan(s, tid, PartijCreate(
+            aard=PartijAard.organisatie_eenheid, naam="WT-Afd2b-ander", organisatie_id=org2.id))
+        try:
+            with pytest.raises(RegistratieConflict) as ei:
+                await svc.corrigeer_gegevens(
+                    s, tid, koppel.id, naam="Doel Gebruiker", email=mail, afdeling_id=afd2.id)
+            assert ei.value.code == "AANSPREEKPUNT_BLOKKEERT_VERPLAATSING"
+            assert "WT-Org2b-ander" not in ei.value.bericht  # het is de ACHTERGELATEN partij (org1)
+            # Geen mutatie: persoon nog bij org1/afd1.
+            row = (await s.execute(
+                _text("SELECT organisatie_id, afdeling_id FROM partij WHERE id=:i"), {"i": str(persoon_id)}
+            )).one()
+            assert str(row[0]) == str(org1_id) and str(row[1]) == str(afd1_id)
+        finally:
+            # persoon eerst (nullt org1.contactpersoon_id via SET NULL + geeft afd's vrij), dan afd's, dan orgs.
+            for eid in [persoon_id, afd1_id, afd2.id, org1_id, org2.id]:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    asyncio.run(_run_rls(_flow))
+
+
+@integratie
+def test_corrigeer_afdeling_only_overleeft_account_storing_live(monkeypatch):
+    """LI032 — bij een afdeling-only wissel wordt het account niet aangeroepen; zelfs als de
+    account-sync ZOU falen, blijft de afdelingswijziging behouden (geen rollback van interne data)."""
+    from sqlalchemy import text as _text
+    from unittest.mock import AsyncMock as _AM
+
+    from schemas.partij import PartijCreate
+    from services import gebruiker_service as svc, partij_service
+    from models.models import PartijAard
+
+    # Account-sync gooit ALTIJD — mag nooit worden aangeroepen bij een afdeling-only edit.
+    def _ontplof(*_a, **_k):
+        raise svc.keycloak.KeycloakProvisioningFout("KC down", 503)
+
+    werk_mock = _AM(side_effect=_ontplof)
+    monkeypatch.setattr(svc.keycloak, "werk_keycloak_gegevens_bij", werk_mock)
+    tid = uuid.UUID(_TID)
+    mail = f"corr-{uuid.uuid4().hex[:8]}@org.test"
+
+    async def _flow(s):
+        koppel, ids = await _maak_koppel(s, tid, sub="kc-corr-storing", naam="Doel Gebruiker", email=mail)
+        org_id, afd1_id, persoon_id = ids
+        afd2 = await partij_service.maak_aan(s, tid, PartijCreate(
+            aard=PartijAard.organisatie_eenheid, naam="WT-Afd2b-storing", organisatie_id=org_id))
+        try:
+            read = await svc.corrigeer_gegevens(
+                s, tid, koppel.id, naam="Doel Gebruiker", email=mail, afdeling_id=afd2.id)
+            werk_mock.assert_not_awaited()  # account niet geraakt → storing niet relevant
+            assert read.afdeling_id == afd2.id and read.afdeling == "WT-Afd2b-storing"
+            # Wijziging daadwerkelijk gepersisteerd (niet teruggerold).
+            row = (await s.execute(
+                _text("SELECT afdeling_id FROM partij WHERE id=:i"), {"i": str(persoon_id)}
+            )).one()
+            assert str(row[0]) == str(afd2.id)
+        finally:
+            for eid in [persoon_id, afd1_id, afd2.id, org_id]:
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 

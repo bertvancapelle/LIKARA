@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core import keycloak
 from app.core.audit import registreer_gebruikersactie
 from app.core.tenant_context import huidige_actor
-from models.models import GebruikerPersoon, Partij
+from models.models import GebruikerPersoon, Partij, PartijAard
 from schemas.gebruiker import GebruikerPersoonRead
 from services import partij_service
 from services.errors import (
@@ -40,11 +40,28 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
-def _lees(rij: GebruikerPersoon, persoon: Partij) -> GebruikerPersoonRead:
+def _lees(
+    rij: GebruikerPersoon, persoon: Partij, *, org_naam: str | None = None, afd_naam: str | None = None
+) -> GebruikerPersoonRead:
     return GebruikerPersoonRead(
         id=rij.id, keycloak_sub=rij.keycloak_sub, persoon_id=rij.persoon_id,
         naam=persoon.naam, email=persoon.email, aangemaakt_op=rij.aangemaakt_op,
+        organisatie_id=persoon.organisatie_id, organisatie_naam=org_naam,
+        afdeling_id=persoon.afdeling_id, afdeling=afd_naam,
     )
+
+
+async def _namen(session: AsyncSession, tid: uuid.UUID, ids) -> dict:
+    """Resolve partij-namen voor een set ids (organisatie/afdeling), tenant-scoped. Read-only."""
+    unieke = {i for i in ids if i}
+    if not unieke:
+        return {}
+    rijen = (
+        await session.execute(
+            select(Partij.id, Partij.naam).where(Partij.id.in_(unieke), Partij.tenant_id == tid)
+        )
+    ).all()
+    return {r.id: r.naam for r in rijen}
 
 
 async def maak_gebruiker(
@@ -212,10 +229,13 @@ async def zet_actief(session: AsyncSession, tenant_id, gebruiker_id, actief: boo
 
 
 async def corrigeer_gegevens(
-    session: AsyncSession, tenant_id, gebruiker_id, *, naam: str, email: str
+    session: AsyncSession, tenant_id, gebruiker_id, *, naam: str, email: str,
+    afdeling_id: uuid.UUID | None = None,
 ) -> GebruikerPersoonRead:
-    """Corrigeer naam/e-mail op beide plekken: de persoon-partij (bron van waarheid, ORM →
-    auto-audit) én het Keycloak-account. Email blijft uniek binnen de tenant."""
+    """Corrigeer naam/e-mail (+ optioneel afdeling/organisatie) op de persoon-partij (bron van
+    waarheid, ORM → auto-audit) én naam/e-mail op het Keycloak-account. Email blijft uniek binnen
+    de tenant. Afdeling wijzigen (LI032): de organisatie volgt uit de afdeling, samen gevalideerd
+    (`_valideer_lidmaatschap`); alles in één transactie zodat de audit één diff capture't."""
     tid = _tenant_uuid(tenant_id)
     koppel = await _haal_koppel(session, tid, gebruiker_id)
     persoon = (
@@ -234,17 +254,58 @@ async def corrigeer_gegevens(
     ).scalar_one_or_none()
     if botst is not None:
         raise OngeldigeRegistratie("EMAIL_AL_IN_GEBRUIK", "Er bestaat al een gebruiker met dit e-mailadres.")
+    # LI032 — bewaar de oude naam/e-mail: het account (Keycloak) wordt ALLEEN aangeroepen als een
+    # daarvan echt wijzigt. Een afdeling-/organisatie-only wissel is puur interne registratie en
+    # raakt het account niet (geen 503, interne wijziging gaat niet verloren bij een account-storing).
+    account_wijzigt = naam != persoon.naam or email != persoon.email
     persoon.naam = naam
     persoon.email = email
-    try:
-        await keycloak.werk_keycloak_gegevens_bij(koppel.keycloak_sub, naam=naam, email=email)
-    except keycloak.KeycloakProvisioningFout as exc:
-        await session.rollback()
-        raise KeycloakNietBeschikbaar(f"Gegevens corrigeren mislukt: {exc.bericht}") from exc
-    await session.commit()  # partij naam/email-diff → ORM-audit (entiteit_type=partij)
+    # LI032 — afdeling (en daarmee organisatie) wijzigen. Alleen als er een andere afdeling komt.
+    if afdeling_id is not None and afdeling_id != persoon.afdeling_id:
+        afdeling = (
+            await session.execute(
+                select(Partij).where(Partij.id == afdeling_id, Partij.tenant_id == tid)
+            )
+        ).scalar_one_or_none()
+        if afdeling is None or afdeling.aard != PartijAard.organisatie_eenheid:
+            raise OngeldigeRegistratie("ONGELDIGE_AFDELING", "De afdeling moet een bestaande afdeling zijn.")
+        nieuwe_org = afdeling.organisatie_id
+        if nieuwe_org != persoon.organisatie_id:
+            # Aanspreekpunt-blokkade: verplaats geen persoon die nog aanspreekpunt is van een partij
+            # die hij achterlaat — dat zou een stille inconsistentie geven. Weiger met uitleg.
+            blokkeerders = (
+                await session.execute(
+                    select(Partij.naam).where(
+                        Partij.contactpersoon_id == persoon.id, Partij.tenant_id == tid
+                    )
+                )
+            ).scalars().all()
+            if blokkeerders:
+                raise RegistratieConflict(
+                    "AANSPREEKPUNT_BLOKKEERT_VERPLAATSING",
+                    f"Deze persoon is nog aanspreekpunt van {', '.join(blokkeerders)}; "
+                    "maak dat eerst los voordat je hem naar een andere organisatie verplaatst.",
+                )
+        # Samen gezet en tegen elkaar gevalideerd (afdeling = organisatie_eenheid binnen de organisatie).
+        await partij_service._valideer_lidmaatschap(session, tid, PartijAard.persoon, nieuwe_org, afdeling_id)
+        persoon.organisatie_id = nieuwe_org
+        persoon.afdeling_id = afdeling_id
+    # Account (Keycloak) alleen synchroniseren als naam/e-mail echt wijzigt; anders overslaan zodat
+    # een afdeling-/organisatie-only wissel niet op een onnodige account-aanroep kan struikelen.
+    if account_wijzigt:
+        try:
+            await keycloak.werk_keycloak_gegevens_bij(koppel.keycloak_sub, naam=naam, email=email)
+        except keycloak.KeycloakProvisioningFout as exc:
+            await session.rollback()
+            raise KeycloakNietBeschikbaar(f"Gegevens corrigeren mislukt: {exc.bericht}") from exc
+    await session.commit()  # partij naam/email/org/afdeling-diff → ORM-audit (entiteit_type=partij)
     await session.refresh(koppel)
     await session.refresh(persoon)
-    return _lees(koppel, persoon)
+    namen = await _namen(session, tid, {persoon.organisatie_id, persoon.afdeling_id})
+    return _lees(
+        koppel, persoon,
+        org_naam=namen.get(persoon.organisatie_id), afd_naam=namen.get(persoon.afdeling_id),
+    )
 
 
 async def lijst_gebruikers(
@@ -260,7 +321,7 @@ async def lijst_gebruikers(
     kolom = Partij.naam
 
     stmt = (
-        select(GebruikerPersoon, Partij.naam, Partij.email)
+        select(GebruikerPersoon, Partij.naam, Partij.email, Partij.organisatie_id, Partij.afdeling_id)
         .join(Partij, Partij.id == GebruikerPersoon.persoon_id)
         .where(GebruikerPersoon.tenant_id == tid)
     )
@@ -278,12 +339,16 @@ async def lijst_gebruikers(
     rijen = (await session.execute(stmt)).all()
     meer = len(rijen) > limit
     rijen = rijen[:limit]
+    # LI032 — batch-resolve de organisatie-/afdeling-namen (één query; geen N+1).
+    namen = await _namen(session, tid, {r[3] for r in rijen} | {r[4] for r in rijen})
     items = [
         GebruikerPersoonRead(
             id=gp.id, keycloak_sub=gp.keycloak_sub, persoon_id=gp.persoon_id,
             naam=naam, email=email, aangemaakt_op=gp.aangemaakt_op,
+            organisatie_id=org_id, organisatie_naam=namen.get(org_id),
+            afdeling_id=afd_id, afdeling=namen.get(afd_id),
         )
-        for gp, naam, email in rijen
+        for gp, naam, email, org_id, afd_id in rijen
     ]
     if verrijk:
         for it in items:
@@ -293,6 +358,6 @@ async def lijst_gebruikers(
                 it.rol = next((r for r in info.get("rollen", []) if r in keycloak.TENANT_ROLLEN), None)
     volgende = None
     if meer and items:
-        laatste_gp, laatste_naam, _ = rijen[-1]
+        laatste_gp, laatste_naam, *_ = rijen[-1]
         volgende = encode_sort_cursor_nullable(sort="naam", order="asc", waarde=laatste_naam, id=str(laatste_gp.id))
     return items, volgende

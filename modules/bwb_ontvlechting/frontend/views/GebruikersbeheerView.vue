@@ -167,6 +167,13 @@ const geselecteerd = ref(null) // de rij waarop beheerd wordt
 const beheerRol = ref('')
 const beheerNaam = ref('')
 const beheerEmail = ref('')
+// LI032 — organisatie/afdeling van een bestaande gebruiker wijzigen (voorgevuld op de huidige waarden).
+const beheerOrganisatieId = ref('')
+const beheerAfdelingId = ref('')
+const beheerOrgInitieel = ref('')
+const beheerAfdInitieel = ref('')
+const beheerOrgKey = ref(0) // remount de organisatie-picker per geopende gebruiker (geen stale label)
+const beheerAfdKey = ref(0) // remount de afdeling-picker bij een org-wissel
 const beheerFouten = reactive({})
 const resetWachtwoord = ref(null) // het eenmalige wachtwoord na een reset (niet gepersisteerd)
 const bevestigUit = ref(false)    // inline bevestiging vóór uitschakelen
@@ -184,10 +191,25 @@ function openBeheer(rij, event) {
   beheerRol.value = rij.rol || ''
   beheerNaam.value = rij.naam || ''
   beheerEmail.value = rij.email || ''
+  // LI032 — voorvullen op de huidige organisatie/afdeling (uit de verrijkte read).
+  beheerOrganisatieId.value = rij.organisatie_id || ''
+  beheerAfdelingId.value = rij.afdeling_id || ''
+  beheerOrgInitieel.value = rij.organisatie_naam || ''
+  beheerAfdInitieel.value = rij.afdeling || ''
+  beheerOrgKey.value += 1 // verse organisatie-picker → toont deze gebruiker, geen stale label
+  beheerAfdKey.value += 1
   Object.keys(beheerFouten).forEach((k) => delete beheerFouten[k])
   resetWachtwoord.value = null
   bevestigUit.value = false
   beheerOpen.value = true
+}
+
+// Een andere organisatie kiezen → de al gekozen afdeling is niet meer geldig: resetten + remount.
+function onBeheerOrgKies(id) {
+  beheerOrganisatieId.value = id || ''
+  beheerAfdelingId.value = ''
+  beheerAfdInitieel.value = ''
+  beheerAfdKey.value += 1
 }
 function sluitBeheer() {
   beheerOpen.value = false
@@ -282,10 +304,16 @@ async function doeCorrectie() {
   if (!beheerNaam.value.trim()) beheerFouten.naam = 'Naam is verplicht.'
   if (!beheerEmail.value.trim()) beheerFouten.email = 'E-mail is verplicht.'
   else if (!_EMAIL.test(beheerEmail.value.trim())) beheerFouten.email = 'Geef een geldig e-mailadres op.'
+  // LI032 — organisatie + afdeling verplicht (een gebruiker hoort altijd bij een organisatie).
+  if (!beheerOrganisatieId.value) beheerFouten.organisatie = 'Kies een organisatie.'
+  if (!beheerAfdelingId.value) beheerFouten.afdeling = 'Kies een afdeling.'
   if (Object.keys(beheerFouten).length) return
   beheerBezig.value = true
   try {
-    await api.gebruikers.corrigeer(geselecteerd.value.id, { naam: beheerNaam.value.trim(), email: beheerEmail.value.trim() })
+    // Alleen `afdeling_id` (+ naam/email) mee; de backend leidt de organisatie uit de afdeling af.
+    await api.gebruikers.corrigeer(geselecteerd.value.id, {
+      naam: beheerNaam.value.trim(), email: beheerEmail.value.trim(), afdeling_id: beheerAfdelingId.value || null,
+    })
     toast.add({ severity: 'success', summary: 'Gegevens bijgewerkt', life: 2500 })
     await _herlaadEnSelecteer()
   } catch (e) {
@@ -518,6 +546,40 @@ onMounted(laad)
             <label for="gebr-beheer-email" class="font-semibold">E-mail *</label>
             <InputText id="gebr-beheer-email" v-model="beheerEmail" type="email" data-testid="gebr-beheer-email" :aria-invalid="!!beheerFouten.email" aria-describedby="gebr-beheer-fout-email" />
             <span v-if="beheerFouten.email" id="gebr-beheer-fout-email" role="alert" data-testid="gebr-beheer-fout-email" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ beheerFouten.email }}</span>
+          </div>
+          <!-- LI032 — organisatie + afdeling wijzigen (voorgevuld); zelfde opzet als aanmaken. -->
+          <div class="flex flex-col gap-[var(--lk-space-xs)]">
+            <label for="gebr-beheer-organisatie" class="font-semibold">Organisatie *</label>
+            <ZoekSelect
+              id="gebr-beheer-organisatie"
+              testid="gebr-beheer-organisatie"
+              :key="beheerOrgKey"
+              :model-value="beheerOrganisatieId"
+              :zoek-functie="zoekInterneOrganisaties"
+              :initieel-weergave="beheerOrgInitieel"
+              :invalid="!!beheerFouten.organisatie"
+              aria-describedby="gebr-beheer-fout-organisatie"
+              placeholder="Zoek een organisatie…"
+              @update:model-value="onBeheerOrgKies"
+            />
+            <span v-if="beheerFouten.organisatie" id="gebr-beheer-fout-organisatie" role="alert" data-testid="gebr-beheer-fout-organisatie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ beheerFouten.organisatie }}</span>
+          </div>
+          <div class="flex flex-col gap-[var(--lk-space-xs)]">
+            <label for="gebr-beheer-afdeling" class="font-semibold">Afdeling *</label>
+            <AfdelingSelect
+              id="gebr-beheer-afdeling"
+              testid="gebr-beheer-afdeling"
+              :key="beheerAfdKey"
+              v-model="beheerAfdelingId"
+              :partij-id="beheerOrganisatieId"
+              :initieel-weergave="beheerAfdInitieel"
+              :disabled="!beheerOrganisatieId"
+              :mag-aanmaken="magAanmaakAfdeling"
+              :org-naam="beheerOrgInitieel"
+              :placeholder="beheerOrganisatieId ? 'Zoek een afdeling…' : 'Kies eerst een organisatie'"
+            />
+            <span v-if="!beheerOrganisatieId" data-testid="gebr-beheer-afdeling-hint" class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Kies eerst een organisatie.</span>
+            <span v-if="beheerFouten.afdeling" role="alert" data-testid="gebr-beheer-fout-afdeling" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ beheerFouten.afdeling }}</span>
           </div>
           <Button label="Gegevens opslaan" severity="secondary" :disabled="beheerBezig" data-testid="gebr-gegevens-opslaan" class="self-start" @click="doeCorrectie" />
         </section>

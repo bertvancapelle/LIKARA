@@ -251,6 +251,18 @@ wildgroei is een **vergevingsgezinde zoek** (ilike / partieel / trim), zodat een
 gevonden wordt vóór iemand een dubbele aanmaakt. Referentie: generiek `#leeg`-scoped-slot op
 `ZoekSelect.vue` (backward-compatible: default = "Geen resultaten.").
 
+**4. Voorgevuld openen toont de VOLLEDIGE (scope-)startlijst — nooit de prefill als zoekfilter
+(niet-onderhandelbaar, LI032).** Een `ZoekSelect` met een voorgevulde waarde (bewerken-modus) toont bij
+openen de **volledige startlijst binnen zijn scope**, niet alleen de huidige waarde. Anders zit de
+gebruiker vast aan de bestaande keuze en lijkt er maar één afdeling/organisatie te bestaan. Concreet:
+`openen()` zoekt met een **lege term** (`zoek('')`), niet met de voorgevulde `query`; de voorgevulde
+tekst blijft als **label** zichtbaar maar filtert niet; de input-tekst wordt bij openen geselecteerd
+(`input.select()`) zodat de eerste toetsaanslag de prefill vervangt. Typen ná openen filtert daarna wél
+soepel (debounce). Regressietest: mount met `modelValue` + `initieelWeergave` en een zoek-mock die op
+`params.zoek` filtert → bij focus wordt `zoek: undefined` doorgegeven en verschijnt de volledige lijst.
+Referentie: `ZoekSelect.vue` `openen()`/`zoek(term)`; tests in `ZoekSelect.test.js` +
+`GebruikersbeheerView.test.js` (beheer-afdeling-picker toont alle org-afdelingen).
+
 ## Cytoscape.js Vue 3 integratiepatroon (DC013, niet-onderhandelbaar)
 
 Cytoscape.js in een Vue 3 flex-container vereist vier dingen voor een correcte render.
