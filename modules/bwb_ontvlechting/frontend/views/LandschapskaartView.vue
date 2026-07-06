@@ -255,6 +255,7 @@ async function herlaadGraaf() {
     nodes.value = []
     edges.value = []
     egoStartId.value = null
+    _seedScopeOrgs() // ADR-040 F1 stap 2b — geen orgs → lege scope
     tekenVoortgang.value = null
     fout.value = null
     laden.value = false
@@ -270,6 +271,7 @@ async function herlaadGraaf() {
       nodes.value = data.nodes || []
       edges.value = _mapEdges(data.edges)
       _schoonSetOp() // LI052 — spook-ids (geen node in de respons) uit de set halen (één keer, geen refetch)
+      _seedScopeOrgs() // ADR-040 F1 stap 2b — eenmalige deterministische seed: alle aanwezige orgs aan
     } else {
       // Lege set + hele-landschap-actie → de volledige graaf, in chunks verwerkt voor "X van N".
       const data = await api.landschapskaart.haalGrafdata({ diepte: diepte.value })
@@ -290,8 +292,8 @@ async function herlaadGraaf() {
       // gebruiker zélf een object kiest (dubbelklik/hercentreren, "toon impact", deep-link). Zo is het
       // hele landschap identiek aan het lege beginscherm: overzicht, geen centrum, Praatplaat-knop disabled.
       egoStartId.value = null
-      // LI053 — "Organisaties in beeld" staan standaard aan; de organisatieNodes-watch seedt dat
-      // (in élke modus), zolang de gebruiker de balk niet zelf heeft aangeraakt.
+      // ADR-040 F1 stap 2b — "Organisaties in beeld" staan standaard aan: eenmalige deterministische seed.
+      _seedScopeOrgs()
       tekenVoortgang.value = null
       // Fase B — "toon hele landschap" is een verse verkennings-wortel: hef de history opnieuw op
       // (na de flush van de scope-default) zodat die default geen losse "terug"-stap wordt.
@@ -320,28 +322,31 @@ async function zetDiepte(d) {
 const _isApp = (n) => n?.element_type === 'applicatie' || (n?.element_type === 'component' && n?.laag === 'application')
 const _isOrg = (n) => n?.element_type === 'partij' && n?.soort === 'organisatie'
 
-// ── Organisaties in beeld (LI053) — de balk bestuurt UITSLUITEND de organisatie-overlay ──────────
+// ── Organisaties in beeld (LI053 → ADR-040 F1 stap 2b) — de balk bestuurt UITSLUITEND de org-overlay ──
 // Een vinkje toont/verbergt de organisatie-node ÉN haar (per-org) gebruikersgroepen. Componenten,
 // infra, contracten, personen en externe partijen vallen er NOOIT onder — die blijven altijd staan.
-// Default AAN: zolang de gebruiker de balk niet zelf heeft aangeraakt, staan alle aanwezige
-// organisaties aangevinkt (reactief bij elke (her)laad, in élke modus). Na de eerste toggle blijft
-// de keuze staan; "Begin opnieuw" en een history-herstel zetten dat weer los/vast.
+// De balk staat alléén op OVERZICHT (breed op organisatie filteren); op de praatplaat is de scope
+// inert (het centrum + de kring bepalen wat je ziet — geen stille organisatie-verberging).
+// ADR-040 F1 stap 2b — VOORSPELBAAR: geen reactieve auto-settle meer. `scopeOrgs` wordt bij élke load
+// éénmalig deterministisch geseed op "alle aanwezige organisaties aan" (`_seedScopeOrgs`, aangeroepen
+// in `herlaadGraaf` vóór de render). Een bewuste uitvink geldt binnen het huidige beeld; een set-
+// wijziging/herlaad reset naar "alle aan" (init-semantiek A). Geen ná-render-beweging (fcose-fragiliteit).
 const scopeOrgs = ref(new Set())   // aangevinkte organisatie-ids
 const organisatieNodes = computed(() => nodes.value.filter(_isOrg))
-const _scopeAangeraakt = ref(false) // false → scope volgt automatisch "alle organisaties aan"
-watch(organisatieNodes, (orgs) => {
-  if (_scopeAangeraakt.value) return
-  scopeOrgs.value = new Set(orgs.map((o) => o.id))
-}, { immediate: true })
+function _seedScopeOrgs() {
+  scopeOrgs.value = new Set(nodes.value.filter(_isOrg).map((o) => o.id))
+}
 function toggleScopeOrg(id) {
-  _scopeAangeraakt.value = true // de gebruiker bepaalt vanaf nu zelf → niet meer auto-defaulten
   const s = new Set(scopeOrgs.value)
   s.has(id) ? s.delete(id) : s.add(id)
   scopeOrgs.value = s
 }
 function _inScope(n) {
-  // Scope bestuurt uitsluitend de organisatie-overlay — geldt IDENTIEK in Ego/Impact/Geheel.
+  // Scope bestuurt uitsluitend de organisatie-overlay op OVERZICHT.
   if (actieveSet.value.has(n.id)) return true             // set-lid (focus) → altijd zichtbaar
+  // ADR-040 F1 stap 2b — op de praatplaat is de scope inert: het centrum + de kring bepalen wat je ziet,
+  // dus nooit een kring-organisatie stil wegfilteren (de balk is daar ook verborgen).
+  if (weergave.value === 'praatplaat') return true
   if (_isOrg(n)) return scopeOrgs.value.has(n.id)         // org-node: alleen aangevinkte organisaties
   if (n.element_type === 'gebruikersgroep') {
     // Org-gebonden groep volgt de organisatie-vinkjes; org-loze groep NIET (die volgt de Gebruikers-
@@ -568,8 +573,9 @@ function _metContext(matchedIds) {
 const zichtbareNodes = computed(() => {
   // LI019 1c — de filterselects gelden in ALLE modi. LI019 1d-v4 — bij een actief filter komen de
   // context-buren (niet-flow ringen) van de gematchte componenten mee, zodat de ringen zichtbaar blijven.
-  // ADR-024 scope: de organisatie-scope is een extra zeef VÓÓR de weergave (alleen application-
-  // componenten; niets aangevinkt → alles). Filters/ringen/selectie werken daarbinnen ongewijzigd door.
+  // ADR-024 scope: de organisatie-scope is een extra zeef VÓÓR de weergave (alleen org-nodes + hun
+  // gebruikersgroepen; componenten nooit). ADR-040 F1 stap 2b — geldt op OVERZICHT; op de praatplaat is
+  // `_inScope` inert. Filters/ringen/selectie werken daarbinnen ongewijzigd door.
   const alle = grafNodes.value.filter(_inScope)
   if (modus.value === 'ego') {
     if (!filterActief.value) return alle.filter((n) => egoZichtbaarIds.value.has(n.id))
@@ -681,7 +687,8 @@ function wisSet() {
   heleLandschap.value = false
   beginschermOpen.value = true // "Begin opnieuw"/"Wis alles" = volledige reset → terug naar het beginscherm
   beginschermSleutel.value += 1 // LI052 — forceer een verse picker (buffer/vinkjes/zoekresultaten leeg)
-  _scopeAangeraakt.value = false // LI053 — verse start → "Organisaties in beeld" weer default AAN
+  // ADR-040 F1 stap 2b — geen `_scopeAangeraakt` meer; de reset naar het beginscherm herlaadt (lege set)
+  // en `_seedScopeOrgs` zet de scope opnieuw op "alle aan" (hier leeg — geen orgs op het beginscherm).
   legendaPos.value = { x: null, y: null } // LI025 — legenda terug naar standaardpositie
   detailPos.value = { x: null, y: null } // LI033 — detail-paneel terug naar standaardpositie
 }
@@ -1007,7 +1014,10 @@ function _herstelToestand(t) {
   // LI053 — scopeModus is vervallen; een oud-format snapshot dat het veld nog bevat laadt gewoon
   // (het overtollige veld wordt genegeerd).
   if (t.scopeOrgs && !setGelijk(scopeOrgs.value, t.scopeOrgs)) scopeOrgs.value = new Set(t.scopeOrgs)
-  _scopeAangeraakt.value = true // LI053 — een herstelde toestand is bewust → niet auto-terug-defaulten
+  // ADR-040 F1 stap 2b — geen `_scopeAangeraakt` meer. Een pure scope-herstelstap wijzigt de set NIET →
+  // de reload-watch vuurt niet → `_seedScopeOrgs` overschrijft de herstelde scope niet (terug/vooruit
+  // van de scope blijft werken). Een herstel dat óók de set wijzigt herlaadt en volgt init-semantiek A
+  // ("alle aan") — bewust; terug/vooruit over set-grenzen is uitgesteld werk (niet gebroken).
   // Afgeleide watchers (drill-reset, filter-dialog, push) draaien op de flush → pas dáárná
   // vrijgeven; een onverbruikte animatie-vlag (geen tekening uitgelokt) ook wissen. Centreren
   // loopt via de layout-stop (_naLayout) — geen losse cy.fit() meer (auto-centreren gaat hierin op).
@@ -2261,11 +2271,12 @@ const typeLabel = (t) => humaniseer(t)
 
       <!-- Midden: "Organisaties in beeld"-balk bovenin + het kaart-canvas eronder. -->
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <!-- LI053 — de balk bestuurt UITSLUITEND de organisatie-overlay: een vinkje toont/verbergt de
-             organisatie-node + haar gebruikersgroepen. Componenten worden nooit geraakt. Default alle
-             aan. Geldt identiek in Ego/Impact/Geheel. -->
+        <!-- LI053 → ADR-040 F1 stap 2b — de balk bestuurt UITSLUITEND de organisatie-overlay: een vinkje
+             toont/verbergt de organisatie-node + haar gebruikersgroepen. Componenten worden nooit geraakt.
+             Default alle aan (eenmalige seed). Alléén op OVERZICHT: op de praatplaat bepaalt het centrum +
+             de kring wat je ziet (scope daar inert) → balk verborgen. -->
         <div
-          v-if="organisatieNodes.length"
+          v-if="organisatieNodes.length && weergave === 'overzicht'"
           data-testid="lk-scopebalk" role="group" aria-label="Organisaties in beeld"
           class="flex flex-wrap items-center gap-x-[var(--lk-space-md)] gap-y-1 border-b border-[var(--lk-color-border)] bg-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)]"
         >

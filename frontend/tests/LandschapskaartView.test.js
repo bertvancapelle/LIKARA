@@ -1442,6 +1442,38 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-scope-gebruikt"]').exists()).toBe(false)
   })
 
+  it('ADR-040 F1 stap 2b — een set-wijziging herseedt de scope naar "alle aan" (init-semantiek A)', async () => {
+    const { w } = await _mountScope()
+    await w.find('[data-testid="lk-scope-org-oB"]').trigger('change') // oB bewust uit
+    await flushPromises()
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oA'])
+    // Een set-wijziging (component toevoegen) herlaadt → de eenmalige seed zet alle aanwezige orgs weer
+    // aan (geen naschuivende auto-settle; de uitvink gold binnen het vorige beeld).
+    w.vm.toggleSet('appA')
+    await flushPromises()
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oA', 'oB'])
+  })
+
+  it('ADR-040 F1 stap 2b — scopebalk alleen op Overzicht; op de praatplaat is de scope inert', async () => {
+    const { w } = await _mountScope()
+    expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true) // Overzicht → balk aanwezig
+    await w.find('[data-testid="lk-scope-org-oA"]').trigger('change') // oA uit (op Overzicht)
+    await flushPromises()
+    expect(_zichtbaar(w)).not.toContain('oA') // Overzicht: oA weggefilterd
+    // Naar de praatplaat (centrum appA) zónder set-wijziging → balk weg + scope inert (geen stille
+    // organisatie-verberging, ook al staat oA nog uitgevinkt).
+    w.vm.toonPraatplaat('appA')
+    await flushPromises()
+    expect(w.vm.weergave).toBe('praatplaat')
+    expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(false) // praatplaat → balk verborgen
+    expect(w.vm._inScope({ id: 'oA', element_type: 'partij', soort: 'organisatie' })).toBe(true) // inert
+    // Terug naar Overzicht (geen set-wijziging) → balk weer zichtbaar, de uitvink is bewaard.
+    w.vm.toonOverzicht()
+    await flushPromises()
+    expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true)
+    expect([...w.vm.scopeOrgs].sort()).toEqual(['oB'])
+  })
+
   it('LI053 — organisatie uitvinken verbergt de org-node én haar gebruikersgroepen; componenten blijven', async () => {
     const { w } = await _mountScope()
     expect(_zichtbaar(w)).toEqual(['appA', 'appB', 'ggA', 'ggLoos', 'oA', 'oB'])
