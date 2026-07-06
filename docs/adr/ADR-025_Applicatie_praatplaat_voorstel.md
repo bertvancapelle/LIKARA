@@ -1,6 +1,6 @@
 # ADR-025 — Landschapskaart (applicatie-centrische praatplaat)
 
-**Status:** Geland — DC013 (V013); doorbouw v4 (diepte/koppelingsdetails/migratieplaatsing) DC013.
+**Status:** **Superseded door ADR-040** (Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor). Historisch: Geland — DC013 (V013); doorbouw v4 (diepte/koppelingsdetails/migratieplaatsing) DC013.
 **Datum:** 2026-06-16 (voorstel) · bijgewerkt 2026-06-19 (werkelijke bouwstand)
 **Relatie:** Leeslaag bovenop het getypeerde relatiemodel (ADR-023). Leunt voor ring 2 op het
 partijenregister (ADR-024). **Expliciet onderscheiden van Fase G (Open Exchange export).**
