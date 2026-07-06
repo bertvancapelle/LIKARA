@@ -41,7 +41,10 @@ const LIFECYCLE_OPTIES = ['migratieklaar', 'in_inventarisatie', 'geblokkeerd', '
 // RINGEN → geen checkbox → `ringAan.has('eigenaar')` altijd false → de eigendom-edges werden
 // permanent weggefilterd terwijl hun nodes wél zichtbaar bleven. Default AAN (essentieel: wie is
 // verantwoordelijk voor dit component).
-const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
+// LI033b — 'gebruikt' ("organisatie gebruikt applicatie", org → applicatie) is een eigen ring, spiegel
+// van 'eigenaar'. Default AAN. Doet mee in de ego-kring (praatplaat) via `_burenVan` (alle actieve
+// ringen) — geen aparte impact-bedrading (IMPACT_RINGEN is met de Impact-verkenner afgeschaft).
+const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikt', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
 // ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie); standaard
 // UIT (zie ringAan), want context, niet de hoofdvraag van de kaart.
 const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
@@ -51,6 +54,7 @@ const RING_LABELS = {
   samenstelling: 'Samenstelling', // ADR-033 1b — "onderdeel van" (component↔component aggregatie)
   rollen: 'Rollen & beheer',
   eigenaar: 'Eigendom', // LI036 — "is eigendom van" (eigenaar-organisatie → component)
+  gebruikt: 'Gebruikt', // LI033b — "gebruikt" (organisatie → applicatie, uit het grove feit organisatiegebruik)
   gebruikers: 'Gebruikers',
   contracten: 'Contracten',
   infrastructuur: 'Infrastructuur',
@@ -1651,12 +1655,38 @@ const zichtbaarAantal = computed(() => getekendeNodes.value.length)
 // anders fit op het geheel. Wordt als layout-`stop`-callback gebruikt voor élke layout, zodat een
 // wijziging (filter/ring/selectie/view/layout) automatisch herpositioneert + centreert. Raakt geen
 // reactieve state aan → geen layout-her-trigger-loop. Respecteert de fullscreen-viewport-behoud-vlag.
+// ADR-040 F1 (Praatplaat-ellips) — ná de concentric-plaatsing de radiale kring uitrekken tot een ELLIPS
+// die de VENSTERVERHOUDING volgt: in een liggend venster breder dan hoog, zodat de brede ruimte benut
+// wordt en buren meer onderlinge afstand krijgen (betere leesbaarheid). Deterministisch (leest cy-state,
+// past een schaling toe — geen re-layout/timing-hack) en alléén in de Praatplaat (ego). We rekken UIT
+// langs de langere canvas-as en comprimeren NOOIT → geen nieuwe overlap. Mild geclamped (max 1.7) zodat
+// het bij weinig buren een lichte ellips blijft, niet een lelijke vervorming.
+function _ellipsPraatplaat() {
+  if (!cy || modus.value !== 'ego' || layoutModus.value !== 'radiaal') return
+  const w = cy.width?.() || 0
+  const h = cy.height?.() || 0
+  if (!(w > 0) || !(h > 0)) return
+  const ar = w / h
+  let fx = 1, fy = 1
+  if (ar > 1) fx = Math.min(ar, 1.7)            // liggend → horizontaal uitrekken
+  else if (ar < 1) fy = Math.min(1 / ar, 1.7)   // staand → verticaal uitrekken
+  if (fx === 1 && fy === 1) return
+  const c = egoStartId.value ? cy.getElementById?.(String(egoStartId.value)) : null
+  let cx, cyy
+  if (c && c.length) { const p = c.position(); cx = p.x; cyy = p.y }
+  else { const bb = cy.elements().boundingBox(); cx = (bb.x1 + bb.x2) / 2; cyy = (bb.y1 + bb.y2) / 2 }
+  cy.nodes().forEach((n) => {
+    const p = n.position()
+    n.position({ x: cx + (p.x - cx) * fx, y: cyy + (p.y - cyy) * fy })
+  })
+}
 function _naLayout() {
   if (!cy || _behoudViewport) return
   // ADR-040 F1 — de fit/resize + het opnieuw aanbrengen van highlight/legenda-dim horen DETERMINISTISCH
   // bij het EINDE van de layout (deze stop-callback), niet in een losse `setTimeout` in tekenGraaf.
   // Eerst her-meten (de flex-hoogte kan later gezet zijn), dan fitten/centreren.
   cy.resize?.()
+  _ellipsPraatplaat() // Praatplaat-kring → ellips op vensterverhouding (vóór fit/center)
   // LI019 1d-v4 (bug 5) — centreer alléén op het ego-centrum ná een expliciete recenter (dubbelklik/
   // set-klik); bij elke andere wijziging (m.n. een filter die de node-set verandert) → fit op het
   // geheel, zodat de zichtbare nodes altijd in beeld komen.
@@ -1736,9 +1766,14 @@ function onLaneSleepEinde(e) {
   sleepLane.value = null
 }
 function _layout(geenAnimatie = false) {
-  // `geenAnimatie` (bij history-herstel): teken direct, zonder de 400ms-animatie — voorkomt dat
-  // snel terug/vooruit animaties opstapelt. De stop-callback (_naLayout) kadert daarna één keer.
-  const anim = geenAnimatie ? { animate: false } : { animate: true, animationDuration: 400 }
+  // ADR-040 F1 (layout-stap) — DETERMINISTISCH & NIET-GEANIMEERD. De vroegere 400ms-fly-in animeerde de
+  // nodes vanaf hun verse (0,0)-positie (elke render doet `cy.add` opnieuw); op een dichte graaf (o.a. de
+  // 3-1 gebruikt-edges die de degree opblazen) settelden ze niet naar distincte posities → knopen vielen
+  // samen ("source/target overlap" → leeg-ogend canvas). `animate:false` legt élke node meteen op zijn
+  // concentric-doel (bewezen: dezelfde config zónder animatie deelt distincte posities uit). `geenAnimatie`
+  // (history-herstel) blijft bestaan als parameter maar is nu de standaard.
+  void geenAnimatie
+  const anim = { animate: false }
   // LI019 1d (Taak 2) — Swimlanes: custom preset-posities per lane (0 nieuwe dependencies).
   // `positions` als object-map {nodeId: {x,y}} (Cytoscape doet de id-lookup zelf) — géén callback
   // met `node.id` (= de id-METHODE, niet de string). animate:false + fit:true geeft een direct,
@@ -1751,18 +1786,27 @@ function _layout(geenAnimatie = false) {
   // de edges-onzichtbaar-render-bug (lijnen weg bij scope-re-check / buren toevoegen). Elke render legt
   // zich nu opnieuw, deterministisch (concentric) uit.
   // Ego: concentric met het geselecteerde component centraal.
+  // ADR-040 F1 (layout-leesbaarheid) — ONDERLINGE AFSTAND. `nodeDimensionsIncludeLabels:true` reserveert
+  // al de GEMETEN node-grootte (labelbreedte); `minNodeSpacing` is daarbovenop enkel een kleine GAP en
+  // `spacingFactor` blijft 1.0 (géén globale opblazing). De eerdere 90px-gap × 1.6 zette knopen véél te
+  // ver uiteen (labels onleesbaar zodra de plaat paste). Nu: knopen dicht genoeg voor leesbare labels
+  // zonder inzoomen, maar niet overlappend. (Fijn-afstemming is een browsercheck-criterium — headless
+  // meet labelbreedte niet.)
   if (modus.value === 'ego') {
     return {
       name: 'concentric', concentric: (n) => (n.id() === egoStartId.value ? 10 : 5), levelWidth: () => 1,
-      minNodeSpacing: 80, spacingFactor: 1.5, padding: 60, ...anim, stop: _naLayout,
+      minNodeSpacing: 25, spacingFactor: 1.0, padding: 40, nodeDimensionsIncludeLabels: true, ...anim, stop: _naLayout,
     }
   }
-  // Overzicht (geheel): concentric op koppelingsdichtheid (meer koppelingen → dichter bij het centrum).
-  // Deterministische, fcose-vrije radiale layout (de voormalige impact-fcose is met de Impact-verkenner
-  // vervallen — zie ADR-040 F1).
+  // Overzicht (geheel): een CENTRUMLOZE, gebalanceerde plaat — geen ster/verticale as (concentric legt
+  // ringen rond één centrum op, terwijl het Overzicht geen natuurlijk middelpunt heeft). Gekozen: de
+  // built-in `grid` — deterministisch (identieke posities bij herhaling), stabiel, géén externe/afwezige
+  // layout-plugin (cose/fcose zijn niet-deterministisch en zijn juist afgeschaft wegens de edges-
+  // onzichtbaar-bug). `avoidOverlap` + `nodeDimensionsIncludeLabels` houden de (grotere) knopen uit elkaar
+  // op basis van hun GEMETEN grootte. De Praatplaat houdt hierboven de radiale concentric-layout.
   return {
-    name: 'concentric', concentric: (n) => n.degree(false), levelWidth: () => 2,
-    minNodeSpacing: 80, spacingFactor: 1.5, padding: 50, ...anim, stop: _naLayout,
+    name: 'grid', avoidOverlap: true, avoidOverlapPadding: 24, nodeDimensionsIncludeLabels: true,
+    condense: false, padding: 40, ...anim, stop: _naLayout,
   }
 }
 
@@ -1792,11 +1836,13 @@ const CY_STYLE = [
     selector: 'node',
     style: {
       'background-color': 'data(bg)', 'border-color': 'data(border)', 'border-width': 2,
-      label: 'data(label)', 'font-size': 11, color: 'data(txt)', 'text-valign': 'center', 'text-halign': 'center',
+      // ADR-040 F1 (layout-leesbaarheid) — GROTERE knopen: font 11 → 14, ruimere text-max-width + padding,
+      // zodat namen zonder inzoomen goed leesbaar zijn (node-grootte volgt het label via width:'label').
+      label: 'data(label)', 'font-size': 14, color: 'data(txt)', 'text-valign': 'center', 'text-halign': 'center',
       // Vorm-per-type-slice — elk type heeft nu een tweeregelig label (naam + type): wrap aan,
       // hoogte volgt het label, ruime padding zodat de type-regel onder de naam past.
-      width: 'label', height: 'label', shape: 'data(shape)', 'text-wrap': 'wrap', 'text-max-width': 150,
-      'padding-left': 12, 'padding-right': 12, 'padding-top': 6, 'padding-bottom': 6,
+      width: 'label', height: 'label', shape: 'data(shape)', 'text-wrap': 'wrap', 'text-max-width': 180,
+      'padding-left': 16, 'padding-right': 16, 'padding-top': 9, 'padding-bottom': 9,
     },
   },
   // Ronde vormen (ellipse/barrel) clippen het label aan de randen → ruimere padding.
@@ -1817,7 +1863,10 @@ const CY_STYLE = [
       width: 'data(w)', 'line-color': 'data(lc)', 'line-style': 'data(ls)',
       'target-arrow-shape': 'triangle', 'target-arrow-color': 'data(lc)', 'curve-style': 'bezier',
       // Koppelingsdetail-label (flow-edges): protocol + richting.
-      label: 'data(label)', 'font-size': 8, color: 'var(--lk-color-text-muted)', 'text-wrap': 'none',
+      // Concrete hex i.p.v. een CSS-custom-property: cytoscape resolvet `var(--…)` niet (invalide-color-
+      // warning) — dezelfde muted-grijs als de UI-tekst, nu wél door cytoscape leesbaar. Font 8 → 10 mee
+      // vergroot met de knopen, zodat de lijn-teksten óók zonder inzoomen leesbaar zijn.
+      label: 'data(label)', 'font-size': 10, color: '#64748b', 'text-wrap': 'none',
       'text-opacity': 0, // LI023 — default verborgen; zichtbaar bij hover (mouseover-handler)
       'text-rotation': 'autorotate', 'text-background-color': '#fff', 'text-background-opacity': 0.8,
     },

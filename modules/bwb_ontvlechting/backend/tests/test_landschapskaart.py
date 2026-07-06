@@ -82,6 +82,20 @@ def test_landschapskaart_serveert_gebruikers_ring():
     assert "gebruikt door" in bron
 
 
+def test_landschapskaart_serveert_gebruikt_ring():
+    """LI033b — de service projecteert het grove feit `organisatiegebruik` als 'gebruikt'-edge
+    (organisatie → applicatie), spiegel van de eigenaar-edge; read-only, geen nieuwe relatie."""
+    import inspect
+
+    import services.landschapskaart_service as s
+
+    bron = inspect.getsource(s)
+    assert 'ring="gebruikt"' in bron and 'label="gebruikt"' in bron
+    assert 'relatietype="gebruikt"' in bron
+    # Dangling-guard: alleen als beide endpoints als knoop meekomen.
+    assert "r_og.organisatie_id in partij_info and r_og.applicatie_id in comp_node" in bron
+
+
 def test_landschapskaart_serveert_samenstelling_ring():
     """ADR-033 1b — de service projecteert component↔component aggregatie als 'samenstelling'-edge,
     met een guard die plateau-lidmaatschap (bron=plateau) uitsluit (alleen-lezen, niets afgeleid)."""
@@ -521,6 +535,103 @@ def test_landschapskaart_organisatie_scope_live():
 
 
 @integratie
+def test_landschapskaart_gebruikt_edge_live():
+    """LI033b — een organisatie die een applicatie GEBRUIKT (grof feit `organisatiegebruik`) krijgt een
+    'gebruikt'-edge (org → app). Bezit + gebruik levert TWEE lijnen (eigenaar + gebruikt), niet onderdrukt."""
+    from sqlalchemy import text as _text
+
+    from models.models import (
+        Component, Element, ElementType, Organisatiegebruik, Partij, PartijAard, PartijScope,
+    )
+    from services import landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _comp(s, naam, *, eigenaar=None):
+        elem = Element(tenant_id=tid, element_type=ElementType.component); s.add(elem); await s.flush()
+        s.add(Component(id=elem.id, tenant_id=tid, naam=naam, componenttype="applicatie",
+                        hostingmodel="on_premise", eigenaar_organisatie_id=eigenaar)); await s.flush()
+        return elem.id
+
+    async def _org(s, naam):
+        elem = Element(tenant_id=tid, element_type=ElementType.partij); s.add(elem); await s.flush()
+        s.add(Partij(id=elem.id, tenant_id=tid, aard=PartijAard.organisatie, naam=naam,
+                     scope=PartijScope.extern)); await s.flush()
+        return elem.id
+
+    async def _flow(s):
+        ids = []
+        try:
+            org = await _org(s, "WT-GBR-Org")
+            app_gebruikt = await _comp(s, "WT-GBR-AppGebruikt")                 # alleen gebruikt
+            app_beide = await _comp(s, "WT-GBR-AppBeide", eigenaar=org)          # bezit + gebruik
+            s.add(Organisatiegebruik(tenant_id=tid, organisatie_id=org, applicatie_id=app_gebruikt))
+            s.add(Organisatiegebruik(tenant_id=tid, organisatie_id=org, applicatie_id=app_beide))
+            await s.commit()
+            ids += [app_gebruikt, app_beide, org]
+            graf = await svc.haal_grafdata_op(s, _TID)
+            return graf, {"org": org, "gebruikt": app_gebruikt, "beide": app_beide}
+        finally:
+            # organisatiegebruik-FK's zijn ON DELETE CASCADE → element-delete ruimt de grove feiten mee.
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    graf, X = asyncio.run(_run_rls(_flow))
+
+    def _edges(bron, doel):
+        return [e for e in graf.edges if e.bron_id == bron and e.doel_id == doel]
+
+    # gebruikt-edge org → app (label/ring/relatietype).
+    g = _edges(X["org"], X["gebruikt"])
+    assert any(e.relatietype == "gebruikt" and e.ring == "gebruikt" and e.label == "gebruikt" for e in g)
+    # Bezit + gebruik = twee lijnen (eigenaar + gebruikt), beide aanwezig (niet onderdrukt).
+    ringen_beide = {e.ring for e in _edges(X["org"], X["beide"])}
+    assert {"eigenaar", "gebruikt"} <= ringen_beide
+
+
+@integratie
+def test_landschapskaart_gebruikt_scoped_live():
+    """LI033b — een gebruiker-organisatie (gebruikt, niet bezit/beheert) komt in de SUBGRAAF-scope zodra
+    haar gebruikte applicatie in de set zit → de org-node verschijnt (scope-add) en de gebruikt-edge is
+    niet-dangling."""
+    from sqlalchemy import text as _text
+
+    from models.models import (
+        Component, Element, ElementType, Organisatiegebruik, Partij, PartijAard, PartijScope,
+    )
+    from services import landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            oe = Element(tenant_id=tid, element_type=ElementType.partij); s.add(oe); await s.flush()
+            s.add(Partij(id=oe.id, tenant_id=tid, aard=PartijAard.organisatie, naam="WT-GBRS-Org",
+                         scope=PartijScope.extern)); await s.flush()
+            ce = Element(tenant_id=tid, element_type=ElementType.component); s.add(ce); await s.flush()
+            s.add(Component(id=ce.id, tenant_id=tid, naam="WT-GBRS-App", componenttype="applicatie",
+                            hostingmodel="on_premise")); await s.flush()  # geen eigenaar → puur gebruik
+            s.add(Organisatiegebruik(tenant_id=tid, organisatie_id=oe.id, applicatie_id=ce.id))
+            await s.commit()
+            ids += [ce.id, oe.id]
+            graf = await svc.haal_grafdata_op(s, tid, component_ids=[ce.id])
+            return graf, {"org": oe.id, "app": ce.id}
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    graf, X = asyncio.run(_run_rls(_flow))
+    per_id = {n.id: n for n in graf.nodes}
+    # De org-node kwam via de scope-add mee (ze bezit/beheert niets — alleen gebruik).
+    assert X["org"] in per_id
+    # De gebruikt-edge tekent tussen bestaande zichtbare nodes (niet-dangling).
+    assert any(e.bron_id == X["org"] and e.doel_id == X["app"] and e.ring == "gebruikt" for e in graf.edges)
+
+
+@integratie
 def test_landschapskaart_blokkades_open_telling_live():
     """Een via de engine ontstane open blokkade (score 'nee') telt mee in `blokkades_open`."""
     from sqlalchemy import select as _select, text as _text
@@ -577,8 +688,9 @@ def test_subgraaf_signatuur_en_schema_en_route():
 
 
 def test_eigenaar_edge_is_context_geen_impact():
-    """A3 — de eigenaar-edge ('is eigendom van') zit in de bron als context-ring 'eigenaar' en
-    staat bewust NIET in de frontend IMPACT_RINGEN (geen impact-propagatie)."""
+    """A3 — de eigenaar-edge ('is eigendom van') zit in de bron als context-ring 'eigenaar'.
+    ADR-040 F1 — de Impact-verkenner is afgeschaft: er is geen frontend `IMPACT_RINGEN` meer (geen
+    aparte impact-propagatielijst). Context-ringen (eigenaar/gebruikt) doen mee via de ego-kring."""
     import inspect
     import pathlib
 
@@ -587,8 +699,7 @@ def test_eigenaar_edge_is_context_geen_impact():
     bron = inspect.getsource(s)
     assert 'ring="eigenaar"' in bron and 'label="is eigendom van"' in bron
     vue = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "views" / "LandschapskaartView.vue"
-    impact_regel = next(l for l in vue.read_text().splitlines() if "IMPACT_RINGEN = new Set" in l)
-    assert "'eigenaar'" not in impact_regel  # context, geen impact
+    assert "IMPACT_RINGEN = new Set" not in vue.read_text()  # ADR-040 — impact-machinerie afgeschaft
 
 
 def _ac(naam):

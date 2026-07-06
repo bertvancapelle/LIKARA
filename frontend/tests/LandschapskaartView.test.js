@@ -1881,15 +1881,33 @@ describe('LandschapskaartView v3', () => {
   // ── ADR-040 F1 — fcose-vrije layout: zowel praatplaat als overzicht gebruiken concentric ──
   // (Vervangt de LI030-test die impact→fcose borgde: fcose is verwijderd wegens de edges-onzichtbaar-bug.)
   describe('layout (ADR-040 F1 — fcose weg)', () => {
-    it('praatplaat én overzicht gebruiken beide concentric (geen fcose meer)', async () => {
+    it('ADR-040 layout — Praatplaat = concentric (radiaal), Overzicht = grid (centrumloos)', async () => {
       const { w } = await mountView()
       await kies(w, 'a1') // praatplaat (ego)
       expect(w.vm.modus).toBe('ego')
-      expect(w.vm._layout().name).toBe('concentric')
+      expect(w.vm._layout().name).toBe('concentric') // radiaal: één centrum + ringen
       w.vm.toonOverzicht() // overzicht (adapter → 'geheel')
       await flushPromises()
       expect(w.vm.modus).toBe('geheel')
-      expect(w.vm._layout().name).toBe('concentric') // fcose vervangen door deterministische concentric
+      expect(w.vm._layout().name).toBe('grid') // centrumloos, gebalanceerd — geen ster (concentric weg voor Overzicht)
+    })
+
+    it('ADR-040 layout — beide layouts zijn niet-geanimeerd en tellen labelgrootte mee (deterministisch, geen samenval)', async () => {
+      const { w } = await mountView()
+      // Overzicht (geheel): grid, deterministisch, animate:false, avoidOverlap + labelgrootte meegeteld.
+      const geheel = w.vm._layout()
+      expect(geheel.name).toBe('grid')
+      expect(geheel.animate).toBe(false)
+      expect(geheel.avoidOverlap).toBe(true)
+      expect(geheel.nodeDimensionsIncludeLabels).toBe(true)
+      await kies(w, 'a1') // praatplaat (ego)
+      const ego = w.vm._layout()
+      expect(ego.name).toBe('concentric')
+      expect(ego.animate).toBe(false)
+      expect(ego.nodeDimensionsIncludeLabels).toBe(true)
+      // Praatplaat-leesbaarheid: geen globale opblazing (spacingFactor 1.0) + slechts een kleine gap.
+      expect(ego.spacingFactor).toBe(1.0)
+      expect(ego.minNodeSpacing).toBeLessThanOrEqual(30)
     })
 
     it('de set-nodes (ankers) blijven zichtbaar in de graaf', async () => {
@@ -1977,6 +1995,45 @@ describe('LandschapskaartView v3', () => {
       await flushPromises()
       expect(edgeKey()).toBe(volledig) // edge-set volledig terug
       expect(w.vm._relayoutTeller).toBeGreaterThan(voorTeller) // er is (schoon) hertekend
+    })
+  })
+
+  // ── LI033b — gebruikt-ring (organisatie gebruikt applicatie), spiegel van eigenaar ──
+  describe('LI033b — gebruikt-ring', () => {
+    const _gebruiktGraf = () => ({
+      nodes: [
+        { id: 'app1', naam: 'Financieel systeem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'org1', naam: 'Tiel', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      ],
+      edges: [{ bron_id: 'org1', doel_id: 'app1', relatietype: 'gebruikt', label: 'gebruikt', ring: 'gebruikt' }],
+    })
+
+    it('de ring "Gebruikt" heeft een checkbox en staat default aan', async () => {
+      zetGraf(_gebruiktGraf())
+      const { w } = await mountView()
+      const cb = w.find('[data-testid="lk-ring-gebruikt"]')
+      expect(cb.exists()).toBe(true)
+      expect(cb.element.checked).toBe(true)
+    })
+
+    it('op Overzicht tekent de gebruikt-lijn (org → applicatie); ring uit → weg', async () => {
+      zetGraf(_gebruiktGraf())
+      const { w } = await mountView() // hele landschap → Overzicht
+      const heeftGebruikt = () => w.vm.zichtbareEdges.some((e) => e.bron_id === 'org1' && e.doel_id === 'app1' && e.ring === 'gebruikt')
+      expect(heeftGebruikt()).toBe(true)
+      await w.find('[data-testid="lk-ring-gebruikt"]').trigger('change') // ring uit
+      await flushPromises()
+      expect(heeftGebruikt()).toBe(false)
+    })
+
+    it('op de Praatplaat is de gebruikende organisatie een kring-buur van de centrale applicatie', async () => {
+      zetGraf(_gebruiktGraf())
+      const { w } = await mountView()
+      await kies(w, 'app1') // praatplaat centraal op app1
+      expect(w.vm.modus).toBe('ego')
+      const ids = w.vm.getekendeNodes.map((n) => n.id)
+      expect(ids).toContain('app1')
+      expect(ids).toContain('org1') // via de gebruikt-ring komt de gebruikende org als kring-buur mee
     })
   })
 

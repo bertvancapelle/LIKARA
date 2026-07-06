@@ -101,15 +101,11 @@ const zoekContracten = (params = {}) => api.contracten.lijst(params)
 const zoekEigenaars = (params = {}) => api.partijen.lijst({ ...params, aard: 'organisatie' })
 
 // LI033 — "via organisatie" (inzoom-flow). Kies een organisatie → de VOLLEDIGE set applicaties die zij
-// gebruikt uit de ene bron (het grove feit, grof-only incluis); verfijn optioneel naar één afdeling.
-// Vervangt de oude gemengde (organisatie, afdeling)-paren-picker: één bron, geen desync, grof-only zichtbaar.
-const gekozenOrgId = ref(null)
-const gekozenOrgNaam = ref('')
-const afdelingKey = ref(0) // remount de afdeling-picker bij een org-wissel (schone startlijst + label)
+// gebruikt uit de ene bron (het grove feit, grof-only incluis) → emit ze; de kaart opent als overzicht
+// met de gebruikt-lijnen. Vervangt de oude gemengde (organisatie, afdeling)-paren-picker.
+// LI033b — de afdeling-sub-picker is hier vervallen (was dood: additief-subset op het beginscherm).
+// Afdeling-inzoom leeft op de afdeling-PartijDetail → "Toon op de landschapskaart".
 const zoekOrganisaties = (params = {}) => api.partijen.lijst({ ...params, aard: 'organisatie' })
-// Afdeling-picker gescoopt op de gekozen organisatie (organisatie_eenheid binnen die organisatie).
-const zoekAfdelingen = (params = {}) =>
-  api.partijen.lijst({ ...params, aard: 'organisatie_eenheid', organisatie_id: gekozenOrgId.value })
 
 function _emitComponenten(lijst, mapper) {
   const arr = Array.isArray(lijst) ? lijst : lijst?.items || []
@@ -129,29 +125,16 @@ async function kiesContract(item) {
   } catch { /* faalt zacht */ }
 }
 // LI033 — organisatie gekozen: laad haar volledige applicatieset (grove feit, grof-only incluis) en
-// emit die (grof-only mee → de kaart markeert 'nog niet verfijnd'). De afdeling-picker verschijnt nu.
+// emit die (grof-only mee → de kaart markeert 'nog niet verfijnd').
 async function kiesOrganisatie(item) {
-  gekozenOrgId.value = item?.id || null
-  gekozenOrgNaam.value = item?.naam || ''
-  afdelingKey.value += 1 // org-wissel → verse afdeling-picker
-  if (!gekozenOrgId.value) return
+  const orgId = item?.id
+  if (!orgId) return
   try {
-    const r = await api.organisatiegebruik.lijstVoorOrganisatie({ organisatie_id: gekozenOrgId.value })
+    const r = await api.organisatiegebruik.lijstVoorOrganisatie({ organisatie_id: orgId })
     _emitComponenten(r, (c) => ({
       id: c.component_id, naam: c.component_naam, componenttype: c.componenttype,
       grofOnly: c.verfijnd === false, // "nog niet verfijnd" → rustige kaart-markering
     }))
-  } catch { /* faalt zacht */ }
-}
-// LI033 — optionele afdeling-verfijning binnen de gekozen organisatie: emit de applicaties van díé
-// afdeling (bestaande afleiding uit de groepen; de afdeling ís de verfijning → geen grof-only).
-async function kiesAfdeling(item) {
-  if (!gekozenOrgId.value || !item?.id) return
-  try {
-    const r = await api.gebruikersgroepen.contextComponenten({
-      organisatie_id: gekozenOrgId.value, afdeling_id: item.id,
-    })
-    _emitComponenten(r, (c) => ({ id: c.component_id, naam: c.component_naam, componenttype: c.componenttype }))
   } catch { /* faalt zacht */ }
 }
 
@@ -323,15 +306,12 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
           <span>Contract</span>
           <ZoekSelect :zoek-functie="zoekContracten" :weergave="(c) => c.naam" id-veld="id" placeholder="Zoek contract…" testid="kb-contract" @keuze="kiesContract" />
         </label>
-        <!-- LI033 — inzoom-flow: kies een organisatie (→ volledige set, grof-only incluis), verfijn
-             optioneel naar één afdeling van díé organisatie. Eén bron, gedeeld met het blok + de kaart. -->
+        <!-- LI033 — kies een organisatie → de volledige set applicaties die zij gebruikt (grof-only
+             incluis); de kaart opent als overzicht met de gebruikt-lijnen. Eén bron, gedeeld met het
+             blok. LI033b — afdeling-inzoom leeft op de afdeling-PartijDetail → "Toon op de kaart". -->
         <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
           <span>Organisatie</span>
           <ZoekSelect :zoek-functie="zoekOrganisaties" :weergave="(p) => p.naam" id-veld="id" placeholder="Zoek organisatie…" testid="kb-organisatie" @keuze="kiesOrganisatie" />
-        </label>
-        <label v-if="gekozenOrgId" class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-          <span class="text-[var(--lk-color-text-muted)]">Verfijn naar afdeling van {{ gekozenOrgNaam }} (optioneel)</span>
-          <ZoekSelect :key="afdelingKey" :zoek-functie="zoekAfdelingen" :weergave="(p) => p.naam" id-veld="id" placeholder="Zoek een afdeling…" testid="kb-afdeling" @keuze="kiesAfdeling" />
         </label>
       </section>
 

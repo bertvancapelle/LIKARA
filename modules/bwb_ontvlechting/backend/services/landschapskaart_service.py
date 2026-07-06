@@ -93,6 +93,14 @@ async def haal_grafdata_op(
             .where(Component.tenant_id == tid, Component.id.in_(S), Component.eigenaar_organisatie_id.isnot(None))
         )).all():
             scope_ids.add(oid)
+        # LI033b — gebruiker-organisaties van S (grof feit "organisatie gebruikt applicatie"): de org-node
+        # moet meekomen zodat de afgeleide "gebruikt"-edge (org → applicatie) niet-dangling is. Spiegel van
+        # de eigenaar-scope-add hierboven.
+        for (oid,) in (await session.execute(
+            select(Organisatiegebruik.organisatie_id)
+            .where(Organisatiegebruik.tenant_id == tid, Organisatiegebruik.applicatie_id.in_(S))
+        )).all():
+            scope_ids.add(oid)
         # Organisatiestructuur-hiërarchie: afdeling + organisatie van de rol-personen (+ de
         # organisatie ván die afdeling), zodat de hoort-bij-keten persoon→afdeling→organisatie sluit.
         if rol_holder_ids:
@@ -422,6 +430,25 @@ async def haal_grafdata_op(
             edges.append(LandschapsEdge(
                 bron_id=oid, doel_id=cid, relatietype="eigenaar",
                 label="is eigendom van", ring="eigenaar",
+            ))
+
+    # ── Ring 7 — Gebruikt ("organisatie gebruikt applicatie", LI033b) ──
+    # Read-only projectie van het grove feit `organisatiegebruik` als edge organisatie → applicatie —
+    # spiegel van de eigenaar-edge, géén nieuwe relatie-registratie. NAAST de bestaande node-projectie
+    # `gebruikt_door_organisaties`: dit maakt het gebruik óók als LIJN zichtbaar. Bezit+gebruik levert
+    # bewust TWEE lijnen (eigenaar + gebruikt) — niet onderdrukken. Alleen als beide endpoints als
+    # knoop meekomen (org in `partij_info`, applicatie in `comp_node`) → geen dangling endpoint.
+    for r_og in (
+        await session.execute(
+            select(Organisatiegebruik.organisatie_id, Organisatiegebruik.applicatie_id).where(
+                Organisatiegebruik.tenant_id == tid, _sc(Organisatiegebruik.applicatie_id)
+            )
+        )
+    ).all():
+        if r_og.organisatie_id in partij_info and r_og.applicatie_id in comp_node:
+            edges.append(LandschapsEdge(
+                bron_id=r_og.organisatie_id, doel_id=r_og.applicatie_id,
+                relatietype="gebruikt", label="gebruikt", ring="gebruikt",
             ))
 
     return LandschapskaartResponse(nodes=nodes, edges=edges)

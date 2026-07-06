@@ -111,7 +111,7 @@ describe('KaartBeginscherm', () => {
 
   it('LI033: organisatie kiezen → lijstVoorOrganisatie → voegComponentenToe met de grofOnly-vlag', async () => {
     const w = mountKB()
-    // De afdeling-picker is nog niet zichtbaar zolang er geen organisatie gekozen is.
+    // LI033b — de afdeling-sub-picker is verwijderd (afdeling-inzoom leeft op de afdeling-PartijDetail).
     expect(zs(w, 'kb-afdeling')).toBeUndefined()
     await zs(w, 'kb-organisatie').vm.$emit('keuze', { id: 'o1', naam: 'Tiel' })
     await flushPromises()
@@ -120,21 +120,6 @@ describe('KaartBeginscherm', () => {
     expect(w.emitted('voegComponentenToe')[0][0]).toEqual([
       { id: 'c5', naam: 'BRP', componenttype: 'applicatie', grofOnly: true },
       { id: 'c6', naam: 'Zaaksysteem', componenttype: 'applicatie', grofOnly: false },
-    ])
-  })
-
-  it('LI033: afdeling-picker verschijnt ná org-keuze en verfijnt via contextComponenten (geen grofOnly)', async () => {
-    const w = mountKB()
-    await zs(w, 'kb-organisatie').vm.$emit('keuze', { id: 'o1', naam: 'Tiel' })
-    await flushPromises()
-    const afd = zs(w, 'kb-afdeling')
-    expect(afd).toBeTruthy()
-    await afd.vm.$emit('keuze', { id: 'a1', naam: 'Burgerzaken' })
-    await flushPromises()
-    expect(api.gebruikersgroepen.contextComponenten).toHaveBeenCalledWith({ organisatie_id: 'o1', afdeling_id: 'a1' })
-    // Afdeling-emit draagt geen grofOnly (de afdeling ís de verfijning).
-    expect(w.emitted('voegComponentenToe').at(-1)[0]).toEqual([
-      { id: 'c4', naam: 'Burgerportaal', componenttype: 'applicatie' },
     ])
   })
 
