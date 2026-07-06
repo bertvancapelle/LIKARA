@@ -1857,9 +1857,11 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  // ── LI023 — generieke gedebouncede re-layout op de getekende node-samenstelling ────────────────
+  // ── LI023 / ADR-040 F1 — generieke re-layout op de getekende node-samenstelling ─────────────────
+  // ADR-040 F1: de 250ms-debounce is vervangen door de gecoalesceerde render-eigenaar (`_planRedraw`,
+  // pending-vlag + nextTick). `naSettle` wacht ruim genoeg tot de gecoalesceerde redraw geland is.
   describe('generieke re-layout', () => {
-    const naDebounce = () => new Promise((r) => setTimeout(r, 300)) // > 250ms debounce
+    const naDebounce = () => new Promise((r) => setTimeout(r, 300)) // ruim > één tick (coalesce-redraw geland)
 
     it('re-layout wordt uitgevoerd als de getekende node-samenstelling verandert', async () => {
       const { w } = await mountView() // geheel, volledige graaf
@@ -1920,22 +1922,20 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  // ── LI030 — impact-layout via fcose (kruisings-minimalisatie + vaste set-ankers) ─────────────
-  describe('impact-layout (LI030)', () => {
-    it('impact-modus gebruikt fcose; ego blijft concentric', async () => {
+  // ── ADR-040 F1 (stap 1+3) — fcose-vrije layout: ego én de voormalige impact-set beide concentric ──
+  // (Vervangt de LI030-test die impact→fcose borgde: fcose is verwijderd wegens de edges-onzichtbaar-bug.)
+  describe('layout (ADR-040 F1 — fcose weg)', () => {
+    it('ego én de voormalige impact-set (≥2) gebruiken beide concentric (geen fcose meer)', async () => {
       const { w } = await mountView()
       await kies(w, 'a1') // 1 → ego
       expect(w.vm.modus).toBe('ego')
-      expect(w.vm._layout().name).toBe('concentric') // ego ongewijzigd
-      await kies(w, 'a2') // 2 → impact
+      expect(w.vm._layout().name).toBe('concentric')
+      await kies(w, 'a2') // 2 → (voorheen) impact
       expect(w.vm.modus).toBe('impact')
-      const cfg = w.vm._layout()
-      expect(cfg.name).toBe('fcose')
-      expect(cfg.randomize).toBe(false) // deterministisch
-      expect(Array.isArray(cfg.fixedNodeConstraint)).toBe(true) // set-ankers-mechanisme
+      expect(w.vm._layout().name).toBe('concentric') // fcose vervangen door deterministische concentric
     })
 
-    it('impact: de set-nodes (ankers) zijn zichtbaar in de graaf', async () => {
+    it('de set-nodes (ankers) blijven zichtbaar in de graaf', async () => {
       const { w } = await mountView()
       await kies(w, 'a1')
       await kies(w, 'a2')
@@ -1977,40 +1977,49 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  // ── LI032 — positie-stabiele re-render (bestaande nodes blijven staan, nieuwe wordt geplaatst) ─
-  describe('positie-stabiele re-render (LI032)', () => {
-    const mkNode = (id, x, y) => ({ id: () => id, position: () => ({ x, y }) })
-    const fakeCyMet = (lijst) => ({
-      on: vi.fn(), off: vi.fn(), elements: () => ({ remove: vi.fn(), unselect: vi.fn() }),
-      nodes: () => ({ forEach: (f) => lijst.forEach(f), map: (f) => lijst.map(f), length: lijst.length }),
-      getElementById: () => ({ length: 0, select: vi.fn() }),
-      animate: vi.fn(), zoom: () => 1, pan: () => ({ x: 0, y: 0 }), add: vi.fn(),
-      layout: () => ({ run: vi.fn() }), resize: vi.fn(), fit: vi.fn(), center: vi.fn(),
-      edges: () => ({ removeClass: vi.fn() }), destroy: vi.fn(),
-    })
-
-    it('alle huidige nodes hadden een vorige positie → preset (posities exact behouden)', async () => {
-      cytoscape.mockReturnValueOnce(fakeCyMet([mkNode('a1', 10, 20), mkNode('a2', 30, 40)]))
+  // ── ADR-040 F1 (stap 1+3) — positie-behoud vervallen: geen preset/fcose-mix-tak meer ─────────────
+  // (Vervangt de LI032-tests die het `vorigePosities`-preset/fcose-mix-gedrag borgden; `_layout` kent
+  //  geen positie-parameter meer.) `_layout` levert nu altijd een deterministische layout, géén fcose.
+  describe('layout is deterministisch & fcose-vrij (ADR-040 F1)', () => {
+    it('_layout neemt geen posities meer en levert nooit fcose (concentric of preset/swimlane)', async () => {
       const { w } = await mountView()
-      const cfg = w.vm._layout(false, new Map([['a1', { x: 10, y: 20 }], ['a2', { x: 30, y: 40 }]]))
-      expect(cfg.name).toBe('preset')
-      expect(cfg.positions.a1).toEqual({ x: 10, y: 20 })
+      expect(w.vm._layout().name).not.toBe('fcose')
+      await kies(w, 'a1'); await kies(w, 'a2') // ≥2 (voorheen fcose)
+      expect(w.vm._layout().name).not.toBe('fcose')
+      expect(w.vm._layout().name).toBe('concentric')
     })
+  })
 
-    it('nieuwe node erbij → fcose met de bestaande nodes gefixeerd op hun positie', async () => {
-      cytoscape.mockReturnValueOnce(fakeCyMet([mkNode('a1', 10, 20), mkNode('b1', 0, 0)]))
-      const { w } = await mountView()
-      const cfg = w.vm._layout(false, new Map([['a1', { x: 10, y: 20 }]])) // b1 is nieuw
-      expect(cfg.name).toBe('fcose')
-      expect(cfg.fixedNodeConstraint).toEqual([{ nodeId: 'a1', position: { x: 10, y: 20 } }])
-    })
+  // ── ADR-040 F1 (stap 1+3) — scope-toggle geeft een schone hertekening; de edge-set komt volledig terug ─
+  describe('scope-toggle (ADR-040 F1)', () => {
+    it('org uit → org-gebonden edge weg (app↔app blijft); org weer aan → edge-set volledig terug + redraw', async () => {
+      zetGraf({
+        nodes: [
+          { id: 'cA', naam: 'AppA', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'ORG' },
+          { id: 'cB', naam: 'AppB', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+          { id: 'ORG', naam: 'RID', element_type: 'partij', laag: 'business', soort: 'organisatie' },
+        ],
+        edges: [
+          { bron_id: 'cA', doel_id: 'cB', relatietype: 'flow', ring: 'applicaties' }, // app↔app (los van ORG)
+          { bron_id: 'ORG', doel_id: 'cA', relatietype: 'eigenaar', ring: 'eigenaar' }, // ORG-gebonden (ring default aan)
+        ],
+      })
+      const { w } = await mountView() // geheel: alle nodes + scopeOrgs default aan
+      const edgeKey = () => w.vm.zichtbareEdges.map((e) => `${e.bron_id}>${e.doel_id}`).sort().join(',')
+      const volledig = edgeKey()
+      expect(volledig).toContain('ORG>cA')
+      expect(volledig).toContain('cA>cB')
 
-    it('geen vorige posities (verse render) → normale modus-layout (geen preset/fixed)', async () => {
-      cytoscape.mockReturnValueOnce(fakeCyMet([mkNode('a1', 0, 0)]))
-      const { w } = await mountView()
-      const cfg = w.vm._layout(false, new Map())
-      expect(cfg.name).not.toBe('preset')
-      expect(cfg.fixedNodeConstraint === undefined || cfg.fixedNodeConstraint.length === 0).toBe(true)
+      const voorTeller = w.vm._relayoutTeller
+      w.vm.toggleScopeOrg('ORG') // ORG uit
+      await flushPromises()
+      expect(w.vm.zichtbareEdges.some((e) => e.bron_id === 'ORG')).toBe(false) // ORG-gebonden edge weg
+      expect(w.vm.zichtbareEdges.some((e) => e.bron_id === 'cA' && e.doel_id === 'cB')).toBe(true) // app↔app blijft
+
+      w.vm.toggleScopeOrg('ORG') // ORG weer aan
+      await flushPromises()
+      expect(edgeKey()).toBe(volledig) // edge-set volledig terug
+      expect(w.vm._relayoutTeller).toBeGreaterThan(voorTeller) // er is (schoon) hertekend
     })
   })
 

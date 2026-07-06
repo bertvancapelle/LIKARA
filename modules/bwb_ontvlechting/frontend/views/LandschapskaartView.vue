@@ -1661,17 +1661,25 @@ const zichtbaarAantal = computed(() => getekendeNodes.value.length)
 // reactieve state aan → geen layout-her-trigger-loop. Respecteert de fullscreen-viewport-behoud-vlag.
 function _naLayout() {
   if (!cy || _behoudViewport) return
+  // ADR-040 F1 — de fit/resize + het opnieuw aanbrengen van highlight/legenda-dim horen DETERMINISTISCH
+  // bij het EINDE van de layout (deze stop-callback), niet in een losse `setTimeout` in tekenGraaf.
+  // Eerst her-meten (de flex-hoogte kan later gezet zijn), dan fitten/centreren.
+  cy.resize?.()
   // LI019 1d-v4 (bug 5) — centreer alléén op het ego-centrum ná een expliciete recenter (dubbelklik/
   // set-klik); bij elke andere wijziging (m.n. een filter die de node-set verandert) → fit op het
   // geheel, zodat de zichtbare nodes altijd in beeld komen.
   if (_recenterPending && layoutModus.value === 'radiaal' && modus.value === 'ego' && egoStartId.value) {
     _recenterPending = false
     const c = cy.getElementById?.(String(egoStartId.value))
-    if (c && c.length) { cy.center?.(c); updateBands(); return }
+    if (c && c.length) cy.center?.(c)
+    else cy.fit?.(undefined, 50)
+  } else {
+    _recenterPending = false // recenter-verzoek geconsumeerd (bv. in swimlane waar niet gecentreerd wordt)
+    cy.fit?.(undefined, 50)
   }
-  _recenterPending = false // recenter-verzoek geconsumeerd (bv. in swimlane waar niet gecentreerd wordt)
-  cy.fit?.(undefined, 50)
   updateBands()
+  _pasSelectieHighlight() // ADR-033 — na een (her)tekening de selectie-highlight opnieuw aanbrengen
+  _pasLegendaDim() // LI025 — en de legenda-dim (nieuwe node-objecten dragen de klasse nog niet)
 }
 // LI019 1d-v6 — swimlane-posities: nodes in een GRID per lane (LANE_COLS kolommen, wrappend over
 // meerdere rijen), gecentreerd per rij. Begrensde breedte → geen extreme uitzoom (kernoorzaak B).
@@ -1735,7 +1743,7 @@ function onLaneSleepEinde(e) {
   if (doel) _herschikLane(sleepLane.value, doel)
   sleepLane.value = null
 }
-function _layout(geenAnimatie = false, vorigePosities = null) {
+function _layout(geenAnimatie = false) {
   // `geenAnimatie` (bij history-herstel): teken direct, zonder de 400ms-animatie — voorkomt dat
   // snel terug/vooruit animaties opstapelt. De stop-callback (_naLayout) kadert daarna één keer.
   const anim = geenAnimatie ? { animate: false } : { animate: true, animationDuration: 400 }
@@ -1746,54 +1754,20 @@ function _layout(geenAnimatie = false, vorigePosities = null) {
   if (layoutModus.value === 'swimlane') {
     return { name: 'preset', positions: _swimlanePositions(), animate: false, fit: true, padding: 60, stop: _naLayout }
   }
-  // LI032 — positie-stabiele re-render: al-geplaatste nodes blijven op hun vorige plek; alléén
-  // nieuwe nodes krijgen een positie. Voorkomt dat de hele graaf herschikt bij het toevoegen van
-  // één component. Geldt voor de radiale modi (swimlane heeft eigen preset). Bij de eerste/verse
-  // render (geen vorige posities) valt het terug op de normale modus-layout hieronder.
-  if (vorigePosities && vorigePosities.size) {
-    const gefixeerd = []
-    cy.nodes().forEach((n) => {
-      const p = vorigePosities.get(n.id())
-      if (p) gefixeerd.push({ nodeId: n.id(), position: p })
-    })
-    const totaal = cy.nodes().length
-    if (totaal > 0 && gefixeerd.length === totaal) {
-      // Niets structureel nieuws → behoud de posities exact (geen reshuffle bij b.v. ring-toggle).
-      const positions = {}
-      gefixeerd.forEach((g) => { positions[g.nodeId] = g.position })
-      return { name: 'preset', positions, animate: false, fit: false, stop: _naLayout }
-    }
-    if (gefixeerd.length > 0) {
-      // Mix oud+nieuw → fcose plaatst de nieuwe nodes; de bestaande blijven gefixeerd op hun plek.
-      return {
-        name: 'fcose', quality: 'proof', randomize: false, idealEdgeLength: 120, nodeRepulsion: 8000,
-        fixedNodeConstraint: gefixeerd, ...anim, stop: _naLayout,
-      }
-    }
-  }
-  // LI019 1d (Taak 3) — Radiaal/Ego: concentric met het geselecteerde component centraal.
+  // ADR-040 F1 (stap 1+3) — DETERMINISTISCH & FCOSE-VRIJ. Geen positie-behoud (`vorigePosities`) en
+  // geen preset/fcose-mix-tak meer: die mix-tak viel bij node-set-groei terug op fcose, hét pad met
+  // de edges-onzichtbaar-render-bug (lijnen weg bij scope-re-check / buren toevoegen). Elke render legt
+  // zich nu opnieuw, deterministisch (concentric) uit.
+  // Ego: concentric met het geselecteerde component centraal.
   if (modus.value === 'ego') {
     return {
       name: 'concentric', concentric: (n) => (n.id() === egoStartId.value ? 10 : 5), levelWidth: () => 1,
       minNodeSpacing: 80, spacingFactor: 1.5, padding: 60, ...anim, stop: _naLayout,
     }
   }
-  // ADR-033 1c / LI030 — Impact-verkenner: fcose (force-directed) minimaliseert kruisende lijnen.
-  // De set-nodes (ankerpunten) worden op een vaste, gespreide positie gefixeerd → prominent en
-  // stabiel; de context-nodes ordenen zich eromheen. Deterministisch (randomize:false) → consistente
-  // plaatsing. `cy.add()` is al gedraaid (tekenGraaf), dus getElementById vindt de getekende set.
-  if (modus.value === 'impact') {
-    const fixedNodeConstraint = [...actieveSet.value]
-      .filter((id) => cy.getElementById(id).length)
-      .map((id, i) => ({ nodeId: id, position: { x: i * 220, y: 0 } }))
-    return {
-      name: 'fcose', quality: 'proof', randomize: false,
-      idealEdgeLength: 120, nodeRepulsion: 8000,
-      fixedNodeConstraint, padding: 60, ...anim, stop: _naLayout,
-    }
-  }
-  // LI019 1d (Taak 3) — Radiaal/Geheel+Impact: concentric op koppelingsdichtheid (meer koppelingen
-  // → dichter bij het centrum).
+  // Geheel + (voorheen impact ≥2): concentric op koppelingsdichtheid (meer koppelingen → dichter bij
+  // het centrum). De voormalige impact-fcose is vervangen door deze deterministische radiale layout;
+  // de impact-node-set (focus + geraakte buren) blijft onveranderd — alleen de plaatsing is fcose-vrij.
   return {
     name: 'concentric', concentric: (n) => n.degree(false), levelWidth: () => 2,
     minNodeSpacing: 80, spacingFactor: 1.5, padding: 50, ...anim, stop: _naLayout,
@@ -1812,21 +1786,13 @@ async function tekenGraaf() {
   // zodat de graaf nooit op 0px initialiseert en zichtbaar blijft i.p.v. leeg.
   const el = containerRef.value
   if (el && el.offsetHeight === 0) el.style.minHeight = '500px'
-  // LI032 — leg de huidige node-posities vast vóór de remove (na remove zijn ze weg), zodat de
-  // her-layout bestaande nodes op hun plek kan fixeren en alleen nieuwe nodes herplaatst.
-  const vorigePosities = new Map()
-  cy.nodes().forEach((n) => vorigePosities.set(n.id(), { ...n.position() }))
+  // ADR-040 F1 (stap 1+3) — geen positie-behoud meer: elke render legt zich deterministisch (concentric)
+  // opnieuw uit. De `vorigePosities`-capture + de preset/fcose-mix-tak zijn vervallen (fcose weg).
   cy.elements().remove()
   cy.add(_elementen())
-  cy.layout(_layout(_geenAnim, vorigePosities)).run()
-  // Klein delay voor de browser-layout-flush, dán her-meten + passend maken.
-  setTimeout(() => {
-    cy?.resize?.()
-    cy?.fit?.(undefined, 50)
-    updateBands()
-    _pasSelectieHighlight() // ADR-033 — na een (her)tekening de selectie-highlight opnieuw aanbrengen
-    _pasLegendaDim() // LI025 — en de legenda-dim (nieuwe node-objecten dragen de klasse nog niet)
-  }, 100)
+  cy.layout(_layout(_geenAnim)).run()
+  // ADR-040 F1 — geen losse `setTimeout`-fit meer: de her-meting + fit/centrering + highlight/dim lopen
+  // deterministisch via de layout-stop-callback (`_naLayout`), zodat ze exact ná de layout gebeuren.
 }
 
 const CY_STYLE = [
@@ -1995,7 +1961,9 @@ onMounted(async () => {
     // LI023 — edge-labels verschijnen bij hover (en blijven zichtbaar bij een geselecteerde edge).
     cy.on('mouseover', 'edge', (evt) => evt.target.style('text-opacity', 1))
     cy.on('mouseout', 'edge', (evt) => { if (!evt.target.hasClass('sel-edge')) evt.target.style('text-opacity', 0) })
-    tekenGraaf()
+    // ADR-040 F1 — de INITIËLE render loopt via dezelfde ene scheduler als de re-layout-watch, zodat
+    // de eerste teken + een reactieve settle (bv. scope-balk) tot ÉÉN redraw coalesceren (geen dubbel).
+    _planRedraw()
     // Her-meten + passend maken bij containerwijzigingen (modus-wissel, sidebar, venster-resize).
     if (typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
@@ -2018,35 +1986,38 @@ defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopu
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
-// LI023 — generieke re-layout: herpositioneer zodra de WERKELIJK GETEKENDE node-samenstelling
-// wijzigt. De id-compositie van `getekendeNodes` vangt álle oorzaken (scope/ring/zoekfilter/nieuwe
-// subgraaf) ÉN de gevallen die alleen `getekendeNodes` raken maar niet `zichtbareNodes` — m.n.
-// "Focus op actieve set" (`focusOpSet`), die de vorige zichtbareNodes-watch miste. Daarnaast
-// hertekenen bij wijzigingen die de node-id-set níét veranderen maar wél een redraw vergen:
-// edges (ring-toggle die enkel edges raakt), layout-modus, kleur-op-domein, swimlane-opties.
-// Gedebounced (250ms) → snelle opeenvolgende wijzigingen leiden tot één relayout (geen flikker,
-// geen dubbele layout). De initiële layout blijft de directe `tekenGraaf()` in onMounted/herlaadGraaf.
-function _debounce(fn, ms) {
-  let t
-  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms) }
-}
+// ADR-040 F1 — ÉÉN render-eigenaar. Elke wijziging die een hertekening vergt, loopt via één
+// gecoalesceerde scheduler (`_planRedraw`); ook de INITIËLE render (onMounted) gaat hier doorheen.
+// De pending-vlag + `nextTick` coalesceren álle verzoeken binnen dezelfde tick tot ÉÉN `tekenGraaf()`.
+// Zo verdwijnt de dubbele render-bij-openen (initiële teken + een tweede, door de reactieve settle
+// uitgelokte hertekening): de settle valt in dezelfde tick en wordt meegenomen in de ene redraw.
+//
+// De watch reageert op de WERKELIJK GETEKENDE node-samenstelling (`getekendeNodes`-id-compositie: vangt
+// scope/ring/zoekfilter/nieuwe subgraaf + `focusOpSet`) én op wijzigingen die de id-set niet veranderen
+// maar wél een redraw vergen (edges via ring-toggle, layout-modus, kleur-op-domein, swimlane-opties).
+// History-herstel (terug/vooruit) tekent DIRECT (synchroon), zodat `tekenGraaf` de
+// `_herstelZonderAnimatie`-vlag synchroon consumeert (de hang-fix) — bewust buiten de coalesce.
+let _redrawPending = false
 function _hertekenNu() {
+  _redrawPending = false
   if (!_mountKlaar || !cy) return // niet vóór de eerste render / vóór cy bestaat
   _relayoutTeller.value++
   tekenGraaf()
 }
-const _hertekenGedebounced = _debounce(_hertekenNu, 250)
+function _planRedraw() {
+  if (!_mountKlaar || !cy) return
+  if (_redrawPending) return // coalesce: er staat al een redraw gepland voor deze tick
+  _redrawPending = true
+  nextTick(_hertekenNu)
+}
 watch(
   [
     () => getekendeNodes.value.map((n) => n.id).join('|'), // de werkelijk getekende node-set
     zichtbareEdges, modus, layoutModus, kleurOpDomein, groepeerPerOrg, verbergLegeLanes, laneVolgorde, toonRegistratiegaps,
   ],
   () => {
-    // History-herstel (terug/vooruit) relayout't DIRECT — zonder debounce — zodat tekenGraaf de
-    // `_herstelZonderAnimatie`-vlag synchroon consumeert (de hang-fix). Overige wijzigingen
-    // gedebounced (250ms) → snelle opeenvolgende changes coalesceren tot één relayout.
-    if (_herstellen) _hertekenNu()
-    else _hertekenGedebounced()
+    if (_herstellen) _hertekenNu() // hang-fix: synchroon (buiten de coalesce)
+    else _planRedraw()
   },
   { deep: false },
 )
