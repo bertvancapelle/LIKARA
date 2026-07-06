@@ -92,14 +92,15 @@ async function mountView({ query = '', rollen = ['medewerker'], heleLandschap = 
 }
 
 // ADR-033 — klikken op een component in de lijst = toevoegen/verwijderen uit de actieve set.
-// De weergavemodus volgt eruit: 0 → geheel, 1 → ego, ≥2 → impact-verkenner.
+// ADR-040 F1 stap 2a — één component kiezen (toevoegen) = dat component inspecteren → praatplaat,
+// centraal op die node (weergave 'praatplaat', modus-adapter → 'ego'). Deselecteren zet geen praatplaat.
 // LI029 — de resultatenlijst is nu gated (alleen zichtbaar bij zoekterm/filter in kaart-modus);
 // set-opbouw via dezelfde handler die de naam-klik aanroept, onafhankelijk van lijst-zichtbaarheid.
 const kies = async (w, id) => {
   w.vm.kiesComponent(id)
   await flushPromises()
 }
-// ADR-033 1c — de Impact-verkenner is een graaf op het canvas; de testbare laag is de afgeleide
+// De praatplaat/overzicht rendert op het canvas; de testbare laag is de afgeleide
 // node-/edge-set (getekendeNodes/zichtbareEdges), niet de pixelrender.
 const getekendeIds = (w) => w.vm.getekendeNodes.map((n) => n.id).sort()
 
@@ -142,9 +143,14 @@ describe('LandschapskaartView v3', () => {
     const { w } = await mountView()
     expect(cytoscape).toHaveBeenCalled()
     expect(w.find('[data-testid="lk-canvas"]').exists()).toBe(true)
-    // Lege actieve set → Geheel model (afgeleide modus); de indicator toont dat.
+    // ADR-040 — "hele landschap" = het volledige Overzicht: modus-adapter → 'geheel', schakelaar op
+    // Overzicht, en GEEN automatisch centrum → de Praatplaat-knop is disabled (identiek aan het lege
+    // beginscherm). De Praatplaat wordt pas actief zodra de gebruiker zelf een object kiest.
     expect(w.vm.modus).toBe('geheel')
-    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Geheel model')
+    expect(w.vm.weergave).toBe('overzicht')
+    expect(w.vm.kanPraatplaat).toBe(false)
+    expect(w.find('[data-testid="lk-weergave-overzicht"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-testid="lk-weergave-praatplaat"]').attributes('disabled')).toBeDefined()
     // De drie handmatige view-tabs zijn volledig verdwenen.
     expect(w.find('[data-testid="lk-modus-ego"]').exists()).toBe(false)
     expect(w.find('[data-testid="lk-modus-impact"]').exists()).toBe(false)
@@ -157,22 +163,100 @@ describe('LandschapskaartView v3', () => {
     expect(_ids).not.toContain('k1') // contract niet
   })
 
-  it('ADR-033 — de modus volgt de actieve set: 0 → geheel, 1 → ego, ≥2 → impact-verkenner', async () => {
+  it('ADR-040 — de weergave volgt de handeling; de modus-adapter volgt de weergave', async () => {
     const { w } = await mountView()
+    // Hele landschap → Overzicht (adapter → 'geheel').
+    expect(w.vm.weergave).toBe('overzicht')
     expect(w.vm.modus).toBe('geheel')
-    await kies(w, 'a1') // 1 component → ego
+    await kies(w, 'a1') // één component inspecteren → praatplaat, centraal op a1
+    expect(w.vm.weergave).toBe('praatplaat')
     expect(w.vm.modus).toBe('ego')
-    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Ego-view')
-    await kies(w, 'a2') // 2 componenten → impact-verkenner
-    expect(w.vm.modus).toBe('impact')
-    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Impact-verkenner')
-    // ADR-033 1c — geen HTML-lijst-overlay meer; de verkenner rendert op het canvas.
+    expect(w.vm.kanPraatplaat).toBe(true)
+    await kies(w, 'a2') // nog een component kiezen = hercentreren → blijft praatplaat (op a2)
+    expect(w.vm.weergave).toBe('praatplaat')
+    expect(w.vm.modus).toBe('ego')
+    // ADR-033 1c — geen HTML-lijst-overlay meer; alles rendert op het canvas.
     expect(w.find('[data-testid="lk-impact-verkenner"]').exists()).toBe(false)
     expect(w.find('[data-testid="lk-canvas"]').exists()).toBe(true)
-    await kies(w, 'a2') // weer 1 → ego
-    expect(w.vm.modus).toBe('ego')
-    await kies(w, 'a1') // Fase B — set leeg én niet hele-landschap → beginscherm ('leeg'), niet meer 'geheel'
+    w.vm.toonOverzicht() // schakelaar → Overzicht (brede plaat)
+    await flushPromises()
+    expect(w.vm.weergave).toBe('overzicht')
+    expect(w.vm.modus).toBe('geheel')
+    w.vm.wisSet() // begin opnieuw → leeg beginscherm
+    await flushPromises()
     expect(w.vm.modus).toBe('leeg')
+  })
+
+  it('ADR-040 — de schakelaar zet de weergave; de Praatplaat-knop is disabled zonder centrum', async () => {
+    // Beginscherm (geen hele-landschap, lege set) → geen centrum geseed → Praatplaat disabled.
+    const { w } = await mountView({ heleLandschap: false })
+    expect(w.vm.kanPraatplaat).toBe(false)
+    expect(w.find('[data-testid="lk-weergave-praatplaat"]').attributes('disabled')).toBeDefined()
+    // Een component kiezen zet een centrum → de knop wordt bruikbaar en de weergave staat op praatplaat.
+    await kies(w, 'a1')
+    expect(w.vm.kanPraatplaat).toBe(true)
+    expect(w.find('[data-testid="lk-weergave-praatplaat"]').attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-testid="lk-weergave-praatplaat"]').attributes('aria-pressed')).toBe('true')
+    // Schakelaar → Overzicht en terug → Praatplaat; de knoppen sturen de weergave.
+    await w.find('[data-testid="lk-weergave-overzicht"]').trigger('click')
+    expect(w.vm.weergave).toBe('overzicht')
+    expect(w.find('[data-testid="lk-weergave-overzicht"]').attributes('aria-pressed')).toBe('true')
+    await w.find('[data-testid="lk-weergave-praatplaat"]').trigger('click')
+    expect(w.vm.weergave).toBe('praatplaat')
+  })
+
+  it('ADR-040 — een weergave-wissel begint met een schone lei (spotlight + detail/selectie gereset)', async () => {
+    const { w } = await mountView()
+    await kies(w, 'a1') // praatplaat op a1; detail gevuld
+    // Zet een legenda-spotlight + een node-selectie/detail (zoals na een klik).
+    w.vm.toggleLegendaFilter('Component')
+    w.vm.inspecteerNode('a1')
+    await flushPromises()
+    expect(w.vm.legendaTypeFilter).toBe('Component')
+    expect(w.vm.geselecteerdNodeId).toBe('a1')
+    expect(w.vm.detailNode?.id).toBe('a1')
+    // Schakelaar → Overzicht: schone lei (spotlight uit, geen stale detail/selectie → geen lk-dim-restje).
+    await w.find('[data-testid="lk-weergave-overzicht"]').trigger('click')
+    expect(w.vm.weergave).toBe('overzicht')
+    expect(w.vm.legendaTypeFilter).toBe(null)
+    expect(w.vm.geselecteerdNodeId).toBe(null)
+    expect(w.vm.detailNode).toBe(null)
+    // Zet opnieuw een spotlight/selectie en schakel terug via de Praatplaat-knop (schakel-ingang, geen id).
+    w.vm.toggleLegendaFilter('Component')
+    w.vm.inspecteerNode('a1')
+    await flushPromises()
+    await w.find('[data-testid="lk-weergave-praatplaat"]').trigger('click')
+    expect(w.vm.weergave).toBe('praatplaat')
+    expect(w.vm.legendaTypeFilter).toBe(null)
+    expect(w.vm.geselecteerdNodeId).toBe(null)
+    expect(w.vm.detailNode).toBe(null)
+  })
+
+  it('ADR-040 — inspecteren (kies/drill) houdt zijn eigen detail; alleen de spotlight blijft ongemoeid binnen de weergave', async () => {
+    const { w } = await mountView()
+    w.vm.toggleLegendaFilter('Component') // spotlight actief binnen de weergave
+    await kies(w, 'a1') // kiesComponent zet zelf het detail op de geklikte node → dat blijft staan
+    await flushPromises()
+    expect(w.vm.detailNode?.id).toBe('a1')
+    // De inspectie-recenter (toonPraatplaat MÉT id) wist het net-gezette detail niet.
+    w.vm.drillNaar('a2')
+    await flushPromises()
+    expect(w.vm.weergave).toBe('praatplaat')
+    expect(w.vm.detailNode?.id).toBe('a2')
+  })
+
+  it('ADR-040 — "toon impact" (drillNaar) hercentreert de praatplaat; buren erbij / view → overzicht', async () => {
+    const { w } = await mountView()
+    // drillNaar = "toon impact" op één component → praatplaat centraal op dat component.
+    w.vm.drillNaar('a2')
+    await flushPromises()
+    expect(w.vm.weergave).toBe('praatplaat')
+    expect(w.vm.modus).toBe('ego')
+    // Een set opbouwen via een ingang (voegComponentenToeAanSet) = brede plaat → overzicht.
+    w.vm.voegComponentenToeAanSet([{ id: 'a1' }])
+    await flushPromises()
+    expect(w.vm.weergave).toBe('overzicht')
+    expect(w.vm.modus).toBe('geheel')
   })
 
   // LI052 — spook-id: een set-lid dat de subgraaf niet als node oplevert wordt opgeruimd; teller/modus
@@ -189,9 +273,8 @@ describe('LandschapskaartView v3', () => {
     // De set is opgeschoond naar alleen materialiseerbare leden.
     expect([...w.vm.actieveSet].sort()).toEqual(['a1'])
     expect(w.vm.actieveSetNodes.map((n) => n.id)).toEqual(['a1'])
-    // Teller/modus volgen de geresolveerde leden → Ego, niet Impact.
+    // Teller/modus volgen de geresolveerde leden → praatplaat op het overgebleven centrum (Ego).
     expect(w.vm.modus).toBe('ego')
-    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Ego-view')
     // Anti-lus: extra ticks lokken geen nieuwe fetch uit (opschonen gebeurt één keer).
     const n1 = api.landschapskaart.subgraaf.mock.calls.length
     await flushPromises()
@@ -306,11 +389,10 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.zichtbareNodes.map((n) => n.id)).not.toContain('a1')
   })
 
-  it('ADR-033 1c — filter werkt op de directe buren in de Impact-verkenner; de focus blijft altijd', async () => {
+  it('ADR-040 — praatplaat: een filter versmalt de ego-kring (het matchende centrum blijft)', async () => {
     zetGraf({
       nodes: [
-        { id: 'a1', naam: 'Focus1', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'a2', naam: 'Focus2', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'a1', naam: 'Centrum', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
         { id: 'n1', naam: 'BuurOk', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
         { id: 'n2', naam: 'BuurWeg', element_type: 'applicatie', laag: 'application', lifecycle_status: 'geblokkeerd', blokkades_open: 0 },
       ],
@@ -320,16 +402,15 @@ describe('LandschapskaartView v3', () => {
       ],
     })
     const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'a2') // focus {a1,a2} → impact-verkenner
-    expect(w.vm.modus).toBe('impact')
+    await kies(w, 'a1') // praatplaat centraal op a1; ego-kring {a1, n1, n2}
+    expect(w.vm.modus).toBe('ego')
+    // Filter migratieklaar — het centrum a1 matcht zelf (geen centrum-verberg-dialoog); de kring versmalt.
     await w.find('[data-testid="lk-filter-lifecycle-input"]').trigger('focus')
     await flushPromises()
     await w.find('[data-testid="lk-filter-lifecycle-optie-migratieklaar"]').trigger('mousedown')
     await flushPromises()
     const ids = w.vm.zichtbareNodes.map((n) => n.id)
-    expect(ids).toContain('a1') // focus blijft altijd, ook al matcht z'n lifecycle niet
-    expect(ids).toContain('a2')
+    expect(ids).toContain('a1') // het (matchende) centrum blijft
     expect(ids).toContain('n1') // buur matcht het filter
     expect(ids).not.toContain('n2') // buur matcht niet → weg
   })
@@ -588,13 +669,14 @@ describe('LandschapskaartView v3', () => {
     const RINGEN = ['lk-ring-applicaties', 'lk-ring-rollen', 'lk-ring-gebruikers', 'lk-ring-contracten', 'lk-ring-infrastructuur']
     const alleRingenZichtbaar = (w) => RINGEN.every((t) => w.find(`[data-testid="${t}"]`).exists())
     const { w } = await mountView()
-    expect(alleRingenZichtbaar(w)).toBe(true) // geheel (lege set)
+    expect(alleRingenZichtbaar(w)).toBe(true) // overzicht (lege set → 'geheel')
     await kies(w, 'a1')
     expect(w.vm.modus).toBe('ego')
-    expect(alleRingenZichtbaar(w)).toBe(true) // ego
-    await kies(w, 'a2')
-    expect(w.vm.modus).toBe('impact')
-    expect(alleRingenZichtbaar(w)).toBe(true) // impact-verkenner
+    expect(alleRingenZichtbaar(w)).toBe(true) // praatplaat (ego)
+    w.vm.toonOverzicht()
+    await flushPromises()
+    expect(w.vm.modus).toBe('geheel')
+    expect(alleRingenZichtbaar(w)).toBe(true) // overzicht
   })
 
   it('ring uitvinken verbergt ook de nodes van die ring (LI019 Fix 2)', async () => {
@@ -698,137 +780,22 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  it('ADR-033 1b — toont alleen de DIRECTE impact (één laag), niet de hele transitieve keten', async () => {
-    // a1 → a2 → a3 (flows); b1 staat los. Vanaf {a1,b1}: directe impact = alleen a2 (één hop);
-    // a3 (twee hops) verschijnt NIET vóór doorklikken (geen vooraf-uitgerekende BFS meer).
-    zetGraf({
-      nodes: [
-        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
-        { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'geblokkeerd', blokkades_open: 1 },
-        { id: 'a3', naam: 'BRP', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'b1', naam: 'Los', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-      ],
-      edges: [
-        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-        { bron_id: 'a2', doel_id: 'a3', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-      ],
-    })
-    const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'b1') // 2 componenten → impact-verkenner (graaf op het canvas)
-    expect(w.vm.modus).toBe('impact')
-    // De graaf toont de focus (a1,b1) + alléén de directe buur a2 (één hop). a3 is transitief → NIET.
-    expect(w.vm.impactDirect.map((n) => n.id)).toEqual(['a2'])
-    expect(w.vm.huidigeFocus.sort()).toEqual(['a1', 'b1'])
-    expect(getekendeIds(w)).toEqual(['a1', 'a2', 'b1'])
-    expect(getekendeIds(w)).not.toContain('a3') // transitief → pas na doorklikken
-  })
-
-  it('ADR-033 1c — drill-down groeit/hercentreert de graaf; "← terug" gaat een stap terug', async () => {
-    zetGraf({
-      nodes: [
-        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
-        { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'a3', naam: 'BRP', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-      ],
-      edges: [
-        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-        { bron_id: 'a2', doel_id: 'a3', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-      ],
-    })
-    const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'a3') // focus {a1,a3}; a2 is de gedeelde directe buur
-    expect(w.vm.huidigeFocus.sort()).toEqual(['a1', 'a3'])
-    expect(getekendeIds(w)).toEqual(['a1', 'a2', 'a3'])
-    // Drill-down op a2 → a2 wordt de focus; zijn directe buren (a1,a3) blijven in beeld. Dit is
-    // ÉÉN toestand-entry in de geschiedenis (geen apart drill-terug-mechanisme meer).
-    w.vm.drillNaar('a2')
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual(['a2'])
-    expect(w.vm.huidigeFocus).toEqual(['a2'])
-    expect(w.vm.impactDirect.map((n) => n.id).sort()).toEqual(['a1', 'a3'])
-    expect(getekendeIds(w)).toEqual(['a1', 'a2', 'a3'])
-    // De ene in-kaart "← Terug" gaat één toestand terug (de drill-stap ongedaan).
-    expect(w.vm.kanTerug).toBe(true)
-    await w.find('[data-testid="lk-hist-terug"]').trigger('click')
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual([])
-    expect(w.vm.huidigeFocus.sort()).toEqual(['a1', 'a3'])
-  })
-
-  it('ADR-033 — in impact: DUBBELklik op een directe buur = drill-down; enkelklik NIET', async () => {
-    zetGraf({
-      nodes: [
-        { id: 'a1', naam: 'A1', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'a2', naam: 'A2', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'a3', naam: 'A3', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-      ],
-      edges: [
-        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-        { bron_id: 'a2', doel_id: 'a3', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-      ],
-    })
-    const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'a3') // focus {a1,a3}; a2 = directe buur
-    vi.useFakeTimers()
-    // Enkelklik = inspecteren (highlight + detail), GEEN drill.
-    w.vm.onNodeTap('a2')
-    vi.advanceTimersByTime(300)
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual([]) // enkelklik drilt niet meer
-    expect(w.vm.geselecteerdNodeId).toBe('a2') // wél geïnspecteerd/geselecteerd
-    // Dubbelklik (twee taps binnen de drempel) = drill-down.
-    w.vm.onNodeTap('a2'); w.vm.onNodeTap('a2')
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual(['a2'])
-    vi.useRealTimers()
-  })
-
-  it('ADR-033 1b — directe impact volgt alle vier relaties (flow/draait-op/gebruikt-door/samenstelling); contract is context', async () => {
-    zetGraf({
-      nodes: [
-        { id: 'a1', naam: 'App', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'sel', naam: 'Sel', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'peer', naam: 'Peer', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
-        { id: 'host', naam: 'Host', element_type: 'database', laag: 'technology', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'grp', naam: 'Burgers', element_type: 'gebruikersgroep', laag: 'business', aantal_leden: 1200, organisatie_id: null },
-        { id: 'deel', naam: 'Deel', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'contract', naam: 'Contract', element_type: 'contract', laag: 'business', blokkades_open: 0 },
-      ],
-      edges: [
-        { bron_id: 'a1', doel_id: 'peer', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' }, // koppelt met
-        { bron_id: 'host', doel_id: 'a1', relatietype: 'assignment', label: 'draait op', ring: 'infrastructuur' }, // draait op
-        { bron_id: 'a1', doel_id: 'grp', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' }, // gebruikt door
-        { bron_id: 'a1', doel_id: 'deel', relatietype: 'aggregation', label: 'bestaat uit', ring: 'samenstelling' }, // onderdeel van
-        { bron_id: 'a1', doel_id: 'contract', relatietype: 'association', label: 'valt onder', ring: 'contracten' }, // context
-      ],
-    })
-    const { w } = await mountView()
-    await w.find('[data-testid="lk-groepeer-org"]').trigger('change') // groepering uit → individuele groep-node
-    await kies(w, 'a1')
-    await kies(w, 'sel') // focus {a1, sel} → impact-verkenner (sel heeft geen edges)
-    expect(w.vm.modus).toBe('impact')
-    // Alle vier de relaties leveren een geraakte node; het contract (association) propageert NIET.
-    expect(w.vm.impactDirect.map((n) => n.id).sort()).toEqual(['deel', 'grp', 'host', 'peer'])
-    expect(getekendeIds(w)).toEqual(['a1', 'deel', 'grp', 'host', 'peer', 'sel'])
-    expect(getekendeIds(w)).not.toContain('contract') // context, geen impact
-    // De gebruikersgroep is herkenbaar op de graaf-node (ledental op het label).
-    const grpData = w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'grp'))
-    expect(grpData.label).toContain('1200')
-    // ADR-033 — géén automatische oranje rand meer: nodes houden hun lifecycle-rand (geen selectie).
-    expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'a1')).border).not.toBe('#f59e0b')
-  })
+  // ADR-040 F1 stap 2a — de Impact-verkenner (drill-down over de koppelingsketen, `modus === 'impact'`,
+  // impactDirect/drillPad/huidigeFocus) is AFGESCHAFT: de Praatplaat (concentric centraal op één centrum
+  // + ego-kring) vervangt haar. De bijbehorende gedragstests (directe-impact-één-laag, drill-down-groeit,
+  // impact-dubbelklik-drill, vier-relaties-impact, gebruikersgroep-drill, drill-reset, hoort-bij-in-keten)
+  // zijn met de machinerie verwijderd; de praatplaat-equivalenten staan bij de weergave-/schakelaar-tests.
 
   it('ADR-033 — lijnen zijn standaard NEUTRAAL in elke weergave (geen blanket-oranje)', async () => {
     const neutraal = (w) => w.vm._edgeData({ bron_id: 'a1', doel_id: 'a2', ring: 'applicaties', label: 'koppeling' }, 0).lc
     const { w } = await mountView() // geheel
     expect(neutraal(w)).toBe('#94a3b8')
-    await kies(w, 'a1') // ego
+    await kies(w, 'a1') // praatplaat (ego)
+    expect(w.vm.modus).toBe('ego')
     expect(neutraal(w)).toBe('#94a3b8')
-    await kies(w, 'a2') // impact (≥2) — vroeger blanket-oranje, nu neutraal
-    expect(w.vm.modus).toBe('impact')
+    w.vm.toonOverzicht() // schakel naar overzicht (geen blanket-oranje in welke weergave dan ook)
+    await flushPromises()
+    expect(w.vm.modus).toBe('geheel')
     expect(neutraal(w)).toBe('#94a3b8')
     // Geen enkele edge gehighlight zolang er niets geselecteerd is.
     expect(w.vm.geselecteerdNodeId).toBe(null)
@@ -896,62 +863,21 @@ describe('LandschapskaartView v3', () => {
     }
   })
 
-  it('ADR-033 1b — gebruikersgroep is een aanklikbare geraakte node; drill-down toont wie hem gebruikt', async () => {
-    zetGraf({
-      nodes: [
-        { id: 'a1', naam: 'App1', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'a2', naam: 'App2', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'grp', naam: 'Burgers', element_type: 'gebruikersgroep', laag: 'business', aantal_leden: 500, organisatie_id: null },
-      ],
-      edges: [
-        { bron_id: 'a1', doel_id: 'grp', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' },
-        { bron_id: 'a2', doel_id: 'grp', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' },
-      ],
-    })
-    const { w } = await mountView()
-    await w.find('[data-testid="lk-groepeer-org"]').trigger('change') // groepering uit → individuele groep-node
-    await kies(w, 'a1')
-    await kies(w, 'a2') // focus {a1, a2} → impact; grp is de gedeelde directe buur
-    expect(w.vm.impactDirect.map((n) => n.id)).toEqual(['grp']) // geraakt + aanklikbaar
-    expect(getekendeIds(w)).toEqual(['a1', 'a2', 'grp'])
-    w.vm.drillNaar('grp') // drill-down op de groep (zelfde belofte als elk type)
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual(['grp'])
-    expect(w.vm.huidigeFocus).toEqual(['grp'])
-    // De directe impact van de groep = de componenten die hem gebruiken (a1, a2).
-    expect(w.vm.impactDirect.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
-    expect(getekendeIds(w)).toEqual(['a1', 'a2', 'grp'])
-  })
-
-  it('ADR-033 1c — geraakte graaf-knopen tonen lifecycle-kleur + blokkade-indicatie', async () => {
+  it('ADR-040 — praatplaat: graaf-knopen in de ego-kring tonen lifecycle-kleur + blokkade-indicatie', async () => {
     zetGraf({
       nodes: [
         { id: 'a1', naam: 'App', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'sel', naam: 'Sel', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
         { id: 'geblok', naam: 'Geblokkeerd', element_type: 'applicatie', laag: 'application', lifecycle_status: 'geblokkeerd', blokkades_open: 2 },
       ],
       edges: [{ bron_id: 'a1', doel_id: 'geblok', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' }],
     })
     const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'sel') // impact (a1 → geblok directe impact)
+    await kies(w, 'a1') // praatplaat centraal op a1; geblok is de directe buur (ego-kring)
+    expect(w.vm.modus).toBe('ego')
     expect(getekendeIds(w)).toContain('geblok')
     const data = w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'geblok'))
     expect(data.bg).toBe('#fee2e2') // lifecycle-kleur (geblokkeerd) als achtergrond
     expect(data.label).toContain('⚠') // open blokkade-indicatie
-  })
-
-  it('ADR-033 — drill-down-staat reset zodra de actieve set wijzigt (niet bewaard)', async () => {
-    const { w } = await mountView()
-    await kies(w, 'a1')
-    await kies(w, 'a2') // impact
-    w.vm.drillNaar('a1')
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual(['a1'])
-    // Een wijziging van de actieve set (component verwijderen) reset de verkenning.
-    await kies(w, 'a2')
-    await flushPromises()
-    expect(w.vm.drillPad).toEqual([])
   })
 
   it('ADR-033 — Geheel-model (lege set) toont de verbonden nodes; de actieve set blijft leeg', async () => {
@@ -972,12 +898,12 @@ describe('LandschapskaartView v3', () => {
       edges: [{ bron_id: 'p1', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Contractbeheer', ring: 'rollen' }],
     })
     const { w } = await mountView() // geheel
-    // Dubbelklik op de partij-node (twee taps binnen de drempel) → set = {p1} → ego met partij centraal.
+    // Dubbelklik op de partij-node (twee taps binnen de drempel) → set = {p1} → praatplaat met partij centraal.
     w.vm.onNodeTap('p1'); w.vm.onNodeTap('p1')
     await flushPromises()
+    expect(w.vm.weergave).toBe('praatplaat')
     expect(w.vm.modus).toBe('ego')
     expect([...w.vm.actieveSet]).toEqual(['p1'])
-    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Ego-view')
     // Detailpaneel toont de partij + zijn aard.
     expect(w.find('[data-testid="lk-detail-aard"]').exists()).toBe(true)
     expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Provincie')
@@ -1021,21 +947,24 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Zaaksysteem')
   })
 
-  it('ADR-033 — deep-link ?center=<id> zet de component als enige in de actieve set → Ego-view', async () => {
-    const { w } = await mountView({ query: '?center=a1&modus=ego' })
+  it('ADR-040 — deep-link ?center=<id> zet de component als enige in de actieve set → Praatplaat', async () => {
+    const { w } = await mountView({ query: '?center=a1' })
+    expect(w.vm.weergave).toBe('praatplaat') // deep-link → praatplaat
     expect(w.vm.modus).toBe('ego')
-    expect(w.find('[data-testid="lk-weergave-indicator"]').text()).toBe('Ego-view')
     // de center-applicatie staat in de actieve set en is het detail.
     expect(w.find('[data-testid="lk-rechts"]').text()).toContain('Actieve set (1)')
     expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Zaaksysteem')
   })
 
-  it('ADR-033 — lk-state herstelt de actieve set (de modus volgt eruit); oude `modus`-sleutel genegeerd', async () => {
+  it('ADR-040 — lk-state herstelt de actieve set; de weergave staat default op overzicht (adapter → geheel)', async () => {
     // Bewaarde state met alleen de actieve set + een achterhaalde `modus`-sleutel (moet genegeerd).
     sessionStorage.setItem('lk-state', JSON.stringify({ actieveSet: ['a1', 'a2'], modus: 'ego' }))
     const { w } = await mountView({ heleLandschap: false }) // herstel de set; geen auto-hele-landschap die 'm wist
     expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
-    expect(w.vm.modus).toBe('impact') // afgeleid uit de herstelde set, niet uit de dode `modus`-sleutel
+    // De weergave wordt niet uit lk-state hersteld (default overzicht) → modus-adapter = 'geheel',
+    // niet de dode `modus`-sleutel.
+    expect(w.vm.weergave).toBe('overzicht')
+    expect(w.vm.modus).toBe('geheel')
   })
 
   it('v4: de diepte-toggle staat in het filterpaneel (ego) en is default 1 stap', async () => {
@@ -1115,13 +1044,14 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-view-verwijder-v2"]').exists()).toBe(false)
   })
 
-  it('ADR-033 2c — een view openen zet de bewaarde selectie als actieve set → adaptieve weergave volgt', async () => {
+  it('ADR-040 2c — een view openen zet de bewaarde selectie als actieve set → Overzicht', async () => {
     api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Twee', component_ids: ['a1', 'a2'] })])
     const { w } = await mountView({ heleLandschap: false })
     await w.find('[data-testid="lk-startscherm-open-v1"]').trigger('click')
     await flushPromises()
     expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
-    expect(w.vm.modus).toBe('impact') // ≥2 → impact-verkenner-graph
+    expect(w.vm.weergave).toBe('overzicht') // een view openen = brede plaat → overzicht
+    expect(w.vm.modus).toBe('geheel')
     expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false) // startscherm dicht
   })
 
@@ -1247,16 +1177,6 @@ describe('LandschapskaartView v3', () => {
     w.vm.openEdgePopup({ bron_id: 'per', doel_id: 'afd', ring: 'organisatiestructuur', label: 'hoort bij' })
     await flushPromises()
     expect(w.vm.popupOpen).toBe(true) // popup opent zonder API-call (niet-flow ring)
-  })
-
-  it('ADR-024 — hoort-bij telt NIET mee in de impact-keten', async () => {
-    zetGraf(_osGraf())
-    const { w } = await mountView()
-    w.vm.toggleSet('afd'); w.vm.toggleSet('app') // focus {afd, app} → impact
-    await flushPromises()
-    expect(w.vm.modus).toBe('impact')
-    // 'per' hangt alleen via hoort_bij aan 'afd' → géén impact-buur (ring buiten IMPACT_RINGEN).
-    expect(w.vm.impactDirect.map((n) => n.id)).not.toContain('per')
   })
 
   // ── Toestand-geschiedenis (browser-model: terug/vooruit met cursor) ──
@@ -1601,14 +1521,18 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm.grafNodes.length).toBe(0)
     })
 
-    it('niet-lege set → subgraaf met de set; nodes vervangen, weergave volgt', async () => {
+    it('niet-lege set → subgraaf met de set; nodes vervangen; toggleSet is weergave-neutraal', async () => {
       const { w } = await mountView({ heleLandschap: false })
       w.vm.toggleSet('a1')
       await flushPromises()
       expect(api.landschapskaart.subgraaf).toHaveBeenCalledWith(['a1'], 1)
       expect(api.landschapskaart.haalGrafdata).not.toHaveBeenCalled()
       expect(w.vm.beginscherm).toBe(false)
-      expect(w.vm.modus).toBe('ego')
+      // toggleSet bouwt de set maar zet geen praatplaat (weergave blijft overzicht → adapter 'geheel');
+      // wél wordt het centrum gezet (single-set), zodat de Praatplaat-knop beschikbaar wordt.
+      expect(w.vm.weergave).toBe('overzicht')
+      expect(w.vm.modus).toBe('geheel')
+      expect(w.vm.kanPraatplaat).toBe(true)
       expect(w.vm.grafNodes.length).toBe(5) // subgraaf-respons (mock = volledige _graf)
     })
 
@@ -1620,7 +1544,7 @@ describe('LandschapskaartView v3', () => {
       w.vm.toggleSet('a2')
       await flushPromises()
       expect(api.landschapskaart.subgraaf).toHaveBeenLastCalledWith(['a1', 'a2'], 1)
-      expect(w.vm.modus).toBe('impact')
+      expect(w.vm.modus).toBe('geheel') // toggleSet weergave-neutraal → overzicht
     })
 
     it('"toon hele landschap" → full-graph-fetch én de set wordt geleegd', async () => {
@@ -1922,16 +1846,17 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  // ── ADR-040 F1 (stap 1+3) — fcose-vrije layout: ego én de voormalige impact-set beide concentric ──
+  // ── ADR-040 F1 — fcose-vrije layout: zowel praatplaat als overzicht gebruiken concentric ──
   // (Vervangt de LI030-test die impact→fcose borgde: fcose is verwijderd wegens de edges-onzichtbaar-bug.)
   describe('layout (ADR-040 F1 — fcose weg)', () => {
-    it('ego én de voormalige impact-set (≥2) gebruiken beide concentric (geen fcose meer)', async () => {
+    it('praatplaat én overzicht gebruiken beide concentric (geen fcose meer)', async () => {
       const { w } = await mountView()
-      await kies(w, 'a1') // 1 → ego
+      await kies(w, 'a1') // praatplaat (ego)
       expect(w.vm.modus).toBe('ego')
       expect(w.vm._layout().name).toBe('concentric')
-      await kies(w, 'a2') // 2 → (voorheen) impact
-      expect(w.vm.modus).toBe('impact')
+      w.vm.toonOverzicht() // overzicht (adapter → 'geheel')
+      await flushPromises()
+      expect(w.vm.modus).toBe('geheel')
       expect(w.vm._layout().name).toBe('concentric') // fcose vervangen door deterministische concentric
     })
 

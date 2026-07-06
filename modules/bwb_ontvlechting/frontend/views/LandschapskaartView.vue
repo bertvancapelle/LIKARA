@@ -1,8 +1,10 @@
 <script setup>
 /**
- * LandschapskaartView v3 — interactieve landschapskaart op Cytoscape.js (ADR-025).
+ * LandschapskaartView v3 — interactieve landschapskaart op Cytoscape.js (ADR-025 → ADR-040).
  *
- * Drie modi (Ego / Impact / Geheel model), zoeken + vier filters (domein/leverancier/hosting/
+ * Twee weergaven (Overzicht = brede plaat / Praatplaat = concentric centraal op één centrum + kring;
+ * de `modus`-computed is nu een dunne adapter daarop — de Impact-verkenner is met ADR-040 afgeschaft),
+ * zoeken + vier filters (domein/leverancier/hosting/
  * lifecycle), actieve migratieset, node-detail met doorklik naar het applicatie-detail, en een
  * lifecycle-legenda. De Cytoscape-graaf is een afgeleide van de reactieve state (tekenGraaf());
  * álle panelen (zoek/resultaten/set/detail/legenda/samenvatting) zijn pure Vue-state, zodat de
@@ -75,8 +77,7 @@ const LANE_MIN_H = 110 // min lane-hoogte — lege/kleine lane blijft zichtbaar 
 const LANE_COLS = Math.max(1, Math.floor(MAX_LANE_W / NODE_W)) // kolommen per lane (= 6)
 // ADR-031 — gebruikersgroep-node-stijl (distinctief t.o.v. applicaties).
 const GG_STYLE = { bg: '#e0f2fe', border: '#0ea5e9' }
-// Oranje van de geselecteerd-component-rand (node:selected). ADR-033 1c hergebruikt deze ene waarde
-// voor de focus-rand én de impact-edges in de Impact-verkenner (één bron — geen nieuwe hexwaarde).
+// Oranje van de geselecteerd-component-rand (node:selected) — één bron voor de focus-rand.
 const SELECTIE_RAND = '#f59e0b'
 // Deterministische domeinkleuren (border in "kleur op domein"-modus).
 const DOMEIN_PALET = ['#2563eb', '#d97706', '#0891b2', '#7c3aed', '#16a34a', '#db2777', '#65a30d', '#dc2626']
@@ -105,21 +106,45 @@ const actieveSet = ref(new Set())
 // rustige node-markering ("nog niet verfijnd") zónder node-attribuut of engine-raakvlak. Leeg = geen
 // markering.
 const grofOnlyIds = ref(new Set())
-// ADR-033 — de weergavemodus is AFGELEID uit de actieve set (geen handmatige view-tabs meer):
-// lege set → Geheel model; 1 component → Ego-view; ≥2 componenten → Impact-verkenner.
+// ADR-040 F1 stap 2a — EXPLICIETE weergave-state (niet meer set-grootte-afgeleid). De weergave volgt
+// de HANDELING van de gebruiker: één component inspecteren / "toon impact" / deep-link → 'praatplaat'
+// (concentric centraal op het centrum + kring); brede verkenning / view / "hele landschap" / buren
+// toevoegen → 'overzicht' (de volledige set als brede plaat). Een zichtbare schakelaar wisselt.
+const weergave = ref('overzicht') // 'overzicht' | 'praatplaat'
+const egoStartId = ref(null) // het praatplaat-CENTRUM (rename naar centrumId is cosmetisch; uitgesteld
+                             // om de history-serialisatie niet te raken — zie de ontvlechtings-eis).
+// `modus` is nu een DUNNE adapter op de expliciete weergave-state (de ~10 lees-plekken blijven zo
+// werken): praatplaat-met-geresolveerd-centrum → 'ego' (concentric centraal + ego-kring); overzicht →
+// 'geheel' (volledige set, concentric-op-degree); leeg beginscherm → 'leeg'. De praatplaat wint vóór de
+// set-grootte, zodat "toon impact"/deep-link óók vanuit het hele landschap (lege set) de kring toont.
 const modus = computed(() => {
-  // Fase B — een lege set is niet langer "geheel model": leeg = beginscherm ('leeg'), tenzij de
-  // bewuste "hele landschap"-actie aanstaat (dan de volledige plaat = 'geheel'). Leegte blijft op de
-  // RUWE set-grootte (nooit blanken bij een niet-lege set die nog laadt).
+  if (weergave.value === 'praatplaat' && egoStartId.value && nodePerId.value[egoStartId.value]) return 'ego'
   if (actieveSet.value.size === 0) return heleLandschap.value ? 'geheel' : 'leeg'
-  // LI052 — ego vs impact op de GERESOLVEERDE leden (set-ids die de subgraaf echt als node opleverde),
-  // niet de ruwe set-grootte: een niet-resolvend (spook-)id mag de modus niet spurieus naar Impact
-  // tillen. Vóór de eerste fetch is nodePerId nog leeg → val terug op Ego (n<2), nooit Impact.
-  let n = 0
-  for (const id of actieveSet.value) if (nodePerId.value[id]) n += 1
-  return n >= 2 ? 'impact' : 'ego'
+  return 'geheel'
 })
-const egoStartId = ref(null)
+// Kan er een praatplaat getoond worden? (er is een geresolveerd centrum). Stuurt de schakelaar-knop.
+const kanPraatplaat = computed(() => !!(egoStartId.value && nodePerId.value[egoStartId.value]))
+// Handeling → weergave (besluit A). `toonPraatplaat` zet het centrum + de weergave; `toonOverzicht`
+// schakelt naar de brede plaat. De schakelaar en de ingangen roepen deze aan.
+// ADR-040 F1 stap 2a — een weergave-WISSEL via de schakelaar begint met een schone lei: de legenda-
+// spotlight (`legendaTypeFilter` → `lk-dim`) en een oude node-selectie/detail reizen NIET mee naar de
+// nieuwe plaat (anders dimt een eerdere spotlight het hele Overzicht en blijft een oude detail/rand
+// staan). Uitsluitend op de schakel-acties — de inspectie-paden (`toonPraatplaat(id)` vanuit kies/drill/
+// dubbelklik) zetten zélf het detail en blijven ongemoeid.
+function _verseWeergave() {
+  legendaTypeFilter.value = null
+  geselecteerdNodeId.value = null
+  detailId.value = null
+}
+function toonPraatplaat(id) {
+  if (id) egoStartId.value = id        // inspecteren/hercentreren op een concreet component
+  else _verseWeergave()                // schakelaar-ingang (geen id) → schone lei
+  if (egoStartId.value) weergave.value = 'praatplaat'
+}
+function toonOverzicht() {
+  _verseWeergave()
+  weergave.value = 'overzicht'
+}
 const detailId = ref(null)
 const opbouwModus = ref(true) // geheel-model: true=insluiten (begint leeg), false=afpellen (begint vol)
 const kleurOpDomein = ref(false)
@@ -260,8 +285,11 @@ async function herlaadGraaf() {
       }
       nodes.value = verwerkt
       edges.value = _mapEdges(data.edges)
-      const eersteApp = nodes.value.find(isApplicatie)
-      egoStartId.value = eersteApp ? eersteApp.id : null
+      // ADR-040 F1 stap 2a — "hele landschap" = het volledige Overzicht: GEEN automatisch praatplaat-
+      // centrum meer seeden. De weergave volgt de handeling — de Praatplaat wordt pas actief zodra de
+      // gebruiker zélf een object kiest (dubbelklik/hercentreren, "toon impact", deep-link). Zo is het
+      // hele landschap identiek aan het lege beginscherm: overzicht, geen centrum, Praatplaat-knop disabled.
+      egoStartId.value = null
       // LI053 — "Organisaties in beeld" staan standaard aan; de organisatieNodes-watch seedt dat
       // (in élke modus), zolang de gebruiker de balk niet zelf heeft aangeraakt.
       tekenVoortgang.value = null
@@ -387,7 +415,7 @@ function _bivVoldoet(waarde, minSleutel) {
 // ── Zoeken + filteren ─────────────────────────────────────────────────────────
 // LI028 — `filterActief` stuurt UITSLUITEND het graafpad (zichtbareNodes). De vrije zoekterm hoort
 // hier BEWUST NIET bij: die voedt alleen de resultatenlijst (`_matcht` → `gefilterdeNodes`). Anders
-// zou typen de graaf-tak omschakelen (ego/impact → context-buren via _metContext; geheel → opbouw/
+// zou typen de graaf-tak omschakelen (ego → context-buren via _metContext; geheel → opbouw/
 // afpel) en het aantal nodes veranderen zonder dat er een chip is toegevoegd.
 const filterActief = computed(
   () =>
@@ -549,14 +577,6 @@ const zichtbareNodes = computed(() => {
     const zichtbaar = _metContext(matched)
     return alle.filter((n) => zichtbaar.has(n.id))
   }
-  if (modus.value === 'impact') {
-    // ADR-033 1c — de Impact-verkenner is nu een graaf op het canvas: de focus + hun directe
-    // geraakte buren (één laag, vier relaties). De focus blijft altijd zichtbaar; een actief filter
-    // verfijnt alleen de buren.
-    const ids = impactZichtbaarIds.value
-    if (!filterActief.value) return alle.filter((n) => ids.has(n.id))
-    return alle.filter((n) => ids.has(n.id) && (huidigeFocusSet.value.has(n.id) || _filterMatch(n)))
-  }
   // Geheel model toont standaard het VOLLEDIGE landschap. Filters verfijnen: opbouw = de match (+
   // context); afpel = alles behalve de match.
   if (!filterActief.value) return alle
@@ -590,12 +610,16 @@ function toggleSet(id) {
 function kiesComponent(id) {
   toggleSet(id)
   detailId.value = id
+  // ADR-040 F1 stap 2a — één component selecteren = dat component inspecteren → praatplaat centraal
+  // op die node (alleen als het component nu in de set zit; deselecteren zet geen praatplaat).
+  if (actieveSet.value.has(id)) toonPraatplaat(id)
 }
 function voegAlleGefilterdeToe() {
   const s = new Set(actieveSet.value)
   for (const n of gefilterdeNodes.value) s.add(n.id)
   actieveSet.value = s
   heleLandschap.value = false
+  toonOverzicht() // ADR-040 F1 stap 2a — bulk toevoegen = brede verkenning → overzicht
 }
 // Fase B slice 2b (LI023) — het beginscherm levert componenten via zijn ingangen (zoek/leverancier/
 // contract/gebruikerscontext). Voeg ze toe aan de set (al-aanwezige ids stil overgeslagen → geen
@@ -613,6 +637,7 @@ function voegComponentenToeAanSet(componenten) {
   actieveSet.value = s
   grofOnlyIds.value = g
   heleLandschap.value = false
+  toonOverzicht() // ADR-040 F1 stap 2a — een set opbouwen via een ingang = brede plaat → overzicht
 }
 // Slice 5 (LI023) — directe COMPONENT-buren van een node, afgeleid uit de al-geladen graaf.
 // NB: leest bewust uit `grafEdges` + `nodePerId` (de reactieve bron, idem `detailKoppelingen`) en
@@ -651,6 +676,8 @@ const focusOpSet = ref(false)
 function wisSet() {
   actieveSet.value = new Set()
   grofOnlyIds.value = new Set() // LI033 — verse start → grof-only-markering weg
+  weergave.value = 'overzicht' // ADR-040 F1 stap 2a — verse start → default-weergave
+  egoStartId.value = null
   heleLandschap.value = false
   beginschermOpen.value = true // "Begin opnieuw"/"Wis alles" = volledige reset → terug naar het beginscherm
   beginschermSleutel.value += 1 // LI052 — forceer een verse picker (buffer/vinkjes/zoekresultaten leeg)
@@ -664,6 +691,7 @@ function toonHeleLandschap() {
   toonStartscherm.value = false
   actieveSet.value = new Set()
   grofOnlyIds.value = new Set() // LI033 — het hele landschap heeft geen org-gescoopte grof-only-context
+  toonOverzicht() // ADR-040 F1 stap 2a — hele landschap = brede plaat → overzicht
   heleLandschap.value = true
   beginschermOpen.value = false // hele landschap = bewuste ingang → sluit het beginscherm
 }
@@ -697,78 +725,37 @@ function _schoonSetOp() {
   }
 }
 
-// ── Impact-verkenner (ADR-033) — drill-down over de transitieve koppelingsketen ──────
-// De basis is de actieve set; elke drill-down legt één extra focus-stap bovenop (stack).
-// De verkenningsstaat wordt NIET bewaard (slice 2 bewaart later alleen de startselectie).
-const drillPad = ref([]) // node-ids waar achtereenvolgens in is ingezoomd
+// ── Praatplaat-centrering (ADR-040 F1) ────────────────────────────────────────────
+// De Impact-verkenner (ADR-033: drill-down over de koppelingsketen, `modus === 'impact'`) is met
+// de tweedeling Overzicht/Praatplaat AFGESCHAFT — de Praatplaat (concentric centraal op één centrum
+// + ego-kring) vervangt haar. De bijbehorende machinerie (drillPad, huidigeFocus, impactDirect/
+// -Zichtbaar, _impactBuren, IMPACT_RINGEN, topbalkNodes, stapTerug) is verwijderd. "Toon impact" op
+// één component is nu simpelweg: centreer de praatplaat op dat component (`drillNaar`).
 // Vlag: een history-herstel (terug/vooruit) is bezig — onderdruk de afgeleide neven-effecten
-// (drill-reset hieronder + filter-dialog + push) zodat de herstelde toestand niet wordt
+// (ego-recenter hieronder + filter-dialog + push) zodat de herstelde toestand niet wordt
 // overschreven of dubbel-gepusht.
 let _herstellen = false
 // Vlag: de eerstvolgende (her)tekening komt uit een herstel → zonder layout-animatie tekenen,
 // zodat rap terug/vooruit geen 400ms-animaties opstapelt (de hang). Geconsumeerd in tekenGraaf.
 let _herstelZonderAnimatie = false
-// Een wijziging van de actieve set reset de verkenning naar de basis; bij precies 1 component
-// centreert de Ego-view op die component (afgeleide modus).
+// Een wijziging van de actieve set naar precies 1 component zet dat component als praatplaat-centrum
+// (het centrum voor de concentric-plaat) en hercentreert. De weergave zelf volgt de HANDELING (de
+// ingangen zetten 'overzicht'/'praatplaat' expliciet) — deze watch raakt `weergave` niet.
 watch(
   () => [...actieveSet.value].sort().join('|'),
   () => {
-    if (_herstellen) return // bij history-herstel blijft de herstelde drill/ego staan
-    drillPad.value = []
+    if (_herstellen) return // bij history-herstel blijft de herstelde ego/weergave staan
     if (actieveSet.value.size === 1) {
       egoStartId.value = [...actieveSet.value][0]
       _recenterPending = true
     }
   },
 )
-const huidigeFocus = computed(() =>
-  drillPad.value.length ? [drillPad.value[drillPad.value.length - 1]] : [...actieveSet.value],
-)
-const huidigeFocusSet = computed(() => new Set(huidigeFocus.value))
-const topbalkNodes = computed(() => huidigeFocus.value.map((id) => nodePerId.value[id]).filter(Boolean))
-// ADR-033 1b — impact volgt de VIER migratie-relaties (koppelt-met / draait-op / gebruikt-door /
-// onderdeel-van), uitsluitend uit de expliciet geregistreerde kaart-edges (ADR-023 besluit 7).
-// Contract (association), beheerrol (roltoewijzing) en datatype propageren NIET — die blijven
-// louter zichtbare context in de graph en tellen niet als "geraakt bij migratie".
-const IMPACT_RINGEN = new Set(['applicaties', 'infrastructuur', 'gebruikers', 'samenstelling'])
-// Directe buren van een node langs de vier impact-relaties — ongericht (beide kanten), zodat
-// host↔gehoste, geheel↔onderdeel en koppelt-met in beide richtingen meekomen.
-function _impactBuren(id) {
-  const s = new Set()
-  for (const e of grafEdges.value) {
-    if (!IMPACT_RINGEN.has(e.ring)) continue
-    if (e.bron_id === id) s.add(e.doel_id)
-    else if (e.doel_id === id) s.add(e.bron_id)
-  }
-  return s
-}
-// Directe impact: ÉÉN laag rond de huidige focus (geen transitieve BFS meer). Dieper kijken
-// gebeurt door te klikken (drill-down). De focus zelf valt buiten de lijst; op naam gesorteerd.
-const impactDirect = computed(() => {
-  const focus = new Set(huidigeFocus.value)
-  const geraakt = new Set()
-  for (const id of focus) {
-    for (const buur of _impactBuren(id)) {
-      if (!focus.has(buur)) geraakt.add(buur)
-    }
-  }
-  return [...geraakt]
-    .map((id) => nodePerId.value[id])
-    .filter(Boolean)
-    .sort((a, b) => (a.naam || '').localeCompare(b.naam || '', 'nl'))
-})
-const impactGeraaktAantal = computed(() => impactDirect.value.length)
-// ADR-033 1c — de impact-subgraaf op het canvas = de focus + hun directe geraakte buren (één laag).
-const impactZichtbaarIds = computed(
-  () => new Set([...huidigeFocus.value, ...impactDirect.value.map((n) => n.id)]),
-)
+// "Toon impact" op één component → praatplaat centraal op dat component (ADR-040 F1 stap 2a).
 function drillNaar(id) {
   if (!nodePerId.value[id]) return
-  drillPad.value = [...drillPad.value, id]
   detailId.value = id
-}
-function stapTerug() {
-  if (drillPad.value.length) drillPad.value = drillPad.value.slice(0, -1)
+  toonPraatplaat(id)
 }
 
 // ── ADR-033 slice 2c/2d — opgeslagen & deelbare views (voorkant) ─────────────────────
@@ -860,6 +847,7 @@ async function bewaarView() {
 // (de herfetch-watch laadt de subgraaf van die set).
 function openView(v) {
   actieveSet.value = new Set(v.component_ids || [])
+  toonOverzicht() // ADR-040 F1 stap 2a — een opgeslagen (meervoudige) view = brede plaat → overzicht
   heleLandschap.value = false
   toonStartscherm.value = false
   beginschermOpen.value = false // een view openen = bewuste ingang → sluit het beginscherm
@@ -942,10 +930,10 @@ function inspecteerNode(id) {
 
 // ── Toestand-geschiedenis (browser-model: lineair + cursor) ─────────────────────────
 // Heen-en-weer door bezochte kaarttoestanden met een cursor. Eén toestand = selectie/
-// centrering (actieve set + geselecteerde/ingezoomde node + impact-drill) + ring-instellingen
+// centrering (actieve set + geselecteerde node + weergave/praatplaat-centrum) + ring-instellingen
 // (welke ringen aan, "Groepeer per organisatie") + filters (type/leverancier/hosting/lifecycle,
 // zoekterm, "Focus op actieve set"). Zoom/pan tellen NIET (puur kijkhoek → geen entry).
-// De impact-drill is gewoon één toestand-entry — geen tweede terug-mechanisme. Werkgeheugen
+// De weergave (overzicht/praatplaat) is één toestand-entry — geen tweede terug-mechanisme. Werkgeheugen
 // binnen de sessie; niet gepersisteerd (opgeslagen views dekken bewaren/delen, ongemoeid).
 // shallowRef + bevroren snapshots: geen diepe reactiviteit op de (groeiende) history → geen
 // geheugenlek bij een lange klik-sessie. Begrensd op de laatste _HIST_MAX entries.
@@ -959,7 +947,7 @@ const kanVooruit = computed(() => cursor.value < historie.value.length - 1)
 function _maakToestand() {
   return {
     set: [...actieveSet.value], sel: geselecteerdNodeId.value,
-    drill: [...drillPad.value], ego: egoStartId.value,
+    weergave: weergave.value, ego: egoStartId.value,
     ring: [...ringAan.value], groep: groepeerPerOrg.value,
     fTypes: [...filterTypes.value], fLev: [...filterLeveranciers.value],
     fHost: [...filterHosting.value], fLc: [...filterLifecycle.value],
@@ -971,7 +959,7 @@ function _maakToestand() {
 // een wijziging hiervan = een nieuwe toestand. Zoom/pan zitten er bewust NIET in.
 const _toestandSig = computed(() => JSON.stringify({
   set: [...actieveSet.value].sort(), sel: geselecteerdNodeId.value,
-  drill: drillPad.value, ego: egoStartId.value,
+  weergave: weergave.value, ego: egoStartId.value,
   ring: [...ringAan.value].sort(), groep: groepeerPerOrg.value,
   fTypes: [...filterTypes.value].sort(), fLev: [...filterLeveranciers.value].sort(),
   fHost: [...filterHosting.value].sort(), fLc: [...filterLifecycle.value].sort(),
@@ -1006,7 +994,7 @@ function _herstelToestand(t) {
   // (de kern van de hang). Een gelijk-blijvende toestand levert nu nul (re)tekeningen.
   if (!setGelijk(actieveSet.value, t.set)) actieveSet.value = new Set(t.set)
   if (geselecteerdNodeId.value !== t.sel) geselecteerdNodeId.value = t.sel
-  if (!arrGelijk(drillPad.value, t.drill)) drillPad.value = [...t.drill]
+  if (weergave.value !== t.weergave) weergave.value = t.weergave
   if (egoStartId.value !== t.ego) egoStartId.value = t.ego
   if (!setGelijk(ringAan.value, t.ring)) ringAan.value = new Set(t.ring)
   if (groepeerPerOrg.value !== t.groep) groepeerPerOrg.value = t.groep
@@ -1291,15 +1279,11 @@ function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
     legendaTypeFilter.value = null // LI025 — dieper verkennen heft de legenda-dim op (schone focus)
-    // ADR-033 — DUBBELklik = dieper verkennen (uniform per nodetype):
-    //  - Impact-verkenner: inzoomen op een directe buur (drill-down; "← terug" blijft);
-    //  - ego/geheel: focus op deze knoop alleen → Ego-view, hercentreren (bestaand gedrag).
-    if (modus.value === 'impact' && !huidigeFocusSet.value.has(id)) {
-      drillNaar(id)
-    } else {
-      actieveSet.value = new Set([id])
-      selecteerNode(id)
-    }
+    // ADR-040 F1 stap 2a — DUBBELklik = HERCENTREREN: dit component wordt het praatplaat-centrum
+    // (concentric centraal + ego-kring). Zowel vanuit Overzicht als binnen de praatplaat.
+    actieveSet.value = new Set([id])
+    toonPraatplaat(id)
+    selecteerNode(id)
     return
   }
   if (_tapTimer) clearTimeout(_tapTimer)
@@ -1632,12 +1616,10 @@ const getekendeNodes = computed(() => {
       continue
     }
     const egoCentrum = modus.value === 'ego' && n.id === egoStartId.value
-    // ADR-033 1c — de impact-focus is altijd zichtbaar (ook zonder zichtbare edge), zoals het ego-centrum.
-    const impactFocus = modus.value === 'impact' && huidigeFocusSet.value.has(n.id)
     // LI019 1d-v8 — in SWIMLANE valt de edge-aanwezigheidseis weg: elke node hoort in een lane, dus
     // toon álle nodes uit zichtbareNodes (de radiaal-data). De edge-filter is enkel voor radiaal
     // (losse nodes zweven daar rond). `toonRegistratiegaps` doet dit ook in radiaal.
-    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || impactFocus || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
 })
@@ -1765,9 +1747,9 @@ function _layout(geenAnimatie = false) {
       minNodeSpacing: 80, spacingFactor: 1.5, padding: 60, ...anim, stop: _naLayout,
     }
   }
-  // Geheel + (voorheen impact ≥2): concentric op koppelingsdichtheid (meer koppelingen → dichter bij
-  // het centrum). De voormalige impact-fcose is vervangen door deze deterministische radiale layout;
-  // de impact-node-set (focus + geraakte buren) blijft onveranderd — alleen de plaatsing is fcose-vrij.
+  // Overzicht (geheel): concentric op koppelingsdichtheid (meer koppelingen → dichter bij het centrum).
+  // Deterministische, fcose-vrije radiale layout (de voormalige impact-fcose is met de Impact-verkenner
+  // vervallen — zie ADR-040 F1).
   return {
     name: 'concentric', concentric: (n) => n.degree(false), levelWidth: () => 2,
     minNodeSpacing: 80, spacingFactor: 1.5, padding: 50, ...anim, stop: _naLayout,
@@ -1849,8 +1831,8 @@ const _LK_STATE_KEY = 'lk-state'
 function _bewaarKaartState() {
   try {
     sessionStorage.setItem(_LK_STATE_KEY, JSON.stringify({
-      // ADR-033 — de modus is afgeleid; bewaar de ACTIEVE SET zodat het beeld (geheel/ego/impact)
-      // behouden blijft bij terugnavigatie. De oude `modus`-sleutel is vervallen (geen dode sleutel).
+      // ADR-040 — de modus is een dunne adapter op de weergave; bewaar de ACTIEVE SET zodat het beeld
+      // (overzicht/praatplaat) behouden blijft bij terugnavigatie. Geen dode `modus`-sleutel.
       actieveSet: [...actieveSet.value],
       // LI019 swimlane-parkeren — layoutModus niet meer bewaard (altijd 'radiaal').
       laneVolgorde: laneVolgorde.value,
@@ -1912,9 +1894,10 @@ onMounted(async () => {
     grofOnlyIds.value = new Set(_handoff.grofOnlyIds || [])
     beginschermOpen.value = false
   } else if (qCenter) {
-    // Expliciete deep-link heeft voorrang op bewaarde state.
+    // Expliciete deep-link heeft voorrang op bewaarde state. ADR-040 F1 stap 2a: één centrum → praatplaat.
     actieveSet.value = new Set([qCenter])
     egoStartId.value = qCenter
+    weergave.value = 'praatplaat'
     detailId.value = qCenter
     // ADR-025 — "Bekijk op kaart": het beginscherm overslaan en direct de ego-view tonen.
     beginschermOpen.value = false
@@ -1982,7 +1965,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillPad, drillNaar, stapTerug, huidigeFocus, huidigeFocusSet, topbalkNodes, impactDirect, impactGeraaktAantal, impactZichtbaarIds, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, weergave, toonPraatplaat, toonOverzicht, kanPraatplaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -2042,13 +2025,26 @@ const typeLabel = (t) => humaniseer(t)
     data-testid="lk-wrapper"
     :style="fullscreen ? 'height: 100vh' : 'height: calc(100vh - 9rem)'"
   >
-    <!-- ADR-033 — Topbar: de weergave is AFGELEID uit de actieve set (geen handmatige tabs).
-         Deze indicator toont alleen wélke weergave nu actief is; kiezen doe je via selecteren. -->
+    <!-- ADR-040 F1 stap 2a — Topbar: EXPLICIETE weergave-schakelaar (Overzicht | Praatplaat) i.p.v. de
+         read-only indicator. De weergave volgt de handeling; deze knoppen tonen waar je bent en laten
+         je wisselen. Praatplaat is pas actief zodra er een centrum is (geen lege praatplaat). -->
     <div class="flex items-center gap-[var(--lk-space-sm)] border-b border-[var(--lk-color-border)] bg-white p-[var(--lk-space-sm)]">
-      <p data-testid="lk-weergave-indicator" class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold text-white">
-        {{ modus === 'geheel' ? 'Geheel model' : modus === 'ego' ? 'Ego-view' : modus === 'impact' ? 'Impact-verkenner' : 'Beginscherm' }}
-      </p>
-      <span class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Weergave volgt je selectie</span>
+      <div class="inline-flex overflow-hidden rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)]" role="group" aria-label="Weergave" data-testid="lk-weergave-schakelaar">
+        <button
+          type="button" data-testid="lk-weergave-overzicht"
+          :aria-pressed="weergave === 'overzicht'"
+          :class="['px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold', weergave === 'overzicht' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+          @click="toonOverzicht"
+        >Overzicht</button>
+        <button
+          type="button" data-testid="lk-weergave-praatplaat"
+          :aria-pressed="weergave === 'praatplaat'"
+          :disabled="!kanPraatplaat"
+          :title="kanPraatplaat ? '' : 'Kies eerst een component als middelpunt'"
+          :class="['px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold border-l border-[var(--lk-color-border)] disabled:opacity-40 disabled:cursor-not-allowed', weergave === 'praatplaat' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+          @click="toonPraatplaat()"
+        >Praatplaat</button>
+      </div>
       <!-- Fase B — "Begin opnieuw": enige harde reset → terug naar het lege beginscherm. -->
       <!-- LI052 — altijd zichtbaar/bruikbaar (ook op het beginscherm: daar idempotent) → gegarandeerd verse start. -->
       <button type="button" data-testid="lk-begin-opnieuw" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]" @click="wisSet">Begin opnieuw</button>
@@ -2056,7 +2052,7 @@ const typeLabel = (t) => humaniseer(t)
     </div>
 
     <!-- Fase B slice 2b (LI023) — "in beeld"-chips: één chip per component in de set (≥1), zichtbaar
-         buiten het beginscherm (ego/impact). Tweede set-bewerkingsplek naast de context-routes;
+         buiten het beginscherm (overzicht/praatplaat). Tweede set-bewerkingsplek naast de context-routes;
          × verwijdert via de bestaande toggleSet → de set-watch herlaadt de subgraaf. -->
     <div
       v-if="actieveSet.size"
@@ -2298,8 +2294,8 @@ const typeLabel = (t) => humaniseer(t)
              Cytoscape een meetbare hoogte op het init-moment (anders blijft de graaf leeg). -->
         <div ref="containerRef" data-testid="lk-canvas" class="relative z-[1] h-full w-full" style="min-height: 500px"></div>
         <!-- Toestand-geschiedenis: heen-en-weer door bezochte kaarttoestanden (selectie/centrering,
-             ringen, filters). De impact-drill loopt via dezelfde geschiedenis — geen aparte drill-terug.
-             "← Terug naar Landschapskaart" (de kaart verlaten) is een andere actie en blijft elders. -->
+             weergave, ringen, filters). "← Terug naar Landschapskaart" (de kaart verlaten) is een
+             andere actie en blijft elders. -->
         <div class="absolute left-3 top-3 z-10 flex gap-[var(--lk-space-xs)]">
           <button
             type="button" data-testid="lk-hist-terug" aria-label="Vorige kaarttoestand"
