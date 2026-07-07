@@ -5,40 +5,44 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V033 · 2026-07-05
-- **Commit:** `ca8c999` (gebruiker bewerken + fixes) — sessie-afsluiting V033 (skills + docs) volgt
-- **Tests:** backend 866 (module) + 80 (platform) / 2 skipped / 0 failed · frontend 825 groen (69 files) · 0 kritieken
-- **Migratie-head:** `0054_contactpersoon_ref`
-- **TST-rapport:** `docs/TST-V033-Validatierapport.md`
-- **Bekende ruis:** `LandschapskaartView.test.js` / `LandschapskaartPopups` cytoscape-teardown-flake
-  (unhandled-rejections; geen testfalen).
+- **Build:** V034 · 2026-07-07
+- **Commit:** `ef17fed` (12 skillpatronen) — sessie-afsluiting V034 (docs + build) volgt
+- **Tests:** backend 951 / 2 skipped / 0 failed · frontend 840 groen (71 files) · 0 kritieken
+- **Migratie-head:** `0054_contactpersoon_ref` (ongewijzigd — geen schema deze sessie)
+- **TST-rapport:** `docs/TST-V034-Validatierapport.md`
+- **Bekende ruis:** `LandschapskaartView.test.js` cytoscape-teardown-flake (unhandled-rejections; geen
+  testfalen).
 
-## Deze sessie (LI032 — gebruiker-cluster) — AFGEROND
-**Kader:** de gebruiker/persoon-registratie volwassen maken — aanspreekpunt als echte verwijzing,
-een gebruiker altijd bij een organisatie + afdeling, ter-plekke-aanmaken zonder de flow te verlaten,
-en het accountsysteem alleen raken wanneer het moet. Puur registratie/structuur/read + provisioning;
-engine onaangeroerd.
-- **Contactpersoon = verwijzing (ADR-039, migratie `0054`, `0b91493`).** `partij.contactpersoon_id`
-  FK (SET NULL kolom-specifiek) vervangt het vrije-tekstveld; alleen organisatie-achtige aarden;
-  persoon-binnen-partij-validatie; read-verrijking `contactpersoon_naam`.
-- **Centrale verlopen-sessie-vangrail + zoek-fout-norm (`5d007b4`).** Eén afhandelpunt in `api.js` op
-  het bewezen-gefaalde-refresh-punt → redirect `login?sessie_verlopen=1&next=<pad>`; framework-loze
-  callback-bedrading; nooit rauwe `NIET_GEAUTHENTICEERD`.
-- **Ter-plekke-aanmaken afdeling via gedeelde `AfdelingSelect`** (4 plekken; `bebf658`, `4534533`).
-- **Gebruiker aanmaken** org intern-only + gescoopte afdeling (`b1fde48`); **gebruiker bewerken**
-  org/afdeling + picker-voorvul-fix + accountsysteem-fix (conditionele Keycloak-aanroep, PUT zonder
-  username) + 2e interne testorganisatie (RID Rivierenland) + stale-label-`:key` + param-filterende
-  picker-integratie-testhelper (`ca8c999`).
-- **Skills: 18 LI032-patronen** vastgelegd over domeinmodel/ux/frontend/security/resilience/tests/
-  werkprotocol (deze afsluit-commit).
+## Deze sessie (LI033 — ADR-040 kaart-herbouw, Fase 1) — AFGEROND
+**Kader:** de fragiele alleskunner-kaart herbouwen tot twee gerichte weergaven met een deterministische
+render, en het gat "wie gebruikt applicatie X" dichten. Puur read-only/afgeleid; engine onaangeroerd;
+geen schema.
+- **Render-eigenaar deterministisch / fcose weg (`bf5c287`).** Eén opbouw → één layout → fit via de
+  layout-`stop`-callback; flits- en edges-onzichtbaar-bug structureel opgelost.
+- **Tweedeling Overzicht/Praatplaat + expliciete weergave-state + schakelaar (2a, `e8fe7d3`).** De
+  set-grootte-afgeleide modus vervangen; **Impact-verkenner afgeschaft**; "hele landschap" = Overzicht.
+- **Voorspelbare organisatie-scope (2b, `e7f74ef`).** Reactieve auto-settle → eenmalige deterministische
+  seed (alle orgs aan bij elke load, init-semantiek A); balk alleen op Overzicht, inert op de praatplaat.
+- **Afgeleide gebruikt-lijn org→app (3-1, `559a34c`).** Read-only edge, 1:1 spiegel van de eigenaar-edge
+  (dangling-guard + scope-add); gebruikt-ring (default aan, dragend via de ego-kring — geen IMPACT_RINGEN);
+  bezit+gebruik = twee lijnen; dode afdeling-sub-picker weg.
+- **Layout-herziening (samen in `559a34c`).** Samenval-fix (`animate:false`), Overzicht=`grid`
+  (centrumloos, deterministisch; `cose` afgewezen wegens niet-determinisme), Praatplaat=`concentric`+
+  vensterverhouding-ellips (alleen uitrekken, clamp ≤1.7), grotere knopen; layout-invariant "geen twee
+  nodes op dezelfde positie" geborgd via `kaartLayout.test.js` (echte cytoscape).
+- **Skills: 12 LI033-patronen** vastgelegd (`ef17fed`) over werkprotocol/tests/frontend/ux/resilience/
+  domeinmodel.
 
-## Top-5 prioriteiten volgende sessie
-1. **GebruikersgroepDetail** op het schone model (applicatie-kant-ingang eerst; groep-eigen signalen;
-   objecthistorie `_TYPES` uitbreiden met `gebruikersgroep` — `haal_op` bestaat al).
-2. **BlokkadeDetail** — conceptuele keuze eerst met Bert (eigen pagina vs. doorklik naar checklisttab).
-3. **Breder org-context-patroon** — leverancier-picker + PartijLijst (+ intern/extern-kolom/badge).
-4. **Impact-verkenner render-herbouw** (zwaarste los item; edges-onzichtbaar-bug in echte render).
-5. **Backlog** — ADR-035 slice 3; partij-picker-scope-domeinvraag; ADR-036 coarse-UI.
+## Top-5 prioriteiten volgende sessie (ADR-040 vervolgfasen)
+1. **Terug/vooruit-navigatie terugbouwen** (VERPLICHT, uitgesteld) — history als losse laag bovenop de
+   weergave-state.
+2. **Interactie-basis** — klik = highlight + rest dimmen + verplaatsbare popup (details + relaties +
+   link); dubbelklik = hercentreren (bestaat al).
+3. **De 4 component-ringen volledig inrichten** (fase 2; praatplaat toont nu de ego-kring/skelet).
+4. **Overige objecttypes centreerbaar** (contract/leverancier/afdeling/persoon-rol/infra) — ring-definitie
+   per type op de praatplaat-motor.
+5. **LI033b-stash-beslissing** (droppen vs. referentie) + herbevestigen ADR-036 coarse-UI /
+   partij-picker-scope / LI032-restpunten.
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

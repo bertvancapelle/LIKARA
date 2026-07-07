@@ -1,7 +1,7 @@
 # ADR-040 — Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor
 
-**Status:** Voorstel (open subknopen nog te beslissen)
-**Datum:** 2026-07-06
+**Status:** Deels geland — **Fase 1 gebouwd** (V034); vervolgfasen open (zie "Gebouwde realiteit" + fasering)
+**Datum:** 2026-07-06 (voorstel) · 2026-07-07 (Fase 1 geland, V034)
 **Vervangt:** **ADR-025** (Applicatie-centrische praatplaat) — die wordt in zijn geheel *Superseded*.
 Deze ADR neemt de praatplaat-gedachte volledig over en verbreedt haar (élk object centreerbaar, twee
 weergaven, expliciete interactie- en render-laag).
@@ -134,6 +134,54 @@ en **contract → leverancier**), volgens het bewezen spiegelpatroon van de eige
   bijbehorende settle-fragiliteit vervalt mee (zie open subknopen).
 - **RBAC/audit:** ongewijzigd — hergebruik `ARCHITECTUUR.LEZEN`; de nieuwe afgeleide edges vallen onder de
   bestaande leesrechten.
+
+---
+
+## Gebouwde realiteit — Fase 1 (V034, 2026-07-07)
+
+Wat daadwerkelijk is gebouwd (met de afwijkingen t.o.v. het voorstel, en de reden):
+
+- **Render-eigenaar deterministisch, fcose weg** (`bf5c287`). Eén opbouw → één layout → fit via de
+  layout-`stop`-callback; de modus-computed/positie-behoud/preset-fcose-mix zijn verwijderd. Lost de
+  flits- en edges-onzichtbaar-bug structureel op.
+- **Tweedeling met expliciete weergave-state + schakelaar** (2a, `e8fe7d3`). `weergave: 'overzicht' |
+  'praatplaat'` vervangt de set-grootte-afgeleide modus (dunne `modus`-adapter blijft voor de leesplekken).
+  De **Impact-verkenner is afgeschaft** (`IMPACT_RINGEN`/`drillPad`/`impactDirect` verwijderd) — de
+  praatplaat vervangt haar. "Hele landschap" = Overzicht zonder geseed centrum.
+- **Voorspelbare organisatie-scope** (2b, `e7f74ef`). De reactieve auto-settle is vervangen door een
+  **eenmalige deterministische seed** ("alle aanwezige orgs aan" bij elke load; init-semantiek **A**). De
+  scope-balk staat **alleen op Overzicht**; op de praatplaat is de scope **inert** (geen stille
+  organisatie-verberging). → **lost open subknoop 4 op.**
+- **Afgeleide gebruikt-lijn** (3-1, `559a34c`). Read-only edge organisatie→applicatie, **1:1 spiegel van
+  de eigenaar-edge** (dangling-guard + scope-add van de gebruiker-org). "Dragend in impact" is vervuld via
+  de **ego-kring** (`gebruikt` is een default-AAN ring die meedoet in `_burenVan`) — **geen aparte
+  IMPACT_RINGEN-bedrading** (die is afgeschaft). Bezit + gebruik = **twee lijnen** (bewust). De dode
+  afdeling-sub-picker in `KaartBeginscherm` is verwijderd.
+- **Layout-herziening** (samen in `559a34c`). De gebruikt-lijn (dichtere graaf) onthulde een pre-existing
+  layout-fout (knopen vielen samen → leeg canvas). Besluiten, geankerd:
+  - **Overzicht = `grid`** (built-in, **centrumloos, deterministisch**). **`cose` bewust afgewezen**:
+    niet-deterministisch en dezelfde force-familie als het verwijderde `fcose` (edges-onzichtbaar-bug).
+    Een concentric op een centrumloos Overzicht gaf een stervorm → daarom een centrumloze layout.
+  - **Praatplaat = `concentric` + vensterverhouding-volgende ellips.** Post-layout schaling in de
+    `stop`-callback (leest `cy.width()/height()`); **alleen uitrekken langs de langere as, nooit
+    comprimeren** (geen nieuwe overlap), **mild geclamped (≤1.7)** zodat weinig buren een lichte ellips
+    geven.
+  - **Niet-geanimeerd** (`animate:false`): de van-(0,0)-animatie liet nodes op een dichte graaf
+    samenvallen. **Leesbaarheidsmaatstaf A:** namen op knopen én tekst op lijnen leesbaar zonder inzoomen;
+    grotere knopen (font 11→14); een grote set mag groter zijn dan het venster (pannen; **"Centreer"** =
+    terug naar geheel).
+  - **Layout-invariant:** *"geen twee nodes op dezelfde positie"* — geborgd via `frontend/tests/kaartLayout.test.js`
+    (echte cytoscape: distinct + deterministisch; praatplaat-ellips breder-dan-hoog).
+- **Overgang Overzicht→praatplaat** (open subknoop 6): `drillNaar`/deep-link/één-component-kiezen →
+  praatplaat; dubbelklik = hercentreren. → **subknoop 6 grotendeels ingevuld.**
+- **LI033b bleek grotendeels al geland** vóór de herbouw (handoff-composable, org-bron
+  `lijst_voor_organisatie`, `grofOnlyIds`, "toon impact"=`drillNaar`). Alleen de **gebruikt-edge**,
+  de **gebruikt-ring** en de **sub-picker-opruiming** waren nieuw (3-1). De stash `stash@{0}` blijft
+  geparkeerd als referentie (Berts beslissing over droppen — niet zelf gedaan).
+
+**Nog niet gebouwd (vervolgfasen):** de volledige interactie-basis (klik=highlight+dim+popup), de 4
+component-ringen volledig, overige centreerbare objecttypes, terug/vooruit-navigatie (uitgesteld, niet
+geschrapt), scope-B-verfijning. Zie OPVOLGPUNTEN.md + de fasering hieronder.
 
 ---
 

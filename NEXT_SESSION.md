@@ -1,115 +1,81 @@
-# LIKARA — Next Session (V033)
+# NEXT_SESSION.md — LIKARA V034
 
-> **Sessie LI032 — gebruiker-cluster: contactpersoon uit register (ADR-039), sessie-vangrail,
-> ter-plekke-aanmaken (afdeling), gebruiker aanmaken + bewerken (organisatie/afdeling), en
-> account-/picker-reparaties. Volledig geland (V033).**
+**Gegenereerd**: 2026-07-07
+**Vorige build**: V034
+
+> **Sessie LI033 — ADR-040 kaart-herbouw (Fase 1). Volledig geland (V034).**
 >
-> Afgerond in LI032:
-> - **Contactpersoon = verwijzing naar een persoon (ADR-039, migratie `0054`, commit `0b91493`).**
->   `partij.contactpersoon_id` FK (SET NULL kolom-specifiek) vervangt het vrije-tekstveld; alleen op
->   organisatie-achtige aarden; persoon-binnen-partij-validatie; read-verrijking `contactpersoon_naam`.
-> - **Centrale verlopen-sessie-vangrail + zoek-fout-norm (commit `5d007b4`).** Eén afhandelpunt in
->   `api.js` op het bewezen-gefaalde-refresh-punt → redirect `login?sessie_verlopen=1&next=<pad>`;
->   framework-loze callback-bedrading; nooit rauwe `NIET_GEAUTHENTICEERD` in beeld.
-> - **Ter-plekke-aanmaken (afdeling) via gedeelde `AfdelingSelect`** op 4 plekken (PartijFormulier,
->   ContactpersoonSelect, GebruikersbeheerView, GebruikersgroepSectie) — commits `bebf658`, `4534533`.
-> - **Gebruiker aanmaken** met organisatie (intern-only) + gescoopte afdeling (in `b1fde48`), en
->   **gebruiker bewerken** org/afdeling + picker-voorvul-fix + accountsysteem-fix + 2e interne
->   testorganisatie + stale-label-`:key` + picker-integratie-testpatroon (commit `ca8c999`).
-> - **Skills: 18 LI032-patronen vastgelegd** (deze afsluit-commit) over domeinmodel/ux/frontend/
->   security/resilience/tests/werkprotocol.
+> Afgerond in LI033:
+> - **Deterministische render-eigenaar / fcose weg** (`bf5c287`) — één opbouw → één layout → fit via de
+>   layout-`stop`-callback; lost de flits- en edges-onzichtbaar-bug structureel op.
+> - **Tweedeling Overzicht/Praatplaat + expliciete weergave-state + schakelaar** (2a, `e8fe7d3`); de
+>   set-grootte-afgeleide modus is vervangen, de **Impact-verkenner afgeschaft**.
+> - **Voorspelbare organisatie-scope** (2b, `e7f74ef`) — eenmalige deterministische seed; balk alleen op
+>   Overzicht, inert op de praatplaat.
+> - **Afgeleide gebruikt-lijn org→app** (spiegel van eigenaar) + gebruikt-ring + dode afdeling-sub-picker
+>   weg (3-1, `559a34c`).
+> - **Layout-herziening** (samen in `559a34c`) — samenval-fix (`animate:false`), Overzicht=`grid`
+>   (centrumloos, deterministisch; `cose` afgewezen), Praatplaat=`concentric`+vensterverhouding-ellips,
+>   grotere knopen.
+> - **12 skillpatronen** (`ef17fed`).
 >
-> Tests: backend **866** (module, 2 skipped) + **80** (platform) · frontend **825** (69 files).
-> Migratie-head **0054**. Bekende niet-blokkerende ruis: `LandschapskaartView.test.js` /
-> `LandschapskaartPopups` cytoscape-teardown-flake (unhandled-rejections, geen testfalen).
+> Tests: backend **951** (2 skipped) · frontend **840** (71 files). Migratie-head **0054** (ongewijzigd —
+> geen schema). Enig backend-raakvlak = de afgeleide read-only gebruikt-edge. Engine onaangeroerd.
+
+---
 
 ## ⚙️ Eerste runtime-stap (dev-DB)
-De dev-DB is deze sessie gemigreerd (0054) en gereseed (incl. de tweede interne organisatie
-**RID Rivierenland** + afdelingen). Bij twijfel over verse data: gedocumenteerde stack-reset —
-`docker compose down` → `docker volume rm likara_lk_postgres_data` → `docker compose up -d` →
-`docker exec -w /app lk-api python3 dev_seed_testdata.py`. (`down -v` staat op **deny**.)
-
-## Top-5 prioriteiten (volgende sessie)
-
-1. **GebruikersgroepDetail** op het schone model (feitenonderzoek + opzet stonden al; verst
-   gevorderd). Eén invalshoek-neutrale detailpagina op `gebruikersgroepen/:id`; applicatie-kant-ingang
-   eerst; alleen groep-eigen signalen. Bekende kleine gaten: objecthistorie-allowlist
-   `objecthistorie._TYPES` mist `gebruikersgroep` (`haal_op` bestaat al); applicatie-naam vs -id in de read.
-2. **BlokkadeDetail** — eerst **ontwerpkeuze met Bert**: eigen pagina vs. doorklik naar de
-   component-checklisttab. Beslissen vóór bouw. Restpunt: `BlokkadeRead` verrijken met herkomst
-   (checklistvraag `vraag_code`/`vraag`/score).
-3. **"afdeling — organisatie" breder doortrekken** — de org-context-ontdubbeling ook toepassen op de
-   **ContractFormulier-leverancier-picker** en **PartijLijst** (de resterende niet-org-gescoopte
-   afdeling/persoon-lijsten; PartijLijst intern/extern-kolom/badge hoort hier ook).
-
-**Zwaarste los item (verse sessie):** **Impact-verkenner render-herbouw** — één deterministische
-render-eigenaar; edges-onzichtbaar-bug in de echte cytoscape-render (logica bewezen correct); met
-échte render-verificatie + de Cytoscape-mock-consoleruis (incl. de parallel-flake) opruimen.
-
-**Bestaande backlog (ongewijzigd meenemen):** ADR-035 slice 3 (configureerbare score-drempel);
-roltoewijzing-/verantwoordelijkheid-partij-picker-scope (domeinvraag: welke aarden mogen een rol
-dragen); ADR-036-vervolg (coarse organisatiegebruik-UI); RelatieKenmerk-velduitleg (wacht op
-invoerveld); dode-code-opschoning.
+Geen migratie deze sessie (head blijft `0054`). Stack starten = Docker Compose **+** `cd frontend &&
+npm run dev` (Keycloak redirect naar :3000). Bij twijfel over verse data: gedocumenteerde stack-reset
+(`docker compose down` → `docker volume rm likara_lk_postgres_data` → `up -d` → `dev_seed_testdata.py`;
+`down -v` staat op **deny**). **LI033b-stash `stash@{0}` niet droppen zonder Berts opdracht.**
 
 ---
 
-## Geparkeerde vervolgpunten uit LI032 (expliciet, niet stil — zie OPVOLGPUNTEN.md)
-1. **Gebruikersnaam≠e-mail provisioning** — de update-PUT stuurt geen username meer (opgelost);
-   controleer of elders in provisioning nog aannames op `username==email` zitten. (Laag, auth.)
-2. **404 op een verdwenen bewerk-/detailitem** vriendelijker tonen (inline "bestaat niet (meer)"
-   i.p.v. toast op een leeg formulier). Laag, UX (kwam op bij de reseed-stale-id-casus).
-3. **Echte auth-keten-test** — end-to-end: korte token-TTL → echte `/auth/refresh` → echte
-   Keycloak-grant → Redis-rotatie → geslaagde retry; plus een écht-verlopen refresh → login. Nu
-   alleen offline-gemockt geborgd.
-4. **Reseed-ergonomie / sessie stil dood bij stack-herstart** (Redis/Keycloak-persistentie) — de
-   vangrail vangt het symptoom al af; dit is de dev-ergonomie-kant.
-5. **`LandschapskaartView.test.js` parallel-flake** (cytoscape unhandled-rejections) — mee te nemen
-   bij de impact-verkenner-render-herbouw.
+## Top-5 prioriteiten volgende sessie (ADR-040 vervolgfasen)
+
+1. **Terug/vooruit-navigatie terugbouwen** — VERPLICHTE terugbouw (uitgesteld, niet geschrapt). De
+   render-eigenaar is ontvlochten zodat history als **losse laag** terug kan bovenop de weergave-state.
+2. **Interactie-basis** — klik = highlight + rest dimmen + **verplaatsbare popup** (kern-details +
+   relaties in leesbare taal + link naar de volledige pagina); dubbelklik = hercentreren (bestaat al).
+3. **De 4 component-ringen volledig inrichten** (gebruikt door · beheer · contracten & leveranciers ·
+   infra & koppelingen) — fase 2; de praatplaat toont nu de ego-kring (skelet).
+4. **Overige objecttypes centreerbaar** (contract, leverancier, afdeling, persoon/rol, infra) — elk een
+   ring-definitie op de praatplaat-motor (ADR-040 open subknoop 1).
+5. **LI033b-stash-beslissing** (droppen vs. referentie houden) + herbevestigen: ADR-036 UI-restpunt,
+   `VerantwoordelijkheidSectie` partij-picker-scope, LI032-restpunten (username≠e-mail, 404-friendly,
+   reseed-ergonomie).
 
 ---
 
-## Openstaande punten (volledig)
+## Openstaande beslissingen
 
-### LI032 gebruiker-cluster — ✅ GELAND (V033, migratie 0054)
-- Contactpersoon uit register (`0b91493`) · sessie-vangrail + zoek-norm (`5d007b4`) · afdeling
-  ter-plekke-aanmaken (`bebf658`, `4534533`) · gebruiker aanmaken (`b1fde48`) · gebruiker bewerken
-  org/afdeling + picker-/accountsysteem-fixes + 2e interne org + stale-label + testpatroon (`ca8c999`)
-  · skills 18 patronen (afsluit-commit).
+- **Scope-B-verfijning** (toggles onthouden over set-wijzigingen) — later, samen met het history-/scope-werk
+  (nu A: elke set-wijziging → alle orgs aan).
+- **LI033b-stash** — droppen of als referentie houden (Berts keuze).
+- **Overzicht-filtering** die overleeft + doorschakelen naar impact (ADR-040 open subknopen 3/6, fase 5/6).
 
-### Detailpagina's (gebruikersgroep + blokkade) — top-5 #1/#2
-- Standalone pagina's ontbreken nog. GebruikersgroepDetail-grounding gedaan; BlokkadeDetail vraagt
-  eerst de conceptuele keuze. Objecthistorie `_TYPES` uitbreiden met `gebruikersgroep` (+ `blokkade`).
+---
 
-### ADR-038 / gebruikersgroep-consolidatie + intern/extern — ✅ GELAND (V032, migraties 0052–0053)
-- **Open vervolg (top-5 #3):** intern/extern in PartijLijst (kolom/badge) — bewust uitgesteld.
+## Bekende risico's en aandachtspunten
 
-### ADR-037 / verantwoordelijke per checklistantwoord — ✅ GELAND (V031, migratie 0051)
-### ADR-036 / organisatiegebruik — ✅ GELAND (V030) · vervolg: coarse organisatiegebruik-UI (klein onderhoud)
-### ADR-036a / afdeling structureel — ✅ GELAND (V030, migratie 0050)
+- De volledige interactie-basis en de 4 ringen zijn nog **skelet** op de praatplaat — de kernvraag "wat
+  raakt object X" werkt pas end-to-end na fase 2.
+- Leesbaarheid van de layout is een **browsercheck-criterium** (headless meet geen labelbreedte); de
+  grid-`avoidOverlapPadding` en font-grootte zijn eenvoudige tunables.
 
-### Auth/sessie-cluster — deels geland in LI032
-- Vangrail (b) geland. Rest geparkeerd: (a) reseed doodt levende sessies stil; (c) echte
-  auth/refresh-keten-test (nu gemockt) — zie geparkeerde vervolgpunten 3/4.
+---
 
-### Impact-verkenner — zwaarste los item
-- Render-bug (edges onzichtbaar op preset-pad) onopgelost; logica/model bewezen correct.
-- Test-hygiëne: cytoscape unhandled-rejection-consoleruis + parallel-flake — geen falende test;
-  bij render-herbouw meenemen (geparkeerd vervolgpunt 5).
+## Technische schuld
 
-### ADR-035 Signalering
-- Slice 3 (configureerbare score-drempel) — uitgesteld. Badges op detail-pagina's — bij top-5 #1/#2.
+- Terug/vooruit-navigatie is tijdelijk niet actief langs de nieuwe weergave-state (zie top-5 #1).
+- `LandschapskaartView.test.js` cytoscape-teardown-flake (unhandled-rejections bij teardown) — geen
+  testfalen; mee te nemen bij de interactie-/render-fasen.
 
-### Partij-pickers
-- Verantwoordelijkheid-/roltoewijzing-partij-picker ongefilterd → eerst domeinvraag, dán scoping.
-  Contract-leverancier-picker versmald (`aard_in`); org-context nog toe te voegen (top-5 #3).
+---
 
-### Velduitleg
-- **Parked:** RelatieKenmerk-dimensie-velduitleg (content klaar; wacht op een invoerveld).
-
-### Cosmetic/klein
-- Zoekbalk-contextlabel "Component toevoegen aan beeld" in kaart-modus. Dode-code-opschoning.
-
-### Strategisch (parked)
-- Export/import/rapportage — scope apart te bepalen.
-- **DC013** — GitHub-repo/remote-rename + lokale map-opruiming (Berts actie).
-- Deploy-side `.env`/secrets bijwerken op andere omgevingen; `~/likara/secrets/` daadwerkelijk vullen.
+## Geleerde patronen deze sessie
+12 patronen vastgelegd in `ef17fed` (likara-werkprotocol/tests/frontend/ux/resilience/domeinmodel) —
+o.a. read-only-eerst boven aannames, volledige suite bij een gedeeld symbool, deterministische layout +
+render-eigenaar, filter = niet-destructieve lens, browser-console als eerste diagnose-instrument,
+afgeleide read-only kaart-edges spiegelen een bestaande edge. Niet overdoen.

@@ -7,6 +7,38 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V034 (sluitprotocol LI033 — ADR-040 kaart-herbouw, 2026-07-07)
+
+Build **V033 → V034**. Geland (ADR-040 Fase 1): deterministische render-eigenaar / fcose weg
+(`bf5c287`), tweedeling Overzicht/Praatplaat + expliciete weergave-state + schakelaar, Impact-verkenner
+afgeschaft (2a, `e8fe7d3`), voorspelbare organisatie-scope (eenmalige seed, balk alleen op Overzicht,
+2b, `e7f74ef`), afgeleide gebruikt-lijn org→app + gebruikt-ring + afdeling-sub-picker weg (3-1,
+`559a34c`), layout-herziening (samenval-fix `animate:false`, Overzicht=grid centrumloos, Praatplaat=
+concentric+ellips, grotere knopen; `559a34c`), en 12 skillpatronen (`ef17fed`). Tests: backend 951/2
+skipped, frontend 71 files/840. Geen schema-wijziging (migratie-head **0054** ongewijzigd); enig
+backend-raakvlak = de afgeleide read-only gebruikt-edge.
+
+**Vervolgfasen ADR-040 (open, geprioriteerd):**
+- **Terug/vooruit-navigatie — VERPLICHTE terugbouw (uitgesteld, niet geschrapt).** De render-eigenaar is
+  ontvlochten zodat history als **losse laag** terug kan. Hoog: het is bestaand gedrag dat tijdelijk niet
+  door de nieuwe weergave-state loopt.
+- **Interactie-basis: klik = highlight + rest dimmen + verplaatsbare popup** (kern-details + relaties in
+  leesbare taal + link naar de volledige pagina). Dubbelklik = hercentreren (bestaat al). Fase 2.
+- **De 4 component-ringen volledig inrichten** (gebruikt door · beheer · contracten & leveranciers ·
+  infra & koppelingen) — fase 2; de praatplaat toont nu de ego-kring (skelet).
+- **Overige objecttypes centreerbaar** (contract, leverancier, afdeling, persoon/rol, infra) — elk een
+  ring-definitie op de praatplaat-motor (ADR-040 open subknoop 1).
+- **Scope-B-verfijning** (toggles onthouden over set-wijzigingen) — later, samen met history-/scope-werk
+  (nu A: elke set-wijziging → alle orgs aan).
+- **LI033b-stash `stash@{0}`** — handoff/org-bron/`toonImpactVoor`/grof-only bleken al geland vóór de
+  herbouw; alleen gebruikt-edge + gebruikt-ring + sub-picker waren nieuw (geland in 3-1). **Beslissing
+  Bert:** stash droppen of als referentie houden — niet zelf droppen.
+
+**Herbevestigd (blijft open, uit eerdere sessies):**
+- ADR-036 UI-restpunt (coarse `organisatiegebruik`-form).
+- `VerantwoordelijkheidSectie` partij-picker-scope (ADR-024-domeinvraag).
+- LI032-restpunten: gebruikersnaam≠e-mail post-check, 404-friendly display, reseed-ergonomie.
+
 ### Stand V033 (sluitprotocol LI032 — gebruiker-cluster, 2026-07-05)
 
 Build **V032 → V033**. Geland: contactpersoon uit register (ADR-039, migratie 0054), centrale
