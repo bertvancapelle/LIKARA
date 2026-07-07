@@ -48,6 +48,14 @@ const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikt'
 // ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie); standaard
 // UIT (zie ringAan), want context, niet de hoofdvraag van de kaart.
 const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
+// LI034 slice 2 — startstand van de RINGEN op de PRAATPLAAT: alleen de VIER kernkringen ("wat raakt
+// dit object"): Gebruikt door (`gebruikers` + `gebruikt`), Rollen & beheer (`rollen`), Contracten
+// (`contracten`), Infra & koppelingen (`infrastructuur` + `applicaties`). De context-ringen
+// (`eigenaar`/`samenstelling`/`organisatiestructuur`) starten UIT — één klik terug te halen via de
+// ring-checkboxes. Geldt ALLEEN op de praatplaat en ALLEEN bij het BETREDEN (niet bij hercentreren of
+// re-render → een handmatig aangezette context-ring blijft staan). Het Overzicht houdt zijn eigen
+// startstand (`ringAan` hierboven: alles-behalve-`organisatiestructuur`).
+const RING_PRAATPLAAT_KERN = new Set(['gebruikers', 'gebruikt', 'rollen', 'contracten', 'infrastructuur', 'applicaties'])
 // ADR-031 — leesbare ring-namen. Backend levert ring='beheerorganisatie' → bij laden gemapt op 'rollen'.
 const RING_LABELS = {
   applicaties: 'Componenten',
@@ -140,10 +148,20 @@ function _verseWeergave() {
   geselecteerdNodeId.value = null
   detailId.value = null
 }
+// LI034 slice 2 — de ring-startstand van de praatplaat (kern aan, context uit). Alleen aanroepen bij
+// het BETREDEN van de praatplaat; de bestaande teken-/re-layout-watch verwerkt de ring-wijziging
+// (geen tweede pad). History-/sessie-herstel zet `ringAan` rechtstreeks en loopt NIET hierlangs.
+function _zetPraatplaatRingen() {
+  ringAan.value = new Set(RING_PRAATPLAAT_KERN)
+}
 function toonPraatplaat(id) {
+  const betreedt = weergave.value !== 'praatplaat' // overzicht→praatplaat = betreden (níét hercentreren)
   if (id) egoStartId.value = id        // inspecteren/hercentreren op een concreet component
   else _verseWeergave()                // schakelaar-ingang (geen id) → schone lei
-  if (egoStartId.value) weergave.value = 'praatplaat'
+  if (egoStartId.value) {
+    weergave.value = 'praatplaat'
+    if (betreedt) _zetPraatplaatRingen() // LI034 slice 2 — startstand kern-4; gebruikerskeuze daarna behouden
+  }
 }
 function toonOverzicht() {
   _verseWeergave()
@@ -2041,6 +2059,7 @@ onMounted(async () => {
     actieveSet.value = new Set([qCenter])
     egoStartId.value = qCenter
     weergave.value = 'praatplaat'
+    _zetPraatplaatRingen() // LI034 slice 2 — deep-link betreedt de praatplaat → kern-4-startstand (vóór _zaaiHistorie)
     detailId.value = qCenter
     // ADR-025 — "Bekijk op kaart": het beginscherm overslaan en direct de ego-view tonen.
     beginschermOpen.value = false

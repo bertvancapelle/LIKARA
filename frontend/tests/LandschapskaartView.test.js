@@ -2073,6 +2073,54 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
+  // ── LI034 slice 2 — praatplaat-startstand: vier kernkringen aan, context-ringen uit ───────────
+  describe('praatplaat ring-startstand (LI034 slice 2)', () => {
+    const KERN = ['gebruikers', 'gebruikt', 'rollen', 'contracten', 'infrastructuur', 'applicaties']
+    const CONTEXT = ['eigenaar', 'samenstelling', 'organisatiestructuur']
+
+    it('bij het betreden van de praatplaat: kernkringen aan, context-ringen uit', async () => {
+      const { w } = await mountView()
+      // Overzicht-startstand vooraf: de context-ringen eigenaar/samenstelling staan aan (regressie-anker).
+      expect(w.vm.ringAan.has('eigenaar')).toBe(true)
+      expect(w.vm.ringAan.has('samenstelling')).toBe(true)
+      // Praatplaat betreden.
+      w.vm.toonPraatplaat('a1')
+      await flushPromises()
+      expect(w.vm.weergave).toBe('praatplaat')
+      KERN.forEach((r) => expect(w.vm.ringAan.has(r)).toBe(true))
+      CONTEXT.forEach((r) => expect(w.vm.ringAan.has(r)).toBe(false))
+    })
+
+    it('het Overzicht behoudt zijn bestaande startstand (alles behalve organisatiestructuur)', async () => {
+      const { w } = await mountView()
+      expect(w.vm.weergave).toBe('overzicht')
+      // Alle ringen behalve de context-ring organisatiestructuur staan aan (ongewijzigd t.o.v. voorheen).
+      expect(w.vm.ringAan.has('organisatiestructuur')).toBe(false)
+      ;['eigenaar', 'samenstelling', 'gebruikt', 'gebruikers', 'rollen', 'contracten', 'infrastructuur', 'applicaties']
+        .forEach((r) => expect(w.vm.ringAan.has(r)).toBe(true))
+    })
+
+    it('een handmatig aangezette context-ring blijft aan bij hercentreren (niet teruggeklapt)', async () => {
+      const { w } = await mountView()
+      w.vm.toonPraatplaat('a1') // betreden → kern-4
+      await flushPromises()
+      expect(w.vm.ringAan.has('eigenaar')).toBe(false)
+      w.vm.toggleRing('eigenaar') // gebruiker zet 'Eigendom' handmatig aan
+      expect(w.vm.ringAan.has('eigenaar')).toBe(true)
+      w.vm.toonPraatplaat('a2') // hercentreren binnen de praatplaat → GEEN reset
+      await flushPromises()
+      expect(w.vm.weergave).toBe('praatplaat')
+      expect(w.vm.ringAan.has('eigenaar')).toBe(true) // keuze behouden
+    })
+
+    it('deep-link ?center betreedt de praatplaat met de kern-4-startstand', async () => {
+      const { w } = await mountView({ query: '?center=a1' })
+      expect(w.vm.weergave).toBe('praatplaat')
+      KERN.forEach((r) => expect(w.vm.ringAan.has(r)).toBe(true))
+      CONTEXT.forEach((r) => expect(w.vm.ringAan.has(r)).toBe(false))
+    })
+  })
+
   // ── LI036 — eigenaar-ring (eigendom-edges verdwenen permanent: ring zonder checkbox) ─────────
   describe('eigenaar-ring (LI036)', () => {
     const _eigGraf = () => ({
