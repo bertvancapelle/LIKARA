@@ -120,6 +120,15 @@ async def haal_grafdata_op(
                     .where(Partij.tenant_id == tid, Partij.id.in_(afd_ids), Partij.organisatie_id.isnot(None))
                 )).all():
                     scope_ids.add(oid)
+        # LI034 slice 3 — leverancier-partijen van contracten-in-scope (P4 scope-add, spiegel van de
+        # eigenaar-/gebruikt-scope-add): het contract komt via de association-relatie al in scope, maar
+        # `contract.leverancier_id` is een directe FK — de leverancier-partij komt NIET vanzelf mee. Voeg
+        # haar toe zodat de afgeleide contract→leverancier-edge (hieronder) niet dangling wordt.
+        for (lid,) in (await session.execute(
+            select(Contract.leverancier_id)
+            .where(Contract.tenant_id == tid, Contract.id.in_(scope_ids), Contract.leverancier_id.isnot(None))
+        )).all():
+            scope_ids.add(lid)
 
     def _sc(col):
         """Scope-filter: `col ∈ scope_ids` bij set-scoping, anders altijd-waar (volledige graaf)."""
@@ -449,6 +458,27 @@ async def haal_grafdata_op(
             edges.append(LandschapsEdge(
                 bron_id=r_og.organisatie_id, doel_id=r_og.applicatie_id,
                 relatietype="gebruikt", label="gebruikt", ring="gebruikt",
+            ))
+
+    # ── Ring — Contract → leverancier (LI034 slice 3) ──
+    # Read-only projectie van het bestaande feit `contract.leverancier_id` als edge contract →
+    # leverancier — spiegel van de eigenaar-/gebruikt-edge, géén nieuwe relatie-registratie. INGEBED in
+    # de contracten-ring (ring="contracten"), zodat de hele keten component→contract→leverancier samen
+    # togglet en op de praatplaat default meekomt. Zo wordt de leverancier niet alleen node-metadata
+    # (`leverancier_naam`) maar óók een zichtbare relatie. Dangling-guard: alleen als BEIDE endpoints als
+    # knoop meekomen (contract in `contract_ids`, leverancier-partij in `partij_info`); de leverancier-
+    # partij komt via de scope-add hierboven in de subgraaf-scope.
+    for r in (
+        await session.execute(
+            select(Contract.id, Contract.leverancier_id).where(
+                Contract.tenant_id == tid, Contract.leverancier_id.isnot(None), _sc(Contract.id)
+            )
+        )
+    ).all():
+        if r.id in contract_ids and r.leverancier_id in partij_info:
+            edges.append(LandschapsEdge(
+                bron_id=r.id, doel_id=r.leverancier_id,
+                relatietype="leverancier", label="geleverd door", ring="contracten",
             ))
 
     return LandschapskaartResponse(nodes=nodes, edges=edges)

@@ -241,6 +241,22 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
     expect(veld(w, 'Onderdeel')).toBe('Oracle DB') // doel = onderdeel
   })
 
+  it('LI034 slice 3 — edge-popup (contracten): component→contract = "Valt onder", contract→leverancier = "Geleverd door"', async () => {
+    const { w } = await mountView()
+    // Bestaande association-lijn component→contract.
+    await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'k1', ring: 'contracten', label: 'valt onder', relatietype: 'association' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Valt onder contract')
+    expect(veld(w, 'Component')).toBe('Zaaksysteem')
+    expect(veld(w, 'Contract')).toBe('Contract X')
+    // Nieuwe afgeleide lijn contract→leverancier (zelfde ring, relatietype 'leverancier').
+    await w.vm.openEdgePopup({ bron_id: 'k1', doel_id: 'p1', ring: 'contracten', label: 'geleverd door', relatietype: 'leverancier' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Geleverd door')
+    expect(veld(w, 'Contract')).toBe('Contract X')
+    expect(veld(w, 'Leverancier')).toBe('Gemeente X')
+  })
+
   it('pre-fill toont meteen node-data terwijl de fetch nog loopt; 403 valt netjes terug', async () => {
     let los
     api.componenten.haal.mockReturnValue(new Promise((res) => { los = res }))

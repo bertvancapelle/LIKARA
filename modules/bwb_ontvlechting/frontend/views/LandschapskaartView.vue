@@ -1314,8 +1314,15 @@ async function openEdgePopup(edge) {
       popupTitel.value = edge.label || 'Rol'
       popupVelden.value = _velden([_veld('Partij', bronNaam), _veld('Object', doelNaam)])
     } else if (edge.ring === 'contracten') {
-      popupTitel.value = 'Valt onder contract'
-      popupVelden.value = _velden([_veld('Component', bronNaam), _veld('Contract', doelNaam)])
+      // LI034 slice 3 — de contracten-ring draagt nu twee soorten lijnen: component→contract ("valt
+      // onder") en contract→leverancier ("geleverd door"). Onderscheid via het relatietype.
+      if (edge.relatietype === 'leverancier') {
+        popupTitel.value = 'Geleverd door'
+        popupVelden.value = _velden([_veld('Contract', bronNaam), _veld('Leverancier', doelNaam)])
+      } else {
+        popupTitel.value = 'Valt onder contract'
+        popupVelden.value = _velden([_veld('Component', bronNaam), _veld('Contract', doelNaam)])
+      }
     } else if (edge.ring === 'infrastructuur') {
       popupTitel.value = 'Draait op'
       popupVelden.value = _velden([_veld('Component', doelNaam), _veld('Host', bronNaam)])

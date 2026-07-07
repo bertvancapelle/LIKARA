@@ -96,6 +96,23 @@ def test_landschapskaart_serveert_gebruikt_ring():
     assert "r_og.organisatie_id in partij_info and r_og.applicatie_id in comp_node" in bron
 
 
+def test_landschapskaart_serveert_contract_leverancier_edge():
+    """LI034 slice 3 — de service projecteert `contract.leverancier_id` als 'contracten'-ring-edge
+    contract → leverancier ("geleverd door"), spiegel van de eigenaar-/gebruikt-edge; read-only, geen
+    nieuwe relatie. Met P4-scope-add (leverancier-partij) én dangling-guard (beide endpoints als knoop)."""
+    import inspect
+
+    import services.landschapskaart_service as s
+
+    bron = inspect.getsource(s)
+    assert 'ring="contracten"' in bron and 'label="geleverd door"' in bron
+    assert 'relatietype="leverancier"' in bron
+    # Dangling-guard: alleen als contract én leverancier-partij als knoop meekomen.
+    assert "r.id in contract_ids and r.leverancier_id in partij_info" in bron
+    # P4 scope-add: de leverancier-partij van contracten-in-scope komt in de subgraaf-scope.
+    assert "Contract.id.in_(scope_ids), Contract.leverancier_id.isnot(None)" in bron
+
+
 def test_landschapskaart_serveert_samenstelling_ring():
     """ADR-033 1b — de service projecteert component↔component aggregatie als 'samenstelling'-edge,
     met een guard die plateau-lidmaatschap (bron=plateau) uitsluit (alleen-lezen, niets afgeleid)."""
@@ -284,6 +301,59 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
     # De beheerorganisatie-edge draagt de rol-naam als label.
     beheer = [e for e in graf.edges if e.ring == "beheerorganisatie" and e.bron_id == org_id]
     assert beheer and beheer[0].label
+
+
+@integratie
+def test_landschapskaart_contract_leverancier_edge_live():
+    """LI034 slice 3 — afgeleide read-only edge contract → leverancier (ring 'contracten'):
+    in de SUBGRAAF (gescoopt op de app) komt de leverancier-partij via de P4-scope-add mee en de edge
+    wordt geëmit met leesbaar label. (NB: `contract.leverancier_id` is NOT NULL — elk contract heeft
+    per schema een leverancier; de dangling-guard is een render-vangnet, geborgd via de bronscan.)"""
+    from sqlalchemy import text as _text
+
+    from models.models import (
+        Contract, ContractType, Element, ElementType, Partij, PartijAard, PartijScope, Relatie,
+    )
+    from schemas.component import ComponentCreate
+    from services import component_service, landschapskaart_service as svc
+
+    tid = uuid.UUID(_TID)
+
+    async def _flow(s):
+        ids = []
+        try:
+            app = await component_service.maak_aan(
+                s, tid, ComponentCreate(componenttype="applicatie", naam="WT-CL-App", hostingmodel="saas",
+                                        migratiepad="onbekend", complexiteit="midden", prioriteit="midden"))
+            app_id = app["id"]; ids.append(app_id)
+            # Leverancier-partij (externe_partij → géén org-balk-effect).
+            le = Element(tenant_id=tid, element_type=ElementType.partij); s.add(le); await s.flush()
+            s.add(Partij(id=le.id, tenant_id=tid, aard=PartijAard.externe_partij, naam="WT-CL-Lev",
+                         scope=PartijScope.extern)); await s.flush()
+            # Contract MÉT leverancier + association app→contract.
+            ce = Element(tenant_id=tid, element_type=ElementType.contract); s.add(ce); await s.flush()
+            s.add(Contract(id=ce.id, tenant_id=tid, leverancier_id=le.id,
+                           contracttype=ContractType.los_contract, contractnaam="WT-CL-Con")); await s.flush()
+            s.add(Relatie(tenant_id=tid, bron_id=app_id, doel_id=ce.id, relatietype="association"))
+            await s.commit()
+            # Verwijdervolgorde: contract vóór leverancier (contract.leverancier_id is RESTRICT).
+            ids += [ce.id, le.id]
+            # SUBGRAAF gescoopt op de app → dwingt de scope-add-tak af (leverancier zit NIET in S).
+            graf = await svc.haal_grafdata_op(s, _TID, component_ids=[app_id])
+            return graf, app_id, le.id, ce.id
+        finally:
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    graf, app_id, lev_id, con_id = asyncio.run(_run_rls(_flow))
+    node_ids = {n.id for n in graf.nodes}
+    # P4-scope-add: de leverancier-partij is als knoop meegekomen ondanks dat alleen de app in S zat.
+    assert lev_id in node_ids, "scope-add: leverancier-partij hoort in de subgraaf-scope"
+    assert con_id in node_ids
+    # Afgeleide edge contract→leverancier (ring 'contracten', label 'geleverd door').
+    lev_edges = [e for e in graf.edges if e.ring == "contracten" and e.relatietype == "leverancier"]
+    assert any(e.bron_id == con_id and e.doel_id == lev_id and e.label == "geleverd door" for e in lev_edges)
 
 
 @integratie
