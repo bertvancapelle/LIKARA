@@ -2037,39 +2037,39 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  // ── LI033 — sleepbaar detail-paneel ──────────────────────────────────────────────────────────
-  describe('detail-popup draggable (LI033)', () => {
-    it('slepen verplaatst het detail-paneel; wisSet reset naar standaard', async () => {
+  // ── LI034 — versleepbare klik-popup (verving de sleep op het zijbalk-detailpaneel) ────────────
+  describe('klik-popup draggable (LI034)', () => {
+    it('slepen verplaatst de popup; wisSet reset naar standaard', async () => {
       const { w } = await mountView()
-      expect(w.vm.detailPos).toEqual({ x: null, y: null })
-      w.vm.onDetailMousedown({ clientX: 100, clientY: 80, target: { closest: () => null }, preventDefault() {} })
-      expect(w.vm.detailDragging).toBe(true)
-      w.vm.onDetailMousemove({ clientX: 140, clientY: 120 }) // offset (100,80) → pos (40,40)
-      expect(w.vm.detailPos).toEqual({ x: 40, y: 40 })
-      w.vm.onDetailMouseup()
-      expect(w.vm.detailDragging).toBe(false)
+      expect(w.vm.popupPos).toEqual({ x: null, y: null })
+      w.vm.onPopupMousedown({ clientX: 100, clientY: 80, target: { closest: () => null }, preventDefault() {} })
+      expect(w.vm.popupDragging).toBe(true)
+      w.vm.onPopupMousemove({ clientX: 140, clientY: 120 }) // offset (100,80) → pos (40,40)
+      expect(w.vm.popupPos).toEqual({ x: 40, y: 40 })
+      w.vm.onPopupMouseup()
+      expect(w.vm.popupDragging).toBe(false)
       w.vm.wisSet()
-      expect(w.vm.detailPos).toEqual({ x: null, y: null })
+      expect(w.vm.popupPos).toEqual({ x: null, y: null })
     })
 
-    it('mousedown op een knop/link/input start geen drag', async () => {
+    it('mousedown op een knop/link/input start geen drag (sluit/acties/flow-lijst blijven werken)', async () => {
       const { w } = await mountView()
-      w.vm.onDetailMousedown({ target: { closest: (sel) => (sel.includes('button') ? {} : null) }, preventDefault() {} })
-      expect(w.vm.detailDragging).toBe(false)
+      w.vm.onPopupMousedown({ target: { closest: (sel) => (sel.includes('button') ? {} : null) }, preventDefault() {} })
+      expect(w.vm.popupDragging).toBe(false)
     })
 
-    it('LI034 — init vanuit DOM-positie: geen sprong naar de hoek bij de eerste beweging', async () => {
+    it('init vanuit DOM-positie: geen sprong naar de hoek bij de eerste beweging', async () => {
       const { w } = await mountView()
-      // paneel staat (CSS) op rect.left=1200; mousedown op x=800 (binnen het paneel)
-      w.vm.onDetailMousedown({
+      // popup staat (CSS) op rect.left=1200; mousedown op x=800 (binnen de popup)
+      w.vm.onPopupMousedown({
         clientX: 800, clientY: 100,
         target: { closest: () => null },
         currentTarget: { getBoundingClientRect: () => ({ left: 1200, top: 100 }) },
         preventDefault() {},
       })
-      expect(w.vm.detailPos).toEqual({ x: 1200, y: 100 }) // geïnitialiseerd op de echte positie
-      w.vm.onDetailMousemove({ clientX: 850, clientY: 100 }) // 50px naar rechts
-      expect(w.vm.detailPos.x).toBe(1250) // schuift 50px, springt NIET naar de hoek
+      expect(w.vm.popupPos).toEqual({ x: 1200, y: 100 }) // geïnitialiseerd op de echte positie
+      w.vm.onPopupMousemove({ clientX: 850, clientY: 100 }) // 50px naar rechts
+      expect(w.vm.popupPos.x).toBe(1250) // schuift 50px, springt NIET naar de hoek
     })
   })
 
@@ -2202,6 +2202,50 @@ describe('LandschapskaartView v3', () => {
       w.vm.onNodeTap('a1') // eerste tap
       w.vm.onNodeTap('a1') // tweede tap binnen de drempel → dubbelklik
       expect(w.vm.legendaTypeFilter).toBe(null)
+    })
+  })
+
+  // ── LI034 — dim-op-klik (selectie): node + directe buren + incidente lijnen scherp, rest dimt ──
+  describe('dim-op-klik (LI034)', () => {
+    const _app = (id, naam) => ({ id, naam, element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 })
+    it('selectie dimt alles behalve de node + directe buren + incidente lijnen; deselectie heft op', async () => {
+      // Eigen cy-stub met inspecteerbare nodes én edges (source/target op edge.data()).
+      const mkNode = (id) => { const c = new Set(); return { data: () => ({ id }), addClass: (x) => c.add(x), removeClass: (x) => c.delete(x), heeft: (x) => c.has(x) } }
+      const mkEdge = (source, target) => { const c = new Set(); return { data: () => ({ source, target }), addClass: (x) => c.add(x), removeClass: (x) => c.delete(x), heeft: (x) => c.has(x) } }
+      const nodes = { a1: mkNode('a1'), a2: mkNode('a2'), a3: mkNode('a3') }
+      const e12 = mkEdge('a1', 'a2'); const e23 = mkEdge('a2', 'a3')
+      const nColl = { forEach: (f) => Object.values(nodes).forEach(f), removeClass: (x) => Object.values(nodes).forEach((n) => n.removeClass(x)) }
+      const eColl = { forEach: (f) => [e12, e23].forEach(f), removeClass: (x) => [e12, e23].forEach((e) => e.removeClass(x)) }
+      const fakeCy = {
+        on: vi.fn(), off: vi.fn(), elements: () => ({ remove: vi.fn(), unselect: vi.fn() }),
+        getElementById: () => ({ length: 0, select: vi.fn() }), animate: vi.fn(), zoom: () => 1,
+        pan: () => ({ x: 0, y: 0 }), add: vi.fn(), layout: () => ({ run: vi.fn() }),
+        resize: vi.fn(), fit: vi.fn(), center: vi.fn(), destroy: vi.fn(), nodes: () => nColl, edges: () => eColl,
+      }
+      cytoscape.mockReturnValueOnce(fakeCy)
+      zetGraf({
+        nodes: [_app('a1', 'A1'), _app('a2', 'A2'), _app('a3', 'A3')],
+        edges: [
+          { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+          { bron_id: 'a2', doel_id: 'a3', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+        ],
+      })
+      const { w } = await mountView()
+
+      // Selecteer a1: scherp = a1 (selectie) + a2 (directe buur); a3 dimt. Incidente lijn a1↔a2 scherp; a2↔a3 dimt.
+      w.vm.inspecteerNode('a1')
+      await flushPromises()
+      expect(nodes.a1.heeft('lk-dim')).toBe(false)
+      expect(nodes.a2.heeft('lk-dim')).toBe(false)
+      expect(nodes.a3.heeft('lk-dim')).toBe(true)
+      expect(e12.heeft('lk-dim')).toBe(false)
+      expect(e23.heeft('lk-dim')).toBe(true)
+
+      // Deselectie (popup sluiten) → dim volledig weg, terug naar de neutrale plaat.
+      w.vm.sluitPopup()
+      await flushPromises()
+      expect(Object.values(nodes).every((n) => !n.heeft('lk-dim'))).toBe(true)
+      expect([e12, e23].every((e) => !e.heeft('lk-dim'))).toBe(true)
     })
   })
 

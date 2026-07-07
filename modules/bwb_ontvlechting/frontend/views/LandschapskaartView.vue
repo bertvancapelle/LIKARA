@@ -694,7 +694,7 @@ function wisSet() {
   // ADR-040 F1 stap 2b — geen `_scopeAangeraakt` meer; de reset naar het beginscherm herlaadt (lege set)
   // en `_seedScopeOrgs` zet de scope opnieuw op "alle aan" (hier leeg — geen orgs op het beginscherm).
   legendaPos.value = { x: null, y: null } // LI025 — legenda terug naar standaardpositie
-  detailPos.value = { x: null, y: null } // LI033 — detail-paneel terug naar standaardpositie
+  popupPos.value = { x: null, y: null } // LI034 — klik-popup terug naar standaardpositie
 }
 // Fase B — bewuste "toon het hele landschap"-actie: leegt de set en zet de hele-landschap-vlag,
 // waarna de herfetch-watch de volledige graaf laadt (mét voortgangsteller).
@@ -888,6 +888,60 @@ const detailKoppelingen = computed(() => {
   if (!id) return 0
   return grafEdges.value.filter((e) => e.bron_id === id || e.doel_id === id).length
 })
+// LI034 — leesbare ondertitel van de klik-popup: "type · status" (alleen node-popup).
+const popupSub = computed(() => {
+  if (popupKind.value !== 'node') return ''
+  const n = detailNode.value
+  if (!n) return ''
+  const status = n.lifecycle_status ? typeLabel(n.lifecycle_status) : null
+  return [_typeRegelVoor(n), status].filter(Boolean).join(' · ')
+})
+// LI034 — "wat raakt dit object" in gewone taal: één regel per kring, uitsluitend afgeleid uit de
+// AL GELADEN graafdata (nodes/edges/node-metadata) — geen nieuw endpoint. Een ontbrekende relatie
+// wordt NIET verborgen maar als leesbaar registratiegat benoemd (`gat: true`). Alleen voor een
+// component/applicatie als centrum (de eerste ADR-040-praatplaat); context-nodes houden hun velden.
+// NB: de expliciete contract→leverancier-lijn komt pas in slice 3 — hier tonen we de leverancier
+// zoals de node-metadata (`leverancier_naam`) die al draagt; niets verzonnen.
+const _popupNaamVan = (nid) => nodePerId.value[nid]?.naam || null
+const popupSamenvatting = computed(() => {
+  if (popupKind.value !== 'node') return []
+  const n = detailNode.value
+  if (!n || !_isApp(n)) return []
+  const id = n.id
+  const ggs = []; const beheer = []; const contracten = []; const hosts = []; const koppel = new Set()
+  for (const e of grafEdges.value) {
+    if (e.ring === 'gebruikers' && e.bron_id === id) { const nm = _popupNaamVan(e.doel_id); if (nm) ggs.push(nm) }
+    else if (e.ring === 'rollen' && e.doel_id === id) { const nm = _popupNaamVan(e.bron_id); if (nm) beheer.push(e.label ? `${nm} (${e.label})` : nm) }
+    else if (e.ring === 'contracten' && e.bron_id === id) { const nm = _popupNaamVan(e.doel_id); if (nm) contracten.push(nm) }
+    else if (e.ring === 'infrastructuur' && e.doel_id === id) { const nm = _popupNaamVan(e.bron_id); if (nm) hosts.push(nm) }
+    else if (e.ring === 'applicaties' && (e.bron_id === id || e.doel_id === id)) { const nm = _popupNaamVan(e.bron_id === id ? e.doel_id : e.bron_id); if (nm) koppel.add(nm) }
+  }
+  const orgNamen = (n.gebruikt_door_organisaties || []).map(_popupNaamVan).filter(Boolean)
+  const gebruikers = [...orgNamen, ...ggs]
+  const eig = n.eigenaar_organisatie_id ? _popupNaamVan(n.eigenaar_organisatie_id) : null
+  const regel = (key, label, tekst) => ({ key, label, tekst, gat: false })
+  const gat = (key, label, tekst) => ({ key, label, tekst, gat: true })
+  const out = []
+  out.push(gebruikers.length
+    ? regel('gebruikt', 'Gebruikt door', `${gebruikers.length}: ${gebruikers.join(', ')}`)
+    : gat('gebruikt', 'Gebruikt door', 'nog geen gebruik geregistreerd'))
+  out.push(beheer.length
+    ? regel('beheer', 'Beheerd door', beheer.join(', '))
+    : gat('beheer', 'Beheerd door', 'geen beheerrol toegewezen'))
+  out.push(contracten.length
+    ? regel('contract', 'Valt onder', `${contracten.join(', ')}${n.leverancier_naam ? ` · leverancier: ${n.leverancier_naam}` : ''}`)
+    : gat('contract', 'Valt onder', 'geen contract gekoppeld'))
+  out.push(eig
+    ? regel('eigenaar', 'Eigenaar', eig)
+    : gat('eigenaar', 'Eigenaar', 'nog geen eigenaar geregistreerd'))
+  out.push(hosts.length
+    ? regel('infra', 'Draait op', hosts.join(', '))
+    : gat('infra', 'Draait op', 'geen infrastructuur geregistreerd'))
+  out.push(koppel.size
+    ? regel('koppel', 'Koppelt met', `${koppel.size}: ${[...koppel].join(', ')}`)
+    : gat('koppel', 'Koppelt met', 'geen koppelingen geregistreerd'))
+  return out
+})
 function selecteerNode(id) {
   detailId.value = id
   // LI021 — in ego-modus hercentreert een klik op ELKE node (applicatie, partij, gebruikersgroep, …),
@@ -930,7 +984,8 @@ function _pasSelectieHighlight() {
     }
   } catch { /* gemockte cytoscape in tests → no-op */ }
 }
-watch(geselecteerdNodeId, _pasSelectieHighlight)
+// LI034 — een selectie(-wijziging) stuurt zowel de incidente-lijn-highlight als de dim-op-klik.
+watch(geselecteerdNodeId, () => { _pasSelectieHighlight(); _pasDim() })
 
 // Enkelklik op een knoop: inspecteren = detail tonen + alléén z'n incidente lijnen highlighten.
 // Géén hercentreren/drill (dat is dubbelklik). Werkt consistent in elke weergave.
@@ -1428,12 +1483,34 @@ function _legendaMatch(n, label) {
   const f = _LEGENDA_MATCH[label]
   return f ? f(n) : true
 }
-// Dim alle nodes die NIET bij het gekozen type horen (lk-dim). Mirror van _pasSelectieHighlight:
-// optional-chaining houdt de gemockte cytoscape in tests veilig. Wordt ook na (her)tekenen
-// aangeroepen (tekenGraaf) zodat de dim na een redraw behouden blijft.
-function _pasLegendaDim() {
+// LI034 — geünificeerde dim-eigenaar (`lk-dim`), twee bronnen met een vaste voorrang:
+//   1. node-SELECTIE (enkelklik → `geselecteerdNodeId`): scherp = de node + z'n directe buren
+//      (`_burenVan`, uit het grafmodel — NIET cy.neighborhood(), want cy-node-data draagt geen
+//      element_type/naam) + de incidente lijnen; al het overige dimt. Zo lees je in één blik
+//      "wat raakt dit object".
+//   2. legenda-typefilter (`legendaTypeFilter`): spotlight op één vorm-categorie (nodes only).
+// Zolang er een selectie is, wint (1); bij deselectie valt het terug op de legenda-staat (2);
+// zonder beide → alles neutraal. Mirror van _pasSelectieHighlight (optional-chaining houdt de
+// gemockte cytoscape veilig); wordt ook na (her)tekenen aangeroepen (tekenGraaf).
+function _pasDim() {
   if (!cy) return
   try {
+    const sel = geselecteerdNodeId.value
+    if (sel) {
+      const scherp = _burenVan(sel)
+      scherp.add(sel)
+      cy.nodes?.()?.forEach?.((node) => {
+        const nid = (node.data?.() || {}).id
+        node[scherp.has(nid) ? 'removeClass' : 'addClass']?.('lk-dim')
+      })
+      cy.edges?.()?.forEach?.((edge) => {
+        const d = edge.data?.() || {}
+        const incident = d.source === sel || d.target === sel
+        edge[incident ? 'removeClass' : 'addClass']?.('lk-dim')
+      })
+      return
+    }
+    cy.edges?.()?.removeClass?.('lk-dim')
     const type = legendaTypeFilter.value
     if (!type) { cy.nodes?.()?.removeClass?.('lk-dim'); return }
     cy.nodes?.()?.forEach?.((node) => {
@@ -1442,7 +1519,7 @@ function _pasLegendaDim() {
     })
   } catch { /* gemockte cytoscape in tests → no-op */ }
 }
-watch(legendaTypeFilter, _pasLegendaDim)
+watch(legendaTypeFilter, _pasDim)
 
 // LI025 — floating/draggable legenda. Standaard rechtsonder (CSS-fallback, x/y = null); slepen zet
 // een absolute viewport-positie. Reset naar standaard bij "Begin opnieuw" (wisSet).
@@ -1474,35 +1551,37 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', onLegendaMouseup)
 })
 
-// LI033 — sleepbaar detail-paneel (zelfde patroon als de legenda). null = standaard in de sidebar;
-// slepen zet een absolute viewport-positie. Reset naar standaard bij "Begin opnieuw" (wisSet).
-const detailPos = ref({ x: null, y: null })
-const detailDragging = ref(false)
-let _detailDragOffset = { x: 0, y: 0 }
-function onDetailMousedown(e) {
-  if (e.target?.closest?.('button, a, input')) return // knoppen/links/inputs werken gewoon
-  // LI034 — initialiseer de positie vanuit de werkelijke DOM-positie als nog niet gesleept; anders
-  // behandelt `?? 0` de CSS-positie als (0,0) → het paneel springt naar de hoek bij de eerste beweging.
-  if (detailPos.value.x === null) {
+// LI034 — sleepbare klik-POPUP (zelfde patroon als de legenda). De popup is nu hét ene versleepbare
+// klik-detail-element (de vroegere sleep op het zijbalk-detailpaneel is vervallen — dat paneel blijft
+// gedokt als set-werkblad). null = standaard linksboven op het canvas; slepen zet een viewportpositie
+// (zodat je 'm van de opgelichte lijnen af kunt schuiven). Reset naar standaard bij "Begin opnieuw".
+const popupPos = ref({ x: null, y: null })
+const popupDragging = ref(false)
+let _popupDragOffset = { x: 0, y: 0 }
+function onPopupMousedown(e) {
+  if (e.target?.closest?.('button, a, input')) return // knoppen/links/inputs (sluit/acties/flow-lijst) werken gewoon
+  // Initialiseer vanuit de werkelijke DOM-positie als nog niet gesleept; anders behandelt `?? 0` de
+  // CSS-positie als (0,0) → de popup springt naar de hoek bij de eerste beweging.
+  if (popupPos.value.x === null) {
     const r = e.currentTarget?.getBoundingClientRect?.()
-    if (r) detailPos.value = { x: r.left, y: r.top }
+    if (r) popupPos.value = { x: r.left, y: r.top }
   }
-  detailDragging.value = true
-  _detailDragOffset = { x: e.clientX - (detailPos.value.x ?? 0), y: e.clientY - (detailPos.value.y ?? 0) }
+  popupDragging.value = true
+  _popupDragOffset = { x: e.clientX - (popupPos.value.x ?? 0), y: e.clientY - (popupPos.value.y ?? 0) }
   e.preventDefault?.()
 }
-function onDetailMousemove(e) {
-  if (!detailDragging.value) return
-  detailPos.value = { x: e.clientX - _detailDragOffset.x, y: e.clientY - _detailDragOffset.y }
+function onPopupMousemove(e) {
+  if (!popupDragging.value) return
+  popupPos.value = { x: e.clientX - _popupDragOffset.x, y: e.clientY - _popupDragOffset.y }
 }
-function onDetailMouseup() { detailDragging.value = false }
+function onPopupMouseup() { popupDragging.value = false }
 onMounted(() => {
-  document.addEventListener('mousemove', onDetailMousemove)
-  document.addEventListener('mouseup', onDetailMouseup)
+  document.addEventListener('mousemove', onPopupMousemove)
+  document.addEventListener('mouseup', onPopupMouseup)
 })
 onBeforeUnmount(() => {
-  document.removeEventListener('mousemove', onDetailMousemove)
-  document.removeEventListener('mouseup', onDetailMouseup)
+  document.removeEventListener('mousemove', onPopupMousemove)
+  document.removeEventListener('mouseup', onPopupMouseup)
 })
 
 // LI019 1d-v5 — swimlane-indeling, afgeleid uit bestaande node-velden. Robuust voor de werkelijke
@@ -1701,7 +1780,7 @@ function _naLayout() {
   }
   updateBands()
   _pasSelectieHighlight() // ADR-033 — na een (her)tekening de selectie-highlight opnieuw aanbrengen
-  _pasLegendaDim() // LI025 — en de legenda-dim (nieuwe node-objecten dragen de klasse nog niet)
+  _pasDim() // LI025/LI034 — en de dim (selectie of legenda; nieuwe node-objecten dragen de klasse nog niet)
 }
 // LI019 1d-v6 — swimlane-posities: nodes in een GRID per lane (LANE_COLS kolommen, wrappend over
 // meerdere rijen), gecentreerd per rij. Begrensde breedte → geen extreme uitzoom (kernoorzaak B).
@@ -1878,7 +1957,12 @@ const CY_STYLE = [
   { selector: 'edge.hl-edge', style: { 'line-color': SELECTIE_RAND, 'target-arrow-color': SELECTIE_RAND, width: 2.5, 'z-index': 900 } },
   { selector: 'node.hl-node', style: { 'border-width': 3, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
   // LI025 — legenda-typefilter: niet-matchende nodes dimmen (spotlight op het gekozen type).
+  // LI034 — óók de dim-op-klik (selectie): scherp blijft de node + z'n directe buren + incidente
+  // lijnen; al het overige dimt. Zelfde `lk-dim`-klasse, gedeelde teken-eigenaar `_pasDim`.
   { selector: 'node.lk-dim', style: { opacity: 0.35 } },
+  // Gedimde lijnen (niet-incident aan de selectie) sterker terugleggen dan nodes, zodat het
+  // opgelichte relatie-web rust krijgt; edge-labels van gedimde lijnen verdwijnen.
+  { selector: 'edge.lk-dim', style: { opacity: 0.12, 'text-opacity': 0 } },
   // Fix 3: visuele markering van de geselecteerde node (klik op set-item / node).
   { selector: 'node:selected', style: { 'border-width': 4, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
 ]
@@ -2024,7 +2108,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, weergave, toonPraatplaat, toonOverzicht, kanPraatplaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, detailPos, detailDragging, onDetailMousedown, onDetailMousemove, onDetailMouseup,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, weergave, toonPraatplaat, toonOverzicht, kanPraatplaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -2462,21 +2546,32 @@ const typeLabel = (t) => humaniseer(t)
           <button type="button" :data-testid="fullscreen ? 'lk-fullscreen-sluit' : 'lk-fullscreen-open'" :aria-pressed="fullscreen" class="rounded-[var(--lk-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--lk-text-sm)] shadow-[var(--lk-shadow-sm)]" @click="toggleFullscreen">{{ fullscreen ? '✕ Verkleinen' : '⛶ Vergroten' }}</button>
         </div>
 
-        <!-- Klik-detail-popup (koppeling of knoop) — gedeelde vorm; sluiten via knop, Escape
-             of een tap op leeg canvas. Een nieuwe klik vervangt de inhoud. -->
+        <!-- LI034 — dé versleepbare klik-detail-popup (koppeling of knoop): het aangeklikte object +
+             z'n directe kring blijven scherp (dim-op-klik), de popup vat in gewone taal samen "wat
+             raakt dit". Sleep 'm van de opgelichte lijnen af (mousedown op de popup; knoppen/links
+             blijven werken). Sluiten = deselecteren (knop, Escape, of een tap op leeg canvas). -->
         <div
           v-if="popupOpen"
           data-testid="lk-popup"
           role="dialog"
           aria-label="Detail"
-          :class="['absolute left-3 top-3 z-20 max-w-[90%] rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-white p-[var(--lk-space-md)] shadow-[var(--lk-shadow-lg)]', popupKind === 'edge' ? 'w-[34rem]' : 'w-72']"
+          :style="popupPos.x !== null ? { position: 'fixed', left: popupPos.x + 'px', top: popupPos.y + 'px' } : {}"
+          :class="[popupPos.x !== null ? 'z-30' : 'absolute left-3 top-3 z-20', 'max-w-[90%] rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-white p-[var(--lk-space-md)] shadow-[var(--lk-shadow-lg)]', popupKind === 'edge' ? 'w-[34rem]' : 'w-72', popupDragging ? 'cursor-grabbing' : 'cursor-grab']"
+          @mousedown="onPopupMousedown"
         >
           <div class="flex items-start justify-between gap-2">
             <div>
               <p v-if="popupBadge" data-testid="lk-popup-badge" class="text-[length:var(--lk-text-xs)] font-semibold uppercase text-[var(--lk-color-primary-700)]">{{ popupBadge }}</p>
               <p class="font-semibold" data-testid="lk-popup-titel">{{ popupTitel }}</p>
+              <p v-if="popupSub" data-testid="lk-popup-sub" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">{{ popupSub }}</p>
             </div>
             <button type="button" data-testid="lk-popup-sluit" aria-label="Sluiten" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-text)]" @click="sluitPopup">✕</button>
+          </div>
+          <!-- LI034 — "wat raakt dit object": één regel per kring; registratiegaten leesbaar benoemd. -->
+          <div v-if="popupSamenvatting.length" data-testid="lk-popup-samenvatting" class="mt-2 flex flex-col gap-0.5 text-[length:var(--lk-text-sm)]">
+            <p v-for="s in popupSamenvatting" :key="s.key" :data-testid="`lk-popup-sam-${s.key}`" :class="s.gat ? 'italic text-[var(--lk-color-text-muted)]' : ''">
+              <span class="text-[var(--lk-color-text-muted)]">{{ s.label }}:</span> {{ s.tekst }}
+            </p>
           </div>
           <p v-if="popupLaden" data-testid="lk-popup-laden" class="mt-2 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Laden…</p>
           <dl v-if="popupVelden.length" data-testid="lk-popup-velden" class="mt-2 grid grid-cols-[auto_1fr] gap-x-[var(--lk-space-sm)] gap-y-0.5 text-[length:var(--lk-text-sm)]">
@@ -2569,12 +2664,12 @@ const typeLabel = (t) => humaniseer(t)
 
         <div class="border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
           <p class="mb-1 font-semibold text-[length:var(--lk-text-sm)]">Detail</p>
+          <!-- LI034 — het zijbalk-detail blijft GEDOKT als set-werkblad (set-acties + buren). De
+               versleepbare klik-popup is nu hét ene zwevende detail-element; dit paneel sleept niet meer. -->
           <div
             v-if="detailNode"
             data-testid="lk-detail"
-            :style="detailPos.x !== null ? { position: 'fixed', left: detailPos.x + 'px', top: detailPos.y + 'px', zIndex: 30 } : {}"
-            :class="['flex flex-col gap-1 text-[length:var(--lk-text-sm)]', detailPos.x !== null ? 'w-56 rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-white p-[var(--lk-space-sm)] shadow-[var(--lk-shadow-lg)]' : '', detailDragging ? 'cursor-grabbing' : 'cursor-grab']"
-            @mousedown="onDetailMousedown"
+            class="flex flex-col gap-1 text-[length:var(--lk-text-sm)]"
           >
             <p class="font-semibold" data-testid="lk-detail-naam">{{ detailNode.naam }}</p>
             <!-- LI021 — partij: aard; gebruikersgroep: ledental; anders de component-velden. -->

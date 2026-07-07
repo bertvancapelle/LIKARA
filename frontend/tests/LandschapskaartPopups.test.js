@@ -277,6 +277,74 @@ describe('Landschapskaart — enkele vs. dubbele klik', () => {
   })
 })
 
+describe('Landschapskaart — klik-popup samenvatting "wat raakt dit" (LI034)', () => {
+  // Rijke graaf: één applicatie (a1) met een relatie in elke kern-kring.
+  const RIJK = () => ({
+    nodes: [
+      { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', domein: 'applicatie', leverancier_naam: 'SaaS BV', blokkades_open: 0, eigenaar_organisatie_id: 'p1', gebruikt_door_organisaties: ['p1'] },
+      { id: 'a2', naam: 'Documentbeheer', element_type: 'applicatie', laag: 'application', blokkades_open: 0 },
+      { id: 'p1', naam: 'Gemeente Tiel', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      { id: 'p2', naam: 'Beheer BV', element_type: 'partij', laag: 'business', soort: 'externe_partij', blokkades_open: 0 },
+      { id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business', blokkades_open: 0 },
+      { id: 'srv1', naam: 'Server 1', element_type: 'database', laag: 'technology', blokkades_open: 0 },
+    ],
+    edges: [
+      { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+      { bron_id: 'p2', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Technisch beheer', ring: 'rollen' },
+      { bron_id: 'a1', doel_id: 'k1', relatietype: 'association', label: 'valt onder', ring: 'contracten' },
+      { bron_id: 'srv1', doel_id: 'a1', relatietype: 'assignment', label: 'draait op', ring: 'infrastructuur' },
+    ],
+  })
+  const sam = (w, key) => {
+    const el = w.find(`[data-testid="lk-popup-sam-${key}"]`)
+    return el.exists() ? el.text() : null
+  }
+
+  it('toont per kring een leesbare regel, afgeleid uit de geladen graafdata', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue(RIJK())
+    api.componenten.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem', lifecycle_status: 'migratieklaar' })
+    const { w } = await mountView()
+    await w.vm.openNodePopup('a1')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-samenvatting"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-popup-sub"]').text()).toContain('Migratieklaar') // type · status
+    expect(sam(w, 'gebruikt')).toContain('Gemeente Tiel')
+    expect(sam(w, 'beheer')).toContain('Beheer BV')
+    expect(sam(w, 'beheer')).toContain('Technisch beheer')
+    expect(sam(w, 'contract')).toContain('Contract X')
+    expect(sam(w, 'contract')).toContain('SaaS BV') // leverancier uit node-metadata (slice-3-lijn komt later)
+    expect(sam(w, 'eigenaar')).toContain('Gemeente Tiel')
+    expect(sam(w, 'infra')).toContain('Server 1')
+    expect(sam(w, 'koppel')).toContain('Documentbeheer')
+  })
+
+  it('benoemt ontbrekende relaties als leesbaar registratiegat (niet verbergen)', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [{ id: 'x1', naam: 'Weesapplicatie', element_type: 'applicatie', laag: 'application', blokkades_open: 0 }],
+      edges: [],
+    })
+    api.componenten.haal.mockResolvedValue({ id: 'x1', naam: 'Weesapplicatie' })
+    const { w } = await mountView()
+    await w.vm.openNodePopup('x1')
+    await flushPromises()
+    expect(sam(w, 'eigenaar')).toContain('nog geen eigenaar geregistreerd')
+    expect(sam(w, 'contract')).toContain('geen contract gekoppeld')
+    expect(sam(w, 'beheer')).toContain('geen beheerrol toegewezen')
+    expect(sam(w, 'gebruikt')).toContain('nog geen gebruik geregistreerd')
+    // gat-regel is als zodanig gemarkeerd (italic-klasse).
+    expect(w.find('[data-testid="lk-popup-sam-eigenaar"]').classes()).toContain('italic')
+  })
+
+  it('een niet-applicatie-node (contract) krijgt géén kring-samenvatting', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue(RIJK())
+    api.contracten.haal.mockResolvedValue({ id: 'k1', contractnaam: 'Contract X' })
+    const { w } = await mountView()
+    await w.vm.openNodePopup('k1')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-samenvatting"]').exists()).toBe(false)
+  })
+})
+
 describe('Landschapskaart — fullscreen-overlay', () => {
   it('toggelt fullscreen-classes en behoudt een open popup; Escape sluit', async () => {
     api.componenten.haal.mockResolvedValue({ id: 'a1', naam: 'Zaaksysteem' })
