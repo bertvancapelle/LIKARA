@@ -160,6 +160,12 @@ stap 4). Een leeslijst zonder die route is bijna altijd een A-gat.
 ## Landschapskaart UX-patronen (ADR-025, DC013)
 
 ### Drie-modus graaf
+> **Herzien in ADR-040** (kaart-herbouw): de set-grootte-afgeleide drie-modus is vervangen door een
+> **tweedeling met expliciete weergave-state** (Overzicht = centrumloos landschap / Praatplaat =
+> radiaal, één centrum + kring) met een zichtbare schakelaar; de **impact-modus is afgeschaft**. De
+> concrete weergaven staan in ADR-040; het herbruikbare patroon in P6a (likara-frontend). Onderstaande
+> beschrijving is de historische (pre-ADR-040) opzet.
+
 Één view, drie perspectieven via toggle:
 - Ego-view: één centrum, directe buren, klik=hercentreren
 - Impact-view: migratieset multi-select, raakvlak-detectie
@@ -210,6 +216,23 @@ toe (partijen/contracten/infra blijven op diepte 1); client-side op de geladen g
   (naam/type/domein/leverancier/eigenaar-organisatie), zodat "alle zaaksystemen" / "alles van
   Tiel" / "alles van leverancier X" één zoekactie is — niet honderden namen scrollen. (De
   selectie bevat componenten; organisatie/leverancier zijn criteria — zie likara-frontend.)
+
+## Filters, controls en verbergen (ADR-040)
+
+### P6b — Een control die in een weergave niets zinvols doet, hoort verborgen
+
+Toon geen inerte/ruis-controls; erger nog: **nooit een control die stil iets kan wegfilteren dat bij de
+weergave hoort**. (Deze sessie: de organisatie-scope-balk is **verborgen op de praatplaat** — daar
+bepaalt het centrum + de kring wat je ziet; een organisatiefilter zou daar een kring-organisatie stil
+kunnen wegfilteren.)
+
+### P8 — Filter = niet-destructieve lens; set-acties breiden uit; nooit stiekem verbergen
+
+- Een filter **verbergt** (aan) en **toont** (uit) — het gooit **nooit weg**; **uitbreiden** doe je met
+  **set-acties**. Consistent in álle weergaven.
+- Een filter mag verbergen, maar **nooit stiekem**: elke verberging is het gevolg van een control die op
+  dat moment **zichtbaar** is. Daarom: bij een set-wijziging **reset naar "alles aan"** — geen
+  nawerkende, onzichtbare uitvink die stil objecten blijft verbergen.
 
 ## Verhouding tot andere skills
 

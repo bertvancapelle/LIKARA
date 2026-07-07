@@ -163,6 +163,15 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
   en een geselecteerd-item-label dat afweek van de lijst-identiteit. Assert daarom óók de knop-stijl-class
   (primaire token, **niet** `accent`) én het geselecteerde-item-label (`veld == lijst`); en bekijk
   UX-rakende schermen vóór commit in de **echte browser** (mocks tonen de styling/selectie-staat niet).
+  **Geldt óók voor render/layout (ADR-040):** leeg canvas, samenvallende nodes, stervorm-layout en
+  dim-bij-schakelen bleven állemaal groen in de suite en waren alleen in de browser zichtbaar. Elke
+  UI-/render-/layout-wijziging wordt **browserverifieerd vóór commit** — tests dekken logica/payload,
+  niet het visuele resultaat.
+- **Draai de VOLLEDIGE suite (front + back) bij het wijzigen/afschaffen van een gedeeld symbool (ADR-040).**
+  Raakt een wijziging een symbool dat backend én frontend delen (bv. een backend-test die de frontend-bron
+  op een constante scant), draai **beide** suites — anders blijft een latente rode test onopgemerkt. (Deze
+  sessie: een pre-existing rode backend-test op een in de frontend afgeschaft symbool bleef zitten omdat
+  bij frontend-stappen alleen de frontend-suite draaide.)
 - **Picker-integratietests: param-filterende mock + open-picker-assert (LI032, niet-onderhandelbaar).**
   Een `api.*.lijst`-mock die een **vaste set** teruggeeft en de `aard`/`scope`/`organisatie_id`/`zoek`-params
   **negeert**, laat een picker die de **verkeerde bron** aanroept (afdelingen i.p.v. organisaties, extern
@@ -174,6 +183,13 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
   bij een remount-gevoelige picker: open twee entiteiten na elkaar en assert dat het label niet **stale**
   blijft (het geval dat de ontbrekende `:key` verraadt). Referentie: `GebruikersbeheerView.test.js`
   (org-picker-bron, org-wissel→afdeling, geen-stale-label).
+- **Layout-testnorm: "geen twee nodes op dezelfde positie" (ADR-040).** Borg per layout een test die
+  uitsluit dat nodes **samenvallen** — overlappende endpoints betekent dat lijnen niet tekenbaar zijn en
+  het canvas leeg oogt. De gemockte cytoscape kent geen posities; test daarom tegen de **echte cytoscape**
+  (import het pakket direct in een apart testbestand, draai de laytout-config, assert dat alle posities
+  distinct zijn + deterministisch bij herhaling). Referentie: `frontend/tests/kaartLayout.test.js`. De
+  fijn-afstemming van leesbaarheid (labelbreedte, ratio) is een **browsercheck-criterium** — headless
+  meet geen tekst.
 
 ## Offline-grens (bewust)
 

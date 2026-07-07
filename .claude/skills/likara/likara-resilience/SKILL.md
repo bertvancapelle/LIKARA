@@ -98,6 +98,22 @@ aanroeper losse 401-afhandeling (die lekt of vergeet). Kernregels:
   next), `authSession.test.js` (refresh-vóór-opgeven). Volledige technische uitwerking: likara-frontend
   §Centrale verlopen-sessie-vangrail.
 
+## Diagnose-triage (ADR-040)
+
+### P10 — Symptoom-triage: omgeving vóór code
+
+Bij een onverwacht symptoom eerst de **goedkope omgevingscheck** vóór een diepe code-diagnose: een
+**hard refresh** in de browser en, bij backend-gedrag, de api-container herstarten
+(`docker compose up -d --force-recreate api` — bind-mounts laden geen nieuwe code in een draaiend
+proces). (Deze sessie: een "zoek-0" bleek stale dev-staat / een verouderde api-container, geen code-bug.)
+
+### P11 — De browser-console is het eerste diagnose-instrument bij render-/layout-mysteries
+
+Fouten in de **echte-DOM-renderlaag** worden door read-only code-onderzoek en offline-harnassen **niet
+gevangen**. Vraag bij een render-/layout-mysterie **eerst de browser-console** (één regel pint de oorzaak
+vaak) vóór een micro-diagnose-build. (Deze sessie: `"source and target node overlap"` wees direct de
+samenval-oorzaak aan, waar de payload + offline-cytoscape schoon leken.)
+
 ## Afwezig in V001 — toekomstige resilience-patronen
 
 | Patroon | Status |

@@ -556,16 +556,32 @@ vulkleur; vorm=type, vulkleur=lifecycle blijven) + legenda-entry.
 ### LandschapsEdge
 `bron_id, doel_id, relatietype, label, ring, richting, protocol`
 
-### Vier ringen
+### Ringen
 - applicaties: flow-relaties comp↔comp, label="koppeling"
 - infrastructuur: assignment-relaties (host→comp), label="draait op"
 - contracten: association-relaties (comp→contract), label="valt onder"
 - beheerorganisatie: roltoewijzing-records, label=rol-naam
+- *(uitgebreid na ADR-025: samenstelling, eigenaar (LI036), gebruikers, organisatiestructuur (ADR-024),
+  en `gebruikt` (LI033b) — zie P4 hieronder voor het afgeleide-edge-patroon.)*
 
-### Drie modi (frontend, Cytoscape.js)
-- Ego-view: concentric layout, centrum + ringen, klik=hercentreren
-- Impact-view: cose layout, blauw=in-set/oranje=raakvlak, grensoverschrijdende koppelingen geteld
-- Geheel model: alle applicaties auto-geladen, opbouw/afpel-modus
+### P4 — Afgeleide read-only kaart-edges spiegelen een bestaande edge (ADR-040)
+
+Een **afgeleide** kaart-relatie (bv. organisatie→applicatie "gebruikt") wordt gebouwd als **1:1 spiegel
+van een bestaande edge** (bv. de eigenaar-edge organisatie→component): **read-only, géén schema, géén
+nieuwe DB-relatie** — enkel een projectie van een bestaand feit. Vereist:
+- een **dangling-guard**: emit de edge **alleen** als **beide** endpoints als knoop meekomen
+  (`bron in partij_info and doel in comp_node`);
+- een **scope-add**: het (nieuwe) endpoint moet als **node** de subgraaf in komen, anders is de edge
+  dangling en breekt de render.
+
+Dit is het patroon voor toekomstige afgeleide kaart-relaties. Bezit + gebruik levert bewust **twee
+lijnen** (eigenaar + gebruikt) — niet onderdrukken.
+
+### Weergaven (frontend)
+> **Herzien in ADR-040:** de drie modi (Ego/Impact/Geheel, met o.a. een cose-impact-layout) zijn
+> vervangen door een tweedeling **Overzicht** (centrumloos) / **Praatplaat** (radiaal, concentric); de
+> impact-modus is afgeschaft. De concrete layout-keuzes staan in ADR-040; het herbruikbare patroon in
+> P6a (likara-frontend).
 
 ### Engine-onaangeroerd borging (extra patroon)
 `blokkades_open` via `table()`-construct (geen `Blokkade`-ORM-import); `lifecycle_status`

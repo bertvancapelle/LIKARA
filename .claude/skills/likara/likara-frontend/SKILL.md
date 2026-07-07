@@ -304,17 +304,23 @@ import cytoscape from '@/composables/cytoscape'
 Zonder `min-h-0` negeert een flex-child de `height:100%` van zijn parent → Cytoscape
 initialiseert op hoogte 0 → lege canvas. `min-height: 500px` op `#cy` is de harde vangrail.
 
-### 3. Initialisatie: nextTick×2 + offsetHeight-check + delayed resize/fit
+### 3. Initialisatie: nextTick×2 + offsetHeight-check + fit via de layout-stop-callback
 ```javascript
 async function tekenGraaf() {
   await nextTick(); await nextTick()  // tweede tick voor Vite HMR edge-cases
   const el = containerRef.value
   if (!el) return
   if (el.offsetHeight === 0) { el.style.minHeight = '500px'; await nextTick() }
-  cy.elements().remove(); cy.add(elementen); cy.layout(layout).run()
-  setTimeout(() => { cy?.resize(); cy?.fit(undefined, 50) }, 100)  // browser layout-flush
+  cy.elements().remove(); cy.add(elementen)
+  cy.layout({ ...layout, stop: _naLayout }).run()  // resize/fit/highlight in de STOP-callback
+}
+function _naLayout() {           // ADR-040: deterministisch bij het EINDE van de layout, geen setTimeout
+  cy.resize(); cy.fit(undefined, 50)
 }
 ```
+> **ADR-040 (aangescherpt, vervangt de oude `setTimeout(...,100)`-hack):** de her-meting + fit + het
+> opnieuw aanbrengen van highlight/dim horen **deterministisch in de layout-`stop`-callback**, niet in
+> een losse `setTimeout` (een timing-hack die op een langzame/dichte render mis kan gaan). Zie P5a hieronder.
 
 ### 4. ResizeObserver voor dynamische containers (guarded; disconnect bij unmount)
 ```javascript
@@ -341,6 +347,28 @@ vi.mock('@/composables/cytoscape', () => ({
   })),
 }))
 ```
+
+### P5a — Deterministische layout + render-eigenaar-discipline (ADR-040)
+
+- **Layouts moeten deterministisch zijn** (built-in `grid`/`concentric`): identieke posities bij
+  herhaling, geen naschuiven. **Geen niet-deterministische force-layout** (`cose`/`fcose`) zonder
+  browserbewijs van stabiliteit — die familie gaf eerder de "edges-onzichtbaar"/samenval-bugs. Render
+  **niet-geanimeerd** bij dichte grafen: een `animate:true` die nodes vanaf (0,0) laat invliegen kan op
+  een dichte graaf niet settelen → knopen vallen samen.
+- **Render-eigenaar = één opbouw, één layout, fit via de `stop`-callback.** `tekenGraaf` doet
+  `remove → add → layout(...).run()`; álle post-layout werk (resize, fit/center, highlight/dim, en een
+  post-layout **transform** zoals een ellips-schaling) hoort in de `stop`-callback: die **leest cy-state
+  en past posities aan** — géén `setTimeout`-timing-hack, géén re-layout, géén reactieve-state-mutatie
+  (anders een render-loop). Uitrek-transforms mogen alleen **spreiden**, nooit comprimeren (geen nieuwe
+  overlap).
+
+### P6a — Tweedeling-layout: de weergave volgt de vraag, niet de set-grootte (ADR-040)
+
+Verschillende gebruikersvragen verdienen verschillende layouts, gekozen op de **expliciete weergave-state**
+(niet op set-grootte): een **landschap-zonder-centrum** (overzicht) krijgt een **centrumloze** spreiding;
+een **één-object-met-omgeving** (praatplaat) krijgt een **radiale** (concentric). Leg **nooit een
+centrum-vorm op aan iets zonder centrum** — een concentric op een centrumloos landschap geeft een
+stervorm. (De concrete layout-keuzes van deze sessie staan in ADR-040, niet hier.)
 
 ## Rol-gating = affordance (backend handhaaft)
 

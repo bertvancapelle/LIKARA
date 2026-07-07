@@ -52,6 +52,13 @@ Correctie: terug naar de gebruikersvraag. Altijd.
 - Akkoord met een advies ≠ commit-goedkeuring.
 - claude.ai scheidt dit strikt in alle formuleringen.
 
+### Stapelen in één werktree — alléén bij samenhangend, samen-committend werk (ADR-040)
+
+Uitzondering op "één opdracht per werktree": een stap mag **ongecommit blijven terwijl een volgende
+erop bouwt**, mits ze aantoonbaar **één geheel** zijn (samen ontworpen, samen te committen) en er een
+**stash als vangnet** is. Anders: eerst committen. (Deze sessie: een backend-slice bleef ongecommit
+tot de layout-fix die hij onthulde — ze landden samen in één commit.)
+
 ---
 
 ## Gate-discipline (CC)
@@ -65,6 +72,20 @@ Correctie: terug naar de gebruikersvraag. Altijd.
 - **Design-heavy / rimpel-fases**: altijd eerst checkpoint — CC legt codestaat
   vast + open vragen + gefaseerd bouwplan en STOPT; claude.ai lost open vragen
   één voor één op met Bert vóór de bouw-instructie de deur uit gaat.
+
+### Read-only-eerst boven aannames (ADR-040)
+
+Bij elke diagnose **spreekt de code, niet de hypothese**. Een PNA-/instructie-aanname (ook een
+"besloten" diagnose) is **richting, geen waarheid**. CC verifieert de aanname tegen de code (grep,
+lezen, een read-only reproductie) en **stopt-en-rapporteert bij discrepantie** — schrijf géén fix
+voor een filter/symbool/bug die niet blijkt te bestaan. (Deze sessie: een "verweesde-org-opruimfilter"
+dat er niet was; een scope-bug die scenario-afhankelijk bleek, geen defect.)
+
+### Herijk de fasering als stappen niet los toetsbaar blijken
+
+Klein-houden is een **middel, geen doel**. Als een gate niet zelfstandig in de browser te beoordelen
+is (iets ertussen maskeert het resultaat), is **samenvoegen juist correct** — meld de reden. (Deze
+sessie: twee stappen waren niet los verifieerbaar door een tussenliggende layout-fallback → samengevoegd.)
 
 ---
 
@@ -151,3 +172,12 @@ Een advies zonder stap 1–3 mag niet worden uitgebracht.
 
 Dit kader is niet-onderhandelbaar en overschrijft elke neiging om met
 technische overwegingen te openen.
+
+---
+
+## ADR-onderhoud — bijwerken naar de gebouwde realiteit (ADR-040)
+
+Onderweg-afwijkingen van een ADR moeten **terug de ADR in, met de reden**. Bij sessieafsluiting: toets
+de ADR tegen wat **écht gebouwd** is en veranker de afwijkingen — de ADR beschrijft de gerealiseerde
+oplossing, niet het oorspronkelijke voorstel. (Deze sessie: de ADR schreef een layout voor die
+niet-deterministisch bleek; gebouwd werd een deterministische variant → dat hoort terug in de ADR.)
