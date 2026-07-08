@@ -41,6 +41,8 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-039 | Aanspreekpunt van een partij als verwijzing naar een geregistreerde persoon (vervangt vrije-tekst `contactpersoon`; alleen op organisatie/externe partij; search-first ter-plekke-aanmaken) | Besloten — gerealiseerd (schema-gate) |
 | ADR-025 | Landschapskaart (applicatie-centrische praatplaat) | Superseded door ADR-040 |
 | ADR-040 | Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor | Voorstel |
+| ADR-041 | Persoonlijke voorkeuren: "onthoud als mijn standaard" (per-gebruiker voorkeur-laag; kijkfilter, nooit invoerregel) | Voorstel |
+| ADR-042 | Procesregister en component-in-proces-koppeling (nestbare procesboom; koppelregel component/proces/applicatiefunctie; roll-up als kijklaag) | Besloten (LI035) — open subknopen met defaults akkoord |
 
 > **Component-focus-herfundering (LI057–LI059, migraties 0045–0047):** `migratiepad/complexiteit/prioriteit`
 > zijn component-breed, de `applicatie`-subtabel is gedropt en de applicatie-**facade** (routes/service/
