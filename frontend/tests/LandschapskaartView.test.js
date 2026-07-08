@@ -29,6 +29,8 @@ vi.mock('@/api', () => ({
     partijen: { lijst: vi.fn() }, // LI019 1b — leverancier-zoek (externe partijen)
     // ADR-033 2c — opgeslagen views.
     impactViews: { lijst: vi.fn(), haal: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
+    // LI034/ADR-041 — persoonlijke standaardkijk (kaart-kijkfilter).
+    voorkeuren: { haalAlle: vi.fn(), zet: vi.fn(), herroep: vi.fn() },
   },
 }))
 
@@ -135,6 +137,10 @@ beforeEach(() => {
   api.impactViews.maak.mockResolvedValue({ id: 'v-new' })
   api.impactViews.werkBij.mockResolvedValue({ id: 'v1' })
   api.impactViews.verwijder.mockResolvedValue(null)
+  // LI034/ADR-041 — standaardkijk: default geen opgeslagen voorkeur (kale default).
+  api.voorkeuren.haalAlle.mockResolvedValue([])
+  api.voorkeuren.zet.mockResolvedValue({})
+  api.voorkeuren.herroep.mockResolvedValue(undefined)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -2358,6 +2364,107 @@ describe('LandschapskaartView v3', () => {
       expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
       expect([...w.vm.grofOnlyIds]).toEqual(['a2'])
       expect(w.vm.beginschermOpen).toBe(false)
+    })
+  })
+
+  // ── LI034/ADR-041 — persoonlijke standaardkijk (kaart-kijkfilter) ─────────────────────────────
+  describe('standaardkijk (LI034/ADR-041)', () => {
+    it('_huidigeKijk bevat de kijk-variabelen en NIET de momentkeuze', async () => {
+      const { w } = await mountView()
+      const k = w.vm._huidigeKijk()
+      ;['ringAan', 'fTypes', 'fLev', 'fHost', 'fLc', 'fRol', 'bivB', 'bivI', 'bivV', 'diepte',
+        'kleurOpDomein', 'groepeerPerOrg', 'laneVolgorde', 'verbergLegeLanes', 'toonRegistratiegaps']
+        .forEach((key) => expect(k).toHaveProperty(key))
+      // Momentkeuze mag er NOOIT in zitten.
+      ;['set', 'actieveSet', 'ego', 'egoStartId', 'weergave', 'zoek', 'sel', 'scopeOrgs', 'focus']
+        .forEach((key) => expect(k[key]).toBeUndefined())
+    })
+
+    it('opslaan zet de sleutel kaart_kijkfilter met de kijk (niet de actieve set)', async () => {
+      const { w } = await mountView()
+      await w.find('[data-testid="lk-ring-organisatiestructuur"]').trigger('change') // ring AAN → onderscheidend
+      await w.vm.slaKijkOp()
+      await flushPromises()
+      expect(api.voorkeuren.zet).toHaveBeenCalledTimes(1)
+      const [sleutel, blob] = api.voorkeuren.zet.mock.calls[0]
+      expect(sleutel).toBe('kaart_kijkfilter')
+      expect(blob.ringAan).toContain('organisatiestructuur')
+      expect(blob).not.toHaveProperty('actieveSet')
+      expect(blob).not.toHaveProperty('set')
+      // Status: opgeslagen = "Dit is je standaardkijk".
+      expect(w.find('[data-testid="lk-standaardkijk-status"]').text()).toBe('Dit is je standaardkijk')
+    })
+
+    it('"Begin opnieuw" past de opgeslagen standaardkijk toe; actieve set blijft leeg', async () => {
+      const { w } = await mountView()
+      await w.find('[data-testid="lk-ring-organisatiestructuur"]').trigger('change') // AAN
+      await w.vm.slaKijkOp(); await flushPromises()
+      await w.find('[data-testid="lk-ring-organisatiestructuur"]').trigger('change') // weer UIT
+      expect(w.vm.ringAan.has('organisatiestructuur')).toBe(false)
+      w.vm.wisSet(); await flushPromises()
+      expect(w.vm.ringAan.has('organisatiestructuur')).toBe(true) // standaardkijk terug
+      expect([...w.vm.actieveSet]).toEqual([]) // momentkeuze ongemoeid
+    })
+
+    it('herroep verwijdert de standaard en zet de kale default terug', async () => {
+      const { w } = await mountView()
+      await w.find('[data-testid="lk-ring-organisatiestructuur"]').trigger('change') // AAN
+      await w.vm.slaKijkOp(); await flushPromises()
+      await w.vm.herroepKijk(); await flushPromises()
+      expect(api.voorkeuren.herroep).toHaveBeenCalledWith('kaart_kijkfilter')
+      expect(w.vm.ringAan.has('organisatiestructuur')).toBe(false) // kale default
+      expect(w.find('[data-testid="lk-standaardkijk-herroep"]').exists()).toBe(false)
+    })
+
+    it('mount past de opgeslagen standaardkijk toe bij een verse start (geen lk-state)', async () => {
+      api.voorkeuren.haalAlle.mockResolvedValueOnce([
+        { voorkeur_sleutel: 'kaart_kijkfilter', waarde: { ringAan: ['applicaties'], kleurOpDomein: true }, updated_at: 'x' },
+      ])
+      const { w } = await mountView()
+      expect(w.vm.ringAan.has('applicaties')).toBe(true)
+      expect(w.vm.ringAan.has('eigenaar')).toBe(false) // niet in de opgeslagen set
+      expect(w.vm.kleurOpDomein).toBe(true)
+    })
+  })
+
+  // ── LI034 — reload: herladen behoudt het actieve werk ─────────────────────────────────────────
+  describe('reload — herladen behoudt werk (LI034)', () => {
+    it('_bewaarKaartState persisteert de ACTUELE in-sessie-set', async () => {
+      const { w } = await mountView()
+      w.vm.toggleSet('a1')
+      await flushPromises()
+      w.vm._bewaarKaartState()
+      const s = JSON.parse(sessionStorage.getItem('lk-state') || 'null')
+      expect(s.actieveSet).toContain('a1')
+    })
+
+    it('een beforeunload-event schrijft de actuele set naar lk-state', async () => {
+      const { w } = await mountView()
+      w.vm.toggleSet('a2')
+      await flushPromises()
+      sessionStorage.removeItem('lk-state')
+      window.dispatchEvent(new Event('beforeunload'))
+      const s = JSON.parse(sessionStorage.getItem('lk-state') || 'null')
+      expect(s?.actieveSet).toContain('a2') // de nieuwst-gemounte component (deze) schrijft als laatste
+    })
+
+    it('"Begin opnieuw" (wisSet) wist lk-state → F5 hierna = beginscherm', async () => {
+      const { w } = await mountView()
+      w.vm._bewaarKaartState()
+      expect(sessionStorage.getItem('lk-state')).toBeTruthy()
+      w.vm.wisSet()
+      expect(sessionStorage.getItem('lk-state')).toBeNull()
+    })
+
+    it('mount herstelt de in-sessie-set en dat wint van de standaardkijk (precedentie)', async () => {
+      sessionStorage.setItem('lk-state', JSON.stringify({ actieveSet: ['a1'], ringAan: ['applicaties'] }))
+      api.voorkeuren.haalAlle.mockResolvedValueOnce([
+        { voorkeur_sleutel: 'kaart_kijkfilter', waarde: { ringAan: ['contracten'] }, updated_at: 'x' },
+      ])
+      const { w } = await mountView({ heleLandschap: false })
+      expect([...w.vm.actieveSet]).toEqual(['a1']) // in-sessie werk hersteld
+      expect(w.vm.ringAan.has('applicaties')).toBe(true) // uit lk-state
+      expect(w.vm.ringAan.has('contracten')).toBe(false) // standaardkijk NIET toegepast (lk-state wint)
     })
   })
 })

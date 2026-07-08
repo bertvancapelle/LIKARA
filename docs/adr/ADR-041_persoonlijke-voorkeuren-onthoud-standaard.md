@@ -206,3 +206,32 @@ sturen (per-gebruiker verschillende invoerregels op gedeelde data). Dat is terug
 - **`voorkeur_service.haal_waarde` + `GEBRUIKTE_COMPONENTTYPEN` blijven staan** — de generieke read-API van
   de laag; de frontend leest de voorkeur via `api.voorkeuren.haalAlle` (zelfde sleutelnaam). Geen schema/
   migratie; engine onaangeroerd.
+
+---
+
+## Koerscorrectie 2 — de eerste toepassing is het KAART-KIJKFILTER (niet de sectie)
+
+De sectie-toepassing (gebruikte componenten per organisatie/afdeling) bleek **te versnipperd** en is
+**teruggedraaid**: de gebruikte-componenten-sectie toont weer gewoon álle gebruikte componenten
+(component-breed), zónder persoonlijk filter of control. Het component-brede schrijf-slot blijft als losse
+verbetering.
+
+De juiste, eerste toepassing van het "onthoud als mijn standaard"-patroon is het **kijkfilter van de
+landschapskaart als geheel**: één persoonlijke **standaardkijk**.
+
+## Gebouwde realiteit — Kaart-kijkfilter-standaard
+
+- **Standaardkijk = de kijk-variabelen, niet de momentkeuze** (`LandschapskaartView.vue`). Opgeslagen onder
+  de voorkeur-sleutel **`kaart_kijkfilter`** (slice-1-laag, hergebruikt): `ringAan` + filters
+  (`filterTypes`/`filterLeveranciers`/`filterHosting`/`filterLifecycle`/`filterRollen`/BIV) + `diepte` +
+  `kleurOpDomein` + `groepeerPerOrg` + lane-opties. **NOOIT** de momentkeuze (`actieveSet`, `egoStartId`,
+  `weergave`, `geselecteerdNodeId`, `zoekterm`, `focusOpSet`, `scopeOrgs`) — de standaard bepaalt *hoe* je
+  kijkt, niet *waarnaar*.
+- **Opslaan-actie** ("★ Sla op als mijn standaardkijk") met het herbruikbare patroon: opgeslagen/gewijzigd-
+  status (knop actief zodra de kijk afwijkt), en **herroep** (→ voorkeur weg + kale default terug).
+- **Toepassen met samenloopregel (precedentie):** **in-sessie `lk-state`** (herladen behoudt het werk)
+  **>** **server-standaardkijk** (verse start / "Begin opnieuw") **>** kale default. Concreet:
+  `_herstelKaartState` geeft nu terug of het in-sessie herstelde; is dat niet zo, dan past de mount de
+  standaardkijk toe; `wisSet` ("Begin opnieuw") past de standaardkijk toe ná de reset (nooit `actieveSet`).
+- **Geen backend/schema:** de voorkeur-laag + `api.voorkeuren` + `voorkeur_service` worden ongewijzigd
+  hergebruikt (de blob past binnen de bestaande grootte-guard); engine onaangeroerd.

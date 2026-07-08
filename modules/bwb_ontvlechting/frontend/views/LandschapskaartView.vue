@@ -439,6 +439,101 @@ function _bivVoldoet(waarde, minSleutel) {
   return rang != null && rang >= drempel
 }
 
+// ── LI034 / ADR-041 — persoonlijke STANDAARDKIJK (kaart-kijkfilter) ──────────────────────────────
+// Eén persoonlijke voorkeur (sleutel `kaart_kijkfilter`, slice-1-voorkeur-laag): het GEHEEL van hoe je
+// kijkt — ringen + filters + diepte + kleur + groepeer + lane-opties. NOOIT de MOMENTKEUZE (welke set/
+// centrum/weergave/zoekterm/scope je nú bekijkt). Toegepast bij een verse kaart-start en bij "Begin
+// opnieuw"; in-sessie herladen behoudt het werk (lk-state wint).
+const _KIJK_SLEUTEL = 'kaart_kijkfilter'
+const opgeslagenKijk = ref(null) // de opgeslagen standaardkijk (blob) of null = geen standaard
+const kijkFout = ref(null)
+const kijkBezig = ref(false)
+const _KALE_KIJK = () => ({
+  ringAan: RINGEN.filter((r) => !RING_DEFAULT_UIT.has(r)),
+  fTypes: [], fLev: [], fHost: [], fLc: [], fRol: [], bivB: '', bivI: '', bivV: '',
+  diepte: 1, kleurOpDomein: false, groepeerPerOrg: true,
+  laneVolgorde: [...DEFAULT_LANE_VOLGORDE], verbergLegeLanes: false, toonRegistratiegaps: false,
+})
+// Het GEHEEL van de huidige kijk (kijk-variabelen; géén momentkeuze).
+const _huidigeKijk = () => ({
+  ringAan: [...ringAan.value],
+  fTypes: [...filterTypes.value], fLev: [...filterLeveranciers.value], fHost: [...filterHosting.value],
+  fLc: [...filterLifecycle.value], fRol: [...filterRollen.value],
+  bivB: filterBivB.value, bivI: filterBivI.value, bivV: filterBivV.value,
+  diepte: diepte.value, kleurOpDomein: kleurOpDomein.value, groepeerPerOrg: groepeerPerOrg.value,
+  laneVolgorde: [...laneVolgorde.value], verbergLegeLanes: verbergLegeLanes.value,
+  toonRegistratiegaps: toonRegistratiegaps.value,
+})
+// Genormaliseerde signatuur (volgorde-onafhankelijk) voor de gewijzigd-vergelijking.
+const _kijkSig = (k) => JSON.stringify({
+  ringAan: [...(k.ringAan || [])].sort(),
+  fTypes: [...(k.fTypes || [])].sort(), fLev: [...(k.fLev || [])].sort(), fHost: [...(k.fHost || [])].sort(),
+  fLc: [...(k.fLc || [])].sort(), fRol: [...(k.fRol || [])].sort(),
+  bivB: k.bivB || '', bivI: k.bivI || '', bivV: k.bivV || '',
+  diepte: k.diepte ?? 1, kleurOpDomein: !!k.kleurOpDomein, groepeerPerOrg: k.groepeerPerOrg !== false,
+  laneVolgorde: k.laneVolgorde || [], verbergLegeLanes: !!k.verbergLegeLanes, toonRegistratiegaps: !!k.toonRegistratiegaps,
+})
+// Actief zodra de huidige kijk afwijkt van de opgeslagen standaard (of er nog geen standaard is).
+const kijkGewijzigd = computed(() =>
+  !opgeslagenKijk.value || _kijkSig(_huidigeKijk()) !== _kijkSig(opgeslagenKijk.value),
+)
+// Zet de kijk-variabelen uit een blob — NOOIT de momentkeuze (actieveSet/egoStartId/weergave/zoekterm/
+// focus/scope/selectie). Defensief per veld (onbekende/malformed velden genegeerd).
+function _pasKijkToe(k) {
+  if (!k || typeof k !== 'object') return
+  if (Array.isArray(k.ringAan)) ringAan.value = new Set(k.ringAan.filter((r) => RINGEN.includes(r)))
+  if (Array.isArray(k.fTypes)) filterTypes.value = [...k.fTypes]
+  if (Array.isArray(k.fLev)) filterLeveranciers.value = [...k.fLev]
+  if (Array.isArray(k.fHost)) filterHosting.value = [...k.fHost]
+  if (Array.isArray(k.fLc)) filterLifecycle.value = [...k.fLc]
+  if (Array.isArray(k.fRol)) filterRollen.value = [...k.fRol]
+  if (typeof k.bivB === 'string') filterBivB.value = k.bivB
+  if (typeof k.bivI === 'string') filterBivI.value = k.bivI
+  if (typeof k.bivV === 'string') filterBivV.value = k.bivV
+  if (k.diepte === 1 || k.diepte === 2) diepte.value = k.diepte
+  if (typeof k.kleurOpDomein === 'boolean') kleurOpDomein.value = k.kleurOpDomein
+  if (typeof k.groepeerPerOrg === 'boolean') groepeerPerOrg.value = k.groepeerPerOrg
+  if (Array.isArray(k.laneVolgorde)) {
+    const geldig = k.laneVolgorde.filter((x) => LANE_DEF[x])
+    if (DEFAULT_LANE_VOLGORDE.every((x) => geldig.includes(x))) laneVolgorde.value = geldig
+  }
+  if (typeof k.verbergLegeLanes === 'boolean') verbergLegeLanes.value = k.verbergLegeLanes
+  if (typeof k.toonRegistratiegaps === 'boolean') toonRegistratiegaps.value = k.toonRegistratiegaps
+}
+async function laadStandaardkijk() {
+  try {
+    const alle = await api.voorkeuren.haalAlle()
+    const rij = (alle || []).find((v) => v.voorkeur_sleutel === _KIJK_SLEUTEL)
+    if (rij?.waarde && typeof rij.waarde === 'object') opgeslagenKijk.value = rij.waarde
+  } catch { /* geen voorkeur bereikbaar → geen standaard (kale default) */ }
+}
+async function slaKijkOp() {
+  if (!kijkGewijzigd.value || kijkBezig.value) return
+  kijkBezig.value = true; kijkFout.value = null
+  try {
+    const k = _huidigeKijk()
+    await api.voorkeuren.zet(_KIJK_SLEUTEL, k)
+    opgeslagenKijk.value = k
+  } catch (e) {
+    kijkFout.value = e?.message || 'Opslaan van je standaardkijk mislukt.'
+  } finally {
+    kijkBezig.value = false
+  }
+}
+async function herroepKijk() {
+  if (kijkBezig.value || !opgeslagenKijk.value) return
+  kijkBezig.value = true; kijkFout.value = null
+  try {
+    await api.voorkeuren.herroep(_KIJK_SLEUTEL)
+    opgeslagenKijk.value = null
+    _pasKijkToe(_KALE_KIJK()) // terug naar de kale default
+  } catch (e) {
+    kijkFout.value = e?.message || 'Herroepen van je standaardkijk mislukt.'
+  } finally {
+    kijkBezig.value = false
+  }
+}
+
 // ── Zoeken + filteren ─────────────────────────────────────────────────────────
 // LI028 — `filterActief` stuurt UITSLUITEND het graafpad (zichtbareNodes). De vrije zoekterm hoort
 // hier BEWUST NIET bij: die voedt alleen de resultatenlijst (`_matcht` → `gefilterdeNodes`). Anders
@@ -713,6 +808,13 @@ function wisSet() {
   // en `_seedScopeOrgs` zet de scope opnieuw op "alle aan" (hier leeg — geen orgs op het beginscherm).
   legendaPos.value = { x: null, y: null } // LI025 — legenda terug naar standaardpositie
   popupPos.value = { x: null, y: null } // LI034 — klik-popup terug naar standaardpositie
+  // LI034 — "Begin opnieuw" wist de bewaarde in-sessie-staat: een F5 hierna komt op het beginscherm
+  // (geen stale set). Een direct daaropvolgende `beforeunload` schrijft de nu-lege set — die wordt niet
+  // als set hersteld (length-guard in `_herstelKaartState`), dus F5 landt op het beginscherm.
+  try { sessionStorage.removeItem(_LK_STATE_KEY) } catch { /* sessionStorage onbereikbaar */ }
+  // LI034/ADR-041 — "Begin opnieuw" gaat naar je opgeslagen standaardkijk (geen standaard → kale
+  // default zoals nu; wisSet reset de kijk-variabelen zelf niet). Nooit de actieve set (die is net leeg).
+  if (opgeslagenKijk.value) _pasKijkToe(opgeslagenKijk.value)
 }
 // Fase B — bewuste "toon het hele landschap"-actie: leegt de set en zet de hele-landschap-vlag,
 // waarna de herfetch-watch de volledige graaf laadt (mét voortgangsteller).
@@ -2015,7 +2117,7 @@ function _bewaarKaartState() {
 function _herstelKaartState() {
   let s = null
   try { s = JSON.parse(sessionStorage.getItem(_LK_STATE_KEY) || 'null') } catch { s = null }
-  if (!s) return
+  if (!s) return false  // geen in-sessie state → de caller past desgewenst de standaardkijk toe
   // ADR-033 — herstel de actieve set (de modus volgt eruit). Fase B: de graaf is bij mount nog niet
   // geladen (set-gestuurd) → herstel de set as-is; de daaropvolgende `herlaadGraaf` haalt de subgraaf
   // van die set op.
@@ -2032,8 +2134,16 @@ function _herstelKaartState() {
   if (typeof s.groepeerPerOrg === 'boolean') groepeerPerOrg.value = s.groepeerPerOrg
   // egoStartId herstellen (de subgraaf-fetch laadt die node mee als hij nog bestaat).
   if (s.egoStartId) egoStartId.value = s.egoStartId
+  return true  // in-sessie state hersteld → standaardkijk NIET toepassen (herladen behoudt het werk)
 }
 onBeforeRouteLeave(_bewaarKaartState)
+// LI034 — herladen (F5) behoudt het actieve werk. `onBeforeRouteLeave` vuurt NIET bij een reload, dus
+// persisteren we de ACTUELE in-sessie-staat óók op `beforeunload`. Zo herstelt de mount ná een F5 de
+// werkelijke set (bv. die ene zojuist gekozen component), niet een stale route-leave-snapshot. De
+// listener wordt in `onBeforeUnmount` opgeruimd (geen lek).
+function _opUnload() { _bewaarKaartState() }
+onMounted(() => window.addEventListener('beforeunload', _opUnload))
+onBeforeUnmount(() => window.removeEventListener('beforeunload', _opUnload))
 
 onMounted(async () => {
   // Fase B — geen onvoorwaardelijke full-graph-laad meer: eerst catalogus + views, dán de set/staat
@@ -2050,6 +2160,8 @@ onMounted(async () => {
   }
   // ADR-033 slice 2c — opgeslagen views laden (faalt zacht). Voedt de views-lijst + het startscherm.
   await laadViews()
+  // LI034/ADR-041 — de opgeslagen persoonlijke standaardkijk laden (faalt zacht → geen standaard).
+  await laadStandaardkijk()
   // ADR-033 — deep-link ?center=<applicatie-id> (vanuit het applicatie-detail): de component
   // wordt als enige in de actieve set gezet → Ego-view (afgeleide modus), centraal op de kaart.
   // De oude ?modus-param is vervallen (de modus volgt voortaan de actieve set) en wordt genegeerd.
@@ -2071,7 +2183,9 @@ onMounted(async () => {
     // ADR-025 — "Bekijk op kaart": het beginscherm overslaan en direct de ego-view tonen.
     beginschermOpen.value = false
   } else {
-    _herstelKaartState()
+    // Precedentie: in-sessie `lk-state` (herladen behoudt werk) > server-standaardkijk > kale default.
+    const hersteld = _herstelKaartState()
+    if (!hersteld && opgeslagenKijk.value) _pasKijkToe(opgeslagenKijk.value)
   }
   // ADR-033 slice 2d — startscherm: bij ≥1 opgeslagen view en géén expliciete ingang (deep-link of
   // herstelde actieve set) tonen we de views als instap. 0 views → direct het geheel-model.
@@ -2249,6 +2363,29 @@ const typeLabel = (t) => humaniseer(t)
     <div class="flex min-h-0 flex-1">
       <!-- Linkerpaneel: zoek + filters + resultaten -->
       <aside class="flex w-60 flex-shrink-0 flex-col gap-[var(--lk-space-sm)] overflow-y-auto border-r border-[var(--lk-color-border)] bg-white p-[var(--lk-space-md)]" data-testid="lk-links">
+        <!-- LI034/ADR-041 — persoonlijke standaardkijk: sla de huidige kijk (filters/ringen/diepte/kleur)
+             op als je standaard; komt terug bij een verse kaart-start en bij "Begin opnieuw". -->
+        <div data-testid="lk-standaardkijk" class="flex flex-col gap-1 border-b border-[var(--lk-color-border)] pb-[var(--lk-space-sm)]">
+          <button
+            type="button"
+            data-testid="lk-standaardkijk-opslaan"
+            :disabled="!kijkGewijzigd || kijkBezig"
+            class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] text-white disabled:cursor-not-allowed disabled:opacity-50"
+            @click="slaKijkOp"
+          >★ Sla op als mijn standaardkijk</button>
+          <span
+            data-testid="lk-standaardkijk-status"
+            :class="['text-[length:var(--lk-text-xs)]', kijkGewijzigd ? 'text-[var(--lk-color-warning,#b45309)]' : 'text-[var(--lk-color-text-muted)]']"
+          >{{ kijkGewijzigd ? (opgeslagenKijk ? 'Gewijzigd — nog niet je standaard' : 'Nog geen standaardkijk opgeslagen') : 'Dit is je standaardkijk' }}</span>
+          <button
+            v-if="opgeslagenKijk"
+            type="button"
+            data-testid="lk-standaardkijk-herroep"
+            class="self-start text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)] hover:underline"
+            @click="herroepKijk"
+          >Herroep standaardkijk (terug naar kale default)</button>
+          <p v-if="kijkFout" role="alert" data-testid="lk-standaardkijk-fout" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)]">{{ kijkFout }}</p>
+        </div>
         <!-- ADR-033 2c — opgeslagen views (eigen + gedeeld; server filtert). Openen = de bewaarde
              selectie wordt de actieve set → de adaptieve weergave volgt. Beheer (✎/×) alleen voor
              de maker (is_eigenaar) mét beheer-recht. -->
