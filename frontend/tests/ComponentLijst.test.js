@@ -62,6 +62,7 @@ const _comp = (naam, id, { type = 'database', label = 'Database', subtype = fals
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear() // lijststaat (useLijstStaat) mag niet tussen tests lekken
   api.partijen.lijst.mockResolvedValue({ items: [{ id: 'org-1', naam: 'Gemeente Veldendam', aard: 'organisatie' }], volgende_cursor: null })
   api.componenten.opties.mockResolvedValue({
     componenttype: [
@@ -359,5 +360,74 @@ describe('ComponentLijst', () => {
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ sort: 'naam', order: 'asc', componenttype: 'applicatie' }),
     )
+  })
+})
+
+describe('ComponentLijst — lijststaat behouden bij terugnavigeren (useLijstStaat)', () => {
+  it('herstelt de bewaarde lijststaat end-to-end, incl. het eigenaar-label (LI032)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:component-lijst',
+      JSON.stringify({
+        filterStatus: ['geblokkeerd'],
+        filterType: 'database',
+        filterZoek: 'zaak',
+        filterEigenaarId: 'org-1',
+        filterEigenaarNaam: 'Gemeente Veldendam',
+        sortVeld: 'naam',
+        sortRichting: 'asc',
+      }),
+    )
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    // V012-les: bewijs de keten — de herstelde stand belandt in de api-call.
+    expect(api.componenten.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: ['geblokkeerd'],
+        componenttype: 'database',
+        zoek: 'zaak',
+        eigenaar_organisatie_id: 'org-1',
+        sort: 'naam',
+        order: 'asc',
+      }),
+    )
+    // LI032: het herstelde eigenaar-id toont zijn naam — geen leeg veld op een actief filter.
+    expect(w.find('[data-testid="filter-eigenaar-input"]').element.value).toBe('Gemeente Veldendam')
+  })
+
+  it('een doorklik-query WINT van de bewaarde staat (vervangt hem volledig)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:component-lijst',
+      JSON.stringify({ filterType: 'database', filterZoek: 'zaak', sortVeld: 'naam', sortRichting: 'desc' }),
+    )
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst({ pad: '/componenten?type=applicatie' })
+    const params = api.componenten.lijst.mock.calls[0][0]
+    expect(params.componenttype).toBe('applicatie') // de doorklik
+    expect(params.zoek).toBeUndefined() // de oude zoekterm dunt de doorklik niet stil uit
+    expect(params.sort).toBeUndefined() // ook de bewaarde sortering herstelt niet
+  })
+
+  it('pruned bewaarde catalogus-sleutels die niet (meer) bestaan (stale BIV → geen 422)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:component-lijst',
+      JSON.stringify({ filterType: 'verwijderd_type', filterBivB: 'verwijderd_niveau', filterZoek: 'zaak' }),
+    )
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst()
+    const params = api.componenten.lijst.mock.calls[0][0]
+    expect(params.componenttype).toBeUndefined()
+    expect(params.biv_beschikbaarheid_min).toBeUndefined()
+    expect(params.zoek).toBe('zaak') // geldige velden blijven hersteld
+  })
+
+  it('bewaart een wijziging ná herstel (beforeunload-pad = F5-gedrag)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-type"]').setValue('database')
+    await flushPromises()
+    window.dispatchEvent(new Event('beforeunload'))
+    const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:component-lijst'))
+    expect(bewaard.filterType).toBe('database')
+    w.unmount()
   })
 })

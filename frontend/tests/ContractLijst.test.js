@@ -48,6 +48,7 @@ const _con = (naam, id) => ({
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear() // lijststaat (useLijstStaat) mag niet tussen tests lekken
   api.leveranciers.lijst.mockResolvedValue({ items: [{ id: 'l1', naam: 'Acme BV' }], volgende_cursor: null })
   api.contractconfig.opties.mockResolvedValue({
     dekking: [{ optie_sleutel: 'hosting', label: 'Hosting', volgorde: 0 }],
@@ -89,5 +90,58 @@ describe('ContractLijst', () => {
     expect((await mountLijst()).find('[data-testid="lijst-leeg"]').exists()).toBe(true)
     api.contracten.lijst.mockRejectedValueOnce(new Error('x'))
     expect((await mountLijst()).find('[data-testid="lijst-fout"]').attributes('role')).toBe('alert')
+  })
+})
+
+describe('ContractLijst — lijststaat behouden bij terugnavigeren (useLijstStaat)', () => {
+  it('herstelt de bewaarde lijststaat end-to-end in de eerste API-aanroep', async () => {
+    sessionStorage.setItem(
+      'lijst-state:contract-lijst',
+      JSON.stringify({
+        filterLeverancier: 'l1',
+        filterType: 'los_contract',
+        filterDekking: 'hosting',
+        filterZoek: 'onderhoud',
+        sortVeld: 'contractnaam',
+        sortRichting: 'desc',
+      }),
+    )
+    api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst()
+    // V012-les: bewijs de keten — de herstelde stand belandt in de api-call.
+    expect(api.contracten.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leverancierId: 'l1',
+        contracttype: 'los_contract',
+        dekking: 'hosting',
+        zoek: 'onderhoud',
+        sort: 'contractnaam',
+        order: 'desc',
+      }),
+    )
+  })
+
+  it('pruned bewaarde bron-sleutels die niet (meer) bestaan (geen onzichtbaar filter)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:contract-lijst',
+      JSON.stringify({ filterLeverancier: 'weg-leverancier', filterDekking: 'weg-dekking', filterZoek: 'onderhoud' }),
+    )
+    api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst()
+    const params = api.contracten.lijst.mock.calls[0][0]
+    expect(params.leverancierId).toBeUndefined()
+    expect(params.dekking).toBeUndefined()
+    expect(params.zoek).toBe('onderhoud') // geldige velden blijven hersteld
+  })
+
+  it('bewaart een wijziging ná herstel (beforeunload-pad = F5-gedrag)', async () => {
+    api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-dekking"]').setValue('hosting')
+    await flushPromises()
+    window.dispatchEvent(new Event('beforeunload'))
+    const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:contract-lijst'))
+    expect(bewaard.filterDekking).toBe('hosting')
+    w.unmount()
   })
 })

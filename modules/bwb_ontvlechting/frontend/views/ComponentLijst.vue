@@ -15,6 +15,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
 import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
+import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
@@ -49,6 +50,9 @@ const filterLaag = ref('') // ADR-023 Fase C: '' = alle ArchiMate-lagen
 const filterHosting = ref('')
 // UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
 const filterEigenaarId = ref(null)
+// LI032-les: een hersteld eigenaar-id moet zijn label tonen (ZoekSelect kent alleen het
+// id) → de gekozen naam meebewaren en als `initieel-weergave` teruggeven.
+const filterEigenaarNaam = ref('')
 const filterZoek = ref('')
 // ADR-028 — rol (multi-select) + BIV-drempel per aspect ("minimaal X"), ordinaal op de schaal.
 const rolOpties = ref([]) // [{ optie_sleutel, label }]
@@ -105,6 +109,58 @@ const heeftFilters = computed(
     !!filterBivV.value,
 )
 
+// Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
+// Gevalideerd herstel: onbekende waarden vallen stil terug op de default; catalogus-
+// gedreven sleutels (type/laag/rol/BIV) worden ná het laden van de opties geprund.
+const SORTEERBARE_VELDEN = ['naam', 'componenttype', 'eigenaar', 'hostingmodel', 'complexiteit', 'prioriteit', 'lifecycle_status']
+const _tekst = (w) => typeof w === 'string'
+const { herstel: herstelLijstStaat } = useLijstStaat(
+  'component-lijst',
+  {
+    filterStatus, filterType, filterLaag, filterHosting, filterEigenaarId, filterEigenaarNaam,
+    filterZoek, filterRol, filterBivB, filterBivI, filterBivV,
+    filterKlaarverklaring, filterAfwijking, sortVeld, sortRichting,
+  },
+  {
+    valideer: {
+      filterStatus: (w) => Array.isArray(w) && w.every((s) => STATUS_OPTIES.includes(s)),
+      filterType: _tekst,
+      filterLaag: _tekst,
+      filterHosting: (w) => w === '' || HOSTING_OPTIES.includes(w),
+      filterEigenaarId: (w) => w === null || _tekst(w),
+      filterEigenaarNaam: _tekst,
+      filterZoek: _tekst,
+      filterRol: (w) => Array.isArray(w) && w.every(_tekst),
+      filterBivB: _tekst,
+      filterBivI: _tekst,
+      filterBivV: _tekst,
+      filterKlaarverklaring: (w) => w === '' || w === 'klaar',
+      filterAfwijking: (w) => typeof w === 'boolean',
+      sortVeld: (w) => w === null || SORTEERBARE_VELDEN.includes(w),
+      sortRichting: (w) => w === null || w === 'asc' || w === 'desc',
+    },
+  },
+)
+
+// Catalogus-gevalideerd herstel: een bewaarde sleutel die niet (meer) in de geladen
+// catalogus bestaat valt stil terug op de default — een stale BIV-sleutel zou anders
+// server-side een 422 geven (nooit een kapot scherm door een stale opgeslagen stand).
+// Alleen op het herstel-pad; doorklik-query's houden hun bestaande (ongewijzigde) gedrag.
+function _pruneTegenCatalogus() {
+  if (typeOpties.value.length) {
+    if (filterType.value && !typeOpties.value.some((o) => o.optie_sleutel === filterType.value)) filterType.value = ''
+    if (filterLaag.value && !typeOpties.value.some((o) => o.laag === filterLaag.value)) filterLaag.value = ''
+  }
+  if (rolOpties.value.length && filterRol.value.length) {
+    filterRol.value = filterRol.value.filter((r) => rolOpties.value.some((o) => o.optie_sleutel === r))
+  }
+  if (bivNiveaus.value.length) {
+    for (const a of BIV_ASPECTEN) {
+      if (a.ref.value && !bivNiveaus.value.some((n) => n.optie_sleutel === a.ref.value)) a.ref.value = ''
+    }
+  }
+}
+
 async function laad({ reset = false } = {}) {
   laden.value = true
   fout.value = null
@@ -160,6 +216,7 @@ function wisFilters() {
   filterLaag.value = ''
   filterHosting.value = ''
   filterEigenaarId.value = null
+  filterEigenaarNaam.value = ''
   filterZoek.value = ''
   filterRol.value = []
   filterBivB.value = ''
@@ -181,24 +238,36 @@ const lifecycleLabel = (c) => label(LIFECYCLE, c)
 const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'
 
 onMounted(async () => {
+  // Precedentie (kaart-lijn LI034): doorklik-query > bewaarde staat > kale defaults.
+  // Een doorklik-query VERVANGT de bewaarde staat volledig — de gebruiker krijgt exact
+  // wat hij aanklikte, zonder dat een oude zoekterm/filter de selectie stil uitdunt.
+  // Bij het verlaten wordt de dan-actieve staat vanzelf de nieuwe bewaarde staat.
   const q = String(route.query.type ?? '')
-  if (q) filterType.value = q
   // Statusfilter via de URL voorzetten (dashboard-doorklik), zelfde patroon als ?type=.
   // Accepteert één of meerdere `status`-params; alleen geldige lifecycle-statussen.
   const statusQ = route.query.status
   const statussen = (Array.isArray(statusQ) ? statusQ : statusQ != null ? [statusQ] : [])
     .map(String)
     .filter((s) => STATUS_OPTIES.includes(s))
-  if (statussen.length) filterStatus.value = statussen
-  // ADR-027 slice 3 — klaarverklaring-doorklik vanaf het dashboard.
-  if (String(route.query.afwijking ?? '') === '1') filterAfwijking.value = true
-  else if (String(route.query.klaarverklaring ?? '') === 'klaar') filterKlaarverklaring.value = 'klaar'
+  const afwijkingQ = String(route.query.afwijking ?? '') === '1'
+  const klaarQ = String(route.query.klaarverklaring ?? '') === 'klaar'
+  let hersteld = false
+  if (q || statussen.length || afwijkingQ || klaarQ) {
+    if (q) filterType.value = q
+    if (statussen.length) filterStatus.value = statussen
+    // ADR-027 slice 3 — klaarverklaring-doorklik vanaf het dashboard.
+    if (afwijkingQ) filterAfwijking.value = true
+    else if (klaarQ) filterKlaarverklaring.value = 'klaar'
+  } else {
+    hersteld = herstelLijstStaat()
+  }
   try {
     const opties = await api.componenten.opties()
     typeOpties.value = opties.componenttype || []
     // ADR-028 — rol-opties + ordinale BIV-niveaus voor de filterbalk.
     rolOpties.value = opties.componentrol_opties || []
     bivNiveaus.value = opties.biv_niveaus || []
+    if (hersteld) _pruneTegenCatalogus()
   } catch {
     /* filterlijst optioneel — het overzicht laadt sowieso */
   }
@@ -323,7 +392,9 @@ onMounted(async () => {
           testid="filter-eigenaar"
           v-model="filterEigenaarId"
           :zoek-functie="zoekOrganisaties"
+          :initieel-weergave="filterEigenaarNaam"
           placeholder="Kies een organisatie…"
+          @keuze="(p) => (filterEigenaarNaam = p?.naam || '')"
           @update:model-value="herfilter"
         />
       </label>

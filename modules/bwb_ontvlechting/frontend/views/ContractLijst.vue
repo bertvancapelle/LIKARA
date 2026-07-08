@@ -8,6 +8,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
+import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, label } from '../labels'
 
@@ -45,6 +46,36 @@ const heeftFilters = computed(
     !!filterKostenmodel.value ||
     !!filterZoek.value.trim(),
 )
+
+// Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
+// Gevalideerd herstel: onbekende waarden vallen stil terug op de default; bron-
+// gedreven sleutels (leverancier/dekking/kostenmodel) worden ná laadBronnen geprund.
+const SORTEERBARE_VELDEN = ['contractnaam', 'begindatum', 'einddatum']
+const _tekst = (w) => typeof w === 'string'
+const { herstel: herstelLijstStaat } = useLijstStaat(
+  'contract-lijst',
+  { filterLeverancier, filterType, filterDekking, filterKostenmodel, filterZoek, sortVeld, sortRichting },
+  {
+    valideer: {
+      filterLeverancier: _tekst,
+      filterType: (w) => w === '' || TYPE_OPTIES.includes(w),
+      filterDekking: _tekst,
+      filterKostenmodel: _tekst,
+      filterZoek: _tekst,
+      sortVeld: (w) => w === null || SORTEERBARE_VELDEN.includes(w),
+      sortRichting: (w) => w === null || w === 'asc' || w === 'desc',
+    },
+  },
+)
+
+// Bron-gevalideerd herstel: een bewaarde waarde die niet (meer) in de geladen bronnen
+// bestaat valt stil terug op de default (nooit een onzichtbaar actief filter).
+// Alleen prunen als de bron daadwerkelijk geladen is (laadBronnen faalt stil).
+function _pruneTegenBronnen() {
+  if (leveranciers.value.length && filterLeverancier.value && !leveranciers.value.some((l) => l.id === filterLeverancier.value)) filterLeverancier.value = ''
+  if (dekkingOpties.value.length && filterDekking.value && !dekkingOpties.value.some((o) => o.optie_sleutel === filterDekking.value)) filterDekking.value = ''
+  if (kostenmodelOpties.value.length && filterKostenmodel.value && !kostenmodelOpties.value.some((o) => o.optie_sleutel === filterKostenmodel.value)) filterKostenmodel.value = ''
+}
 
 async function laadBronnen() {
   try {
@@ -113,7 +144,10 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
 const typeSeverity = (c) => CONTRACTTYPE_SEVERITY[c] || 'info'
 
 onMounted(async () => {
+  // Geen doorklik-query op Contracten → de bewaarde staat mag altijd terug.
+  const hersteld = herstelLijstStaat()
   await laadBronnen()
+  if (hersteld) _pruneTegenBronnen()
   await laad({ reset: true })
 })
 </script>

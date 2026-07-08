@@ -39,7 +39,10 @@ const _partij = (naam, id, aard = 'externe_partij') => ({
   contactpersoon_id: 'cp-1', contactpersoon_naam: 'J. Jansen',
 })
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  sessionStorage.clear() // lijststaat (useLijstStaat) mag niet tussen tests lekken
+})
 afterEach(() => vi.restoreAllMocks())
 
 describe('PartijLijst', () => {
@@ -124,5 +127,47 @@ describe('PartijLijst', () => {
     api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     expect((await mountLijst({ rollen: ['medewerker'] })).find('[data-testid="nieuwe-partij"]').exists()).toBe(true)
     expect((await mountLijst({ rollen: ['viewer'] })).find('[data-testid="nieuwe-partij"]').exists()).toBe(false)
+  })
+})
+
+describe('PartijLijst — lijststaat behouden bij terugnavigeren (useLijstStaat)', () => {
+  it('herstelt de bewaarde lijststaat end-to-end in de eerste API-aanroep én de controls', async () => {
+    sessionStorage.setItem(
+      'lijst-state:partij-lijst',
+      JSON.stringify({ filterAard: 'organisatie', filterZoek: 'tiel', sortVeld: 'naam', sortRichting: 'desc' }),
+    )
+    api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    // V012-les: bewijs de keten — de herstelde stand belandt in de api-call.
+    expect(api.partijen.lijst).toHaveBeenCalledWith(
+      expect.objectContaining({ aard: 'organisatie', zoek: 'tiel', sort: 'naam', order: 'desc' }),
+    )
+    // …én de controls tonen de herstelde stand (geen onzichtbaar actief filter).
+    expect(w.find('[data-testid="filter-aard"]').element.value).toBe('organisatie')
+    expect(w.find('[data-testid="filter-zoek"]').element.value).toBe('tiel')
+  })
+
+  it('valt stil terug op defaults bij een ongeldige bewaarde stand (geldige velden herstellen wél)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:partij-lijst',
+      JSON.stringify({ filterAard: 'bestaat_niet', sortVeld: 'geen_kolom', sortRichting: 'omhoog', filterZoek: 'acme' }),
+    )
+    api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    await mountLijst()
+    const params = api.partijen.lijst.mock.calls[0][0]
+    expect(params.aard).toBeUndefined()
+    expect(params.sort).toBeUndefined()
+    expect(params.zoek).toBe('acme')
+  })
+
+  it('bewaart een wijziging ná herstel (beforeunload-pad = F5-gedrag)', async () => {
+    api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-aard"]').setValue('organisatie')
+    await flushPromises()
+    window.dispatchEvent(new Event('beforeunload'))
+    const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:partij-lijst'))
+    expect(bewaard.filterAard).toBe('organisatie')
+    w.unmount() // listener netjes opruimen voor de volgende test
   })
 })

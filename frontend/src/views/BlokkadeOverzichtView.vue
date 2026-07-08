@@ -12,6 +12,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { Button, Column, DataTable, Tag } from '@/primevue'
+import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, label } from '@modules/bwb_ontvlechting/frontend/labels'
 
@@ -26,13 +27,27 @@ const STATUS_OPTIES = [
 ]
 const _geldigeStatus = STATUS_OPTIES.map((o) => o.waarde)
 
-const statusFilter = ref(
-  _geldigeStatus.includes(route.query.status) ? route.query.status : 'actief',
-)
+// Doorklik-query (dashboard → ?status=…): wint van de bewaarde lijststaat (kaart-lijn).
+const _queryStatus = _geldigeStatus.includes(route.query.status) ? route.query.status : null
+const statusFilter = ref(_queryStatus ?? 'actief')
 // Default-sortering reflecteert de server-default (applicatie_naam asc).
 const sortVeld = ref('applicatie_naam')
 const sortRichting = ref('asc')
 const primeSortOrder = computed(() => (sortRichting.value === 'asc' ? 1 : -1))
+
+// Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
+const SORTEERBARE_VELDEN = ['applicatie_naam', 'vraag_code', 'status', 'toelichting', 'verantwoordelijke_naam', 'opgelost_op', 'gewijzigd_op']
+const { herstel: herstelLijstStaat } = useLijstStaat(
+  'blokkades',
+  { statusFilter, sortVeld, sortRichting },
+  {
+    valideer: {
+      statusFilter: (w) => _geldigeStatus.includes(w),
+      sortVeld: (w) => SORTEERBARE_VELDEN.includes(w),
+      sortRichting: (w) => w === 'asc' || w === 'desc',
+    },
+  },
+)
 
 const items = ref([])
 const cursor = ref(null)
@@ -111,7 +126,12 @@ function formatDatum(iso) {
   return new Intl.DateTimeFormat('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }).format(d)
 }
 
-onMounted(() => laad({ reset: true }))
+onMounted(() => {
+  // Precedentie: doorklik-query > bewaarde staat > kale defaults (query vervangt de
+  // bewaarde staat volledig — geen oude sortering onder een aangeklikte selectie).
+  if (!_queryStatus) herstelLijstStaat()
+  laad({ reset: true })
+})
 </script>
 
 <template>

@@ -58,6 +58,7 @@ async function mountOverzicht({ query = '' } = {}) {
 }
 
 beforeEach(() => {
+  sessionStorage.clear() // lijststaat (useLijstStaat) mag niet tussen tests lekken
   api.blokkades.overzicht.mockResolvedValue({
     items: [_item('Zaaksysteem', 'b1'), _item('Archief', 'b2')],
     volgende_cursor: null,
@@ -174,5 +175,52 @@ describe('BlokkadeOverzichtView — laad/leeg/fout', () => {
     expect(fout.exists()).toBe(true)
     expect(fout.attributes('role')).toBe('alert')
     expect(fout.text()).toContain('Boem')
+  })
+})
+
+describe('BlokkadeOverzichtView — lijststaat behouden bij terugnavigeren (useLijstStaat)', () => {
+  it('herstelt de bewaarde lijststaat end-to-end in de eerste API-aanroep', async () => {
+    sessionStorage.setItem(
+      'lijst-state:blokkades',
+      JSON.stringify({ statusFilter: 'opgelost', sortVeld: 'gewijzigd_op', sortRichting: 'desc' }),
+    )
+    await mountOverzicht()
+    // V012-les: bewijs de keten — de herstelde stand belandt in de api-call.
+    expect(api.blokkades.overzicht).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'opgelost', sort: 'gewijzigd_op', order: 'desc' }),
+    )
+  })
+
+  it('een doorklik-query (?status=) WINT van de bewaarde staat (vervangt hem volledig)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:blokkades',
+      JSON.stringify({ statusFilter: 'alle', sortVeld: 'gewijzigd_op', sortRichting: 'desc' }),
+    )
+    await mountOverzicht({ query: '?status=opgelost' })
+    const params = api.blokkades.overzicht.mock.calls[0][0]
+    expect(params.status).toBe('opgelost') // de doorklik
+    expect(params.sort).toBe('applicatie_naam') // bewaarde sortering herstelt óók niet (defaults)
+    expect(params.order).toBe('asc')
+  })
+
+  it('valt stil terug op defaults bij een ongeldige bewaarde stand', async () => {
+    sessionStorage.setItem(
+      'lijst-state:blokkades',
+      JSON.stringify({ statusFilter: 'bestaat_niet', sortVeld: 'geen_kolom', sortRichting: 'omhoog' }),
+    )
+    await mountOverzicht()
+    expect(api.blokkades.overzicht).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'actief', sort: 'applicatie_naam', order: 'asc' }),
+    )
+  })
+
+  it('bewaart een wijziging ná herstel (beforeunload-pad = F5-gedrag)', async () => {
+    const w = await mountOverzicht()
+    await w.find('[data-testid="status-filter"]').setValue('opgelost')
+    await flushPromises()
+    window.dispatchEvent(new Event('beforeunload'))
+    const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:blokkades'))
+    expect(bewaard.statusFilter).toBe('opgelost')
+    w.unmount()
   })
 })

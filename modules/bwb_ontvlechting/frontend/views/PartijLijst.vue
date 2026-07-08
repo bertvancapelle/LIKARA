@@ -9,6 +9,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
+import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
 
@@ -38,6 +39,23 @@ const primeSortOrder = computed(() =>
 const filterZoek = ref('')
 const filterAard = ref('')
 const heeftFilters = computed(() => !!filterZoek.value.trim() || !!filterAard.value)
+
+// Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
+// Gevalideerd herstel: onbekende waarden vallen stil terug op de default.
+const SORTEERBARE_VELDEN = ['naam', 'aard', 'plaats']
+const _tekst = (w) => typeof w === 'string'
+const { herstel: herstelLijstStaat } = useLijstStaat(
+  'partij-lijst',
+  { filterAard, filterZoek, sortVeld, sortRichting },
+  {
+    valideer: {
+      filterAard: (w) => AARD_OPTIES.some((o) => o.waarde === w),
+      filterZoek: _tekst,
+      sortVeld: (w) => w === null || SORTEERBARE_VELDEN.includes(w),
+      sortRichting: (w) => w === null || w === 'asc' || w === 'desc',
+    },
+  },
+)
 
 async function laad({ reset = false } = {}) {
   laden.value = true
@@ -85,7 +103,11 @@ function wisFilters() {
   laad({ reset: true })
 }
 
-onMounted(() => laad({ reset: true }))
+onMounted(() => {
+  // Geen doorklik-query op Partijen → de bewaarde staat mag altijd terug.
+  herstelLijstStaat()
+  laad({ reset: true })
+})
 </script>
 
 <template>
