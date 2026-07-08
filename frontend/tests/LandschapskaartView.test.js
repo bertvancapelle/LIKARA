@@ -2514,4 +2514,53 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm._detailLink({ id: 'k', element_type: 'contract', laag: 'business' })?.label).toContain('contract')
     })
   })
+
+  // ── LI034 bug A — relatie-loos set-lid tekenen op Overzicht (geen leeg canvas) ────────────────
+  describe('bug A — relatie-loze set-component tekenen (LI034)', () => {
+    const _los = (id, naam, et, laag) => ({ id, naam, element_type: et, laag, lifecycle_status: 'concept', blokkades_open: 0 })
+
+    it('set van 1 relatie-loos component (Overzicht) → getekend + cue "geen relaties in beeld"', async () => {
+      zetGraf({ nodes: [_los('db', 'Test Database', 'database', 'technology')], edges: [] })
+      const { w } = await mountView({ heleLandschap: false })
+      w.vm.voegComponentenToeAanSet([{ id: 'db', naam: 'Test Database', element_type: 'database' }])
+      await flushPromises()
+      expect(w.vm.weergave).toBe('overzicht')
+      expect(w.vm.getekendeNodes.some((n) => n.id === 'db')).toBe(true) // getekend, niet leeg
+      expect(w.vm.relatieLozeSetLeden.map((n) => n.id)).toEqual(['db'])
+      expect(w.find('[data-testid="lk-geen-relaties"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-geen-relaties"]').text()).toContain('Test Database')
+    })
+
+    it('type-agnostisch: ook een relatie-loze APPLICATIE als set-lid wordt getekend + cue', async () => {
+      zetGraf({ nodes: [_los('x', 'Losse App', 'applicatie', 'application')], edges: [] })
+      const { w } = await mountView({ heleLandschap: false })
+      w.vm.voegComponentenToeAanSet([{ id: 'x', naam: 'Losse App', element_type: 'applicatie' }])
+      await flushPromises()
+      expect(w.vm.getekendeNodes.some((n) => n.id === 'x')).toBe(true)
+      expect(w.find('[data-testid="lk-geen-relaties"]').exists()).toBe(true)
+    })
+
+    it('regressie: een relatie-loze node die GEEN set-lid is blijft verborgen; nodes mét edges tekenen', async () => {
+      zetGraf({
+        nodes: [_los('a1', 'A1', 'applicatie', 'application'), _los('a2', 'A2', 'applicatie', 'application'), _los('los', 'Los', 'database', 'technology')],
+        edges: [{ bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' }],
+      })
+      const { w } = await mountView() // hele landschap → actieveSet leeg (geen set-leden)
+      const ids = w.vm.getekendeNodes.map((n) => n.id)
+      expect(ids).toContain('a1') // heeft edge
+      expect(ids).toContain('a2') // heeft edge
+      expect(ids).not.toContain('los') // relatie-loos én geen set-lid → verborgen (registratiegat)
+      expect(w.vm.relatieLozeSetLeden).toEqual([]) // geen cue zonder set-leden
+    })
+
+    it('praatplaat ongewijzigd: relatie-loos centrum wordt getekend (egoCentrum), geen Overzicht-cue', async () => {
+      zetGraf({ nodes: [_los('x', 'Losse App', 'applicatie', 'application')], edges: [] })
+      const { w } = await mountView({ heleLandschap: false })
+      await kies(w, 'x') // praatplaat, centrum x
+      expect(w.vm.modus).toBe('ego')
+      expect(w.vm.getekendeNodes.some((n) => n.id === 'x')).toBe(true) // egoCentrum-uitzondering
+      expect(w.vm.relatieLozeSetLeden).toEqual([]) // cue alleen op Overzicht
+      expect(w.find('[data-testid="lk-geen-relaties"]').exists()).toBe(false)
+    })
+  })
 })

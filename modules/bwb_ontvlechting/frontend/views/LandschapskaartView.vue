@@ -1842,12 +1842,27 @@ const getekendeNodes = computed(() => {
       continue
     }
     const egoCentrum = modus.value === 'ego' && n.id === egoStartId.value
+    // LI034 bug A — een GEKOZEN component (set-lid) altijd tekenen, óók zonder zichtbare edges. Analoog
+    // aan de `egoCentrum`-uitzondering (die op de praatplaat de relatie-loze node al tekent): "ik koos
+    // dit → ik hoor het te zien", geen leeg canvas op Overzicht. Type-agnostisch. Niet-gekozen losse
+    // nodes blijven de bewuste registratiegaten-keuze (verborgen tenzij `toonRegistratiegaps`).
+    const setLid = actieveSet.value.has(n.id)
     // LI019 1d-v8 — in SWIMLANE valt de edge-aanwezigheidseis weg: elke node hoort in een lane, dus
     // toon álle nodes uit zichtbareNodes (de radiaal-data). De edge-filter is enkel voor radiaal
     // (losse nodes zweven daar rond). `toonRegistratiegaps` doet dit ook in radiaal.
-    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
+})
+
+// LI034 bug A — getekende set-leden ZONDER zichtbare relatie (op Overzicht): eerlijk benoemen dat het
+// component nog geen relaties in beeld heeft (gaten tonen, niet verbergen). Alleen op Overzicht — op de
+// praatplaat is de relatie-loze node het centrum en spreekt dat voor zich.
+const relatieLozeSetLeden = computed(() => {
+  if (weergave.value !== 'overzicht') return []
+  const metEdge = new Set()
+  zichtbareEdges.value.forEach((e) => { metEdge.add(e.bron_id); metEdge.add(e.doel_id) })
+  return getekendeNodes.value.filter((n) => actieveSet.value.has(n.id) && !metEdge.has(n.id))
 })
 
 // LI019 1d-v2 — geen compound-parents meer: lanes zijn een HTML-overlay (zie laneBanden/bandPx),
@@ -2805,6 +2820,14 @@ const typeLabel = (t) => humaniseer(t)
         <p v-else-if="laden" data-testid="lk-laden" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--lk-color-text-muted)]">Landschap laden…</p>
         <p v-else-if="fout" role="alert" data-testid="lk-fout" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--lk-color-danger)]">{{ fout }}</p>
         <p v-else-if="!heeftData" data-testid="lk-leeg" class="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 text-center text-[var(--lk-color-text-muted)]">Geen componenten in deze selectie.</p>
+        <!-- LI034 bug A — rustige cue bij een gekozen component zónder relaties in beeld (geen leeg canvas). -->
+        <p
+          v-if="relatieLozeSetLeden.length"
+          data-testid="lk-geen-relaties"
+          class="absolute bottom-3 left-1/2 z-10 max-w-[90%] -translate-x-1/2 rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-white/85 px-[var(--lk-space-md)] py-1 text-center text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)] shadow-[var(--lk-shadow-sm)]"
+        >{{ relatieLozeSetLeden.length === 1
+          ? `“${relatieLozeSetLeden[0].naam}” heeft nog geen relaties in beeld.`
+          : `${relatieLozeSetLeden.length} componenten hebben nog geen relaties in beeld.` }}</p>
       </div>
       </div>
 
