@@ -1233,17 +1233,23 @@ const geselecteerdeEdgeId = ref(null) // cy-id van de aangeklikte edge (highligh
 const fullscreen = ref(false)
 
 // B2 — doorklik-link naar het detailscherm van een node (null als er geen eigen scherm is).
+// LI034 bug B — ÉÉN gedeelde doorklik-conditie voor de component-detailpagina: een component op de
+// applicatielaag heeft een betekenisvol detailscherm (applicatie én andere componenttypes op
+// `laag==='application'`); infra (technology) en niet-componenten (partij/contract/gebruikersgroep) niet.
+// Gebruikt door zowel de popup (`_detailLink`) als het zijpaneel ("Open component →") → geen twee
+// uiteenlopende drempels meer. (NB: backend-nodes dragen het componenttype als `element_type`, nooit
+// letterlijk 'component' — daarom is `laag==='application'` de juiste, bredere conditie.)
+const _heeftComponentDetail = (n) => !!n && (n.element_type === 'applicatie' || n.laag === 'application')
 function _detailLink(node) {
   if (!node) return null
   const id = node.id
   switch (node.element_type) {
-    case 'applicatie': return { label: 'Open component →', fn: () => router.push({ name: 'component-detail', params: { id } }) }
     case 'partij': return { label: 'Open partij →', fn: () => router.push({ name: 'partij-detail', params: { id } }) }
     case 'contract': return { label: 'Open contract →', fn: () => router.push({ name: 'contract-detail', params: { id } }) }
     case 'gebruikersgroep': return null
   }
-  // Overige componenten: alleen de applicatielaag heeft een betekenisvol detailscherm; infra (technology) niet.
-  return node.laag === 'application'
+  // Componenten (applicatie of ander applicatielaag-componenttype) → de component-detailpagina.
+  return _heeftComponentDetail(node)
     ? { label: 'Open component →', fn: () => router.push({ name: 'component-detail', params: { id } }) }
     : null
 }
@@ -2850,7 +2856,7 @@ const typeLabel = (t) => humaniseer(t)
             <p v-if="detailNode.plateau_naam" data-testid="lk-detail-plateau">
               <span class="text-[var(--lk-color-text-muted)]">Plateau:</span> {{ detailNode.plateau_naam }}<template v-if="detailNode.plateau_dispositie"> · Dispositie: {{ detailNode.plateau_dispositie }}</template>
             </p>
-            <button v-if="isApplicatie(detailNode)" type="button" data-testid="lk-detail-open" class="mt-1 rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-sm)] py-1 text-white" @click="openApplicatie">Open component →</button>
+            <button v-if="_heeftComponentDetail(detailNode)" type="button" data-testid="lk-detail-open" class="mt-1 rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-sm)] py-1 text-white" @click="openApplicatie">Open component →</button>
             <button type="button" :data-testid="`lk-detail-set`" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1" @click="toggleSet(detailNode.id)">{{ inSet(detailNode.id) ? '× Verwijder uit set' : '+ Voeg toe aan set' }}</button>
             <!-- Slice 5 (LI023) — set-acties: component-node = zichzelf + directe component-buren;
                  context-node = alle component-buren. Disabled (grayed) als er geen component-buren zijn. -->

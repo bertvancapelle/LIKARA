@@ -2467,4 +2467,51 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm.ringAan.has('contracten')).toBe(false) // standaardkijk NIET toegepast (lk-state wint)
     })
   })
+
+  // ── LI034 bug B — doorklik naar componentpagina gelijkgetrokken (popup ↔ zijpaneel) ───────────
+  describe('bug B — doorklik gelijkgetrokken (LI034)', () => {
+    it('applicatie: popup én zijpaneel geven beide de component-doorklik (geen regressie)', async () => {
+      const { w } = await mountView() // GRAF: a1 applicatie (laag application)
+      expect(w.vm._detailLink(w.vm.grafNodes.find((n) => n.id === 'a1'))?.label).toBe('Open component →')
+      w.vm.inspecteerNode('a1'); await flushPromises()
+      expect(w.find('[data-testid="lk-detail-open"]').exists()).toBe(true)
+    })
+
+    it('applicatielaag-component (componenttype ≠ applicatie): nu in BEIDE de doorklik', async () => {
+      zetGraf({
+        nodes: [
+          { id: 'c1', naam: 'Maatwerk', element_type: 'maatwerkcomponent', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        ],
+        edges: [],
+      })
+      const { w } = await mountView()
+      // popup-bron: component-detaillink
+      expect(w.vm._detailLink(w.vm.grafNodes.find((n) => n.id === 'c1'))?.label).toBe('Open component →')
+      // zijpaneel: dezelfde doorklik (voorheen ontbrak die bij de strikte isApplicatie)
+      w.vm.inspecteerNode('c1'); await flushPromises()
+      expect(w.find('[data-testid="lk-detail-open"]').exists()).toBe(true)
+      expect(w.vm._heeftComponentDetail(w.vm.grafNodes.find((n) => n.id === 'c1'))).toBe(true)
+    })
+
+    it('technology-component (geen detailpagina): geen doorklik in BEIDE (geen dode link)', async () => {
+      zetGraf({
+        nodes: [
+          { id: 'db', naam: 'DB', element_type: 'database', laag: 'technology', lifecycle_status: 'concept', blokkades_open: 0 },
+        ],
+        edges: [],
+      })
+      const { w } = await mountView()
+      expect(w.vm._detailLink(w.vm.grafNodes.find((n) => n.id === 'db'))).toBeNull()
+      w.vm.inspecteerNode('db'); await flushPromises()
+      expect(w.find('[data-testid="lk-detail-open"]').exists()).toBe(false)
+    })
+
+    it('partij/contract: geen "Open component" (zijpaneel), wél hun eigen popup-doorklik', async () => {
+      const { w } = await mountView()
+      expect(w.vm._heeftComponentDetail({ element_type: 'partij', laag: 'business' })).toBe(false)
+      expect(w.vm._heeftComponentDetail({ element_type: 'contract', laag: 'business' })).toBe(false)
+      expect(w.vm._detailLink({ id: 'p', element_type: 'partij', laag: 'business' })?.label).toContain('partij')
+      expect(w.vm._detailLink({ id: 'k', element_type: 'contract', laag: 'business' })?.label).toContain('contract')
+    })
+  })
 })
