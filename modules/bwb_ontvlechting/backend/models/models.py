@@ -1005,6 +1005,31 @@ class GebruikerPersoon(Base, TenantMixin):
     )
 
 
+class GebruikerVoorkeur(Base, TenantMixin, TimestampMixin):
+    """ADR-041 slice 1 — persoonlijke, herroepbare gebruikersvoorkeur ("onthoud als mijn standaard").
+
+    Generieke, tenant-scoped key/value-laag (FORCE RLS): één rij per `(tenant, sub, voorkeur_sleutel)`.
+    De sleutel is de Keycloak-`sub` (server-side gestempeld via `huidige_actor()`, NOOIT client-
+    aanleverbaar — spiegel van `ImpactView.maker_sub`); `waarde` is een klein JSON-blob. Deze laag kent
+    de BETEKENIS van een voorkeur niet — semantische validatie (welke waarde geldig is) hoort bij de
+    consument (slice 2); hier alleen een vorm-/grootte-guard op het blob.
+
+    Persoonlijk, nooit gedeeld: een gebruiker leest/schrijft uitsluitend zijn eigen voorkeuren (RLS =
+    tenant-grens; de `sub`-eigen-scope zit in de servicelaag). Puur registratie/weergave — RAAKT DE
+    ENGINE NOOIT: importeert géén `lifecycle_service`/`herbereken_lifecycle`/`bepaal_lifecycle`/
+    `ComponentProfiel`/`Blokkade`/`Checklistscore` en raakt geen lifecycle-/score-/blokkade-state."""
+
+    __tablename__ = "gebruiker_voorkeur"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sub", "voorkeur_sleutel", name="uq_gebruiker_voorkeur_sub_sleutel"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    sub: Mapped[str] = mapped_column(String(255), nullable=False)
+    voorkeur_sleutel: Mapped[str] = mapped_column(String(100), nullable=False)
+    waarde: Mapped[dict] = mapped_column(JSONB, nullable=False)
+
+
 class KlaarverklaringStatus(str, Enum):
     klaar = "klaar"
     open = "open"

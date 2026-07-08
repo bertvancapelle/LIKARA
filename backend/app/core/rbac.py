@@ -54,6 +54,9 @@ class Entiteit(str, Enum):
     KLAARVERKLARING = "klaarverklaring"
     # ADR-033 slice 2 — opgeslagen & deelbare Impact-verkenner-views (eigen-beheer-entiteit).
     IMPACT_VIEW = "impact_view"
+    # ADR-041 slice 1 — persoonlijke voorkeuren ("onthoud als mijn standaard"). Eigen-scope: elke
+    # ingelogde gebruiker beheert uitsluitend zijn éígen voorkeuren (ownership via `sub` in de service).
+    GEBRUIKER_VOORKEUR = "gebruiker_voorkeur"
     AUDITLOG = "auditlog"
     GEBRUIKERSBEHEER = "gebruikersbeheer"
     TENANT_INSTELLINGEN = "tenant_instellingen"
@@ -104,6 +107,19 @@ _EIGEN_BEHEER = {
     Rol.AUDITOR: _L,
 }
 
+# Persoonlijke-voorkeur-entiteit (ADR-041 slice 1): een voorkeur is STRIKT PERSOONLIJK en wordt NOOIT
+# gedeeld — anders dan `impact_view` bestaat er geen "andermans record lezen"-geval. Élke ingelogde
+# tenant-rol (óók Viewer/Auditor) beheert daarom volledig zijn EIGEN voorkeuren; zonder schrijfrecht
+# zou de feature voor die rollen onbruikbaar zijn. De eigen-scope ("alleen je eigen `sub`") wordt
+# server-side in de service afgedwongen, bovenop deze RBAC-gate. (Afwijking t.o.v. het `_INHOUD`-
+# patroon: bewust, omdat een persoonlijke voorkeur geen inhoud-/content-record is.)
+_EIGEN_VOORKEUR = {
+    Rol.VIEWER: _LAWV,
+    Rol.MEDEWERKER: _LAWV,
+    Rol.BEHEERDER: _LAWV,
+    Rol.AUDITOR: _LAWV,
+}
+
 PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.DATATYPE: dict(_INHOUD),
     Entiteit.GEBRUIKERSGROEP: dict(_INHOUD),
@@ -136,6 +152,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     # ADR-033 slice 2 — opgeslagen views: eigen-beheer-patroon (Viewer/Auditor L; Medewerker/
     # Beheerder LAWV). Ownership (maker muteert) borgt de servicelaag.
     Entiteit.IMPACT_VIEW: dict(_EIGEN_BEHEER),
+    # ADR-041 slice 1 — persoonlijke voorkeuren: elke tenant-rol beheert zijn eigen voorkeuren
+    # (ownership via `sub` in de servicelaag). Strikt persoonlijk, nooit gedeeld.
+    Entiteit.GEBRUIKER_VOORKEUR: dict(_EIGEN_VOORKEUR),
     # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer is een tenant-
     # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). Inhoud-patroon:
     # Viewer L · Medewerker LAW · Beheerder LAWV · Auditor L. ("Verwijderen" =

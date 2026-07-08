@@ -61,6 +61,11 @@ VERWACHT = {
     Entiteit.IMPACT_VIEW: {
         Rol.VIEWER: _L, Rol.MEDEWERKER: _LAWV, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _L,
     },
+    # ADR-041 slice 1 — persoonlijke voorkeuren: strikt persoonlijk, nooit gedeeld → élke tenant-rol
+    # (óók Viewer/Auditor) beheert volledig zijn EIGEN voorkeuren (ownership via `sub` in de service).
+    Entiteit.GEBRUIKER_VOORKEUR: {
+        Rol.VIEWER: _LAWV, Rol.MEDEWERKER: _LAWV, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _LAWV,
+    },
     Entiteit.CHECKLISTVRAAG: _INHOUD,  # ADR-022 W1: tenant-eigen vragenset (CRUD)
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN, Rol.MEDEWERKER: _GEEN, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,
@@ -75,7 +80,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (23×4×4 = 368 combinaties) tegen de spec (ADR-036: +ORGANISATIEGEBRUIK)."""
+    """Elke entiteit × rol × actie (24×4×4 = 384 combinaties) tegen de spec (ADR-041: +GEBRUIKER_VOORKEUR)."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist
     for entiteit, per_rol in VERWACHT.items():
         for rol in Rol:
