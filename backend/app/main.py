@@ -75,6 +75,8 @@ from routes.work_package import router as work_package_router  # noqa: E402
 from routes.deliverable import router as deliverable_router  # noqa: E402
 from routes.gap import router as gap_router  # noqa: E402
 from routes.proces import router as proces_router  # noqa: E402
+from routes.procesvervulling import router as procesvervulling_router  # noqa: E402
+from routes.applicatiefunctieconfig import router as applicatiefunctieconfig_router  # noqa: E402
 from services.errors import (  # noqa: E402
     ChecklistscoreConflict,
     ConfiguratieConflict,
@@ -170,6 +172,7 @@ app.include_router(work_package_router, prefix="/api/v1")
 app.include_router(deliverable_router, prefix="/api/v1")
 app.include_router(gap_router, prefix="/api/v1")
 app.include_router(proces_router, prefix="/api/v1")
+app.include_router(procesvervulling_router, prefix="/api/v1")
 app.include_router(checklistvraag_router, prefix="/api/v1")
 app.include_router(checklistconfig_router, prefix="/api/v1")
 app.include_router(contractconfig_router, prefix="/api/v1")
@@ -178,5 +181,6 @@ app.include_router(relatiekenmerkconfig_router, prefix="/api/v1")
 app.include_router(vraagbetekenisconfig_router, prefix="/api/v1")
 app.include_router(partijsoortconfig_router, prefix="/api/v1")
 app.include_router(componentrolconfig_router, prefix="/api/v1")
+app.include_router(applicatiefunctieconfig_router, prefix="/api/v1")
 app.include_router(bivschaalconfig_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")

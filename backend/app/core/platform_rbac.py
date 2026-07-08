@@ -36,6 +36,8 @@ class PlatformEntiteit(str, Enum):
     # ADR-028: componentclassificatie — componentrol- + BIV-schaal-catalogus.
     COMPONENTROLCONFIG = "componentrolconfig"
     BIVSCHAALCONFIG = "bivschaalconfig"
+    # ADR-042: applicatiefunctie-catalogus (het wát-veld op de koppelregel component→proces).
+    APPLICATIEFUNCTIECONFIG = "applicatiefunctieconfig"
 
 
 KNOWN_PLATFORM_ROLES: frozenset[str] = frozenset(r.value for r in PlatformRol)
@@ -98,6 +100,11 @@ PLATFORM_PERMISSIES: dict[PlatformEntiteit, dict[PlatformRol, frozenset[Actie]]]
     },
     # ADR-028: BIV-schaal-catalogus — beheerder LAW (geen V), operator L (soft-deactivate).
     PlatformEntiteit.BIVSCHAALCONFIG: {
+        PlatformRol.PLATFORMBEHEERDER: _LAW,
+        PlatformRol.PLATFORMOPERATOR: _L,
+    },
+    # ADR-042: applicatiefunctie-catalogus — beheerder LAW (geen V), operator L (soft-deactivate).
+    PlatformEntiteit.APPLICATIEFUNCTIECONFIG: {
         PlatformRol.PLATFORMBEHEERDER: _LAW,
         PlatformRol.PLATFORMOPERATOR: _L,
     },

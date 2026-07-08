@@ -50,6 +50,9 @@ class Entiteit(str, Enum):
     GAP = "gap"
     # ADR-042 slice 1 — procesregister (tenant-zijde, inhoud-entiteit).
     PROCES = "proces"
+    # ADR-042 slice 3 — koppelregel component→proces (eigen entiteit: de regel heeft geen
+    # eenduidige "bron"-kant om op mee te liften, anders dan roltoewijzing→PARTIJ).
+    PROCESVERVULLING = "procesvervulling"
     # ADR-023 Fase F / F-2 — read-only cross-element laagprojectie (architectuuroverzicht).
     ARCHITECTUUR = "architectuur"
     # ADR-027 — niet-scorende categorie-klaarverklaring (tenant-zijde, inhoud-entiteit).
@@ -148,6 +151,8 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.GAP: dict(_INHOUD),
     # ADR-042 slice 1 — procesregister: inhoud-patroon.
     Entiteit.PROCES: dict(_INHOUD),
+    # ADR-042 slice 3 — koppelregel: inhoud-patroon (verbreken guardt op WIJZIGEN, zie routes).
+    Entiteit.PROCESVERVULLING: dict(_INHOUD),
     # ADR-023 Fase F / F-2: cross-element laagprojectie — read-only overzicht; élke
     # tenant-rol mag lezen (consistent met het feit dat alle rollen al elk element-type lezen).
     Entiteit.ARCHITECTUUR: dict(_ALLEEN_LEZEN),

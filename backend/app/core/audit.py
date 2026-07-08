@@ -65,8 +65,8 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     # ADR-023 Fase E — migratielaag. Het plateau-/gap-lidmaatschap loopt via `relatie`
     # (aggregation/association) → al gedekt door het bestaande relatie-spoor.
     "plateau", "work_package", "deliverable", "gap",
-    # ADR-042 slice 1 — procesregister (nestbare procesboom; koppelregel volgt in slice 3).
-    "proces",
+    # ADR-042 — procesregister (nestbare procesboom) + koppelregel component→proces.
+    "proces", "procesvervulling",
     # ADR-027 — niet-scorende component-klaarverklaring (klaar→open→klaar mét reden,
     # per-veld-diffs in de append-only audit-trail; geen aparte historie-tabel).
     "component_klaarverklaring",
@@ -82,6 +82,8 @@ AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "relatiekenmerk_optie",
     # ADR-028 — componentclassificatie-catalogi (platform-breed beheer).
     "componentrol_optie", "biv_schaal_optie",
+    # ADR-042 — applicatiefunctie-catalogus (platform-breed beheer).
+    "applicatiefunctie_optie",
 })
 
 # Altijd systeem-afgeleid (Besluit 1): lifecycle leeft alleen als afgeleide → `derive`.

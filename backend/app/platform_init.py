@@ -28,6 +28,7 @@ _MOD_BACKEND = (
 if str(_MOD_BACKEND) not in sys.path:
     sys.path.insert(0, str(_MOD_BACKEND))
 
+from services.seed_applicatiefunctie import seed_applicatiefunctie  # noqa: E402
 from services.seed_bivschaal import seed_bivschaal  # noqa: E402
 from services.seed_componentconfig import seed_componentconfig  # noqa: E402
 from services.seed_componentrol import seed_componentrol  # noqa: E402
@@ -72,6 +73,8 @@ async def platform_init(session_factory=None) -> int:
             # ADR-028 — componentclassificatie-catalogi (na de componentcatalogus).
             await seed_componentrol(session)
             await seed_bivschaal(session)
+            # ADR-042 — applicatiefunctie-catalogus (het wát-veld op de koppelregel).
+            await seed_applicatiefunctie(session)
             return aantal
     finally:
         reset_audit_context(audit_tokens)

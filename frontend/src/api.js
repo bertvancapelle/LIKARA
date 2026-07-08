@@ -395,6 +395,14 @@ export const api = {
     verwijder: (id) => request(`/processen/${id}`, { method: 'DELETE' }),
     subboom: (id) => request(`/processen/${id}/subboom`),
   },
+  // ADR-042 slice 3 — koppelregels component→proces ("vervult applicatiefunctie in").
+  // Lezen kan per proces (?proces_id=) óf per component (?component_id=), precies één.
+  procesvervullingen: {
+    lijst: (params = {}) => request(`/procesvervullingen${_filterQuery('procesvervullingen.lijst', params, ['proces_id', 'component_id'])}`),
+    functies: () => request('/procesvervullingen/functies'),
+    maak: (data) => request('/procesvervullingen', { method: 'POST', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/procesvervullingen/${id}`, { method: 'DELETE' }),
+  },
   deliverables: {
     lijst: (params = {}) => request(`/deliverables${_filterQuery('deliverables.lijst', params, ['limit', 'after'])}`),
     haal: (id) => request(`/deliverables/${id}`),

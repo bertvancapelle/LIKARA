@@ -80,6 +80,8 @@ from services import (  # noqa: E402
     gebruikersgroep_service,
     organisatiegebruik_service,
     partij_service,
+    proces_service,
+    procesvervulling_service,
     relatie_service,
     roltoewijzing_service,
 )
@@ -996,6 +998,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         "organisaties", "leveranciers", "ketenpartners", "burgers", "afdelingen", "personen",
         "applicaties", "contracten", "associaties", "flows", "roltoewijzingen",
         "scores", "organisatiegebruik", "gebruikersgroepen",
+        "processen", "procesvervullingen",
     )}
 
     partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
@@ -1585,6 +1588,60 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             )
         await session.commit()
         telling["verantwoordelijken"] = len(toewijzingen)
+
+    # ── 15. Processen + procesvervullingen (ADR-042) ──
+    # Twee herkenbare procesboompjes (Vergunningverlening → Aanvraag behandelen;
+    # Burgerzaken → Verhuizing verwerken) + koppelregels op bestaande componenten met de
+    # GEMMA-startset-functies. Bewust: (a) één koppelregel op een NIET-applicatie
+    # ("Shared DB-server", componenttype database — bewijst component-breed) en (b) één
+    # component met TWEE functies in hetzelfde proces (Zaaksysteem in "Aanvraag behandelen"
+    # — bewijst losse, apart verwijderbare regels). Idempotent: skip-op-naam (proces) resp.
+    # skip-op-tripel (vervulling).
+    from models.models import Proces as _Proces
+    from schemas.proces import ProcesCreate
+
+    proces_id_map = {r.naam: r.id for r in (await session.execute(select(_Proces))).scalars().all()}
+
+    async def _proces(naam, ouder_naam=None, toelichting=None):
+        if naam in proces_id_map:
+            return proces_id_map[naam]
+        obj = await proces_service.maak_aan(session, tid, ProcesCreate(
+            naam=naam, toelichting=toelichting,
+            ouder_id=proces_id_map[ouder_naam] if ouder_naam else None,
+        ))
+        proces_id_map[naam] = obj["id"]
+        telling["processen"] += 1
+        return obj["id"]
+
+    await _proces("Vergunningverlening", toelichting="Bedrijfsproces: vergunningaanvragen van intake tot besluit.")
+    await _proces("Aanvraag behandelen", "Vergunningverlening", "Werkproces: beoordelen en besluiten op een vergunningaanvraag.")
+    await _proces("Burgerzaken", toelichting="Bedrijfsproces: burgerzaken-dienstverlening (BRP-gebonden).")
+    await _proces("Verhuizing verwerken", "Burgerzaken", "Werkproces: verwerken van een binnengemeentelijke verhuizing.")
+
+    # Component-lookup over ALLE typen (app_id bevat alleen applicaties; de DB-server niet).
+    comp_id_map = {c.naam: c.id for c in (await session.execute(select(Component))).scalars().all()}
+    vervullingen = [
+        # (component-naam, proces-naam, applicatiefunctie, toelichting)
+        ("Zaaksysteem", "Aanvraag behandelen", "registreren", "Zaakdossier van de aanvraag."),
+        ("Zaaksysteem", "Aanvraag behandelen", "raadplegen", None),  # tweede functie, zelfde paar
+        ("DMS", "Aanvraag behandelen", "archiveren", "Besluitdocumenten archiveren."),
+        ("Vergunningensysteem", "Vergunningverlening", "ondersteunen", "Vakapplicatie vergunningproces (grof niveau)."),
+        ("Burgerzaken-suite", "Verhuizing verwerken", "registreren", None),
+        ("BRP", "Verhuizing verwerken", "gegevens_leveren", "Persoonsgegevens bij verhuizing."),
+        # Component-breed: een niet-applicatie (database) vervult een rol in een proces.
+        ("Shared DB-server", "Vergunningverlening", "ondersteunen", "Databaseplatform onder het zaak-/vergunningdomein."),
+    ]
+    for comp_naam, proces_naam, functie, toel in vervullingen:
+        comp_id = comp_id_map.get(comp_naam)
+        if comp_id is None:
+            continue  # component niet in deze seed-stand — geen harde afhankelijkheid
+        try:
+            await procesvervulling_service.maak_aan(
+                session, tid, comp_id, proces_id_map[proces_naam], functie, toel
+            )
+            telling["procesvervullingen"] += 1
+        except RegistratieConflict:
+            pass  # idempotent: het tripel bestaat al
 
     return telling
 

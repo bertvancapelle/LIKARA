@@ -670,6 +670,47 @@ class Proces(Base, TenantMixin, TimestampMixin):
     ouder_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
 
+class Procesvervulling(Base, TenantMixin, TimestampMixin):
+    """ADR-042 slice 3 — koppelregel: "component X vervult applicatiefunctie Y in proces Z".
+
+    Eigen tenant-scoped registratie-feit (GEEN ArchiMate-element) — het roltoewijzing-recept
+    1-op-1: bewust los van het unified `relatie`-model, dat `UNIQUE(tenant,bron,doel,type)`
+    afdwingt en daarmee "meerdere applicatiefuncties van hetzelfde component in hetzelfde
+    proces als losse regels" onmogelijk maakt. Hier is de uniciteit exact het tripel
+    `(tenant, component, proces, applicatiefunctie)`: dezelfde functie niet dubbel, maar wél
+    meerdere functies per (component, proces) en meerdere componenten per proces.
+
+    `component_id`/`proces_id` zijn composiet-FK's naar `element` (CASCADE: de regel
+    verdwijnt met het component of het proces); dat het écht een component resp. proces is
+    dwingt de service af (422). `applicatiefunctie` is een tekst-sleutel naar de
+    `applicatiefunctie_optie`-catalogus (geen harde FK — sleutel stabiel,
+    soft-deactiveerbaar; app-side gevalideerd op actief). Component-breed: élk
+    componenttype is koppelbaar (ADR-042 besluit 3). Optionele `toelichting`
+    (subknoop 2-default). Puur registratief — geen engine-koppeling. FORCE RLS."""
+
+    __tablename__ = "procesvervulling"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "component_id", "proces_id", "applicatiefunctie",
+            name="uq_procesvervulling",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "component_id"], ["element.tenant_id", "element.id"],
+            name="fk_procesvervulling_component", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "proces_id"], ["element.tenant_id", "element.id"],
+            name="fk_procesvervulling_proces", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    component_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    proces_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    applicatiefunctie: Mapped[str] = mapped_column(String(60), nullable=False)
+    toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 # ADR-023 B-mig-2 slice 1: het `Koppeling`-model is vervangen door `flow`-relaties in het
 # unified relatiemodel (`Relatie`). De enums Koppelrichting/Koppelprotocol/ImpactVerbreking
 # blijven — ze typeren nu de flow-kenmerken (richting/protocol/impact_bij_verbreking).
@@ -976,6 +1017,27 @@ class BivSchaalOptie(Base):
     __tablename__ = "biv_schaal_optie"
     __table_args__ = (
         UniqueConstraint("optie_sleutel", name="uq_biv_schaal_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
+
+
+class ApplicatiefunctieOptie(Base):
+    """ADR-042 slice 2 — platform-brede applicatiefunctie-catalogus (GEEN RLS, GEEN
+    tenant_id). Enkel-doel, spiegel van `componentrol_optie`. De applicatiefunctie is het
+    wát-veld op de koppelregel component→proces ("Zaaksysteem vervult *zaken registreren*
+    in *Vergunningverlening*") — bewust de lichte catalogusvorm i.p.v. een eigen
+    ArchiMate-element (gemarkeerde deviatie, ADR-042 besluit 3). GEMMA-geënte startset,
+    vrij uitbreidbaar; GEEN systeem-sleutel (alles deactiveerbaar). Grants/soft-deactivate
+    identiek aan `componentrol_optie`. Voedt de engine NIET."""
+
+    __tablename__ = "applicatiefunctie_optie"
+    __table_args__ = (
+        UniqueConstraint("optie_sleutel", name="uq_applicatiefunctie_optie"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

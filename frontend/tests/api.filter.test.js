@@ -82,6 +82,14 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('organisatie_id=org-1')
   })
 
+  it('ADR-042: procesvervullingen.lijst zet proces_id/component_id in de URL', async () => {
+    await api.procesvervullingen.lijst({ proces_id: 'pr-1' })
+    expect(laatsteUrl).toContain('/procesvervullingen')
+    expect(laatsteUrl).toContain('proces_id=pr-1')
+    await api.procesvervullingen.lijst({ component_id: 'c-1' })
+    expect(laatsteUrl).toContain('component_id=c-1')
+  })
+
   it('ADR-042: processen.lijst zet zoek/sort/order/ouder_id in de URL', async () => {
     await api.processen.lijst({ zoek: 'vergunning', sort: 'naam', order: 'desc', ouder_id: 'p-1' })
     expect(laatsteUrl).toContain('/processen')
@@ -118,6 +126,12 @@ describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', ()
   it('ADR-042: processen.lijst met camelCase ouderId gooit LUID', () => {
     expect(() => api.processen.lijst({ ouderId: 'p-1' })).toThrow(
       /onbekende filter-parameter 'ouderId' voor processen\.lijst/,
+    )
+  })
+
+  it('ADR-042: procesvervullingen.lijst met camelCase procesId gooit LUID', () => {
+    expect(() => api.procesvervullingen.lijst({ procesId: 'x' })).toThrow(
+      /onbekende filter-parameter 'procesId' voor procesvervullingen\.lijst/,
     )
   })
 })
