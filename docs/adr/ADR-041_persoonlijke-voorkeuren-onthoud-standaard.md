@@ -174,3 +174,35 @@ Wat daadwerkelijk is gebouwd (met de afwijkingen t.o.v. het voorstel, en de rede
   voor lees-rollen onbruikbaar zou zijn; de eigen-scope zit in de service. Bevestigd bij de bouw.
 - **Niet geaudit** (bewust): `gebruiker_voorkeur` staat NIET in `AUDIT_TENANT_ENTITEITEN` — een
   persoonlijke UI-standaard is geen compliance-record; auditen zou de hash-chain met ruis vullen.
+
+---
+
+## Besluit-correctie (kern) — een voorkeur is een KIJKFILTER, nooit een invoerregel
+
+Een persoonlijke voorkeur bepaalt alléén **wat je standaard ziet**, niet **wat je mag invoeren**:
+
+- **Wat als gebruik geregistreerd mag worden** is een eigenschap van het landschap, **gelijk voor de hele
+  tenant**: organisatiegebruik is **component-breed** (elk componenttype mag). Niet persoonsafhankelijk.
+- **Wat jij standaard ziet** is je persoonlijke voorkeur: een **weergavefilter** (met directe preview),
+  nooit een schrijf-slot.
+
+Dit corrigeert de eerste slice-2-poging, die de voorkeur het schrijf-slot van `organisatiegebruik` liet
+sturen (per-gebruiker verschillende invoerregels op gedeelde data). Dat is teruggedraaid.
+
+## Gebouwde realiteit — Slice 2 (herzien: kijkfilter)
+
+- **Schrijf-slot component-breed** (`organisatiegebruik_service.py`): `toegestane_typen` +
+  `valideer_gebruikt_componenttype` + de voorkeur-afhankelijkheid verwijderd; vervangen door
+  `valideer_component` (doel = bestaand `Component`; niet-component/niet-bestaand → 422 `ONGELDIG_COMPONENT`).
+  `ensure` (no-op — de gebruikersgroep-gate levert altijd een applicatie) + `maak_aan` bijgewerkt. Geen
+  per-gebruiker invoerregel meer.
+- **Voorkeur = weergavefilter met directe preview** (`GebruikteApplicatiesSectie.vue`): de sectie toont op
+  organisatieniveau alleen rijen waarvan het componenttype in de **live geselecteerde** set zit; de
+  opgeslagen standaard seedt die set (baseline `{applicatie}`). Rijen buiten de kijk-scope worden eerlijk
+  benoemd ("N buiten je huidige kijk-scope"), niet verzwegen; een hint maakt duidelijk dat het een eigen
+  kijkfilter is. De read blijft component-breed (geen read-parameter).
+- **Ongewijzigd:** kop "Gebruikte componenten", het "Sla mijn voorkeur op"-gedrag (opslaan-actie,
+  opgeslagen/gewijzigd-status, herroep via lege selectie → baseline) en de voorkeur-laag (slice 1).
+- **`voorkeur_service.haal_waarde` + `GEBRUIKTE_COMPONENTTYPEN` blijven staan** — de generieke read-API van
+  de laag; de frontend leest de voorkeur via `api.voorkeuren.haalAlle` (zelfde sleutelnaam). Geen schema/
+  migratie; engine onaangeroerd.

@@ -22,6 +22,10 @@ from models.models import GebruikerVoorkeur
 from services.errors import OngeldigeRegistratie
 
 
+# Bekende voorkeur-sleutels (de laag blijft generiek; deze constante houdt de sleutel greppable).
+GEBRUIKTE_COMPONENTTYPEN = "gebruikte_componenttypen"  # ADR-041 slice 2
+
+
 def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
@@ -30,6 +34,19 @@ def _huidige_sub() -> str | None:
     """De stabiele Keycloak-sub van de huidige request (server-side; nooit client-aanleverbaar)."""
     sub, _email = huidige_actor()
     return sub
+
+
+async def haal_waarde(session: AsyncSession, tenant_id, sleutel: str):
+    """De waarde-blob van de voorkeur `sleutel` van de HUIDIGE gebruiker, of None (geen voorkeur).
+
+    Voor consumenten (bv. het schrijf-slot van `organisatiegebruik`, slice 2) die een persoonlijke
+    voorkeur willen toepassen. Read-only; eigen-scope (`sub` uit de auth-context)."""
+    tid = _tenant_uuid(tenant_id)
+    sub = _huidige_sub()
+    if not sub:
+        return None
+    obj = await _haal_eigen(session, tid, sub, sleutel)
+    return obj.waarde if obj is not None else None
 
 
 async def lijst_eigen(session: AsyncSession, tenant_id) -> list[GebruikerVoorkeur]:

@@ -24,16 +24,19 @@ from services import partij_service
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 
 _ENTITEIT = "organisatiegebruik"
-_APPLICATIE_TYPE = "applicatie"
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
-async def valideer_applicatie(session: AsyncSession, tid: uuid.UUID, applicatie_id) -> None:
-    """Het doel moet een component met componenttype='applicatie' zijn (422 `ONGELDIGE_APPLICATIE`;
-    ook niet-bestaand/cross-tenant → 422, geen lek van vreemd bestaan)."""
+async def valideer_component(session: AsyncSession, tid: uuid.UUID, applicatie_id) -> None:
+    """ADR-041 slice 2 (herzien) — het doel moet een bestaand COMPONENT van de tenant zijn.
+
+    Organisatiegebruik is **component-breed en tenant-gelijk**: elk componenttype mag als gebruik worden
+    geregistreerd — geen persoonlijke invoerregel. Een persoonlijke voorkeur is een KIJKFILTER (frontend,
+    bepaalt alleen wat je standaard ziet), nooit een schrijf-slot. Een niet-component (partij/contract) /
+    niet-bestaand / cross-tenant doel → 422 `ONGELDIG_COMPONENT` (geen lek van vreemd bestaan)."""
     ct = (
         await session.execute(
             select(Component.componenttype).where(
@@ -41,9 +44,9 @@ async def valideer_applicatie(session: AsyncSession, tid: uuid.UUID, applicatie_
             )
         )
     ).scalar_one_or_none()
-    if ct != _APPLICATIE_TYPE:
+    if ct is None:
         raise OngeldigeRegistratie(
-            "ONGELDIGE_APPLICATIE", "Het gebruiksfeit moet naar een applicatie verwijzen."
+            "ONGELDIG_COMPONENT", "Het gebruiksfeit moet naar een bestaand component verwijzen."
         )
 
 
@@ -66,7 +69,7 @@ async def ensure(session: AsyncSession, tenant_id, organisatie_id, applicatie_id
     caller — bv. gebruikersgroep_service — commit als onderdeel van zijn transactie)."""
     tid = _tenant_uuid(tenant_id)
     await partij_service.valideer_organisatie(session, tid, organisatie_id)
-    await valideer_applicatie(session, tid, applicatie_id)
+    await valideer_component(session, tid, applicatie_id)
     bestaand = await _bestaand_id(session, tid, organisatie_id, applicatie_id)
     if bestaand is not None:
         return bestaand
@@ -81,7 +84,7 @@ async def maak_aan(session: AsyncSession, tenant_id, data: OrganisatiegebruikCre
     (nette afwijzing, geen duplicaat — de UNIQUE is de backstop)."""
     tid = _tenant_uuid(tenant_id)
     await partij_service.valideer_organisatie(session, tid, data.organisatie_id)
-    await valideer_applicatie(session, tid, data.applicatie_id)
+    await valideer_component(session, tid, data.applicatie_id)
     if await _bestaand_id(session, tid, data.organisatie_id, data.applicatie_id) is not None:
         raise RegistratieConflict(
             "GEBRUIK_BESTAAT", "Deze organisatie is al geregistreerd als gebruiker van deze applicatie."

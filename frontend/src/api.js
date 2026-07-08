@@ -329,6 +329,14 @@ export const api = {
     verwijder: (id) => request(`/impact-views/${id}`, { method: 'DELETE' }),
   },
 
+  // ADR-041 — persoonlijke voorkeuren ("onthoud als mijn standaard"). Strikt per gebruiker (server
+  // stempelt de `sub`); `zet` = upsert van de héle waarde, `herroep` = terug naar baseline.
+  voorkeuren: {
+    haalAlle: () => request('/voorkeuren'),
+    zet: (sleutel, waarde) => request(`/voorkeuren/${sleutel}`, { method: 'PUT', body: JSON.stringify({ waarde }) }),
+    herroep: (sleutel) => request(`/voorkeuren/${sleutel}`, { method: 'DELETE' }),
+  },
+
   // ADR-023 Fase F (F-3 stap 2) — consistentie-signalering technische plaatsing (read-only).
   signalen: {
     plaatsing: () => request('/signalen/plaatsing'),

@@ -2,14 +2,15 @@
 
 Offline:
 - engine-onaangeroerd (import-afwezigheid): de service importeert geen engine-symbolen;
-- `valideer_applicatie` accepteert een applicatie, weigert een niet-applicatie (422).
+- `valideer_component` accepteert elk componenttype (component-breed), weigert een niet-component
+  (422 `ONGELDIG_COMPONENT`, ADR-041 slice 2 herzien — de voorkeur is een kijkfilter, geen invoerregel).
 
 Live (skip-if-no-DB):
 - los grof feit vastleggen (onvolledig = geldig) + duplicaat ⇒ 409 (uniciteit, geen dubbel feit);
 - afdeling-mét-organisatie borgt automatisch het grove feit (get-or-create, geen dubbele invoer,
   geen dubbel opgeslagen organisatie) + verfijning-link + `heeft_verfijning`;
 - organisatie-loze groep (`gebruik_id` NULL) blijft geldig;
-- type-validaties: organisatie ≠ aard=organisatie ⇒ 422; doel ≠ applicatie ⇒ 422;
+- type-validaties: organisatie ≠ aard=organisatie ⇒ 422; doel ≠ component ⇒ 422 (component-breed);
 - engine niet geraakt: een grof feit / afdeling muteert geen `lifecycle_status`, maakt geen blokkade.
 """
 import asyncio
@@ -41,7 +42,7 @@ def test_engine_niet_geimporteerd_in_organisatiegebruik_service():
         assert term not in blob, f"organisatiegebruik_service importeert onverwacht {term}"
 
 
-# ── Offline: applicatie-typevalidatie ────────────────────────────────────────────
+# ── Offline: component-brede doelvalidatie (ADR-041 slice 2 herzien) ─────────────
 def _mock_session_met_componenttype(ct):
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -52,21 +53,25 @@ def _mock_session_met_componenttype(ct):
     return session
 
 
-def test_valideer_applicatie_accepteert_applicatie():
+def test_valideer_component_accepteert_elk_componenttype():
+    """ADR-041 slice 2 (herzien) — component-breed: elk componenttype mag als gebruik (geen invoerregel
+    op de persoonlijke voorkeur; die is een kijkfilter)."""
     from services import organisatiegebruik_service as svc
 
-    session = _mock_session_met_componenttype("applicatie")
-    asyncio.run(svc.valideer_applicatie(session, uuid.uuid4(), uuid.uuid4()))  # geen exception
+    for ct in ("applicatie", "database", "integratievoorziening"):
+        session = _mock_session_met_componenttype(ct)
+        asyncio.run(svc.valideer_component(session, uuid.uuid4(), uuid.uuid4()))  # geen exception
 
 
-def test_valideer_applicatie_weigert_niet_applicatie():
+def test_valideer_component_weigert_niet_component():
+    """Niet-component / niet-bestaand doel (componenttype = None) → 422 ONGELDIG_COMPONENT."""
     from services import organisatiegebruik_service as svc
     from services.errors import OngeldigeRegistratie
 
-    session = _mock_session_met_componenttype("integratievoorziening")
+    session = _mock_session_met_componenttype(None)  # geen component-rij gevonden
     with pytest.raises(OngeldigeRegistratie) as ei:
-        asyncio.run(svc.valideer_applicatie(session, uuid.uuid4(), uuid.uuid4()))
-    assert ei.value.code == "ONGELDIGE_APPLICATIE"
+        asyncio.run(svc.valideer_component(session, uuid.uuid4(), uuid.uuid4()))
+    assert ei.value.code == "ONGELDIG_COMPONENT"
 
 
 def test_gebruikersgroep_heeft_geen_eigen_organisatie_kolom():
@@ -333,12 +338,18 @@ def test_type_validaties_live():
                 assert e.code == "ONGELDIGE_ORGANISATIE"
             await s.rollback()
 
-            # Doel ≠ applicatie ⇒ 422 ONGELDIGE_APPLICATIE.
+            # ADR-041 slice 2 (herzien) — component-breed: een niet-applicatie COMPONENT mag nu wél als
+            # gebruik (de voorkeur is een kijkfilter, geen invoerregel). Slaagt zonder exception.
+            uit = await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=niet_app))
+            assert uit["applicatie_id"] == niet_app
+            await s.rollback()
+
+            # Doel is GEEN component (een partij) ⇒ 422 ONGELDIG_COMPONENT.
             try:
-                await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=niet_app))
-                raise AssertionError("verwachtte ONGELDIGE_APPLICATIE")
+                await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=ext_id))
+                raise AssertionError("verwachtte ONGELDIG_COMPONENT")
             except OngeldigeRegistratie as e:
-                assert e.code == "ONGELDIGE_APPLICATIE"
+                assert e.code == "ONGELDIG_COMPONENT"
             await s.rollback()
             return True
         finally:
@@ -737,3 +748,59 @@ def test_afdeling_validaties_live():
             await s.commit()
 
     assert asyncio.run(_run_rls(_flow)) is True
+
+
+@integratie
+def test_schrijf_slot_component_breed_negeert_voorkeur_live():
+    """ADR-041 slice 2 (herzien) — het schrijf-slot is component-breed en NEGEERT de persoonlijke
+    voorkeur: ook met een smalle voorkeur ({applicatie}) opgeslagen, slaagt een gebruik naar een
+    niet-applicatie component (de voorkeur is een kijkfilter, geen invoerregel)."""
+    from sqlalchemy import text as _text
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+    from app.core.tenant_context import (
+        reset_audit_context, reset_tenant_context, zet_audit_context, zet_tenant_context,
+    )
+    from schemas.organisatiegebruik import OrganisatiegebruikCreate
+    from services import organisatiegebruik_service as svc
+    from services import voorkeur_service
+
+    tid = uuid.UUID(_TID)
+    _SUB = "pref:og-userA"
+
+    async def _run(fn, actor_sub):
+        eng = create_async_engine(_LK_APP_URL)
+        smf = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+        tok = zet_tenant_context(_TID)
+        atok = zet_audit_context(actor_sub=actor_sub, actor_email=f"{actor_sub}@test", correlatie_id=None)
+        try:
+            async with smf() as s:
+                s.sync_session.info["rls"] = True
+                return await fn(s)
+        finally:
+            reset_audit_context(atok)
+            reset_tenant_context(tok)
+            await eng.dispose()
+
+    async def _flow(s):
+        ids = []
+        try:
+            org_id = await _maak_org(s, tid, "WT-OG-VbOrg")
+            iv_id = await _maak_niet_app(s, tid, "WT-OG-VbIV")  # componenttype=integratievoorziening
+            await s.commit(); ids += [org_id, iv_id]
+
+            # Smalle voorkeur opgeslagen → mag de SCHRIJF niet beperken.
+            await voorkeur_service.upsert(
+                s, tid, voorkeur_service.GEBRUIKTE_COMPONENTTYPEN, {"typen": ["applicatie"]},
+            )
+            # Component-breed: het niet-applicatie component wordt tóch geaccepteerd.
+            uit = await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=iv_id))
+            assert uit["applicatie_id"] == iv_id
+            return True
+        finally:
+            await s.execute(_text("DELETE FROM gebruiker_voorkeur WHERE sub=:s"), {"s": _SUB})
+            for eid in ids:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    assert asyncio.run(_run(_flow, _SUB)) is True
