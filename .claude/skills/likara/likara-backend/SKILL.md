@@ -543,3 +543,20 @@ projectie** — geen dubbele logica: deel de WHERE, splits de projectie.
   filter-constructie zonder actieve filter.
 - **Additief opties-endpoint:** breid een bestaand `/opties`-endpoint read-only uit (rol-opties +
   ordinale BIV-niveaus) zonder contractbreuk; response-model met defaults `[]`.
+
+## LI034-patronen — persoonlijke voorkeur-laag (ADR-041)
+
+Service + route voor de per-gebruiker voorkeur-laag (`gebruiker_voorkeur`, zie likara-db). Vindplaats:
+`services/voorkeur_service.py`, `routes/voorkeur.py`.
+- **Eigen-scope hard via de auth-context:** de `sub` komt **altijd** server-side uit `huidige_actor()`
+  (spiegel van `impact_view.maker_sub`), **nooit** uit de payload. Een gebruiker leest/schrijft/
+  verwijdert uitsluitend zijn eigen voorkeuren — ook beheerders niet die van een ander (in de service,
+  niet alleen via RBAC). `haal_waarde(session, tenant_id, sleutel)` = generieke read-API voor
+  consumenten (bv. een frontend-filter of een backend-slot dat een voorkeur wil toepassen).
+- **Route** `/voorkeuren`: `GET` (eigen), `PUT /{sleutel}` (upsert = create-or-replace), `DELETE /{sleutel}`
+  (idempotent herroep). De `voorkeur_sleutel` reist via het **pad** met een strikte vorm
+  (`^[a-z][a-z0-9_]*$`, ≤100) → native 422 vóór de service. Body `{waarde}` met `extra='forbid'` +
+  **grootte-guard** (≤4096 bytes, JSON-serialiseerbaar) — de laag is generiek en kent de betekenis van
+  een voorkeur niet; semantische validatie hoort bij de consument.
+- **Engine onaangeroerd** (schrijvende service, maar geen lifecycle/score/blokkade): import-afwezigheid
+  + geen lifecycle-mutatie, zoals gebruikelijk geborgd.

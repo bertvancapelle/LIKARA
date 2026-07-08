@@ -1116,3 +1116,36 @@ In subgraaf-modus (actieveSet.size > 0) filtert scope ANDERS dan in hele-landsch
   `GebruikersbeheerView` heeft inmiddels een **organisatie-picker (intern-only)** die de afdeling
   scoopt (aanmaak én beheer); de afdeling-picker is daar dus **wél** gescoped + ter-plekke-aanmaakbaar
   (het eerdere "ongescoped"-gat is gedicht — zie de organisatie→afdeling-keuzeopzet in likara-ux).
+
+## LI034 — kaart-state: reload behoudt werk + samenloop met de standaardkijk (ADR-041)
+
+Meerdere onthoud-mechanismen op de kaart, met een **vaste precedentie: in-sessie `lk-state` > persoonlijke
+standaardkijk > kale default.** Vindplaats: `LandschapskaartView.vue`.
+- **`lk-state` (sessionStorage)** = in-sessie werk over navigatie/reload heen. Kritieke les:
+  `onBeforeRouteLeave` vuurt **niet** bij F5 → persisteer óók op **`beforeunload` → `_bewaarKaartState`**
+  (listener opgeruimd in `onBeforeUnmount`, geen lek). `wisSet` ("Begin opnieuw") **wist `lk-state`** →
+  F5 hierna landt op het beginscherm i.p.v. een stale set. Zónder deze twee herstelt F5 de laatste
+  route-leave-snapshot (bug: 1 gekozen component → 8 na F5).
+- **Standaardkijk** (voorkeur-sleutel `kaart_kijkfilter`, hergebruikt de voorkeur-laag): opgeslagen bij
+  **verse start** (mount, alleen als `_herstelKaartState` niets herstelde) en bij **"Begin opnieuw"** (na
+  het wissen van `lk-state`). `_herstelKaartState` geeft daarom `true/false` terug (in-sessie hersteld?).
+- **Standaardkijk = de KIJK-variabelen** (`ringAan`/filters/`diepte`/`kleurOpDomein`/`groepeerPerOrg`/
+  lane-opts), **NOOIT de momentkeuze** (`actieveSet`/`egoStartId`/`weergave`/`zoekterm`/`focusOpSet`/
+  `scopeOrgs`). Zie de vaste-bril-vs-momentkeuze-regel in likara-ux.
+
+## LI034 — de landschapskaart is bewust applicatie-centrisch
+
+Leg vast **dát** dit een bewuste ontwerpkeuze is (niet een bug), zodat een volgende sessie het niet per
+ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
+- `appNodes = nodes.filter(_isApp || _isOrg)` → **alleen applicaties + organisaties zijn zoekbaar/
+  selecteerbaar**; partijen/contracten/infra verschijnen als ring-nodes. `componentBuren` filtert `_isApp`;
+  de set-/buren-acties behandelen niet-app-nodes als **context**; diepte-2-ego breidt alleen via strikte
+  `isApplicatie` uit. NB: `_isApp`'s 2e tak (`element_type==='component'`) is **dood** voor backend-nodes
+  (`element_type` = het componenttype, nooit letterlijk `'component'`) → `_isApp ≡ isApplicatie` in de
+  praktijk.
+- **De kaart component-breed maken** (elk componenttype zoekbaar/als buur) = **een eigen ADR-spoor**, geen
+  kleine fix.
+- **Afgeronde consistentie-fixes** (geen open bug meer): (a) doorklik gelijkgetrokken — één predicaat
+  `_heeftComponentDetail(n) = element_type==='applicatie' || laag==='application'`, gebruikt door zowel de
+  popup (`_detailLink`) als het zijpaneel; (b) een relatie-loos **set-lid** wordt op Overzicht toch
+  getekend (`getekendeNodes`, `setLid`-term) met een rustige "geen relaties in beeld"-cue.

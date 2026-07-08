@@ -7,6 +7,58 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V035 (sluitprotocol LI034 — ADR-041 voorkeuren + kaart-bugfixes, 2026-07-08)
+
+Build **V034 → V035**. Geland: ADR-041 persoonlijke voorkeur-laag (`gebruiker_voorkeur`, migratie **0055**,
+RBAC eigen-scope, `9498983`), component-breed organisatiegebruik-schrijf-slot (`b05cc53`), terugrol
+sectie-voorkeur (`f5e7afe`), kaart-kijkfilter-standaard + reload-fix (`c8ae3c7`), kaart-bug B doorklik
+(`33fa485`), kaart-bug A leeg canvas (`3d889ab`), + 7 skillpatronen. Tests: backend 960/2 skipped,
+frontend 71 files/869. Migratie-head **0055**.
+
+**Eerste taak volgende sessie (read-only):** lijststaat (filter/zoek/sortering) behouden bij terugnavigeren
+vanuit een detailscherm — bevestigd op Partijen. Momentkeuze-behoud bij terugkeer, géén voorkeur-laag.
+Zie NEXT_SESSION.md.
+
+**Nieuwe/geactualiseerde opvolgpunten uit LI034 (volgorde-advies):**
+
+1. **Proces/functie-inzicht (groot, ADR-waardig — VERDER VERDIEPEN).** Component "vervult een rol in" een
+   proces/functie; proces/functie als één hiërarchische laag (proces boven, functie eronder); impact rolt
+   omhoog (functie-raakvlak telt mee op procesniveau); rol als beheerbaar catalogus-kenmerk; **begin grof**
+   (proces + koppeling eerst, functie later); flow/volgorde tussen stappen bewust buiten scope.
+   **Kern-uitgangspunt (LI034, nog te verdiepen):** een proces koppelt aan het **component dat het
+   functioneel ondersteunt** (in de praktijk vrijwel altijd de applicatie/dienst — het "loket"). De
+   **onderliggende afhankelijkheden (database, infra, contract, leverancier) worden geërfd via de al-
+   geregistreerde component-ketens** — niet dubbel vastleggen. De impactvraag "wat raakt dit proces" volgt
+   dan automatisch de bestaande keten (proces → applicatie → …). **Component-breed blijft als vangnet
+   mogelijk** (koppeling mág aan elk componenttype als een proces rechtstreeks op iets zonder applicatie-
+   tussenlaag steunt), maar de norm is: koppel aan het directe ondersteunende component, erf de rest.
+   Sluit aan op LIKARA's principe "relatie één keer vastleggen, impact volgt de keten" (geen dubbele/
+   afgeleide registratie). **Dit uitgangspunt expliciet verder verdiepen in de uitwerking** — de grens
+   tussen directe koppeling en geërfde keten, en wanneer een directe niet-applicatie-koppeling terecht is.
+   Aanpak: read-only verkenning (element-familie-subtypes, hiërarchie-constructie, relatiekenmerk-
+   catalogus) → concept-ADR.
+2. **Kaart component-breed maken (ADR-spoor).** De kaart is bewust applicatie-centrisch (`appNodes`/
+   zoeklijst, `componentBuren`, buren/context-set-acties, diepte-2-ego). Elk componenttype zoekbaar/
+   doorklikbaar/als buur maken raakt die ontwerpkeuze → eigen ADR. IJkpunt: een technology-component
+   (database) is nu niet zoekbaar en heeft geen doorklik.
+3. **Beginscherm-filterbalk verbergen op het lege beginscherm.** De linker filterbalk dubbelt met "Begin
+   je verkenning" zolang de kaart leeg is; balk pas tonen zodra de kaart getekend is. (Apart: horen de
+   start-filters Laag/Hosting/Eigenaar achter "+ Filters" daar wel?)
+4. **Opgeslagen view onthoudt de organisatie-scope niet (ADR-033-vervolg).** Een view bewaart bewust
+   alleen de set, geen kijk-instellingen. Weging: wil je dat een view ook de organisatie-scope (en evt.
+   andere kijk-instellingen) bewaart, tegen de "view = startpunt"-intentie in?
+5. **Filterbalk vereenvoudigen.** BIV-drempels + Rol zijn specialistisch (audit-/risicolens, alleen op
+   geclassificeerde componenten) — kandidaat voor een "geavanceerd"-inklap; op beide weergaven of alleen
+   Overzicht?
+6. **Beginscherm-contextvelden (unie-gedrag).** Leverancier/Contract/Organisatie stapelen additief (unie
+   met dedup). Wenselijk? Feedback per veld ("N toegevoegd")?
+
+**Reeds afgerond in LI034 (uit de actieve lijst):** ADR-041 (persoonlijke voorkeuren + kaart-kijkfilter-
+standaard + reload-fix); kaart-bugs A (leeg canvas) en B (doorklik gelijkgetrokken); component-breed
+organisatiegebruik-schrijf-slot.
+
+---
+
 ### Stand V034 (sluitprotocol LI033 — ADR-040 kaart-herbouw, 2026-07-07)
 
 Build **V033 → V034**. Geland (ADR-040 Fase 1): deterministische render-eigenaar / fcose weg

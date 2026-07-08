@@ -456,3 +456,16 @@ Er is **uitsluitend testdata**, geen productiedata. Daaruit volgt:
   drie **nullable** BIV-sleutel-kolommen (`String(60)`). App-side gevalideerd tegen de catalogi.
 - **Geen reseed nodig voor read-/frontend-slices** die alleen bestaande kolommen lezen; alleen de
   schema-slice (nieuwe tabellen/kolommen) vereist een verse reseed.
+
+## LI034-patroon — persoonlijke voorkeur-laag (ADR-041, migratie 0055)
+
+Generieke **per-gebruiker key/value-tabel** `gebruiker_voorkeur` — de eerste voorkeur-opslag in LIKARA,
+herbruikbaar voor elke toekomstige persoonlijke voorkeur (geen tabel per voorkeur).
+- Kolommen: `id`, `tenant_id` (TenantMixin), **`sub`** String(255) = Keycloak-`sub` (de per-gebruiker-
+  sleutel), **`voorkeur_sleutel`** String(100), **`waarde`** JSONB, timestamps. **Uniek
+  `(tenant_id, sub, voorkeur_sleutel)`** = één rij per gebruiker per voorkeur (het upsert-doel).
+- Hergebruikt **exact** het bestaande recept (zie "RLS-boilerplate" + "GRANT-patroon"): FORCE RLS +
+  policy `tenant_isolation` + `REVOKE ALL … / GRANT SELECT,INSERT,UPDATE,DELETE TO lk_app`. Indexen op
+  `tenant_id` en `(tenant_id, sub)`. Spiegel van `impact_view` (0042).
+- Vindplaats: `models.py` (`GebruikerVoorkeur`), `migrations/versions/0055_adr041_gebruiker_voorkeur.py`.
+  De service/route/RBAC staan in likara-backend/likara-security.

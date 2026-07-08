@@ -295,3 +295,17 @@ Aanpak: vaste UUID's in realm JSON (`"id": "<uuid>"`) + hardcoded in seed als ke
 - Live toepassen: `kcadm partialImport` (honoreert vaste id's; `kcadm create users` kan dat niet).
 - Seed-functie `_seed_dev_gebruikers`: zoek persoon op naam → maak GebruikerPersoon aan.
 - KC-client voor gebruikersbeheer: `likara-user-provisioning` (hernoemd van kilara, DC017).
+
+## LI034 — eigen-scope RBAC-entiteit (persoonlijke voorkeuren, ADR-041)
+
+Nieuw eigen-scope-patroon naast `impact_view`'s `_EIGEN_BEHEER`. Entiteit `GEBRUIKER_VOORKEUR` met
+mapping **`_EIGEN_VOORKEUR` = LAWV voor élke tenant-rol** (óók Viewer/Auditor). Reden: een persoonlijke
+voorkeur is **strikt persoonlijk, nooit gedeeld** — er is geen "andermans record lezen"-geval (anders dan
+`impact_view`, dat gedeelde records kent), en zonder schrijfrecht zou de feature voor lees-rollen
+onbruikbaar zijn. **Afwijking t.o.v. het `_INHOUD`-patroon: bewust.**
+- **RBAC = feature-gate; de eigen-scope (`alleen je eigen sub`) leeft in de service** (via `huidige_actor()`,
+  nooit uit de payload) — de gebruikelijke driedeling RLS = tenant-grens · RBAC = rollen · service = welke
+  records júist deze gebruiker raakt.
+- **Bewust NIET geaudit:** `gebruiker_voorkeur` staat niet in `AUDIT_TENANT_ENTITEITEN` — een persoonlijke
+  UI-standaard is geen compliance-record (auditen zou de hash-chain met ruis vullen). Vindplaats:
+  `rbac.py` (`Entiteit.GEBRUIKER_VOORKEUR`, `_EIGEN_VOORKEUR`), spec-test in `backend/tests/test_rbac.py`.

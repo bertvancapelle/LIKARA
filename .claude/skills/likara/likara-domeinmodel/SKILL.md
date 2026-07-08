@@ -657,3 +657,24 @@ Catalogus: contractconfig_optie (dimensie=dekking) — hergebruikt.
 Weergave: contract_breed (uit ContractDekking-tag-tabel) + per_band (array) naast elkaar.
 toon_per_band = per_band IS NOT NULL AND per_band != contract_breed (set-vergelijking op sleutels).
 FORCE RLS, FK→element CASCADE.
+
+## LI034 — een persoonlijke voorkeur is een KIJKFILTER, nooit een invoerregel (ADR-041, niet-onderhandelbaar)
+
+Ontwerpregel op het datamodel: **wat als feit geregistreerd mag worden is een eigenschap van het
+landschap — component-breed en gelijk voor de hele tenant — nooit persoonsafhankelijk.** Een persoonlijke
+voorkeur bepaalt **alleen wat je standaard ziet**, nooit wat je **mag invoeren** of wat er **is** (gedeelde
+data).
+- Concreet: het schrijf-slot van `organisatiegebruik` is **component-breed** (`valideer_component`: doel =
+  bestaand `Component`, elk componenttype; niet-component → 422 `ONGELDIG_COMPONENT`), **losgekoppeld** van
+  de persoonlijke voorkeur.
+- **Anti-patroon (deze sessie gecorrigeerd):** de eerste poging liet een per-gebruiker voorkeur het
+  schrijf-slot sturen → per-gebruiker verschillende invoerregels op gedeelde data. Teruggedraaid. Filter =
+  weergave (frontend); registratie = tenant-gelijk (backend).
+
+## LI034 — de landschapskaart is bewust applicatie-centrisch (domeinkant)
+
+De kaart toont het landschap door de bril van **applicaties** (+ organisaties): applicaties/organisaties
+zijn de zoekbare/centreerbare entiteiten, partijen/contracten/infra verschijnen als context-ring rond hen.
+Dit is een **bewuste** domein-/UX-keuze (zie likara-frontend voor de vindplaatsen `appNodes`/`_isApp`/
+`componentBuren`). De kaart **component-breed** maken (elk componenttype als volwaardige, zoekbare/
+buur-node) is een **eigen ADR-spoor**, geen kleine "bug".

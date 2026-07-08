@@ -176,10 +176,12 @@ De migratieset is een `Set<uuid>` in Vue-state. Toevoegen via zoekresultaten,
 verwijderen via rechterpaneel ×-knop. "Voeg alle gefilterde toe" vult de set met het
 gefilterde resultaat.
 
-### Resultatenlijst: alleen applicaties
-De zoeklijst/filters tonen ALLEEN applicaties (element_type='applicatie'). Partijen/
-contracten/infra verschijnen automatisch als ring-nodes rond de geselecteerde applicaties —
-nooit als kiesbare entiteiten.
+### Resultatenlijst: alleen applicaties (bewuste applicatie-centrische keuze)
+De zoeklijst/filters tonen ALLEEN applicaties (+ organisaties); partijen/contracten/infra verschijnen
+automatisch als ring-nodes rond de geselecteerde applicaties — nooit als kiesbare entiteiten. Dit is een
+**bewuste** keuze (de kaart is applicatie-centrisch), **geen bug**: de kaart component-breed maken is een
+eigen ADR-spoor. Zie de applicatie-centrisch-vindplaatsen (`appNodes`/`_isApp`) in likara-frontend/
+likara-domeinmodel.
 
 ### Selectie highlight
 Klik actieve-set-item → `selecteerNode(id)`: `cy.elements().unselect()` →
@@ -189,13 +191,17 @@ Klik actieve-set-item → `selecteerNode(id)`: `cy.elements().unselect()` →
 Het detail-paneel toont "Klik een node voor detail" bij mount; vult pas na node-klik of
 set-item-klik. Toont o.a. plateau/dispositie (migratieplaatsing) indien gevuld.
 
-### "Open applicatie →" doorklik
-`router.push({ name: 'applicatie-detail', params: { id: node.id } })` — knop in het
-detail-paneel (alleen voor applicatie-nodes); conditioneel "+ Voeg toe / × Verwijder uit set".
+### "Open component →" doorklik (gecorrigeerd LI034)
+`router.push({ name: 'component-detail', params: { id } })` — knop in de popup én het detail-paneel.
+Doorklik-conditie = **één gedeeld predicaat** `_heeftComponentDetail(n) = element_type==='applicatie' ||
+laag==='application'` (applicatielaag-componenten, niet alleen strikt `element_type==='applicatie'`); zo
+geven popup (`_detailLink`) en zijpaneel **dezelfde** doorklik. Label is **"Open component →"**. (Route
+`applicatie-detail` bestaat nog als **redirect** naar `component-detail`, `router/index.js`.)
 
-### Deep-link vanuit applicatie-detail
-`<router-link :to="{ name: 'landschapskaart', query: { center: id, modus: 'ego' } }">`
-"🗺 Open in Landschapskaart →". LandschapskaartView leest `?center` + `?modus` bij onMounted.
+### Deep-link vanuit component-detail
+`<router-link :to="{ name: 'landschapskaart', query: { center: id } }">` "🗺 Open in Landschapskaart →".
+LandschapskaartView leest `?center` bij onMounted → praatplaat centraal op dat component. **`?modus` is
+vervallen** (de weergave volgt de handeling/set, niet een URL-param).
 
 ### Diepte-toggle
 "1 stap (direct)" / "2 stappen" (ego + geheel). Diepte 2 voegt de indirecte applicatie-buren
@@ -390,3 +396,34 @@ bewerken; gebruikersgroep), is de opzet **identiek**:
 - **Aanmaken en bewerken gedragen zich gelijk** — dezelfde volgorde, scoping en reset; een
   bewerk-scherm is geen uitzondering. Bij bewerken zijn org + afdeling **voorgevuld** op de huidige
   waarden (zie de voorgevuld-openen-regel in de picker-patronen).
+
+## LI034 — Persoonlijke standaard-voorkeuren (ADR-041)
+
+### Voorkeur = KIJKFILTER, nooit invoerregel (niet-onderhandelbaar, KERN)
+Een persoonlijke voorkeur bepaalt **alleen wat je standaard ziet** — nooit wat je **mag invoeren** of wat
+er **is** (gedeelde data). Wie mag registreren wat, is een eigenschap van het landschap (component-breed,
+tenant-gelijk), geen persoonsafhankelijke regel. (Deze sessie gecorrigeerd: een voorkeur die het
+organisatiegebruik-schrijf-slot stuurde is teruggedraaid; zie likara-domeinmodel.)
+
+### "Onthoud als mijn standaard" — het patroon
+Een **bewuste opslaan-actie bij de keuze zelf** (niet een centraal settings-scherm; de voorkeur woont waar
+de keuze gemaakt wordt): "★ Sla op als mijn standaard". Met **opgeslagen/gewijzigd-status** (de opslaan-
+actie is alleen actief zodra de huidige keuze afwijkt van de opgeslagen standaard) en **herroep** (opnieuw
+opslaan met een lege/kale keuze → standaard weg → terug naar de kale default). Bewaar het **geheel** als
+één standaard. Server-persistent per gebruiker (voorkeur-laag), dus geldt over sessies/apparaten heen.
+
+### "Vaste bril" vs. "momentkeuze" — sorteerregel
+Onderscheid vóór je iets onthoudt:
+- **Vaste bril** (onthouden = voorkeur): "hoe ik altijd kijk" — bv. ringen, filters, verkenningsdiepte,
+  kleur-op-domein, welke componenttypen je meerekent.
+- **Momentkeuze** (vers per keer, nooit onthouden): zoekterm, welk component centraal staat, de actieve
+  selectie/set, de weergave (Overzicht/Praatplaat). Een onthouden default zou hier hinderen.
+- **Plaatsingsregel:** platformvormend → **centraal beheer**; persoonlijke werkstijl → **voorkeur-laag**;
+  momentkeuze → **inline, vers**.
+
+### Eerlijk gaten tonen (aanvulling op P8)
+Filters/weergaven **verbergen nooit stilzwijgend** een bestaand feit — ze **benoemen het gat leesbaar**.
+Levende instanties: de klik-popup benoemt ontbrekende relaties ("nog geen eigenaar geregistreerd" e.d.,
+`popupSamenvatting`); een gekozen relatie-loos component krijgt de cue "geen relaties in beeld"
+(`lk-geen-relaties`); en de bestaande "nog niet verfijnd"-markering / `toonRegistratiegaps`. Consistente
+eerlijkheidslijn: een gat tonen (rustig), niet verbergen en niet schreeuwen.

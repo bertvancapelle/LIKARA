@@ -181,3 +181,9 @@ Onderweg-afwijkingen van een ADR moeten **terug de ADR in, met de reden**. Bij s
 de ADR tegen wat **écht gebouwd** is en veranker de afwijkingen — de ADR beschrijft de gerealiseerde
 oplossing, niet het oorspronkelijke voorstel. (Deze sessie: de ADR schreef een layout voor die
 niet-deterministisch bleek; gebouwd werd een deterministische variant → dat hoort terug in de ADR.)
+
+## Keuze-sortering vóór je iets onthoudt (LI034, pointer)
+
+Vóór je een keuze onthoudt: sorteer 'm — **platformvormend → centraal beheer; persoonlijke werkstijl →
+voorkeur-laag; momentkeuze → inline/vers**. Detail (vaste bril vs. momentkeuze, "onthoud als mijn
+standaard") in **likara-ux**.
