@@ -35,6 +35,7 @@ from models.models import (
     Organisatiegebruik,
     Partij,
     Plateau,
+    Proces,
     WorkPackage,
 )
 from services import componentconfig_catalog as catalog
@@ -117,6 +118,10 @@ def _naam(r) -> str:
         naam = r.deliverable_naam
     elif et == "partij":
         naam = r.partij_naam
+    elif et == "proces":
+        # ADR-042 slice 1 — proces-naam-tak (LI018-les: elke nieuwe cross-element
+        # projectie krijgt zijn subtype-join + naam-tak, anders de fallback-naam).
+        naam = r.proces_naam
     return naam or f"{et} {str(r.id)[:8]}"
 
 
@@ -185,7 +190,7 @@ async def lijst(
     naam_expr = func.coalesce(
         Component.naam, Contract.contractnaam, cast(Datatype.categorie, String),
         gg_org.naam, Plateau.naam, Gap.naam, WorkPackage.naam, Deliverable.naam,
-        partij_self.naam,
+        partij_self.naam, Proces.naam,
     )
     laag_expr = func.coalesce(_static_typing_case("laag"), cc.laag)
     aspect_expr = func.coalesce(_static_typing_case("aspect"), cc.aspect)
@@ -214,6 +219,7 @@ async def lijst(
             Deliverable.naam.label("deliverable_naam"),
             partij_self.naam.label("partij_naam"),
             partij_self.aard.label("partij_aard"),
+            Proces.naam.label("proces_naam"),
             kolom.label("sorteerwaarde"),
         )
         .outerjoin(Component, and_(Component.id == Element.id, Component.tenant_id == tid))
@@ -228,6 +234,7 @@ async def lijst(
         .outerjoin(WorkPackage, and_(WorkPackage.id == Element.id, WorkPackage.tenant_id == tid))
         .outerjoin(Deliverable, and_(Deliverable.id == Element.id, Deliverable.tenant_id == tid))
         .outerjoin(partij_self, and_(partij_self.id == Element.id, partij_self.tenant_id == tid))
+        .outerjoin(Proces, and_(Proces.id == Element.id, Proces.tenant_id == tid))
         .outerjoin(cc, and_(cc.dimensie == ComponentConfigDimensie.componenttype, cc.optie_sleutel == Component.componenttype))
         .where(Element.tenant_id == tid)
     )

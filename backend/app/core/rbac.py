@@ -48,6 +48,8 @@ class Entiteit(str, Enum):
     WORK_PACKAGE = "work_package"
     DELIVERABLE = "deliverable"
     GAP = "gap"
+    # ADR-042 slice 1 — procesregister (tenant-zijde, inhoud-entiteit).
+    PROCES = "proces"
     # ADR-023 Fase F / F-2 — read-only cross-element laagprojectie (architectuuroverzicht).
     ARCHITECTUUR = "architectuur"
     # ADR-027 — niet-scorende categorie-klaarverklaring (tenant-zijde, inhoud-entiteit).
@@ -144,6 +146,8 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.WORK_PACKAGE: dict(_INHOUD),
     Entiteit.DELIVERABLE: dict(_INHOUD),
     Entiteit.GAP: dict(_INHOUD),
+    # ADR-042 slice 1 — procesregister: inhoud-patroon.
+    Entiteit.PROCES: dict(_INHOUD),
     # ADR-023 Fase F / F-2: cross-element laagprojectie — read-only overzicht; élke
     # tenant-rol mag lezen (consistent met het feit dat alle rollen al elk element-type lezen).
     Entiteit.ARCHITECTUUR: dict(_ALLEEN_LEZEN),

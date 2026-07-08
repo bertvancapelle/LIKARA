@@ -21,6 +21,8 @@ def test_element_type_enum_waarden():
         "plateau", "gap", "work_package", "deliverable",
         # ADR-024 slice 1 — partij-supertype (business actor).
         "partij",
+        # ADR-042 slice 1 — procesregister (business process).
+        "proces",
     ]
 
 

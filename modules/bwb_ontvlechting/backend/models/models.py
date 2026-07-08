@@ -189,6 +189,9 @@ class ElementType(str, Enum):
     # ADR-024 slice 1 — partij-supertype (business actor). Slice 1 realiseert alleen
     # aard `externe_partij`; de andere aarden (organisatie/persoon/…) zijn latere slices.
     partij = "partij"
+    # ADR-042 slice 1 — procesregister (business process). Nestbaar via een ouder-self-FK
+    # op de subtabel; de plek in de boom ís het niveau (geen niveau-label).
+    proces = "proces"
 
 
 class PartijAard(str, Enum):
@@ -626,6 +629,45 @@ class Gap(Base, TenantMixin, TimestampMixin):
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
     baseline_plateau_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     doel_plateau_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+
+
+class Proces(Base, TenantMixin, TimestampMixin):
+    """ADR-042 slice 1 — procesregister-element: wat de organisatie dóét, nestbaar van grof
+    naar fijn (bedrijfsproces → werkproces → desgewenst processtap; de plek in de boom ís
+    het niveau — geen niveau-label). Element-subtype (shared-PK via composiet-FK
+    `(tenant_id, id)` → `element`, FORCE RLS via de migratie; cross-tenant uitgesloten).
+
+    Type-eigen velden: `naam` (verplicht) + `toelichting` (plateau-spiegel). `ouder_id` is
+    een **composiet self-FK** `(tenant_id, ouder_id)` → `proces(tenant_id, id)`
+    (tenant-consistent) met **`ON DELETE RESTRICT`**: een proces met deelprocessen kan niet
+    verwijderd worden (geen stilzwijgend wegvagen van de subboom — de service geeft 409
+    `HEEFT_DEELPROCESSEN`; RESTRICT is de DB-backstop). Cycluspreventie (zelf-ouder +
+    transitieve kring) zit in de servicelaag (work_package-recept); de DB-CHECK borgt
+    alléén de directe self-parent als extra vangnet. Puur registratief — geen
+    engine-koppeling (ADR-042-invariant: score blijft de enige lifecycle-driver)."""
+
+    __tablename__ = "proces"
+    __table_args__ = (
+        # Composiet-FK-target voor de self-FK (tenant-consistent).
+        UniqueConstraint("tenant_id", "id", name="uq_proces_tenant_id"),
+        CheckConstraint(
+            "ouder_id IS NULL OR ouder_id <> id",
+            name="ck_proces_geen_self_parent",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_proces_element", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "ouder_id"], ["proces.tenant_id", "proces.id"],
+            name="fk_proces_ouder", ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    naam: Mapped[str] = mapped_column(String(255), nullable=False)
+    toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ouder_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
 
 # ADR-023 B-mig-2 slice 1: het `Koppeling`-model is vervangen door `flow`-relaties in het

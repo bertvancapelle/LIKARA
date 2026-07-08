@@ -51,6 +51,7 @@ VERWACHT = {
     Entiteit.WORK_PACKAGE: _INHOUD,         # ADR-023 Fase E — migratielaag
     Entiteit.DELIVERABLE: _INHOUD,          # ADR-023 Fase E — migratielaag
     Entiteit.GAP: _INHOUD,                  # ADR-023 Fase E — migratielaag (E4)
+    Entiteit.PROCES: _INHOUD,               # ADR-042 slice 1 — procesregister
     # ADR-023 Fase F / F-2: read-only laagprojectie — élke rol alleen LEZEN.
     Entiteit.ARCHITECTUUR: {
         Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,
@@ -80,7 +81,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (24×4×4 = 384 combinaties) tegen de spec (ADR-041: +GEBRUIKER_VOORKEUR)."""
+    """Elke entiteit × rol × actie (25×4×4 = 400 combinaties) tegen de spec (ADR-042: +PROCES)."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist
     for entiteit, per_rol in VERWACHT.items():
         for rol in Rol:

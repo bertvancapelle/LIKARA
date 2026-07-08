@@ -15,8 +15,9 @@ niet ongemerkt ontstaan wanneer Fase E nieuwe element-typen realiseert.
 """
 from models.models import ElementType
 
-# Toegestane waardelijsten (ADR-023 OK-3). `behavior` is in het huidige gecureerde model
-# nog leeg (geen gedragselementen); de migratie-elementen vullen dit mogelijk in Fase E.
+# Toegestane waardelijsten (ADR-023 OK-3). OK-3 stelde `behavior` oorspronkelijk "leeg";
+# die lijn is inmiddels tweemaal bewust en gemarkeerd doorbroken: work_package (Fase E,
+# ArchiMate-gedragselement) en proces (ADR-042, ArchiMate Business Process).
 TOEGESTANE_LAGEN = frozenset({"business", "application", "technology", "implementation_migration"})
 TOEGESTANE_ASPECTEN = frozenset({"active", "passive", "behavior"})
 
@@ -33,6 +34,8 @@ TOEGESTANE_ELEMENTEN = frozenset({
     "communication_network",
     # Business layer
     "business_actor", "business_role", "business_service", "contract", "business_object",
+    # ADR-042 — procesregister (gedragselement; expliciete uitbreiding van de gesloten lijst).
+    "business_process",
     # Implementation & Migration layer
     "plateau", "gap", "work_package", "deliverable",
 })
@@ -57,6 +60,12 @@ ELEMENT_ARCHIMATE_TYPING: dict[ElementType, dict[str, str]] = {
     ElementType.gap: {"archimate_element": "gap", "laag": "implementation_migration", "aspect": "passive"},
     ElementType.work_package: {"archimate_element": "work_package", "laag": "implementation_migration", "aspect": "behavior"},
     ElementType.deliverable: {"archimate_element": "deliverable", "laag": "implementation_migration", "aspect": "passive"},
+    # ── ADR-042 slice 1 — procesregister ───────────────────────────────────────────
+    # Proces: business-laag, GEDRAGSelement (ArchiMate Business Process) — de TWEEDE
+    # gemarkeerde behavior-afwijking op OK-3, naast work_package (zie het comment boven
+    # TOEGESTANE_LAGEN). `business_function` is bewust NIET opgenomen: de
+    # bedrijfsfunctie-as is een geparkeerd, eigen ADR-spoor (ADR-042 besluit 1).
+    ElementType.proces: {"archimate_element": "business_process", "laag": "business", "aspect": "behavior"},
 }
 
 # Element-typen die de `ElementType`-enum al kent maar die in het huidige model nog GEEN

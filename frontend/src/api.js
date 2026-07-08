@@ -385,6 +385,16 @@ export const api = {
     verwijder: (id) => request(`/work-packages/${id}`, { method: 'DELETE' }),
     subboom: (id) => request(`/work-packages/${id}/subboom`),
   },
+  // ADR-042 slice 1 — procesregister (nestbare procesboom). Schermen volgen in slice 4;
+  // de allowlist volgt de route: sort/order (ADR-017), zoek (ILIKE), ouder_id (boom-niveau).
+  processen: {
+    lijst: (params = {}) => request(`/processen${_filterQuery('processen.lijst', params, ['limit', 'after', 'sort', 'order', 'zoek', 'ouder_id'])}`),
+    haal: (id) => request(`/processen/${id}`),
+    maak: (data) => request('/processen', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) => request(`/processen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/processen/${id}`, { method: 'DELETE' }),
+    subboom: (id) => request(`/processen/${id}/subboom`),
+  },
   deliverables: {
     lijst: (params = {}) => request(`/deliverables${_filterQuery('deliverables.lijst', params, ['limit', 'after'])}`),
     haal: (id) => request(`/deliverables/${id}`),

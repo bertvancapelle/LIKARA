@@ -81,6 +81,15 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('/organisatiegebruik')
     expect(laatsteUrl).toContain('organisatie_id=org-1')
   })
+
+  it('ADR-042: processen.lijst zet zoek/sort/order/ouder_id in de URL', async () => {
+    await api.processen.lijst({ zoek: 'vergunning', sort: 'naam', order: 'desc', ouder_id: 'p-1' })
+    expect(laatsteUrl).toContain('/processen')
+    expect(laatsteUrl).toContain('zoek=vergunning')
+    expect(laatsteUrl).toContain('sort=naam')
+    expect(laatsteUrl).toContain('order=desc')
+    expect(laatsteUrl).toContain('ouder_id=p-1')
+  })
 })
 
 describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', () => {
@@ -103,6 +112,12 @@ describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', ()
   it('LI033: organisatiegebruik.lijstVoorOrganisatie met camelCase organisatieId gooit LUID', () => {
     expect(() => api.organisatiegebruik.lijstVoorOrganisatie({ organisatieId: 'x' })).toThrow(
       /onbekende filter-parameter 'organisatieId' voor organisatiegebruik\.lijstVoorOrganisatie/,
+    )
+  })
+
+  it('ADR-042: processen.lijst met camelCase ouderId gooit LUID', () => {
+    expect(() => api.processen.lijst({ ouderId: 'p-1' })).toThrow(
+      /onbekende filter-parameter 'ouderId' voor processen\.lijst/,
     )
   })
 })
