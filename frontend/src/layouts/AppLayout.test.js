@@ -23,6 +23,7 @@ function maakRouter() {
           { path: '', name: 'dashboard', component: DashStub },
           { path: 'applicaties', name: 'applicatie-lijst', component: { template: '<div/>' } },
           { path: 'componenten', name: 'component-lijst', component: { template: '<div/>' } },
+          { path: 'processen', name: 'proces-lijst', component: { template: '<div/>' } },
           { path: 'partijen', name: 'partij-lijst', component: { template: '<div/>' } },
           { path: 'gebruikers', name: 'gebruikersbeheer', component: { template: '<div/>' } },
           { path: 'auditlog', name: 'auditlog', component: { template: '<div/>' } },

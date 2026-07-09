@@ -5,8 +5,7 @@
 """
 import uuid
 
-from sqlalchemy import delete, func, select
-from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
@@ -84,25 +83,41 @@ async def stel_band_dekking_in(session: AsyncSession, tenant_id, contract_id, co
         raise NietGevonden("component", component_id)
     sleutels = sorted(set(dekking_sleutels or []))
     await catalog.valideer_sleutels(session, _DEK, sleutels)  # 422 ONGELDIGE_OPTIE
-    await session.execute(
-        pg_insert(ContractBandDekking)
-        .values(tenant_id=tid, contract_id=cid, component_id=kid, dekking_sleutels=sleutels)
-        .on_conflict_do_update(
-            constraint="uq_contract_band_dekking",
-            set_={"dekking_sleutels": sleutels, "updated_at": func.now()},
+    # LI035 — ORM-upsert (select → setattr/add) i.p.v. de eerdere core-upsert
+    # (insert…on_conflict): de centrale audit-capture (flush-hook) ziet alléén
+    # ORM-mutaties; met de core-variant landde een dekking-wijziging nooit in de
+    # trail (audit-gat). De UNIQUE-constraint blijft de backstop tegen races.
+    bestaand = (
+        await session.execute(
+            select(ContractBandDekking).where(
+                ContractBandDekking.tenant_id == tid,
+                ContractBandDekking.contract_id == cid,
+                ContractBandDekking.component_id == kid,
+            )
         )
-    )
+    ).scalar_one_or_none()
+    if bestaand is not None:
+        bestaand.dekking_sleutels = sleutels
+    else:
+        session.add(ContractBandDekking(
+            tenant_id=tid, contract_id=cid, component_id=kid, dekking_sleutels=sleutels,
+        ))
     await session.commit()
 
 
 async def verwijder_band_dekking(session: AsyncSession, tenant_id, contract_id, component_id) -> None:
     """Verwijder de band-dekking (terug naar contract-brede dekking). Idempotent."""
     tid, cid, kid = _uuid(tenant_id), _uuid(contract_id), _uuid(component_id)
-    await session.execute(
-        delete(ContractBandDekking).where(
-            ContractBandDekking.tenant_id == tid,
-            ContractBandDekking.contract_id == cid,
-            ContractBandDekking.component_id == kid,
+    # LI035 — ORM-delete i.p.v. core delete (zelfde audit-reden als bij `stel_band_dekking_in`).
+    obj = (
+        await session.execute(
+            select(ContractBandDekking).where(
+                ContractBandDekking.tenant_id == tid,
+                ContractBandDekking.contract_id == cid,
+                ContractBandDekking.component_id == kid,
+            )
         )
-    )
+    ).scalar_one_or_none()
+    if obj is not None:
+        await session.delete(obj)
     await session.commit()

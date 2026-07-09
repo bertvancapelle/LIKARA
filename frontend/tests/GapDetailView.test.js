@@ -190,14 +190,28 @@ describe('GapDetailView — leden + readiness-rollup', () => {
     expect(api.gaps.voegLid).not.toHaveBeenCalled()
   })
 
-  it('ontkoppelen stuurt verwijderLid en herlaadt readiness', async () => {
+  it('ontkoppelen vraagt bevestiging (LI035); bevestigen stuurt verwijderLid en herlaadt readiness', async () => {
     api.gaps.verwijderLid.mockResolvedValueOnce(null)
     const { w } = await mountDetail()
     const haalVoor = api.gaps.haal.mock.calls.length
     await w.find('[data-testid="gap-lid-ontkoppel-rl1"]').trigger('click')
     await flushPromises()
+    // Eerst de gedeelde bevestigingsdialoog — nog géén call.
+    expect(api.gaps.verwijderLid).not.toHaveBeenCalled()
+    expect(w.find('[data-testid="gap-lid-ontkoppel-dialog"]').exists()).toBe(true)
+    await w.find('[data-testid="gap-lid-ontkoppel-bevestig"]').trigger('click')
+    await flushPromises()
     expect(api.gaps.verwijderLid).toHaveBeenCalledWith(ID, 'rl1')
     expect(api.gaps.haal.mock.calls.length).toBe(haalVoor + 1)
+  })
+
+  it('ontkoppelen annuleren = geen call (LI035)', async () => {
+    const { w } = await mountDetail()
+    await w.find('[data-testid="gap-lid-ontkoppel-rl1"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="gap-lid-ontkoppel-annuleer"]').trigger('click')
+    await flushPromises()
+    expect(api.gaps.verwijderLid).not.toHaveBeenCalled()
   })
 
   it('lege leden-lijst toont een koppel-uitleg', async () => {

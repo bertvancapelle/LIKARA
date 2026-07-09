@@ -401,6 +401,8 @@ export const api = {
     lijst: (params = {}) => request(`/procesvervullingen${_filterQuery('procesvervullingen.lijst', params, ['proces_id', 'component_id'])}`),
     functies: () => request('/procesvervullingen/functies'),
     maak: (data) => request('/procesvervullingen', { method: 'POST', body: JSON.stringify(data) }),
+    // LI035 — alleen de kenmerk-velden (applicatiefunctie/toelichting); ankers onwijzigbaar.
+    werkBij: (id, data) => request(`/procesvervullingen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/procesvervullingen/${id}`, { method: 'DELETE' }),
   },
   deliverables: {
@@ -562,5 +564,12 @@ export const api = {
     maak: (data) => request('/platform/bivschaalconfig', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
       request(`/platform/bivschaalconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
+  // ADR-042 — platform-beheer applicatiefunctie-catalogus (geen DELETE: soft-deactivate).
+  platformApplicatiefunctieconfig: {
+    lijst: () => request('/platform/applicatiefunctieconfig'),
+    maak: (data) => request('/platform/applicatiefunctieconfig', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) =>
+      request(`/platform/applicatiefunctieconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
 }

@@ -14,6 +14,7 @@ import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast }
 import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import ObjectHistoriePaneel from '@modules/bwb_ontvlechting/frontend/views/ObjectHistoriePaneel.vue'
 
@@ -182,13 +183,26 @@ async function bevestigKoppel() {
     bezig.value = false
   }
 }
-async function ontkoppel(lid) {
+// LI035 regel-acties-patroon — ontkoppelen vraagt altijd bevestiging (gedeelde dialog).
+const ontkoppelOpen = ref(false)
+const teOntkoppelen = ref(null)
+const ontkoppelBezig = ref(false)
+function vraagOntkoppel(lid) {
+  teOntkoppelen.value = lid
+  ontkoppelOpen.value = true
+}
+async function bevestigOntkoppel() {
+  ontkoppelBezig.value = true
   try {
-    await api.gaps.verwijderLid(props.id, lid.id)
+    await api.gaps.verwijderLid(props.id, teOntkoppelen.value.id)
+    ontkoppelOpen.value = false
     toast.add({ severity: 'success', summary: 'Ontkoppeld', life: 2500 })
     await Promise.all([laadLeden(), herlaadGap()])
   } catch (e) {
+    ontkoppelOpen.value = false
     _toastFout(e)
+  } finally {
+    ontkoppelBezig.value = false
   }
 }
 
@@ -248,7 +262,7 @@ onMounted(laad)
         <Column field="naam" header="Naam"><template #body="{ data }">{{ data.naam || '—' }}</template></Column>
         <Column header="">
           <template #body="{ data }">
-            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`gap-lid-ontkoppel-${data.id}`" @click="ontkoppel(data)" />
+            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`gap-lid-ontkoppel-${data.id}`" @click="vraagOntkoppel(data)" />
           </template>
         </Column>
         <template #empty>
@@ -300,6 +314,17 @@ onMounted(laad)
         <Button label="Definitief verwijderen" severity="danger" data-testid="gap-verwijder-bevestig" :disabled="bezig" @click="bevestigVerwijderen" />
       </div>
     </Dialog>
+
+    <!-- Lid ontkoppelen — gedeelde bevestiging (LI035 regel-acties-patroon). -->
+    <BevestigVerwijderDialog
+      v-model:visible="ontkoppelOpen"
+      kop="Lid ontkoppelen"
+      :omschrijving="teOntkoppelen ? `${teOntkoppelen.naam || 'Dit lid'} uit deze gap ontkoppelen? Het object zelf blijft bestaan.` : ''"
+      bevestig-label="Ontkoppelen"
+      :bezig="ontkoppelBezig"
+      testid="gap-lid-ontkoppel"
+      @bevestig="bevestigOntkoppel"
+    />
 
     <!-- Lid koppelen -->
     <Dialog v-model:visible="koppelOpen" modal :closable="false" header="Lid koppelen" data-testid="gap-lid-dialog" @show="focusEerste">

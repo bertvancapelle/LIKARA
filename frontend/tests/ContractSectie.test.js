@@ -220,13 +220,28 @@ describe('ContractSectie — §3 valt-onder-samenvatting', () => {
       expect(api.contracten.bandDekking.instellen).toHaveBeenCalledWith('c1', APP, ['licentie'])
     })
 
-    it('"Terug naar algemene dekking" roept DELETE aan', async () => {
+    it('"Terug naar algemene dekking" vraagt bevestiging (LI035); bevestigen roept DELETE aan', async () => {
       const w = await mountSectie()
       await w.find('[data-testid="ct-dekking-bewerk-k1"]').trigger('click')
       await flushPromises()
       await w.find('[data-testid="ct-dekking-terug-k1"]').trigger('click')
       await flushPromises()
+      // Eerst de gedeelde bevestigingsdialoog — nog géén call.
+      expect(api.contracten.bandDekking.verwijderen).not.toHaveBeenCalled()
+      await w.find('[data-testid="ct-dekking-terugzetten-bevestig"]').trigger('click')
+      await flushPromises()
       expect(api.contracten.bandDekking.verwijderen).toHaveBeenCalledWith('c1', APP)
+    })
+
+    it('"Terug naar algemene dekking" annuleren = geen call (LI035)', async () => {
+      const w = await mountSectie()
+      await w.find('[data-testid="ct-dekking-bewerk-k1"]').trigger('click')
+      await flushPromises()
+      await w.find('[data-testid="ct-dekking-terug-k1"]').trigger('click')
+      await flushPromises()
+      await w.find('[data-testid="ct-dekking-terugzetten-annuleer"]').trigger('click')
+      await flushPromises()
+      expect(api.contracten.bandDekking.verwijderen).not.toHaveBeenCalled()
     })
 
     it('geen bewerk-knop voor een viewer', async () => {

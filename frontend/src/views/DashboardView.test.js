@@ -226,7 +226,7 @@ describe('DashboardView — ADR-027 slice 3 klaarverklaring-voortgang', () => {
     const w = await mountDashboard()
     const afw = w.find('[data-testid="telling-klaar-afwijking"]')
     expect(afw.text()).toContain('checklist nog niet compleet') // tekstueel, niet alleen kleur
-    expect(afw.html()).toContain('var(--lk-color-warn)')
+    expect(afw.html()).toContain('var(--lk-color-warning)')
   })
 
   it('afwijkingstegel zonder afwijking: neutrale weergave (0)', async () => {

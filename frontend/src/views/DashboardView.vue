@@ -108,7 +108,7 @@ onMounted(laad)
             :data-testid="`readiness-type-${t.componenttype}`"
             aria-labelledby="dashboard-readiness-titel"
           >
-            <h3 class="text-[length:var(--lk-text-md)] font-semibold mb-[var(--lk-space-xs)]">
+            <h3 class="text-[length:var(--lk-text-base)] font-semibold mb-[var(--lk-space-xs)]">
               {{ t.componenttype_label }}
             </h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-[var(--lk-space-md)]">
@@ -190,12 +190,12 @@ onMounted(laad)
             :to="{ name: 'component-lijst', query: { afwijking: 1 } }"
             data-testid="telling-klaar-afwijking"
             class="card inline-flex items-baseline gap-[var(--lk-space-sm)] rounded-[var(--lk-radius-card)] shadow-[var(--lk-shadow-sm)] px-[var(--lk-space-lg)] py-[var(--lk-space-md)] hover:shadow-[var(--lk-shadow-md)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-            :class="data.klaar_met_afwijking > 0 ? 'bg-[color-mix(in_srgb,var(--lk-color-warn)_12%,transparent)]' : 'bg-[var(--lk-color-surface)]'"
+            :class="data.klaar_met_afwijking > 0 ? 'bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)]' : 'bg-[var(--lk-color-surface)]'"
           >
             <span aria-hidden="true" class="text-[length:var(--lk-text-xl)]">⚠</span>
             <span
               class="text-[length:var(--lk-text-2xl)] font-semibold"
-              :class="data.klaar_met_afwijking > 0 ? 'text-[var(--lk-color-warn)]' : 'text-[var(--lk-color-text-muted)]'"
+              :class="data.klaar_met_afwijking > 0 ? 'text-[var(--lk-color-warning)]' : 'text-[var(--lk-color-text-muted)]'"
             >{{ data.klaar_met_afwijking }}</span>
             <span class="text-[var(--lk-color-text-muted)]">klaar verklaard, checklist nog niet compleet</span>
           </router-link>

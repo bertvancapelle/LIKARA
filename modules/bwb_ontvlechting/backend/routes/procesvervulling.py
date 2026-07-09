@@ -17,7 +17,11 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
-from schemas.procesvervulling import ProcesvervullingAanmaken, ProcesvervullingUit
+from schemas.procesvervulling import (
+    ProcesvervullingAanmaken,
+    ProcesvervullingUit,
+    ProcesvervullingWijzigen,
+)
 from services import procesvervulling_service as svc
 
 router = APIRouter(prefix="/procesvervullingen", tags=["bwb:procesvervulling"])
@@ -65,6 +69,18 @@ async def maak_procesvervulling(
         session, user.tenant_id, body.component_id, body.proces_id,
         body.applicatiefunctie, body.toelichting,
     )
+
+
+@router.patch("/{vervulling_id}", response_model=ProcesvervullingUit)
+async def werk_procesvervulling_bij(
+    vervulling_id: uuid.UUID,
+    body: ProcesvervullingWijzigen,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PROCESVERVULLING, Actie.WIJZIGEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Wijzig de kenmerk-velden (applicatiefunctie/toelichting); de ankers
+    component/proces zijn onwijzigbaar (regel-acties-patroon)."""
+    return await svc.werk_bij(session, user.tenant_id, vervulling_id, body)
 
 
 @router.delete("/{vervulling_id}", status_code=204)

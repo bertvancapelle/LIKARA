@@ -11,6 +11,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Dialog, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import { CONTRACTTYPE, REGISTER_FOUT, label } from '../labels'
 import ZoekSelect from './ZoekSelect.vue'
 
@@ -101,13 +102,30 @@ async function slaBandDekkingOp(rij) {
     toast.add({ severity: 'success', summary: 'Dekking opgeslagen', life: 2500 })
   } catch (e) { _toastFout(e) }
 }
-async function verwijderBandDekking(rij) {
+// LI035 regel-acties-patroon — terugzetten naar de algemene dekking vraagt bevestiging
+// (de per-band-registratie verdwijnt; de gedeelde BevestigVerwijderDialog toont dat leesbaar).
+const bandTerugOpen = ref(false)
+const bandTerugRij = ref(null)
+const bandTerugBezig = ref(false)
+function vraagBandDekkingTerug(rij) {
+  bandTerugRij.value = rij
+  bandTerugOpen.value = true
+}
+async function bevestigBandDekkingTerug() {
+  const rij = bandTerugRij.value
+  bandTerugBezig.value = true
   try {
     await api.contracten.bandDekking.verwijderen(rij.contract_id, props.applicatieId)
     dekking[rij.contract_id] = await api.contracten.bandDekking.ophalen(rij.contract_id, props.applicatieId)
     bewerkContractId.value = null
+    bandTerugOpen.value = false
     toast.add({ severity: 'success', summary: 'Terug naar algemene dekking', life: 2500 })
-  } catch (e) { _toastFout(e) }
+  } catch (e) {
+    bandTerugOpen.value = false
+    _toastFout(e)
+  } finally {
+    bandTerugBezig.value = false
+  }
 }
 
 // Rol-opties zijn bij eerste render al nodig voor de inline rol-select per rij.
@@ -206,7 +224,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
 onMounted(() => Promise.all([laad(), _zorgRolOpties()]))
 
 // §5 — het context-paneel bij categorie 8 hergebruikt deze al geladen koppeling-state.
-defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleutels, bewerkBandDekking, slaBandDekkingOp, verwijderBandDekking })
+defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleutels, bewerkBandDekking, slaBandDekkingOp, vraagBandDekkingTerug, bevestigBandDekkingTerug })
 </script>
 
 <template>
@@ -281,7 +299,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
                 </label>
                 <div class="mt-0.5 flex flex-wrap gap-2">
                   <button type="button" :data-testid="`ct-dekking-opslaan-${rij.koppeling_id}`" class="text-[var(--lk-color-primary)] hover:underline" @click="slaBandDekkingOp(rij)">Opslaan</button>
-                  <button type="button" :data-testid="`ct-dekking-terug-${rij.koppeling_id}`" class="text-[var(--lk-color-text-muted)] hover:underline" @click="verwijderBandDekking(rij)">Terug naar algemene dekking</button>
+                  <button type="button" :data-testid="`ct-dekking-terug-${rij.koppeling_id}`" class="text-[var(--lk-color-text-muted)] hover:underline" @click="vraagBandDekkingTerug(rij)">Terug naar algemene dekking</button>
                   <button type="button" :data-testid="`ct-dekking-annuleer-${rij.koppeling_id}`" class="text-[var(--lk-color-text-muted)] hover:underline" @click="bewerkContractId = null">Annuleren</button>
                 </div>
               </div>
@@ -349,5 +367,16 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
         <Button label="Ontkoppelen" severity="danger" data-testid="ct-ontkoppel-bevestig" :disabled="bezig" @click="bevestigOntkoppel" />
       </div>
     </Dialog>
+
+    <!-- Band-dekking terugzetten — gedeelde bevestiging (LI035 regel-acties-patroon). -->
+    <BevestigVerwijderDialog
+      v-model:visible="bandTerugOpen"
+      kop="Terug naar algemene dekking"
+      :omschrijving="bandTerugRij ? `De specifieke dekking van deze koppeling met ${bandTerugRij.contractnaam || 'dit contract'} vervalt; daarna geldt weer de algemene contract-dekking.` : ''"
+      bevestig-label="Terugzetten"
+      :bezig="bandTerugBezig"
+      testid="ct-dekking-terugzetten"
+      @bevestig="bevestigBandDekkingTerug"
+    />
   </section>
 </template>

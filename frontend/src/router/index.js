@@ -31,6 +31,9 @@ const PartijFormulier = () =>
   import('@modules/bwb_ontvlechting/frontend/views/PartijFormulier.vue')
 const PartijDetail = () => import('@modules/bwb_ontvlechting/frontend/views/PartijDetail.vue')
 const ContractLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ContractLijst.vue')
+// ADR-042 slice 4a — procesregister (boom + detail), lazy.
+const ProcesLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ProcesLijst.vue')
+const ProcesDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ProcesDetail.vue')
 const ContractFormulier = () => import('@modules/bwb_ontvlechting/frontend/views/ContractFormulier.vue')
 const ContractDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ContractDetail.vue')
 // ADR-029 Fase 4 — gebruikersbeheer (beheerder-only; backend handhaaft via GEBRUIKERSBEHEER).
@@ -51,6 +54,8 @@ const PartijsoortConfigBeheer = () => import('../views/PartijsoortConfigBeheer.v
 // ADR-028 — platform-beheer componentrol- + BIV-schaal-catalogus, lazy.
 const RolConfigBeheer = () => import('../views/RolConfigBeheer.vue')
 const BivConfigBeheer = () => import('../views/BivConfigBeheer.vue')
+// ADR-042 — platform-beheer applicatiefunctie-catalogus, lazy.
+const ApplicatiefunctieConfigBeheer = () => import('../views/ApplicatiefunctieConfigBeheer.vue')
 // ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only), lazy.
 const PlateauLijstView = () => import('../views/migratie/PlateauLijstView.vue')
 const PlateauDetailView = () => import('../views/migratie/PlateauDetailView.vue')
@@ -127,6 +132,9 @@ const routes = [
         component: PartijFormulier,
         props: true,
       },
+      // ADR-042 — procesregister. Statische subpaden vóór de dynamische /:id.
+      { path: 'processen', name: 'proces-lijst', component: ProcesLijst },
+      { path: 'processen/:id', name: 'proces-detail', component: ProcesDetail, props: true },
       { path: 'contracten', name: 'contract-lijst', component: ContractLijst },
       { path: 'contracten/nieuw', name: 'contract-nieuw', component: ContractFormulier },
       { path: 'contracten/:id', name: 'contract-detail', component: ContractDetail, props: true },
@@ -169,6 +177,7 @@ const routes = [
       { path: 'partijsoortconfig', name: 'beheer-partijsoortconfig', component: PartijsoortConfigBeheer },
       { path: 'componentrolconfig', name: 'beheer-componentrolconfig', component: RolConfigBeheer },
       { path: 'bivschaalconfig', name: 'beheer-bivschaalconfig', component: BivConfigBeheer },
+      { path: 'applicatiefunctieconfig', name: 'beheer-applicatiefunctieconfig', component: ApplicatiefunctieConfigBeheer },
     ],
   },
 

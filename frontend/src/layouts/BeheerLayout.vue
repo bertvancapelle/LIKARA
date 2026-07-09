@@ -107,6 +107,14 @@ async function uitloggen() {
           >
             BIV-schaal
           </router-link>
+          <!-- ADR-042 — applicatiefunctie-catalogus (het wát-veld op de proces-koppeling). -->
+          <router-link
+            :to="{ name: 'beheer-applicatiefunctieconfig' }"
+            data-testid="nav-applicatiefunctieconfig"
+            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Applicatiefuncties
+          </router-link>
         </nav>
       </aside>
 

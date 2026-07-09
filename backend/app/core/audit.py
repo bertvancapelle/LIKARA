@@ -58,6 +58,9 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "gebruikersgroep", "relatie", "checklistscore", "blokkade", "checklistvraag",
     "checklistvraag_optie", "partij", "contract", "contract_dekking",
     "contract_kostenmodel",
+    # ADR-030 — per-band contractdekking (audit-gat gedicht in LI035: mutaties op de
+    # band-dekking landden niet in de trail terwijl de contract-brede tags dat wél deden).
+    "contract_band_dekking",
     # ADR-024 slice 2b — rol-toewijzing (partij vervult rol op component/contract).
     "roltoewijzing",
     # ADR-036 — grof gebruiksfeit (organisatie gebruikt applicatie).

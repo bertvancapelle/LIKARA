@@ -18,6 +18,24 @@ const _BIV_VUISTREGEL =
   'op burgers, continuïteit of een wettelijke plicht.'
 
 export const VELD_UITLEG = {
+  // ── Procesregister (ADR-042) ─────────────────────────────────────────────────
+  proces: {
+    uitleg:
+      'Een proces is wat de organisatie doet, van grof naar fijn nestbaar. ' +
+      'Voorbeeld: Vergunningverlening → Aanvraag behandelen.',
+    vuistregel:
+      'De plek in de boom ís het niveau — begin gerust grof (het bedrijfsproces) en verfijn ' +
+      'later met deelprocessen waar dat inzicht oplevert.',
+  },
+  applicatiefunctie: {
+    uitleg:
+      'Een applicatiefunctie is wat een systeem dóét binnen een proces; dit geldt voor elk ' +
+      'componenttype (ook een database of landelijke voorziening). Voorbeeld: Zaaksysteem ' +
+      'vervult "registreren" in Vergunningverlening.',
+    vuistregel:
+      'Meerdere functies van hetzelfde component in hetzelfde proces? Leg ze als losse ' +
+      'regels vast — elke regel is apart te verwijderen.',
+  },
   // ── Checklistantwoord (ADR-037) ──────────────────────────────────────────────
   verantwoordelijke: {
     uitleg:

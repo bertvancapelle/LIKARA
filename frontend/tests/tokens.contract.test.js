@@ -20,6 +20,9 @@ const VEREISTE_TOKENS = [
   '--lk-color-primary-100',
   '--lk-color-primary-700',
   '--lk-color-danger',
+  // LI035 — het warn-token (MeldingBanner + warn-banners); de `--lk-color-warn`-typo
+  // (token bestond niet → banners zonder tint) mag niet terugkomen.
+  '--lk-color-warning',
   '--lk-color-border',
   '--lk-color-text',
   '--lk-radius-btn',

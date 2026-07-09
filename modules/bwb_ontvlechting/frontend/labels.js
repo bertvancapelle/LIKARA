@@ -58,6 +58,9 @@ export const AUDIT_ENTITEIT = {
   work_package: 'Werkpakket',
   deliverable: 'Deliverable',
   gap: 'Gap',
+  // ADR-042 — procesregister + koppelregel (sprekend label i.p.v. humanize-fallback).
+  proces: 'Proces',
+  procesvervulling: 'Proces-koppeling',
 }
 
 // LI019 — leesbare labels voor systeem-actoren (actor_sub met "system:"-prefix).

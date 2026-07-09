@@ -129,6 +129,40 @@ def test_procesvervulling_schema_validatie():
         )
 
 
+def test_procesvervulling_wijzigen_schema_alleen_kenmerken():
+    """LI035 regel-acties-patroon: alleen de kenmerk-velden zijn wijzigbaar; de ankers
+    (component/proces) worden door extra='forbid' geweerd."""
+    from pydantic import ValidationError
+    from schemas.procesvervulling import ProcesvervullingWijzigen
+
+    ok = ProcesvervullingWijzigen(applicatiefunctie="raadplegen", toelichting="bijgesteld")
+    assert ok.applicatiefunctie == "raadplegen"
+    ProcesvervullingWijzigen(toelichting=None)  # kenmerk expliciet leegmaken mag
+    with pytest.raises(ValidationError):  # anker onwijzigbaar
+        ProcesvervullingWijzigen(component_id=uuid.uuid4())
+    with pytest.raises(ValidationError):  # anker onwijzigbaar
+        ProcesvervullingWijzigen(proces_id=uuid.uuid4())
+    with pytest.raises(ValidationError):  # functie mag niet leeg
+        ProcesvervullingWijzigen(applicatiefunctie="  ")
+
+
+def test_band_dekking_audit_geborgd():
+    """LI035 — het band-dekking-audit-gat is gedicht: (a) de tabel staat op de
+    tenant-allowlist én (b) de mutatie-paden lopen ORM-matig (de flush-hook ziet
+    alleen ORM-mutaties; de oude core-`pg_insert…on_conflict`/core-delete waren
+    onzichtbaar voor de trail)."""
+    import inspect
+
+    from app.core.audit import AUDIT_TENANT_ENTITEITEN
+    from services import contract_band_dekking_service as bd
+
+    assert "contract_band_dekking" in AUDIT_TENANT_ENTITEITEN
+    instellen = inspect.getsource(bd.stel_band_dekking_in)
+    assert "session.add" in instellen and "pg_insert" not in instellen
+    verwijderen = inspect.getsource(bd.verwijder_band_dekking)
+    assert "session.delete" in verwijderen and "delete(" not in verwijderen.replace("session.delete(", "")
+
+
 def test_procesvervulling_in_rbac_en_audit():
     from app.core.audit import AUDIT_TENANT_ENTITEITEN
     from app.core.rbac import Actie, Entiteit, heeft_permissie
@@ -299,6 +333,63 @@ def test_vervulling_validaties_live():
         "component_kant": "ONGELDIG_COMPONENT",
         "proces_kant": "ONGELDIG_PROCES",
     }
+
+
+@integratie
+def test_vervulling_werk_bij_validaties_en_audit_update_live():
+    """LI035 — bewerken van de kenmerk-velden: geldige wijziging (functie + toelichting)
+    landt automatisch als update-record met oud→nieuw in de audittrail (centrale capture,
+    geen expliciete aanhaking); wijziging naar een bestaand tripel ⇒ 409; inactieve/
+    onbekende functie ⇒ 422."""
+    from sqlalchemy import text as _text
+
+    from schemas.procesvervulling import ProcesvervullingWijzigen
+    from services import procesvervulling_service as svc
+    from services.errors import OngeldigeRegistratie, RegistratieConflict
+
+    async def _flow(s):
+        ids = []
+        try:
+            comp = await _maak_component(s, "PV-Wijzig Component")
+            ids.append(comp)
+            pr = await _maak_proces(s, "PV-Wijzig Proces")
+            ids.append(pr)
+            r1 = await svc.maak_aan(s, _TID, comp, pr, "registreren", "eerste versie")
+            r2 = await svc.maak_aan(s, _TID, comp, pr, "raadplegen")
+            # Geldige wijziging: functie én toelichting.
+            gewijzigd = await svc.werk_bij(
+                s, _TID, r1["vervulling_id"],
+                ProcesvervullingWijzigen(applicatiefunctie="archiveren", toelichting="bijgesteld"),
+            )
+            audit = (await s.execute(_text(
+                "SELECT wijziging FROM audit_log WHERE entiteit_type='procesvervulling' "
+                "AND entiteit_id=:i AND actie='update' ORDER BY tijdstip DESC LIMIT 1"),
+                {"i": str(r1["vervulling_id"])})).scalar_one_or_none()
+            fouten = {}
+            # Wijziging naar het tripel van r2 ⇒ 409.
+            try:
+                await svc.werk_bij(s, _TID, r1["vervulling_id"],
+                                   ProcesvervullingWijzigen(applicatiefunctie="raadplegen"))
+            except RegistratieConflict as e:
+                fouten["dubbel"] = e.code
+            # Onbekende functie ⇒ 422.
+            try:
+                await svc.werk_bij(s, _TID, r1["vervulling_id"],
+                                   ProcesvervullingWijzigen(applicatiefunctie="bestaat_niet"))
+            except OngeldigeRegistratie as e:
+                fouten["functie"] = e.code
+            return gewijzigd, audit, fouten
+        finally:
+            await _ruim(s, ids)
+
+    gewijzigd, audit, fouten = asyncio.run(_run_rls(_TID, "test:bert", _flow))
+    assert gewijzigd["applicatiefunctie"] == "archiveren"
+    assert gewijzigd["toelichting"] == "bijgesteld"
+    # Centrale audit: per-veld oud→nieuw, automatisch (wie/wanneer zit op het record).
+    assert audit is not None
+    assert audit["applicatiefunctie"] == {"oud": "registreren", "nieuw": "archiveren"}
+    assert audit["toelichting"] == {"oud": "eerste versie", "nieuw": "bijgesteld"}
+    assert fouten == {"dubbel": "VERVULLING_BESTAAT", "functie": "ONGELDIGE_APPLICATIEFUNCTIE"}
 
 
 @integratie

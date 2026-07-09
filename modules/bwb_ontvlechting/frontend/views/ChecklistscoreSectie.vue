@@ -381,7 +381,7 @@ laad()
       v-if="toonGeslotenMelding"
       role="status"
       data-testid="cs-gesloten"
-      class="mb-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warn)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-warn)]"
+      class="mb-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-warning)]"
     >
       <span aria-hidden="true">🔒</span>
       De checklist voor dit componenttype is gesloten voor bewerking. Bestaande antwoorden blijven leesbaar.

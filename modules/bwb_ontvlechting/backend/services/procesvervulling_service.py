@@ -94,8 +94,7 @@ async def maak_aan(
     return await _lees_een(session, obj)
 
 
-async def verwijder(session: AsyncSession, tenant_id, vervulling_id) -> None:
-    tid = _tenant_uuid(tenant_id)
+async def _haal_op(session: AsyncSession, tid: uuid.UUID, vervulling_id) -> Procesvervulling:
     obj = (
         await session.execute(
             select(Procesvervulling).where(
@@ -105,6 +104,48 @@ async def verwijder(session: AsyncSession, tenant_id, vervulling_id) -> None:
     ).scalar_one_or_none()
     if obj is None:
         raise NietGevonden(_ENTITEIT, vervulling_id)  # 404 no-leak kruis-tenant
+    return obj
+
+
+async def werk_bij(session: AsyncSession, tenant_id, vervulling_id, data) -> dict:
+    """Wijzig de KENMERK-velden van een koppelregel (applicatiefunctie + toelichting);
+    component/proces zijn de ankers van het feit en blijven onwijzigbaar (schema weert
+    ze al). Gewone ORM-update (setattr + commit) → de centrale audit logt automatisch
+    per-veld oud→nieuw. Zelfde validaties als bij aanmaken: onbekende/inactieve functie
+    ⇒ 422; wijziging naar een al bestaand tripel ⇒ 409 `VERVULLING_BESTAAT`."""
+    tid = _tenant_uuid(tenant_id)
+    obj = await _haal_op(session, tid, vervulling_id)
+    velden = data.model_dump(exclude_unset=True)
+    nieuwe_functie = velden.get("applicatiefunctie")
+    if nieuwe_functie is not None and nieuwe_functie != obj.applicatiefunctie:
+        await af_catalog.valideer_functie(session, nieuwe_functie)
+        # Het gewijzigde tripel mag niet al bestaan (pre-check; de UNIQUE is de backstop).
+        bestaat = (
+            await session.execute(
+                select(Procesvervulling.id).where(
+                    Procesvervulling.tenant_id == tid,
+                    Procesvervulling.component_id == obj.component_id,
+                    Procesvervulling.proces_id == obj.proces_id,
+                    Procesvervulling.applicatiefunctie == nieuwe_functie,
+                    Procesvervulling.id != obj.id,
+                )
+            )
+        ).scalar_one_or_none()
+        if bestaat is not None:
+            raise RegistratieConflict(
+                "VERVULLING_BESTAAT",
+                "Dit component vervult deze applicatiefunctie al in dit proces.",
+            )
+    for veld, waarde in velden.items():
+        setattr(obj, veld, waarde)
+    await session.commit()
+    await session.refresh(obj)
+    return await _lees_een(session, obj)
+
+
+async def verwijder(session: AsyncSession, tenant_id, vervulling_id) -> None:
+    tid = _tenant_uuid(tenant_id)
+    obj = await _haal_op(session, tid, vervulling_id)
     await session.delete(obj)
     await session.commit()
 

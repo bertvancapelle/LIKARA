@@ -139,7 +139,7 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
       v-if="heeftAfwijking"
       role="status"
       data-testid="mg-afwijking"
-      class="mt-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warn)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-warn)]"
+      class="mt-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-warning)]"
     >
       <span aria-hidden="true">⚠</span>
       Klaar verklaard terwijl {{ openVragen }} van {{ aantalVragen }} vragen nog open staan.

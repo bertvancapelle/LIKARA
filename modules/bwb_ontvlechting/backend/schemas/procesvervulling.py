@@ -37,6 +37,34 @@ class ProcesvervullingAanmaken(BaseModel):
         return _optionele_tekst(v, 10_000)
 
 
+class ProcesvervullingWijzigen(BaseModel):
+    """Partieel — alleen de KENMERK-velden zijn wijzigbaar (applicatiefunctie +
+    toelichting); component en proces zijn de ankers van het feit en staan bewust
+    niet in dit schema (extra='forbid' weert ze — regel-acties-patroon)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    applicatiefunctie: str | None = None
+    toelichting: str | None = None
+
+    @field_validator("applicatiefunctie")
+    @classmethod
+    def _v_functie(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        v = v.strip()
+        if not v:
+            raise ValueError("applicatiefunctie mag niet leeg zijn")
+        if len(v) > 60:
+            raise ValueError("applicatiefunctie is te lang")
+        return v
+
+    @field_validator("toelichting")
+    @classmethod
+    def _v_toelichting(cls, v: str | None) -> str | None:
+        return _optionele_tekst(v, 10_000)
+
+
 class ProcesvervullingUit(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

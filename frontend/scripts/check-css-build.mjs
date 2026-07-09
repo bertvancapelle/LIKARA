@@ -68,3 +68,32 @@ if (ontbreekt > 0) {
   process.exit(1)
 }
 console.log(`\n[css-build-check] OK — alle ${VEREIST.length} kritische interactie-klassen aanwezig in ${cssFile}.`)
+
+// ── Token-verwijzings-check (LI035) ─────────────────────────────────────────────
+// WAAROM: een arbitrary-utility met een var()-token belandt gewoon in de build —
+// Tailwind genereert hem klakkeloos — maar als het TOKEN niet bestaat is de declaratie
+// invalid en rendert er NIETS ("class staat erop maar doet niks"; de MeldingBanner-/
+// warn-banner-bug: het token heette in werkelijkheid "-warning", de verwijzing miste
+// die uitgang). Daarom: élke fallback-loze var-verwijzing in de gebouwde CSS moet
+// gedefinieerd zijn in base.css of main.css — een onbestaand token faalt hier LUID.
+// DE-VERVUILING: noem in comments hier NOOIT een aaneengesloten class-/token-literal —
+// Tailwind scant dit script en zou de dode utility zelf seeden (de bekende valkuil).
+const DEFINITIE_BRONNEN = ['src/themes/base.css', 'src/assets/main.css']
+const gedefinieerd = new Set()
+for (const bron of DEFINITIE_BRONNEN) {
+  const inhoud = readFileSync(path.join(FRONTEND, bron), 'utf8')
+  for (const m of inhoud.matchAll(/(--lk-[a-z0-9-]+)\s*:/gi)) gedefinieerd.add(m[1])
+}
+// Alleen FALLBACK-LOZE verwijzingen tellen: `var(--lk-x, fallback)` rendert de
+// fallback en is dus bewust-defensief geldig; `var(--lk-x)` zonder fallback is bij
+// een onbestaand token een dode declaratie.
+const verwezen = new Set()
+for (const m of css.matchAll(/var\((--lk-[a-z0-9-]+)\)/gi)) verwezen.add(m[1])
+
+const onbekend = [...verwezen].filter((t) => !gedefinieerd.has(t)).sort()
+if (onbekend.length > 0) {
+  console.error(`\n[css-build-check] FAAL: ${onbekend.length} verwezen token(s) bestaan niet in ${DEFINITIE_BRONNEN.join('/')}:`)
+  for (const t of onbekend) console.error(`  ✗ var(${t}) — controleer de spelling (bestaat er een variant zoals ${t}ing?)`)
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — alle ${verwezen.size} verwezen --lk-tokens zijn gedefinieerd.`)
