@@ -5,43 +5,40 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V035 · 2026-07-08
-- **Commit:** zes app-commits (`9498983` · `b05cc53` · `f5e7afe` · `c8ae3c7` · `33fa485` · `3d889ab`) +
-  afsluit-commit (7 skills + docs + build) volgt.
-- **Tests:** backend 960 / 2 skipped / 0 failed (880 module + 80 platform) · frontend 869 groen (71 files) · 0 kritieken
-- **Migratie-head:** `0055_adr041_gebruiker_voorkeur` (nieuwe tabel `gebruiker_voorkeur`, FORCE RLS)
-- **TST-rapport:** `docs/TST-V035-Validatierapport.md`
-- **Bekende ruis:** `LandschapskaartView.test.js` happy-dom teardown-flake (theme-css fetch abort; geen
-  testfalen).
+- **Build:** V036 · 2026-07-09
+- **Commit:** acht app-commits (`233cc0c` · `9128a24` · `2ff8fa9` · `cc43418` · `ddb7b7a` · `3a65c3b` ·
+  `0c4fe60` · `8a76f55`) + afsluit-commit (8 skills + docs + build) volgt.
+- **Tests:** backend 997 / 2 skipped / 0 failed · frontend 965 groen (80 files) · 0 kritieken
+- **Migratie-head:** `0059_adr042_procesvervulling` (0056 proces-subtype+boom · 0057 RLS/grants ·
+  0058 applicatiefunctie-catalogus · 0059 procesvervulling)
+- **TST-rapport:** `docs/TST-V036-Validatierapport.md`
+- **Bekende ruis:** `LandschapskaartView.test.js` happy-dom teardown-flake (pre-existing, geen testfalen).
 
-## Deze sessie (LI034 — ADR-041 persoonlijke voorkeuren + kaart-bugfixes) — AFGEROND
-**Kader:** een per-gebruiker voorkeur-mechanisme ("onthoud als mijn standaard") als generieke laag, met
-als kernregel: een voorkeur is een **kijkfilter**, nooit een invoerregel. Plus twee geparkeerde kaart-bugs.
-- **Voorkeur-laag (`9498983`).** Tabel `gebruiker_voorkeur` (sleutel Keycloak-`sub`, JSONB, FORCE RLS,
-  uniek `(tenant,sub,sleutel)`), `voorkeur_service` + route `/voorkeuren`, RBAC eigen-scope
-  (`GEBRUIKER_VOORKEUR = _EIGEN_VOORKEUR`, elke rol beheert eigen), migratie 0055. Niet geaudit (bewust).
-- **Component-breed schrijf-slot (`b05cc53`).** `valideer_component` — organisatiegebruik is component-
-  breed en tenant-gelijk; de voorkeur raakt de schrijf niet. **Sectie-voorkeur teruggedraaid** (`f5e7afe`,
-  te versnipperd).
-- **Kaart-kijkfilter-standaard + reload-fix (`c8ae3c7`).** Standaardkijk = de kijk-variabelen (ringen/
-  filters/diepte/kleur/lane), nooit `actieveSet`; toepassen bij mount + "Begin opnieuw". Reload behoudt
-  werk (`beforeunload` → `_bewaarKaartState`, `wisSet` wist `lk-state`); precedentie **in-sessie > standaard
-  > default**.
-- **Kaart-bugs.** B: doorklik popup↔zijpaneel gelijkgetrokken via `_heeftComponentDetail` (`33fa485`).
-  A: relatie-loos set-lid tekenen op Overzicht + "geen relaties in beeld"-cue (`3d889ab`).
-- **Skills: 7 LI034-patronen** vastgelegd in de negen likara-skills (incl. ux-drift-correctie doorklik).
+## Deze sessie (LI035 — lijststaat + ADR-042 volledig) — AFGEROND
+**Kader:** de proceswereld als registratie + read-only inzicht (score blijft de enige lifecycle-driver),
+plus het lijststaat-patroon en zes browsercheck-bevindingen die systeembrede patronen werden.
+- **Lijststaat (`9128a24`).** `useLijstStaat`: sessionStorage-momentstaat per lijstscherm (route-leave +
+  beforeunload; deep-link > bewaard > default; cursor nooit mee) op 4 lijstschermen.
+- **ADR-042 (5 slices).** Proces = nestbaar element-subtype (plek=niveau; business_process = 2e
+  gemarkeerde behavior-uitzondering); koppelregel = tripel (component, proces, applicatiefunctie),
+  component-breed; applicatiefunctie = single-purpose platformcatalogus (GEMMA-startset); schermen met
+  regel-acties + MeldingBanner; componentkant met vier-vragen-Overzicht + overlay-formulier; roll-up =
+  pure leeslaag (subboom + tak_id-groepering, open-tenzij-groot) + organisatie-proceskijk (eigendom +
+  gebruik, dedupe) + succes-toast-standaard (`toastSucces`).
+- **Zes patronen uit de browsercheck:** Dialog-primitive (vaste kop/voetbalk, min-h-0, scroll-schaduw
+  primair-blauw), breedte-override-borging, MeldingBanner, samengevoegd "Onderliggende processen"-blok,
+  succes-toast, regel-acties. Vastgelegd in de acht likara-skills, mét correcties (CD004-scope,
+  beheerrol = dimensie, AppLayout-testlocatie, IMPACT_RINGEN afgeschaft).
 
-## Top-5 prioriteiten volgende sessie
-1. **Lijststaat behouden bij terugnavigeren** (1e taak, read-only) — filter/zoek/sortering gaan verloren
-   bij terug uit detail (bevestigd op Partijen). Momentkeuze-behoud bij terugkeer, géén voorkeur-laag.
-2. **Proces/functie-inzicht** (groot, ADR-waardig) — component "vervult rol in" proces/functie; grof
-   beginnen (proces + koppeling eerst).
-3. **Kaart component-breed maken** (ADR-spoor) — de kaart is bewust applicatie-centrisch; elk componenttype
-   zoekbaar/doorklikbaar/als buur = eigen ADR.
-4. **Beginscherm-filterbalk verbergen op leeg beginscherm** + filterbalk vereenvoudigen (BIV/Rol achter
-   "geavanceerd").
-5. **Opgeslagen-view-scope** (bewaart een view ook kijk-instellingen?) + beginscherm-contextvelden-unie
-   (feedback per veld).
+## Top-5 prioriteiten volgende sessie (LI036)
+1. **ADR-034-herbouw lagenweergave** (op de kaart-selectie, mét proces-laan; 3 ontwerpnotities:
+   nesting business-laan, selectie-semantiek, roll-up in de laan).
+2. **Audit-dekking entiteit-deletes** (systemisch core-execute-gat, pre-existing — hoog).
+3. **UI-consistentie-bundel** (11 dialoog-klonen → BevestigVerwijderDialog; 2 warn-banners →
+   MeldingBanner; PartijRollenSectie-verwijder-asymmetrie).
+4. **Kaart component-breed** (ADR-verkenning).
+5. **Beginscherm-/kaartverfijningen** (filterbalk leeg beginscherm, view-scope, filterbalk
+   vereenvoudigen, contextvelden-unie). Daarna: GEMMA-procesimport (eigen ADR-spoor, ná ADR-034).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

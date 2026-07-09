@@ -299,7 +299,7 @@ Alle aarden: `business_actor` / `business` / `active`. Eén entry in
 |---|---|
 | `partij_id` | FK → element (de vervuller van de rol) |
 | `object_id` | FK → element (het object: component of contract) |
-| `rol` | FK → `beheerrol`-catalogus |
+| `rol` | tekst-sleutel naar de `beheerrol`-DIMENSIE van `relatiekenmerk_optie` (géén harde FK, géén eigen tabel) [LI035-correctie] |
 | `UNIQUE(tenant_id, partij_id, object_id, rol)` | Eén roltoewijzing per (vervuller, object, rol)-tripel |
 
 Startset 9 rollen (beheerbaar door platformbeheerder), DC013:
@@ -388,7 +388,7 @@ Alle andere catalogi zijn platform-breed. Dit is niet-onderhandelbaar.
 |---|---|---|---|---|
 | Relatiekenmerk | `relatiekenmerk_optie` | Nee | Platformbeheerder (F-4) | Vocabulaire voor relatie-kenmerken (dimensies: `dispositie`, `relatie_rol`) |
 | Partijsoort | `partijsoort_optie` | Nee | Platformbeheerder | Soort-aanduiding op partij |
-| Beheerrol | `beheerrol` | Nee | Platformbeheerder | Rollen voor roltoewijzing |
+| Beheerrol | `relatiekenmerk_optie` (dimensie `beheerrol`) | Nee | Platformbeheerder | Rollen voor roltoewijzing — geen eigen tabel [LI035-correctie] |
 | Vraagbetekenis | `vraagbetekenis_optie` | Nee | Platformbeheerder | Betekenis-marker op checklistvraag |
 | Componentconfig | `componentconfig_optie` | Nee | Platformbeheerder | Componenttype-definitie incl. ArchiMate-typing |
 | Contractconfig | `contractconfig_optie` | Nee | Platformbeheerder | Contract-attributen (dekking, kostenmodel) |
@@ -678,3 +678,24 @@ zijn de zoekbare/centreerbare entiteiten, partijen/contracten/infra verschijnen 
 Dit is een **bewuste** domein-/UX-keuze (zie likara-frontend voor de vindplaatsen `appNodes`/`_isApp`/
 `componentBuren`). De kaart **component-breed** maken (elk componenttype als volwaardige, zoekbare/
 buur-node) is een **eigen ADR-spoor**, geen kleine "bug".
+
+## LI035 — ADR-042-domeinfeiten (procesregister + koppelregel, gevalideerd)
+
+- **Proces** = nestbaar element-subtype (`proces`, self-FK `ouder_id` RESTRICT): de plek
+  in de boom ÍS het niveau — geen niveau-label. ArchiMate: `business_process`, de tweede
+  **gemarkeerde behavior-uitzondering** naast `work_package` (OK-3 stelde behavior "leeg";
+  zie `archimate_typing.py`).
+- **Bedrijfsfunctie-as bewust geparkeerd** — eigen later spoor; het procesregister dekt
+  V1 de "wat doet de organisatie"-vraag.
+- **Koppelregel (`procesvervulling`)** = het tripel (component, proces,
+  applicatiefunctie), **component-breed** (élk componenttype koppelbaar); meerdere
+  functies van hetzelfde paar = losse regels (uniciteit exact op het tripel — bewust NIET
+  via het unified relatie-model, dat `UNIQUE(bron,doel,type)` afdwingt).
+- **Applicatiefunctie** = single-purpose platform-catalogus (`applicatiefunctie_optie`,
+  componentrol-recept: sleutel zonder harde FK, soft-deactivate, geen systeem-sleutel);
+  GEMMA-geënte startset (registreren/raadplegen/archiveren/gegevens_leveren/ondersteunen).
+- **GEMMA-landschap past 1-op-1** op dit model (gevalideerd in de ADR-042-verkenning):
+  bedrijfsproces→werkproces-nesting + applicatiefunctie-vocabulaire sluiten aan.
+- **Roll-up-inzicht (slice 5)** is een pure LEESLAAG over subboom + koppelregels (mét
+  `tak_id`-groepeersleutel) en het organisatie-procesbeeld een afgeleide kijk over
+  eigendom + organisatiegebruik — er bestaat GEEN opgeslagen roll-up-feit.

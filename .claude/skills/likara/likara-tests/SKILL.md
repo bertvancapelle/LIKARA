@@ -153,6 +153,9 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
 ### Frontend-testpatroon (vitest + @vue/test-utils, happy-dom)
 - Module-view-tests staan onder **`frontend/tests/`** (binnen de vitest-root; vitest
   scant niet buiten `frontend/`) en importeren de view via de `@modules`-alias.
+  **Uitzondering [LI035]:** de AppLayout-tests staan colocated in `frontend/src/layouts/`
+  (`AppLayout.test.js` + `AppLayout.gating.test.js`); een nieuwe named route hoort in
+  beide testrouters dáár.
 - Mock `@/api` met `vi.mock`; mount met `[pinia, [PrimeVue,{unstyled:true}],
   ToastService, router]`. Zet de auth-store-`user` (rollen) voor rol-gating-tests.
 - PrimeVue `Dialog` teleporteert naar body → `global.stubs: { teleport: true }`.
@@ -367,3 +370,23 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 - **Function-bronscan met `ast`-docstring-strip** voor engine-/read-only-borging van een nieuwe
   service-functie in een module die de engine elders wél raakt: een platte tekstscan struikelt over een
   docstring die een verboden symbool ter uitleg noemt → strip de docstring via `ast` vóór de scan.
+
+## LI035-patronen (CSS-borging + succes-asserts)
+
+- **Class-asserts bewijzen geen rendering.** vitest assert klasse-STRINGS; of een klasse
+  daadwerkelijk stijl oplevert bewijst alléén de dist-CSS. Laag C
+  (`frontend/scripts/check-css-build.mjs`) checkt daarom (1) kritische klassen in de
+  gebouwde CSS en (2) élke fallback-loze `var(--lk-…)`-verwijzing tegen de
+  token-definities (de MeldingBanner-les: token `--lk-color-warn` bestond niet — heette
+  `-warning` — en de banner rendeerde stil zonder tint).
+- **Tailwind-candidate-valkuil in de check zelf.** Alles onder `frontend/` (ook
+  testbestanden en het check-script) wordt door Tailwind gescand; een aaneengesloten
+  class-literal in een comment seedt de klasse en maakt de check vals-groen. Bouw te
+  matchen tokens uit fragmenten (gesplitste `]`), behalve voor handgeschreven
+  main.css-klassen (die kan Tailwind nooit zelf genereren).
+- **Succes-toast-asserts**: mock de helper-module (`vi.mock('@/meldingen', () => ({
+  toastSucces: vi.fn() }))`) en assert `toHaveBeenCalledWith(expect.anything(),
+  '<werkwoord>')` in de succes-flow; de vorm zelf (severity/life) borgt
+  `tests/meldingen.test.js` één keer centraal.
+- **vitest draait ALTIJD vanuit `frontend/`** (cwd-valkuil trad in LI035 drie keer op:
+  vanaf de repo-root falen de alias-resolves met "Cannot find package '@/store/auth'").

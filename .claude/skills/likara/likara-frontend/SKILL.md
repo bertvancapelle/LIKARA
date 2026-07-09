@@ -395,6 +395,9 @@ Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
 - Poorten: `vite build` + `vitest` (geen eslint/type-check).
 - Module-view-tests staan onder **`frontend/tests/`** (binnen de vitest-root;
   vitest scant niet buiten `frontend/`) en importeren de view via `@modules`.
+  **Uitzondering [LI035]:** de AppLayout-tests staan colocated in `frontend/src/layouts/`
+  (`AppLayout.test.js` + `AppLayout.gating.test.js`) — een nieuwe named route moet in
+  BEIDE testrouters daar geregistreerd worden, anders breken ze.
 - Mock `@/api` met `vi.mock`; mount met `[pinia, [PrimeVue,{unstyled:true}],
   ToastService, router]`. PrimeVue `Dialog` teleporteert naar body → gebruik
   `global.stubs: { teleport: true }` zodat `find()` de inhoud ziet. `window.location`
@@ -418,6 +421,10 @@ Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
 - **Inline scoringslijst** over een vaste referentieset: native `<table>` + `<select>`,
   per-rij opslaan (maak/werkBij), per-rij inline feedback i.p.v. toast-per-actie,
   client-side join op de **sleutel** — let op `vraag_code`, **niet** `vraag_id`. [CD004]
+  **Scope-correctie [LI035]:** de "inline i.p.v. toast"-regel geldt ALLÉÉN voor deze
+  hoogfrequente per-rij-scoringslijst — relatie-secties en dialogen volgen de
+  succes-toast-standaard (`toastSucces`, zie LI035-patronen). LI035 paste CD004 eerst
+  te breed toe op de proces-secties; dat is teruggedraaid.
 - **Systeem-afgeleide entiteit-view**: géén Toevoegen/Verwijderen-affordance; beperkte
   status-dropdown; auto-afgeleide status (`opgelost`) als **read-only badge** (zichtbaar,
   niet kiesbaar); bij opslaan de read-only status NIET meesturen. [CD004/CD011]
@@ -914,7 +921,8 @@ met interactieve drag en edge-rendering.
   near-dubbele paren krijgen een echt ander silhouet.
 - **Context-ringen blijven buiten de impact-keten.** Een relatie die geen migratie-impact
   is (organisatiestructuur "hoort bij", samenstelling als context) krijgt een eigen ring,
-  **standaard uit**, en staat NIET in `IMPACT_RINGEN`. Organisatiestructuur opgebouwd
+  **standaard uit**, en stond NIET in `IMPACT_RINGEN` (afgeschaft met de Impact-verkenner
+  — bestaat niet meer in de code [LI035]). Organisatiestructuur opgebouwd
   vanaf rol-vervullende personen omhoog (geen lege takken); afdeling-NULL → directe
   persoon→organisatie-edge.
 - **Scope-balk (organisatie) = scope-keuze, niet zomaar een filter.** De balk bepaalt
@@ -946,9 +954,9 @@ met interactieve drag en edge-rendering.
   als **context-knoop**; zoek je er niet op, dan alleen via de bewuste ring-vink. **Handmatige
   ring-vink wint altijd**: auto-zichtbaarheid verdwijnt bij een leeg zoekcriterium, een handmatig
   aangezette ring blijft staan.
-- **Eigenaar-edge "is eigendom van"** is context, **niet** in `IMPACT_RINGEN` (= `{applicaties,
-  infrastructuur, gebruikers, samenstelling}`). Dit vervangt het oude "scopebalk-tekent-
-  organisaties"-spoor.
+- **Eigenaar-edge "is eigendom van"** is context, destijds **niet** in `IMPACT_RINGEN`
+  (die constante is met de Impact-verkenner afgeschaft en bestaat niet meer in de code
+  [LI035]). Dit vervangt het oude "scopebalk-tekent-organisaties"-spoor.
 - **NB — de oude "val terug op alles"-defaults schalen niet** en worden in fase B/C omgedraaid:
   scopebalk "niets-aan → alles" en startscherm "geen-views → hele model" gaan naar **leeg openen**
   (de gebruiker kiest). Laat dit niet per ongeluk terugkeren.
@@ -1149,3 +1157,53 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   `_heeftComponentDetail(n) = element_type==='applicatie' || laag==='application'`, gebruikt door zowel de
   popup (`_detailLink`) als het zijpaneel; (b) een relatie-loos **set-lid** wordt op Overzicht toch
   getekend (`getekendeNodes`, `setLid`-term) met een rustige "geen relaties in beeld"-cue.
+
+## LI035-patronen (ADR-042 slice 4/5 + sessie-fixes, geverifieerd)
+
+- **Lijststaat-patroon (VERPLICHT voor elk lijstscherm met filter/zoek/sortering)** —
+  `useLijstStaat(sleutel, refs, {valideer})` (`src/composables/useLijstStaat.js`):
+  sessionStorage-momentstaat per scherm-sleutel, bewaard op route-leave ÉN beforeunload,
+  gevalideerd hersteld bij mount; precedentie **deep-link-query > bewaarde staat >
+  defaults** (bij een doorklik-query `herstel()` overslaan); cursor/paginering en data
+  NOOIT mee (verse fetch, ADR-017). In gebruik op partij-/component-/contract-/proces-
+  lijst, BlokkadeOverzicht en de rollup-uitklapstand — nieuwe lijstschermen haken aan.
+- **Regel-acties-patroon** — elke registratie-/relatieregel krijgt **Bewerken** (dialoog
+  op de kenmerk-velden; de identiteit/ankers zichtbaar maar read-only) en **Verwijderen**
+  (áltijd via de gedeelde `src/components/BevestigVerwijderDialog.vue`, met de regel
+  leesbaar in de vraag; testids `${testid}-dialog/-omschrijving/-annuleer/-bevestig`).
+  Geen losse ×-kruisjes. Voorbeelden: ProcesComponentenSectie, ComponentProcessenSectie,
+  ContractSectie-banddekking. (Backend-kant: PATCH-kenmerk-recept in likara-backend.)
+- **MeldingBanner** (`src/components/MeldingBanner.vue`) — dé conflict-/weigering-vorm in
+  secties en dialogen: `soort` warn=weigering (role=status), danger=fout (role=alert),
+  info; altijd kleur+icoon+tekst (nooit alléén kleur); positie **bóven** de invoervelden;
+  scrollIntoView-vangnet bij mount; de melding verdwijnt bij invoerwijziging (hij hoort
+  bij de geweigerde poging). Geen stille grijze meldingen.
+- **Succes-toast-standaard** — elke geslaagde actie met expliciete opslaan-intentie
+  (dialog-/formulier-/toevoegregel-submit, bevestigde verwijdering) roept
+  `toastSucces(toast, '<werkwoord>')` aan (`src/meldingen.js`: severity success, life
+  3000), ná de geslaagde call, vóór sluiten/herladen. Enige uitzondering: de CD004-
+  scoringslijst (zie de scope-correctie hierboven). Test-patroon: mock `@/meldingen` en
+  assert de aanroep.
+- **Dialog-primitive-regels** (`src/presets/Dialog.js` + `.lk-scroll-schaduw` in
+  `assets/main.css`) — de dialoog past binnen de viewport (`mt-[10vh]`+`max-h-[80vh]`);
+  het preset-content is hét scroll-gebied (`overflow-y-auto` + **`min-h-0`**-krimpgarantie
+  + eigen padding zodat veldranden/focus-ringen niet clippen) en draagt de tweezijdige
+  toestandsafhankelijke scroll-schaduw (puur CSS, `background-attachment: local`, getint
+  op `--lk-color-primary`); vaste knoppenbalken horen in het **#footer-slot** (submit via
+  het `form`-attribuut). Views bouwen NOOIT een eigen scroll-wrapper (die clipte de
+  omlijning en liet de voetbalk mee-scrollen). Het preset capt élke dialog op `max-w-lg`
+  — brede dialogen overschrijven per instantie met `!w-…`/`!max-w-…` (!important wint).
+  Borging: `tests/dialogPreset.test.js`.
+- **Overlay-formulier-patroon** (ComponentFormulier) — aanmaken/bewerken identiek in één
+  Dialog-overlay (twee kolommen, stapelt smal); annuleren met wijzigingen vraagt
+  bevestiging (dirty-snapshot); verzamel-subregels bij aanmaken worden ná de entiteit in
+  één keer opgeslagen, met een retry-pad dat de entiteit NIET dubbelt (`aangemaaktId`);
+  oude aanmaak-/bewerk-routes blijven werken als redirect met query (`?nieuw=1`/
+  `?bewerk=1`) naar de overlay. Overlays lazy mounten (`v-if` op de open-vlag — anders
+  toast-provider-fouten in tests).
+- **CSS-token-borging** — `scripts/check-css-build.mjs` (laag C) checkt naast de kritische
+  klassen ook élke **fallback-loze** `var(--lk-…)`-verwijzing in de dist-CSS tegen de
+  definities in base.css/main.css (een onbestaand token = dode declaratie = "class staat
+  erop maar doet niets"). Lessen: class-naam-asserts in vitest bewijzen GÉÉN rendering
+  (borg op dist-CSS); comment-teksten in gescande bestanden zijn Tailwind-candidates
+  (noem nooit een aaneengesloten class-literal die je juist wil detecteren).

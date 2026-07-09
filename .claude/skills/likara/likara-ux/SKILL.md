@@ -427,3 +427,43 @@ Levende instanties: de klik-popup benoemt ontbrekende relaties ("nog geen eigena
 `popupSamenvatting`); een gekozen relatie-loos component krijgt de cue "geen relaties in beeld"
 (`lk-geen-relaties`); en de bestaande "nog niet verfijnd"-markering / `toonRegistratiegaps`. Consistente
 eerlijkheidslijn: een gat tonen (rustig), niet verbergen en niet schreeuwen.
+
+## LI035 — Regel-acties, meldingen, overlay en de proceswereld (ADR-042)
+
+- **Regel-acties zijn een recht van elke regel.** Wat een gebruiker registreert moet hij
+  ter plekke kunnen corrigeren (Bewerken: kenmerk-velden wijzigbaar, de identiteit van
+  het feit read-only zichtbaar) en verwijderen — verwijderen áltijd met bevestiging
+  waarin de regel léésbaar staat ("*registreren* in Vergunningverlening — Zaaksysteem
+  verwijderen?"). Nooit een kaal ×-kruisje op een registratie-feit.
+- **Weigeringen en fouten zijn zichtbaar, nooit alléén kleur.** MeldingBanner: kleur +
+  icoon + tekst, bóven de invoervelden (leesvolgorde vóór het te corrigeren veld), met
+  scroll-vangnet; de melding verdwijnt zodra de invoer wijzigt. Een 409 "bestaat al" is
+  een rustige warn-banner, géén fout-toast (er is niets kapot).
+- **Succes is voelbaar**: elke geslaagde opslaan-intentie geeft de korte bevestiging
+  (succes-toast, werkwoord). Stilte na "Opslaan" leest als "is er iets gebeurd?" — de
+  LI035-browsercheck-bevinding.
+- **Overlay-formulier**: aanmaken/bewerken in een overlay boven de lijst/het detail (de
+  context blijft zichtbaar); annuleren met onopgeslagen wijzigingen vraagt bevestiging;
+  deelregistraties die je al invulde gaan niet verloren bij een deelfout (entiteit staat,
+  banner benoemt wat er restte, met "Opnieuw proberen").
+- **Vier-vragen-Overzicht (componentdetail)** — het Overzicht beantwoordt vier vragen in
+  vaste volgorde: *wat is dit* (blok-wat-is-dit) / *wie is verantwoordelijk*
+  (blok-verantwoordelijk: sleutelrollen product_owner + proceseigenaar read-only uit de
+  roltoewijzingen; een gat toont rustig "nog niet geregistreerd" — tonen ≠ registreren) /
+  *waarvoor gebruiken we het* (processectie, dáár wél direct registrerend) / *hoe staat
+  het ervoor* (migratiegereedheid).
+- **Proces-detail = twee blokken**: "Componenten in dit proces" (registratie op dít
+  niveau) bovenaan; daaronder ÉÉN blok "Onderliggende processen" — kopje per direct
+  deelproces (het kopje ís de herkomst: regels daaronder dragen géén bijschrift),
+  pad-bijschrift alléén bij diepere lagen ("via › Besluit vastleggen", klikbaar),
+  open-tenzij-groot (±10 doorgerolde regels; telling telt componenten/herkomst UNIEK;
+  uitklapstand onthouden via het lijststaat-patroon; de kopjes blijven altijd staan —
+  navigatie verliest niets). Deelprocessen en hun componentregels zijn één onderwerp —
+  geen twee losse blokken (browsercheck-inzicht LI035).
+- **Afgeleide-leeslaag eerlijk presenteren**: een roll-up- of afgeleide kijk (organisatie
+  → processen via componenten) is read-only, zegt dat expliciet in de (i) ("hier wordt
+  niets geregistreerd"), en de acties wonen op de herkomst-plek — de doorklik brengt je
+  daar. Afgeleid beeld nooit als registratie vermommen.
+- **Lijststaat**: een gebruiker die terugkeert naar een lijst vindt hem zoals hij hem
+  verliet (zie het lijststaat-patroon in likara-frontend) — deep-link wint altijd van de
+  bewaarde staat.

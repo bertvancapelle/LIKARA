@@ -2,8 +2,17 @@
 
 > **Nummering:** geland als ADR-042 (eerstvolgende vrije nummer, LI035).
 
-**Status:** Besloten (LI035) — open subknopen met defaults akkoord
-**Datum:** 2026-07-08
+**Status:** Gerealiseerd (LI035, V036) — alle 5 slices geland
+(slice 1 proces+boom `cc43418` · slice 2+3 applicatiefunctie-catalogus+koppelregel `ddb7b7a` ·
+slice 4a proces-schermen `3a65c3b` · slice 4b componentkant `0c4fe60` · slice 5 roll-up `8a76f55`).
+**Ontwerpherzieningen tijdens de bouw (LI035, browsercheck):** (1) proces-detail = twee blokken —
+"Componenten in dit proces" bovenaan, daaronder ÉÉN samengevoegd blok "Onderliggende processen"
+(deelproces-kopjes + doorgerolde regels per tak via `tak_id`; pad-bijschrift alleen bij diepere
+lagen); (2) roll-up **open-tenzij-groot** (±10 doorgerolde regels, uniek geteld, uitklapstand
+onthouden via het lijststaat-patroon); (3) organisatie-proceskijk als afgeleide read-only sectie
+"Processen" op de organisatie (eigendom + geregistreerd gebruik samengenomen, dedupe per proces,
+eerlijke (i): "hier wordt niets geregistreerd").
+**Datum:** 2026-07-08 (besloten) · 2026-07-09 (gerealiseerd)
 **Relatie:** Bouwt op het element-subtype-recept (ADR-023), het roltoewijzing-patroon
 (ADR-024), de gesloten ArchiMate-typering (ADR-026) en de werkpakket-boom (hiërarchie-
 precedent). Basis: `docs/Feitenrapport-proces-functie-V035.md`.

@@ -7,6 +7,56 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V036 (sluitprotocol LI035 — lijststaat + ADR-042 volledig, 2026-07-09)
+
+Build **V035 → V036**. Geland: lijststaat-patroon (`useLijstStaat`, 4 lijstschermen, `9128a24`) en
+**ADR-042 volledig** — procesregister (nestbare boom, migraties 0056/0057), applicatiefunctie-catalogus +
+koppelregel (0058/0059, `ddb7b7a`), proces-schermen + regel-acties + MeldingBanner (`3a65c3b`),
+componentkant met vier-vragen-Overzicht + overlay-formulier (`0c4fe60`), en roll-up-inzicht +
+organisatie-proceskijk + succes-toast-standaard (`8a76f55`). Zes browsercheck-bevindingen zijn als
+systeembrede patronen geland (Dialog-primitive incl. scroll-schaduw, breedte-override-borging,
+MeldingBanner, samengevoegd "Onderliggende processen"-blok, succes-toast, regel-acties) en met de
+correcties vastgelegd in de acht likara-skills. Tests: backend 997/2 skipped, frontend 80 files/965.
+Migratie-head **0059**.
+
+**Nieuwe/geactualiseerde opvolgpunten uit LI035 (volgorde-advies):**
+
+1. **ADR-034-herbouw lagenweergave (mét proces-laan).** De lagenweergave opnieuw opbouwen op de
+   kaart-selectie, nu inclusief een proces-laan. Drie LI035-ontwerpnotities meenemen: (a) nesting van de
+   procesboom binnen de business-laan (hoe diep tonen), (b) selectie-semantiek (wat betekent een
+   proces-klik voor de kaart-set), (c) roll-up in de laan (toont een hoofdproces de doorgerolde
+   componenten of alleen de directe).
+2. **Audit-dekking entiteit-deletes (systemisch, pre-existing) — HOOG.** De centrale audit hangt op
+   ORM-flush-hooks; een delete via het element-supertype (core-execute) audit de subtype-rij niet.
+   Structurele oplossing kiezen (ORM-delete-norm, expliciete audit-regel bij element-delete, of
+   DB-level vangnet). Zie likara-backend/-security (LI035).
+3. **UI-consistentie-bundel.** (a) 11 bevestigingsdialoog-klonen migreren naar de gedeelde
+   `BevestigVerwijderDialog`; (b) 2 bestaande warn-banners (ChecklistscoreSectie, MigratiegereedheidSectie
+   e.o.) naar `MeldingBanner`; (c) `PartijRollenSectie` mist de verwijder-symmetrie (regel-acties-patroon).
+4. **Kaart component-breed maken (ADR-spoor, herbevestigd).** IJkpunt: een database is nu niet
+   zoekbaar/doorklikbaar op de kaart.
+5. **Beginscherm-/kaartverfijningen (herbevestigd, was 3–6 in LI034):** filterbalk verbergen op leeg
+   beginscherm; opgeslagen view + organisatie-scope (ADR-033-vervolg); filterbalk vereenvoudigen
+   (BIV/Rol achter "geavanceerd"); beginscherm-contextvelden unie-feedback.
+6. **GEMMA-procesimport/startset (eigen ADR-spoor, ná ADR-034).** Startset processen importeren
+   (GEMMA-geënt); notitie: sturend/primair/ondersteunend als filter-/typeringsvraag meenemen; de
+   LI035-validatie dat het GEMMA-landschap 1-op-1 op het model past is de basis.
+7. **LandschapskaartView: historische "LI036"-commentlabels rechtzetten** (mislabeld — die wijzigingen
+   waren LI034; klein, alleen comments).
+
+**Reeds afgerond in LI035 (uit de actieve lijst):** lijststaat-terugnavigatie (was 1e taak);
+proces/functie-inzicht punt 1 (ADR-042, volledig — het "koppel aan het directe ondersteunende
+component, erf de rest"-uitgangspunt is in de ADR verwerkt; component-breed als vangnet gerealiseerd).
+
+**Herbevestigd (blijft open, uit eerdere sessies):** ADR-035 slice 3 (signalering-vervolg); ADR-036
+UI-restpunt (coarse organisatiegebruik-form); `VerantwoordelijkheidSectie` partij-picker-scope
+(ADR-024-domeinvraag); LI032-restpunten (username≠e-mail post-check, 404-friendly display,
+reseed-ergonomie, auth #5c end-to-end); LI033b-stash `stash@{0}` (beslissing Bert: droppen of houden);
+ADR-040-vervolgfasen (terug/vooruit-navigatie = verplichte terugbouw, interactie-basis, 4 ringen,
+overige objecttypes centreerbaar, scope-B).
+
+---
+
 ### Stand V035 (sluitprotocol LI034 — ADR-041 voorkeuren + kaart-bugfixes, 2026-07-08)
 
 Build **V034 → V035**. Geland: ADR-041 persoonlijke voorkeur-laag (`gebruiker_voorkeur`, migratie **0055**,

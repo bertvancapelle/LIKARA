@@ -501,7 +501,8 @@ zorg dat de `partij_self`-join aanwezig is in de query.
   EXISTS-subqueries i.p.v. extra join → keyset-paginering intact.
 - **Eigenaar-edge "is eigendom van"** = afgeleide read-only context-projectie uit
   `Component.eigenaar_organisatie_id` (organisatie→component), alleen als de organisatie als
-  knoop meekomt (geen dangling endpoint). **Context, NIET in `IMPACT_RINGEN`.** Dekt het
+  knoop meekomt (geen dangling endpoint). Context (het `IMPACT_RINGEN`-onderscheid is met de
+  Impact-verkenner afgeschaft — de constante bestaat niet meer [LI035]). Dekt het
   "scopebalk-tekent-organisaties"-spoor af (zelfde projectie). Dezelfde dubbele engine-borging
   als LI020 (import-afwezigheid + read-only bronscan) blijft per slice verplicht.
 
@@ -560,3 +561,29 @@ Service + route voor de per-gebruiker voorkeur-laag (`gebruiker_voorkeur`, zie l
   een voorkeur niet; semantische validatie hoort bij de consument.
 - **Engine onaangeroerd** (schrijvende service, maar geen lifecycle/score/blokkade): import-afwezigheid
   + geen lifecycle-mutatie, zoals gebruikelijk geborgd.
+
+## LI035-patronen (regel-acties-PATCH, afgeleide leeslaag, audit-dekking)
+
+- **PATCH-kenmerk-recept (regel-acties)**: een koppelregel-wijziging raakt alléén de
+  KENMERK-velden; de ankers van het feit (bv. component/proces) staan niet in het
+  Wijzigen-schema (`extra='forbid'` weert ze — `ProcesvervullingWijzigen`). De update is
+  een gewone ORM-update (select → setattr → commit) zodat de centrale audit automatisch
+  per-veld oud→nieuw logt; zelfde validaties als bij aanmaken, wijziging-naar-bestaand-
+  tripel ⇒ 409 (pre-check; UNIQUE is de backstop). Referentie:
+  `procesvervulling_service.werk_bij`.
+- **Afgeleide-leeslaag-recept (roll-up/organisatiekijk, ADR-042 slice 5)**: pure
+  leesfuncties naast de CRUD (`rollup_voor_proces`, `processen_voor_organisatie`) —
+  read-only (geen enkel schrijf-primitief; per-functie bronscan-test), 404 no-leak,
+  efficiënt (subboom-BFS + één join-query, geen N+1), en de **tak-groepeersleutel als id**
+  (`tak_id`, in één lineaire doorloop uit de BFS-volgorde afgeleid) — nooit op namen
+  groeperen, die kunnen botsen. Dubbele engine-borging (import-afwezigheid + live
+  geen-mutatie via tellingen vóór/na) blijft per lees-slice verplicht:
+  `test_rollup_adr042.py`.
+- **Audit-dekking is ORM-dekking (mechanisme-feit)**: de centrale audit hangt op de
+  `before_flush`/`after_flush`-Session-hooks (`app/core/audit.py`) en ziet dus ALLEEN
+  ORM-mutaties — een `session.execute(insert/update/delete(...))` (core) passeert het
+  vangnet onzichtbaar. Dáárom worden mutatiepaden ORM-matig gebouwd (de LI035-band-
+  dekking-fix verving een core-upsert door ORM-paden). Entiteiten loggen alleen als ze in
+  de allowlists staan (`AUDIT_TENANT_ENTITEITEN`/platform). **Bekend systemisch gat**: een
+  delete via het element-supertype (core-delete) audit de subtype-rij niet — gedocumenteerd
+  risico, opvolgpunt.

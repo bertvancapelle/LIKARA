@@ -1,7 +1,9 @@
 # ADR-041 — Persoonlijke voorkeuren: "onthoud als mijn standaard"
 
-**Status:** Voorstel (open subknopen nog te beslissen)
-**Datum:** 2026-07-07
+**Status:** Gerealiseerd (LI034, V035) — voorkeur-laag (`gebruiker_voorkeur`, migratie 0055,
+RBAC eigen-scope), kaart-kijkfilter als persoonlijke standaardkijk + reload-fix; de
+sectie-voorkeur op "Gebruikte componenten" is bewust teruggerold (te versnipperd).
+**Datum:** 2026-07-07 (voorstel) · 2026-07-08 (gerealiseerd, V035)
 **Relatie:** Voortkomend uit ADR-040 (kaart-herbouw) — de vraag "welke componenttypen tellen als
 *gebruikt*" bleek een labelkwestie maar is een voorkeur-kwestie. Bouwt op het gevestigde eigenaars-
 patroon (Keycloak-`sub`) van `impact_view` en het tenant-scoped RLS/RBAC-recept. **Expliciet

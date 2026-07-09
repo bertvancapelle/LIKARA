@@ -187,3 +187,19 @@ niet-deterministisch bleek; gebouwd werd een deterministische variant → dat ho
 Vóór je een keuze onthoudt: sorteer 'm — **platformvormend → centraal beheer; persoonlijke werkstijl →
 voorkeur-laag; momentkeuze → inline/vers**. Detail (vaste bril vs. momentkeuze, "onthoud als mijn
 standaard") in **likara-ux**.
+
+## LI035 — UX-first-aanscherping + browsercheck-als-patroonbron (bevestigd)
+
+- **Gebruikerservaring is áltijd het uitgangspunt**; techniek, schema-keuzes, gates en
+  commit-discipline zijn vangrails — nooit de toon of het vertrekpunt van een antwoord.
+  Conflicteert gebruikerslogica met een technische voorkeur, dan wint de
+  gebruikerservaring.
+- **Kort, bondig, functioneel**: analyses starten bij de gebruiker, niet bij de tabel.
+  Vragen én adviezen strikt één voor één; CC-opdrachten altijd als zelfstandig leesbaar
+  `.md` met `START:` op regel 1.
+- **Browsercheck-bevindingen zijn patroon-signalen, geen punt-fixes.** De LI035-les: zes
+  bevindingen (overlay gedrukt, omlijning geclipt, voetbalk scrolde mee, schaduw grijs,
+  blokken versnipperd, succes stil) leidden elk tot patroon-onderzoek en werden zes
+  systeembrede patronen (breedte-override-borging, Dialog-primitive-regels,
+  scroll-schaduw, samengevoegd blok, succes-toast-standaard, MeldingBanner). Eerst de
+  vraag "waar bestaat dit nog meer / wat is de regel?", dán pas de fix.

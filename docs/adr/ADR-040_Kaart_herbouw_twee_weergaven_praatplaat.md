@@ -1,6 +1,8 @@
 # ADR-040 — Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor
 
-**Status:** Deels geland — **Fase 1 gebouwd** (V034); vervolgfasen open (zie "Gebouwde realiteit" + fasering)
+**Status:** Deels geland — **Fase 1 gebouwd** (V034) + V035-correcties (bug A relatie-loos
+set-lid, bug B doorklik gelijkgetrokken, kijkfilter-standaard + reload-behoud); vervolgfasen
+open (zie "Gebouwde realiteit" + fasering; terug/vooruit-navigatie = verplichte terugbouw)
 **Datum:** 2026-07-06 (voorstel) · 2026-07-07 (Fase 1 geland, V034)
 **Vervangt:** **ADR-025** (Applicatie-centrische praatplaat) — die wordt in zijn geheel *Superseded*.
 Deze ADR neemt de praatplaat-gedachte volledig over en verbreedt haar (élk object centreerbaar, twee

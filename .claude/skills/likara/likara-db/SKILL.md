@@ -387,7 +387,7 @@ Er is **uitsluitend testdata**, geen productiedata. Daaruit volgt:
   is een gewone tenant-tabel (geen element-subtype).
   - **Voorbeeld DC012 — `roltoewijzing`** (migratie 0029/0030): `UNIQUE(tenant_id, partij_id, object_id, rol)`
     → meerdere rollen per (partij,object) als losse regels; onmogelijk via een association op `relatie`.
-    Composiet-FK's naar `element` (partij én object), ON DELETE CASCADE; rol uit de `beheerrol`-catalogus.
+    Composiet-FK's naar `element` (partij én object), ON DELETE CASCADE; `rol` = tekst-sleutel naar de `beheerrol`-dimensie van `relatiekenmerk_optie` (geen eigen tabel, geen harde FK) [LI035-correctie].
 - **Kolom-specifieke `ON DELETE SET NULL` op een composiet-FK (concrete les B6-a/B6-b).** Een kale
   `ON DELETE SET NULL` op `(tenant_id, x_id) → element` nullt **óók de gedeelde `tenant_id`** (NOT NULL)
   → constraint-violation bij het verwijderen van het doel. Gebruik de **PostgreSQL 15+ kolom-specifieke

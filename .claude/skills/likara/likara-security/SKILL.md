@@ -309,3 +309,17 @@ onbruikbaar zijn. **Afwijking t.o.v. het `_INHOUD`-patroon: bewust.**
 - **Bewust NIET geaudit:** `gebruiker_voorkeur` staat niet in `AUDIT_TENANT_ENTITEITEN` — een persoonlijke
   UI-standaard is geen compliance-record (auditen zou de hash-chain met ruis vullen). Vindplaats:
   `rbac.py` (`Entiteit.GEBRUIKER_VOORKEUR`, `_EIGEN_VOORKEUR`), spec-test in `backend/tests/test_rbac.py`.
+
+## LI035 — Audit-dekking: ORM-only vangnet (mechanisme-feit)
+
+De hash-chained audit vangt mutaties via SQLAlchemy-Session-flush-hooks
+(`app/core/audit.py`) en ziet daardoor **uitsluitend ORM-mutaties**; core-`execute`
+(insert/update/delete) passeert het vangnet geruisloos. Consequenties:
+- Mutatiepaden in services ALTIJD ORM-matig bouwen (geen core-upserts) — anders ontstaat
+  een stil audit-gat (LI035 verving zo'n core-upsert in de band-dekking).
+- Nieuwe audit-plichtige entiteit = opnemen in de allowlist
+  (`AUDIT_TENANT_ENTITEITEN`/`AUDIT_PLATFORM_ENTITEITEN`) + labels; borg met een
+  allowlist-test.
+- **Bekend systemisch gat (risico, opvolgpunt)**: verwijderen via het element-supertype
+  met een core-delete audit de subtype-rij niet. Bij audit-kritische flows: ORM-delete of
+  expliciete audit-regel.
