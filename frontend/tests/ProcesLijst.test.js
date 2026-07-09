@@ -4,12 +4,17 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
+import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
   api: { processen: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn() } },
 }))
 
+// LI035 succes-standaard — helper gemockt zodat de succes-flow assertbaar is.
+vi.mock('@/meldingen', () => ({ toastSucces: vi.fn() }))
+
 import { api } from '@/api'
+import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import ProcesLijst from '@modules/bwb_ontvlechting/frontend/views/ProcesLijst.vue'
 
@@ -43,7 +48,7 @@ async function mountLijst({ rollen = ['medewerker'] } = {}) {
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: rollen }
-  const w = mount(ProcesLijst, { global: { plugins: [pinia, [PrimeVue, { unstyled: true }], router], stubs: { teleport: true } } })
+  const w = mount(ProcesLijst, { global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } } })
   await flushPromises()
   return w
 }
@@ -101,6 +106,7 @@ describe('ProcesLijst — boomweergave', () => {
     await w.find('[data-testid="proces-dialog-opslaan"]').trigger('submit')
     await flushPromises()
     expect(api.processen.maak).toHaveBeenCalledWith({ naam: 'Inkoop', toelichting: null })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Proces aangemaakt')
   })
 
   it('hernoemen opent voorgevuld en roept werkBij aan', async () => {
@@ -112,6 +118,7 @@ describe('ProcesLijst — boomweergave', () => {
     await w.find('[data-testid="proces-dialog-opslaan"]').trigger('submit')
     await flushPromises()
     expect(api.processen.werkBij).toHaveBeenCalledWith('vv', { naam: 'Vergunningen', toelichting: null })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Opgeslagen')
   })
 
   it('rol-gating: viewer ziet geen aanmaak-/hernoem-affordances', async () => {

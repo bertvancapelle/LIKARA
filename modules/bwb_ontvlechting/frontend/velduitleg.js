@@ -36,6 +36,15 @@ export const VELD_UITLEG = {
       'Meerdere functies van hetzelfde component in hetzelfde proces? Leg ze als losse ' +
       'regels vast — elke regel is apart te verwijderen.',
   },
+  organisatie_processen: {
+    uitleg:
+      'Een afgeleid beeld: de processen die steunen op de componenten van deze organisatie ' +
+      '(eigendom en geregistreerd gebruik samengenomen). Hier wordt niets geregistreerd — ' +
+      'koppelingen leg je vast op het proces of het component zelf.',
+    vuistregel:
+      'Mist er een proces? Controleer dan of het component een eigenaar-organisatie of een ' +
+      'gebruiksregistratie heeft, en of het component aan het proces is gekoppeld.',
+  },
   // ── Checklistantwoord (ADR-037) ──────────────────────────────────────────────
   verantwoordelijke: {
     uitleg:

@@ -17,6 +17,7 @@ import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, PARTIJ_AARD, PARTIJ_SCOPE, REGISTE
 import PartijRollenSectie from './PartijRollenSectie.vue'
 import ObjectHistoriePaneel from './ObjectHistoriePaneel.vue'
 import GebruikteApplicatiesSectie from './GebruikteApplicatiesSectie.vue'
+import PartijProcessenSectie from './PartijProcessenSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -349,6 +350,12 @@ const RIJEN = [
           :organisatie-id="isAfdeling ? partij.organisatie_id : partij.id"
           :afdeling-id="isAfdeling ? partij.id : null"
         />
+      </div>
+
+      <!-- ADR-042 slice 5 — afgeleid procesbeeld; alleen op een zuivere organisatie
+           (daar wonen eigendom + gebruiksregistratie). -->
+      <div v-if="isZuivereOrganisatie" class="mt-[var(--lk-space-lg)]">
+        <PartijProcessenSectie :key="props.id" :partij-id="props.id" />
       </div>
 
       <!-- Contracten (tegenpartij-koppeling) — alleen voor een externe partij -->

@@ -14,7 +14,8 @@
  * naar de Processen-pagina (bewust géén ter-plekke-proces-aanmaak). Backend handhaaft.
  */
 import { computed, reactive, ref, watch } from 'vue'
-import { Button, Dialog } from '@/primevue'
+import { Button, Dialog, useToast } from '@/primevue'
+import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
@@ -30,6 +31,7 @@ const props = defineProps({
 })
 
 const auth = useAuthStore()
+const toast = useToast()
 const magKoppelen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const regels = ref([])
@@ -90,6 +92,7 @@ async function voegToe() {
       applicatiefunctie: nieuwFunctie.value,
       toelichting: nieuwToelichting.value.trim() || null,
     })
+    toastSucces(toast, 'Toegevoegd')
     _resetToevoegregel()
     await laad()
   } catch (e) {
@@ -124,6 +127,7 @@ async function bevestigVerwijder() {
   verwijderBezig.value = true
   try {
     await api.procesvervullingen.verwijder(teVerwijderen.value.vervulling_id)
+    toastSucces(toast, 'Verwijderd')
     verwijderOpen.value = false
     await laad()
   } catch (e) {
@@ -177,6 +181,7 @@ async function bevestigBewerken() {
       applicatiefunctie: bewerkForm.applicatiefunctie,
       toelichting: bewerkForm.toelichting.trim() || null,
     })
+    toastSucces(toast, 'Opgeslagen')
     bewerkOpen.value = false
     await laad()
   } catch (e) {

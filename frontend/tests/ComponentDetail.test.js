@@ -54,7 +54,11 @@ vi.mock('@/api', () => ({
   },
 }))
 
+// LI035 succes-standaard — helper gemockt zodat de succes-flow assertbaar is.
+vi.mock('@/meldingen', () => ({ toastSucces: vi.fn() }))
+
 import { api } from '@/api'
+import { toastSucces } from '@/meldingen'
 import ComponentDetail from '@modules/bwb_ontvlechting/frontend/views/ComponentDetail.vue'
 import ChecklistscoreSectie from '@modules/bwb_ontvlechting/frontend/views/ChecklistscoreSectie.vue'
 import { useAuthStore } from '@/store/auth'
@@ -437,5 +441,23 @@ describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', 
   it('deep-link ?bewerk=1 (de oude bewerken-route) opent de overlay direct', async () => {
     const { w } = await mountDetail({ query: '?bewerk=1' })
     expect(w.find('[data-testid="component-form-overlay"]').exists()).toBe(true)
+  })
+})
+
+// LI035 succes-standaard — ook de regel-acties van ComponentProcessenSectie geven
+// de korte bevestiging (zelfde regel als de proces-zijde; zie meldingen.js).
+describe('ComponentProcessenSectie — succes-terugkoppeling', () => {
+  it('verwijderen van een koppelregel geeft een korte succes-toast', async () => {
+    api.procesvervullingen.lijst.mockResolvedValue([{
+      vervulling_id: 'pv1', applicatiefunctie: 'registreren', applicatiefunctie_label: 'Registreren',
+      toelichting: null, proces_id: 'ab', proces_naam: 'Aanvraag behandelen', proces_ouder_naam: 'Vergunningverlening',
+    }])
+    api.procesvervullingen.verwijder.mockResolvedValue(undefined)
+    const { w } = await mountDetail()
+    await w.find('[data-testid="cps-verwijder-pv1"]').trigger('click')
+    await w.find('[data-testid="cps-verwijder-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.procesvervullingen.verwijder).toHaveBeenCalledWith('pv1')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Verwijderd')
   })
 })

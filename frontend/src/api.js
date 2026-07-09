@@ -211,6 +211,8 @@ export const api = {
       request(`/partijen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/partijen/${id}`, { method: 'DELETE' }),
     soorten: () => request('/partijen/soorten'),
+    // ADR-042 slice 5 — afgeleid beeld: processen via de componenten van deze organisatie.
+    processen: (id) => request(`/partijen/${id}/processen`),
     // LI019 — componenten van een leverancier (partij) via de contract-keten.
     componentenViaContract: (id) => request(`/partijen/${id}/componenten`),
   },
@@ -394,6 +396,8 @@ export const api = {
     werkBij: (id, data) => request(`/processen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/processen/${id}`, { method: 'DELETE' }),
     subboom: (id) => request(`/processen/${id}/subboom`),
+    // ADR-042 slice 5 — doorgerolde koppelregels uit de volledige subboom (read-only).
+    rollup: (id) => request(`/processen/${id}/rollup`),
   },
   // ADR-042 slice 3 — koppelregels component→proces ("vervult applicatiefunctie in").
   // Lezen kan per proces (?proces_id=) óf per component (?component_id=), precies één.

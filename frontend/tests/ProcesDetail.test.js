@@ -4,16 +4,21 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
+import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
   api: {
-    processen: { haal: vi.fn(), lijst: vi.fn(), maak: vi.fn() },
+    processen: { haal: vi.fn(), lijst: vi.fn(), maak: vi.fn(), rollup: vi.fn() },
     procesvervullingen: { lijst: vi.fn(), functies: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
     componenten: { lijst: vi.fn() },
   },
 }))
 
+// LI035 succes-standaard — helper gemockt zodat de succes-flows assertbaar zijn.
+vi.mock('@/meldingen', () => ({ toastSucces: vi.fn() }))
+
 import { api } from '@/api'
+import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import ProcesDetail from '@modules/bwb_ontvlechting/frontend/views/ProcesDetail.vue'
 
@@ -65,7 +70,7 @@ async function mountDetail({ id = 'ab', rollen = ['medewerker'] } = {}) {
   auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: rollen }
   const w = mount(ProcesDetail, {
     props: { id },
-    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], router], stubs: { teleport: true } },
+    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } },
   })
   await flushPromises()
   return w
@@ -76,6 +81,7 @@ beforeEach(() => {
   sessionStorage.clear()
   api.processen.haal.mockImplementation(async (id) => _PROCESSEN[id])
   api.processen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+  api.processen.rollup.mockResolvedValue([]) // slice 5 — default geen doorgerolde regels
   api.procesvervullingen.lijst.mockResolvedValue([
     _regel('r1', 'Zaaksysteem', 'Registreren'),
     _regel('r2', 'DMS', 'Archiveren', { toelichting: 'Besluitdocumenten.' }),
@@ -123,6 +129,24 @@ describe('ProcesDetail — deelprocessen', () => {
     expect(api.processen.maak).toHaveBeenCalledWith({
       naam: 'Bezwaar afhandelen', toelichting: null, ouder_id: 'vv',
     })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Deelproces aangemaakt')
+  })
+
+  // ADR-042 slice 5 (samengevoegd blok) — "Onderliggende processen" staat er altijd
+  // (lege staat + toevoegknop op een blad-proces), maar de rollup-fetch loopt alléén
+  // als er deelprocessen zijn; de componenten-sectie staat erbóven.
+  it('samengevoegd "Onderliggende processen"-blok: altijd aanwezig, rollup alleen bij deelprocessen', async () => {
+    const blad = await mountDetail({ id: 'ab' })
+    expect(blad.find('[data-testid="onderliggend-sectie"]').exists()).toBe(true)
+    expect(blad.find('[data-testid="deelprocessen-leeg"]').exists()).toBe(true)
+    expect(api.processen.rollup).not.toHaveBeenCalled()
+
+    api.processen.lijst.mockResolvedValue({ items: [_PROCESSEN.ab], volgende_cursor: null })
+    const w = await mountDetail({ id: 'vv' })
+    expect(api.processen.rollup).toHaveBeenCalledWith('vv')
+    // Volgorde: eerst de registratie op dít niveau, dan het onderliggende blok.
+    const html = w.html()
+    expect(html.indexOf('proces-componenten-sectie')).toBeLessThan(html.indexOf('onderliggend-sectie'))
   })
 
   it('lege staat wijst de route naar de actie', async () => {
@@ -161,6 +185,7 @@ describe('ProcesComponentenSectie — koppelregels', () => {
     await w.find('[data-testid="pcs-verwijder-bevestig"]').trigger('click')
     await flushPromises()
     expect(api.procesvervullingen.verwijder).toHaveBeenCalledWith('r1')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Verwijderd')
   })
 
   it('bewerken opent voorgevuld (ankers read-only) en PATCHt alleen de kenmerk-velden', async () => {
@@ -180,6 +205,7 @@ describe('ProcesComponentenSectie — koppelregels', () => {
     expect(api.procesvervullingen.werkBij).toHaveBeenCalledWith('r2', {
       applicatiefunctie: 'raadplegen', toelichting: 'Bijgesteld.',
     })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Opgeslagen')
   })
 
   it('bewerken: een inactieve huidige functie blijft als label kiesbaar/zichtbaar', async () => {
@@ -233,6 +259,7 @@ describe('ProcesComponentenSectie — koppelregels', () => {
       component_id: 'db', proces_id: 'ab',
       applicatiefunctie: 'registreren', toelichting: 'Ondersteunt het domein.',
     })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Toegevoegd')
   })
 
   it('409 VERVULLING_BESTAAT → vriendelijke melding (role=status, geen role=alert)', async () => {

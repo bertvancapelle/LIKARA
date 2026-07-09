@@ -12,10 +12,17 @@ Tenant-scoped (RLS + expliciete `tenant_id`-filter). Validatie vooraf (fail-secu
 Leesbaar in beide richtingen (per proces de componenten, per component de processen) met
 naam-verrijking via joins + één label-map per lijst (geen N+1). Puur registratief — geen
 engine-import (score blijft de enige lifecycle-driver; ADR-042-invariant).
+
+Slice 5 (roll-up-inzicht) voegt twee PURE LEESPADEN toe — geen opslag, geen mutatie:
+- `rollup_voor_proces`: de koppelregels uit de volledige subboom van een proces
+  (cyclus-veilig via `proces_service.subboom`), per regel mét herkomst-proces + pad;
+- `processen_voor_organisatie`: welke processen steunen op de componenten van een
+  organisatie (eigendom + geregistreerd gebruik samengenomen, dedupe per proces) —
+  een AFGELEID beeld, er wordt niets geregistreerd.
 """
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -24,11 +31,14 @@ from models.models import (
     ComponentConfigDimensie,
     Element,
     ElementType,
+    Organisatiegebruik,
+    Partij,
     Proces,
     Procesvervulling,
 )
 from services import applicatiefunctie_catalog as af_catalog
 from services import componentconfig_catalog as cc_catalog
+from services import proces_service
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 
 _ENTITEIT = "procesvervulling"
@@ -264,3 +274,151 @@ async def lijst_voor_component(session: AsyncSession, tenant_id, component_id) -
         }
         for r in rijen
     ]
+
+
+# ── Slice 5 — roll-up-inzicht (pure leespaden; geen opslag, geen mutatie) ────────
+
+
+async def rollup_voor_proces(session: AsyncSession, tenant_id, proces_id) -> list[dict]:
+    """Doorgerolde koppelregels: alle regels uit de VOLLEDIGE subboom van dit proces
+    (alle deelprocessen, alle niveaus) — de eigen regels van het proces zelf zitten er
+    bewust NIET in (die toont de bestaande directe lijst). Cyclus-veilig via
+    `proces_service.subboom` (visited-set); één vervulling-query over alle subboom-ids +
+    join op component (geen N+1). Per regel de herkomst: proces-naam + `proces_pad`
+    (namen vanaf het directe deelproces t/m het herkomst-proces — de wortel zelf niet).
+    Onbekend proces binnen de tenant ⇒ 404 (no-leak). Read-only."""
+    tid = _tenant_uuid(tenant_id)
+    # 404 no-leak + cyclus-veilige traversal in één beweging (subboom valideert de wortel).
+    boom = await proces_service.subboom(session, tid, proces_id)
+    if not boom:
+        return []
+    # pad[0] = de wortel (dit proces zelf) — herkomst-context is het pad dáárna.
+    pad_per_proces = {n["id"]: n["pad"][1:] for n in boom}
+    naam_per_proces = {n["id"]: n["naam"] for n in boom}
+    # Tak-bepaling: het DIRECTE deelproces waaronder de herkomst valt — de stabiele
+    # groepeersleutel voor het samengevoegde "Onderliggende processen"-blok (namen in
+    # het pad kunnen botsen, ids niet). Subboom levert BFS-volgorde: ouders vóór
+    # kinderen, dus één lineaire doorloop volstaat.
+    tak_per_proces: dict = {}
+    for n in boom:
+        tak_per_proces[n["id"]] = n["id"] if n["ouder_id"] == proces_id else tak_per_proces.get(n["ouder_id"])
+    af_labels = await af_catalog.labels(session)
+    type_labels = await cc_catalog.labels(session, ComponentConfigDimensie.componenttype)
+    rijen = (
+        await session.execute(
+            select(
+                Procesvervulling.id,
+                Procesvervulling.applicatiefunctie,
+                Procesvervulling.toelichting,
+                Procesvervulling.component_id,
+                Procesvervulling.proces_id,
+                Component.naam.label("component_naam"),
+                Component.componenttype.label("componenttype"),
+            )
+            .join(
+                Component,
+                (Component.id == Procesvervulling.component_id) & (Component.tenant_id == tid),
+            )
+            .where(
+                Procesvervulling.tenant_id == tid,
+                Procesvervulling.proces_id.in_(list(pad_per_proces.keys())),
+            )
+            .order_by(Component.naam, Procesvervulling.applicatiefunctie, Procesvervulling.id)
+        )
+    ).all()
+    return [
+        {
+            "vervulling_id": r.id,
+            "applicatiefunctie": r.applicatiefunctie,
+            "applicatiefunctie_label": af_catalog.resolveer_een(r.applicatiefunctie, af_labels),
+            "toelichting": r.toelichting,
+            "component_id": r.component_id,
+            "component_naam": r.component_naam,
+            "componenttype": r.componenttype,
+            "componenttype_label": cc_catalog.resolveer_een(r.componenttype, type_labels),
+            "proces_id": r.proces_id,
+            "proces_naam": naam_per_proces.get(r.proces_id),
+            "proces_pad": pad_per_proces.get(r.proces_id, []),
+            "tak_id": tak_per_proces.get(r.proces_id),
+        }
+        for r in rijen
+    ]
+
+
+async def processen_voor_organisatie(session: AsyncSession, tenant_id, organisatie_id) -> list[dict]:
+    """Afgeleid beeld: welke processen steunen op de componenten van deze organisatie.
+    Brug = eigendom (`component.eigenaar_organisatie_id`) ÉN geregistreerd gebruik
+    (`organisatiegebruik`) samengenomen; per proces telt één component één keer (dedupe —
+    ook bij eigendom+gebruik tegelijk, of meerdere functies in hetzelfde proces).
+    Onbekende partij binnen de tenant ⇒ 404 (no-leak). Read-only — hier wordt niets
+    geregistreerd; twee queries totaal (partij-check + één join-query, geen N+1)."""
+    tid = _tenant_uuid(tenant_id)
+    partij = (
+        await session.execute(
+            select(Partij.id).where(Partij.tenant_id == tid, Partij.id == organisatie_id)
+        )
+    ).scalar_one_or_none()
+    if partij is None:
+        raise NietGevonden("partij", organisatie_id)
+    # Brug-componenten als subquery: eigendom OF gebruik (dedupe volgt uit de groepering).
+    gebruik_sq = select(Organisatiegebruik.applicatie_id).where(
+        Organisatiegebruik.tenant_id == tid,
+        Organisatiegebruik.organisatie_id == organisatie_id,
+    )
+    ouder = aliased(Proces)
+    rijen = (
+        await session.execute(
+            select(
+                Procesvervulling.proces_id,
+                Procesvervulling.component_id,
+                Proces.naam.label("proces_naam"),
+                ouder.naam.label("proces_ouder_naam"),
+                Component.naam.label("component_naam"),
+                Component.componenttype.label("componenttype"),
+            )
+            .join(
+                Component,
+                (Component.id == Procesvervulling.component_id) & (Component.tenant_id == tid),
+            )
+            .join(Proces, (Proces.id == Procesvervulling.proces_id) & (Proces.tenant_id == tid))
+            .outerjoin(ouder, (ouder.id == Proces.ouder_id) & (ouder.tenant_id == tid))
+            .where(
+                Procesvervulling.tenant_id == tid,
+                or_(
+                    Component.eigenaar_organisatie_id == organisatie_id,
+                    Component.id.in_(gebruik_sq),
+                ),
+            )
+            .order_by(Proces.naam, Proces.id, Component.naam, Component.id)
+        )
+    ).all()
+    type_labels = await cc_catalog.labels(session, ComponentConfigDimensie.componenttype)
+    processen: dict = {}
+    for r in rijen:
+        p = processen.setdefault(
+            r.proces_id,
+            {
+                "proces_id": r.proces_id,
+                "proces_naam": r.proces_naam,
+                "proces_ouder_naam": r.proces_ouder_naam,
+                "componenten": [],
+                "_gezien": set(),
+            },
+        )
+        if r.component_id in p["_gezien"]:
+            continue  # dedupe: één component telt één keer per proces
+        p["_gezien"].add(r.component_id)
+        p["componenten"].append(
+            {
+                "component_id": r.component_id,
+                "component_naam": r.component_naam,
+                "componenttype": r.componenttype,
+                "componenttype_label": cc_catalog.resolveer_een(r.componenttype, type_labels),
+            }
+        )
+    resultaat = []
+    for p in processen.values():
+        p.pop("_gezien")
+        p["component_aantal"] = len(p["componenten"])
+        resultaat.append(p)
+    return resultaat

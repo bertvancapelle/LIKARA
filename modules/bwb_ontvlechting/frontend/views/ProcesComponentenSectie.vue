@@ -10,12 +10,14 @@
  * component-ZoekSelect (component-breed, élk type — het type-label staat in elke treffer)
  * + applicatiefunctie-select (alleen actieve opties kiesbaar; een inactieve huidige
  * waarde blijft in de bewerk-dialog als label zichtbaar) + optionele toelichting; direct
- * opslaan per regel (CD004-norm: inline feedback, geen toast-per-actie).
+ * opslaan per regel. Succes = korte toast (LI035-standaard, zie meldingen.js — CD004
+ * geldt alléén voor de hoogfrequente scoringslijst, niet hier).
  * 409 VERVULLING_BESTAAT → vriendelijke melding (geen fout-toast); 422-envelope-codes op
  * het juiste veld. Rol-gating = affordance; backend handhaaft.
  */
 import { computed, reactive, ref, watch } from 'vue'
-import { Button, Dialog } from '@/primevue'
+import { Button, Dialog, useToast } from '@/primevue'
+import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
@@ -30,6 +32,7 @@ const props = defineProps({
 })
 
 const auth = useAuthStore()
+const toast = useToast()
 const magKoppelen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const regels = ref([])
@@ -90,6 +93,7 @@ async function voegToe() {
       applicatiefunctie: nieuwFunctie.value,
       toelichting: nieuwToelichting.value.trim() || null,
     })
+    toastSucces(toast, 'Toegevoegd')
     _resetToevoegregel()
     await laad()
   } catch (e) {
@@ -127,6 +131,7 @@ async function bevestigVerwijder() {
   verwijderBezig.value = true
   try {
     await api.procesvervullingen.verwijder(teVerwijderen.value.vervulling_id)
+    toastSucces(toast, 'Verwijderd')
     verwijderOpen.value = false
     await laad()
   } catch (e) {
@@ -182,6 +187,7 @@ async function bevestigBewerken() {
       applicatiefunctie: bewerkForm.applicatiefunctie,
       toelichting: bewerkForm.toelichting.trim() || null,
     })
+    toastSucces(toast, 'Opgeslagen')
     bewerkOpen.value = false
     await laad()
   } catch (e) {

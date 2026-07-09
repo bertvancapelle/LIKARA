@@ -24,8 +24,10 @@ from schemas.partij import (
     PartijSorteerveld,
     PartijUpdate,
 )
+from schemas.procesvervulling import OrganisatieProcesUit
 from services import partij_service as svc
 from services import partijsoort_catalog
+from services import procesvervulling_service as pv_svc
 from services.pagination import Sorteerrichting
 
 router = APIRouter(prefix="/partijen", tags=["bwb:partij"])
@@ -90,6 +92,18 @@ async def leverancier_componenten(
 ):
     """LI019 — componenten van deze leverancier (partij) via de contract-keten."""
     return await svc.componenten_via_contracten(session, user.tenant_id, partij_id)
+
+
+@router.get("/{partij_id}/processen", response_model=list[OrganisatieProcesUit])
+async def organisatie_processen(
+    partij_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PROCESVERVULLING, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-042 slice 5 — afgeleid beeld: processen die steunen op de componenten van deze
+    organisatie (eigendom + geregistreerd gebruik samengenomen; dedupe per proces).
+    Read-only. Guard op PROCESVERVULLING: de getoonde gegevens zíjn de koppelregels."""
+    return await pv_svc.processen_voor_organisatie(session, user.tenant_id, partij_id)
 
 
 @router.post("", response_model=PartijRead, status_code=201)

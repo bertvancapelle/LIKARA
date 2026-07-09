@@ -22,7 +22,9 @@ from schemas.proces import (
     ProcesSorteerveld,
     ProcesUpdate,
 )
+from schemas.procesvervulling import ProcesvervullingUit
 from services import proces_service as svc
+from services import procesvervulling_service as pv_svc
 from services.pagination import Sorteerrichting
 
 router = APIRouter(prefix="/processen", tags=["bwb:proces"])
@@ -82,6 +84,18 @@ async def subboom(
 ):
     """Read-only subboom (deelprocessen op alle niveaus, met niveau + pad)."""
     return await svc.subboom(session, user.tenant_id, proces_id)
+
+
+@router.get("/{proces_id}/rollup", response_model=list[ProcesvervullingUit])
+async def rollup(
+    proces_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PROCESVERVULLING, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-042 slice 5 — doorgerolde koppelregels uit de volledige subboom (read-only),
+    per regel mét herkomst-proces + pad. Guard op PROCESVERVULLING: het zijn dezelfde
+    gegevens als de directe koppelregel-lijst, alleen doorgerold."""
+    return await pv_svc.rollup_voor_proces(session, user.tenant_id, proces_id)
 
 
 @router.patch("/{proces_id}", response_model=ProcesRead)

@@ -83,3 +83,34 @@ class ProcesvervullingUit(BaseModel):
     # Procescontext (ADR-042 besluit 2): de ouder-naam voor de identiteit
     # "Aanvraag behandelen — Vergunningverlening"; None bij een top-level proces.
     proces_ouder_naam: str | None = None
+    # Slice 5 — alleen gevuld in de roll-up-lezing: het herkomst-pad (proces-namen vanaf
+    # het directe deelproces t/m het herkomst-proces; de opgevraagde wortel zelf niet) +
+    # de tak (het id van dat directe deelproces — de stabiele groepeersleutel; namen
+    # kunnen botsen, ids niet).
+    proces_pad: list[str] | None = None
+    tak_id: uuid.UUID | None = None
+
+
+class OrganisatieProcesComponent(BaseModel):
+    """Slice 5 — brug-component in het afgeleide organisatie-procesbeeld."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    component_id: uuid.UUID
+    component_naam: str
+    componenttype: str
+    componenttype_label: str
+
+
+class OrganisatieProcesUit(BaseModel):
+    """Slice 5 — afgeleid beeld per proces: "dit proces steunt op N componenten van deze
+    organisatie" (eigendom + geregistreerd gebruik samengenomen; dedupe per proces).
+    Puur lezen — er hoort geen invoer-schema bij."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    proces_id: uuid.UUID
+    proces_naam: str
+    proces_ouder_naam: str | None = None
+    component_aantal: int
+    componenten: list[OrganisatieProcesComponent]

@@ -13,13 +13,15 @@
  * een detailbezoek-en-terug én F5.
  */
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Button, Dialog } from '@/primevue'
+import { Button, Dialog, useToast } from '@/primevue'
+import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import VeldUitleg from './VeldUitleg.vue'
 
 const auth = useAuthStore()
+const toast = useToast()
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const alle = ref([]) // platte set (alle pagina's); de boom is een client-side afgeleide
@@ -153,6 +155,7 @@ async function bevestig() {
     const data = { naam: form.naam.trim(), toelichting: form.toelichting.trim() || null }
     if (dialogProces.value) await api.processen.werkBij(dialogProces.value.id, data)
     else await api.processen.maak(data)
+    toastSucces(toast, dialogProces.value ? 'Opgeslagen' : 'Proces aangemaakt')
     dialogOpen.value = false
     await laad()
   } catch (e) {

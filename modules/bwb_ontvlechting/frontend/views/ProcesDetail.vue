@@ -4,25 +4,26 @@
  *
  * Kop: naam + toelichting + (i)-uitleg + klikbare broodkruimel naar boven
  * ("Vergunningverlening › Aanvraag behandelen" — context-in-header-patroon; de keten wordt
- * langs `ouder_id` omhoog gelezen, cyclus-veilig met een visited-set). Deelprocessen = de
- * directe kinderen, met "+ Deelproces toevoegen" op de plek zelf (ouder voorgevuld).
- * Sectie "Componenten in dit proces" = ProcesComponentenSectie (:key op props.id — remount
- * bij detail→detail-navigatie). Het roll-up-inzicht ("incl. onderliggende processen") is
- * bewust ADR-042 slice 5 — hier niet.
+ * langs `ouder_id` omhoog gelezen, cyclus-veilig met een visited-set). Twee blokken
+ * (ontwerpbesluit LI035): eerst "Componenten in dit proces" (registratie op dít niveau,
+ * ProcesComponentenSectie), daarna "Onderliggende processen" — het samengevoegde blok
+ * (OnderliggendeProcessenSectie: deelproces-kopjes + hun doorgerolde componentregels +
+ * "+ Deelproces toevoegen" in de blokkop; de toevoeg-dialog woont hier, ouder voorgevuld).
+ * Beide secties :key op props.id — remount bij detail→detail-navigatie (vaste norm).
  */
-import { computed, reactive, ref, watch } from 'vue'
-import { Button, Dialog } from '@/primevue'
-import { useAuthStore } from '@/store/auth'
+import { reactive, ref, watch } from 'vue'
+import { Button, Dialog, useToast } from '@/primevue'
+import { toastSucces } from '@/meldingen'
 import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
 import { api } from '@/api'
+import OnderliggendeProcessenSectie from './OnderliggendeProcessenSectie.vue'
 import ProcesComponentenSectie from './ProcesComponentenSectie.vue'
 import VeldUitleg from './VeldUitleg.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 
-const auth = useAuthStore()
-const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const { terugLabel, gaTerug } = useTerugNavigatie()
+const toast = useToast()
 
 const proces = ref(null)
 const voorouders = ref([]) // wortel → directe ouder (voor de broodkruimel)
@@ -88,6 +89,7 @@ async function bevestigToevoegen() {
       toelichting: addForm.toelichting.trim() || null,
       ouder_id: props.id, // de context is voorgevuld — actie waar het onderwerp leeft
     })
+    toastSucces(toast, 'Deelproces aangemaakt')
     addOpen.value = false
     await laad()
   } catch (e) {
@@ -138,30 +140,17 @@ watch(() => props.id, () => laad(), { immediate: true })
         </p>
       </div>
 
-      <!-- Deelprocessen — de directe kinderen; actie op de plek zelf (ouder voorgevuld). -->
-      <section class="card mb-[var(--lk-space-md)]" aria-labelledby="deelprocessen-titel" data-testid="deelprocessen-sectie">
-        <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-          <h2 id="deelprocessen-titel" class="text-[length:var(--lk-text-lg)] font-semibold">Deelprocessen</h2>
-          <Button v-if="magBewerken" label="+ Deelproces toevoegen" severity="secondary" data-testid="deelproces-toevoegen" class="ml-auto" @click="openToevoegen" />
-        </div>
-        <ul v-if="kinderen.length" class="divide-y divide-[var(--lk-color-border)]" data-testid="deelprocessen-lijst">
-          <li v-for="kind in kinderen" :key="kind.id" class="py-[var(--lk-space-sm)]">
-            <router-link
-              :to="{ name: 'proces-detail', params: { id: kind.id } }"
-              data-testid="deelproces-link"
-              class="font-medium text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-            >{{ kind.naam }}</router-link>
-            <span v-if="kind.toelichting" class="block text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">{{ kind.toelichting }}</span>
-          </li>
-        </ul>
-        <p v-else data-testid="deelprocessen-leeg" class="text-[var(--lk-color-text-muted)]">
-          Nog geen deelprocessen.
-          <template v-if="magBewerken">Voeg er een toe met "+ Deelproces toevoegen" — dit proces staat dan al als bovenliggend proces ingevuld.</template>
-        </p>
-      </section>
-
-      <!-- Koppelregels — :key remount bij detail→detail-navigatie (vaste norm). -->
+      <!-- Blok 1 — de registratie op dít niveau (regels + regel-acties + toevoegregel). -->
       <ProcesComponentenSectie :key="props.id" :proces-id="props.id" :proces-naam="proces.naam" />
+
+      <!-- Blok 2 — het samengevoegde "Onderliggende processen"-blok (slice 5):
+           deelproces-kopjes + doorgerolde regels; toevoegknop in de blokkop. -->
+      <OnderliggendeProcessenSectie
+        :key="`onderliggend-${props.id}`"
+        :proces-id="props.id"
+        :kinderen="kinderen"
+        @toevoegen="openToevoegen"
+      />
     </template>
 
     <!-- Deelproces toevoegen -->
