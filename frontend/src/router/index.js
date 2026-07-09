@@ -23,8 +23,7 @@ const SignaleringView = () => import('../views/SignaleringView.vue')
 // ADR-021 Fase D — componenten (technische laag), lazy (OP-19).
 const ComponentLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ComponentLijst.vue')
 const ComponentDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ComponentDetail.vue')
-const ComponentFormulier = () =>
-  import('@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue')
+// ADR-042 4b — het componentformulier is een OVERLAY (in lijst/detail), geen route-pagina meer.
 // ADR-020 contractregister (Fase D1), lazy (OP-19).
 const PartijLijst = () => import('@modules/bwb_ontvlechting/frontend/views/PartijLijst.vue')
 const PartijFormulier = () =>
@@ -114,13 +113,14 @@ const routes = [
       { path: 'auditlog', name: 'auditlog', component: AuditTrailView },
       // ADR-021 componenten — statische subpaden vóór de dynamische /:id.
       { path: 'componenten', name: 'component-lijst', component: ComponentLijst },
-      { path: 'componenten/nieuw', name: 'component-nieuw', component: ComponentFormulier },
+      // ADR-042 4b — aanmaken/bewerken als overlay; de routes blijven als redirect
+      // (deep-links/bookmarks) en openen de overlay via een query-vlag.
+      { path: 'componenten/nieuw', name: 'component-nieuw', redirect: { name: 'component-lijst', query: { nieuw: '1' } } },
       { path: 'componenten/:id', name: 'component-detail', component: ComponentDetail, props: true },
       {
         path: 'componenten/:id/bewerken',
         name: 'component-bewerken',
-        component: ComponentFormulier,
-        props: true,
+        redirect: (to) => ({ name: 'component-detail', params: { id: to.params.id }, query: { bewerk: '1' } }),
       },
       // ADR-024 partijenregister — statische subpaden vóór de dynamische /:id.
       { path: 'partijen', name: 'partij-lijst', component: PartijLijst },

@@ -34,6 +34,9 @@ import ImpactSectie from './ImpactSectie.vue'
 import ChecklistscoreSectie from './ChecklistscoreSectie.vue'
 import BlokkadeSectie from './BlokkadeSectie.vue'
 import MigratiegereedheidSectie from './MigratiegereedheidSectie.vue'
+// ADR-042 4b — procesinzet-blok + het formulier als bewerk-overlay.
+import ComponentProcessenSectie from './ComponentProcessenSectie.vue'
+import ComponentFormulier from './ComponentFormulier.vue'
 import SignaleringBadge from './SignaleringBadge.vue'
 // LI059 Slice 4 — applicatie-eigen kind-secties, conditioneel gemount (bij subtype).
 import DatatypeSectie from './DatatypeSectie.vue'
@@ -124,8 +127,30 @@ async function laad() {
   }
 }
 
+// ADR-042 4b — bewerken als overlay boven het detail; na opslaan herladen.
+const bewerkOverlayOpen = ref(false)
 function naarBewerken() {
-  router.push({ name: 'component-bewerken', params: { id: props.id } })
+  bewerkOverlayOpen.value = true
+}
+async function onBewerkt() {
+  await laad()
+  await laadSleutelrollen()
+}
+
+// ADR-042 4b — "Wie is verantwoordelijk": de sleutelrollen product owner + proceseigenaar,
+// READ-ONLY gelezen uit de bestaande roltoewijzingen (registreren blijft op één plek —
+// het Verantwoordelijkheden-tabblad). Faalt zacht (blok toont dan de rustige gaten).
+const sleutelRollen = ref({ product_owner: [], proceseigenaar: [] })
+async function laadSleutelrollen() {
+  try {
+    const rijen = await api.roltoewijzingen.lijst({ object_id: props.id })
+    sleutelRollen.value = {
+      product_owner: rijen.filter((r) => r.rol === 'product_owner').map((r) => r.partij_naam),
+      proceseigenaar: rijen.filter((r) => r.rol === 'proceseigenaar').map((r) => r.partij_naam),
+    }
+  } catch {
+    sleutelRollen.value = { product_owner: [], proceseigenaar: [] }
+  }
 }
 
 // ADR-025 — open de Landschapskaart in ego-view, gecentreerd op dit component.
@@ -240,7 +265,13 @@ function onNaarVraag({ code, categorieNr }) {
 
 // Navigatie component-detail → component-detail hergebruikt de instance; watch op props.id
 // (immediate) herlaadt + her-initialiseert de deep-link bij elke id-wissel.
-watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immediate: true })
+watch(() => props.id, async () => {
+  await laad()
+  _initVanafQuery()
+  laadSleutelrollen()
+  // ADR-042 4b — deep-link /componenten/:id/bewerken (redirect) opent de bewerk-overlay.
+  if (String(route.query.bewerk ?? '') === '1' && magBewerken.value) bewerkOverlayOpen.value = true
+}, { immediate: true })
 </script>
 
 <template>
@@ -284,53 +315,91 @@ watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immedia
         aria-labelledby="detailtabs-tab-overzicht"
         data-testid="panel-overzicht"
       >
-        <div class="flex flex-col gap-[var(--lk-space-lg)] md:flex-row md:items-start">
-          <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)] md:flex-1">
-            <dt class="font-semibold">Type</dt>
-            <dd>{{ component.componenttype_label }}</dd>
-            <dt class="font-semibold">Hostingmodel</dt>
-            <dd>{{ label(HOSTINGMODEL, component.hostingmodel) }}</dd>
-            <dt class="font-semibold">Eigenaar-organisatie</dt>
-            <dd>
-              <router-link
-                v-if="component.eigenaar_organisatie_id"
-                :to="{ name: 'partij-detail', params: { id: component.eigenaar_organisatie_id } }"
-                data-testid="comp-eigenaar-org-link"
-                class="text-[var(--lk-color-primary)] hover:underline"
-              >{{ component.eigenaar_organisatie_naam }}</router-link>
-              <span v-else>—</span>
-            </dd>
-            <dt class="font-semibold">Migratiepad</dt>
-            <dd>{{ label(MIGRATIEPAD, component.migratiepad) }}</dd>
-            <dt class="font-semibold">Complexiteit</dt>
-            <dd>{{ label(NIVEAU, component.complexiteit) }}</dd>
-            <dt class="font-semibold">Prioriteit</dt>
-            <dd>{{ label(NIVEAU, component.prioriteit) }}</dd>
-            <dt class="font-semibold">Beschrijving</dt>
-            <dd class="whitespace-pre-wrap">{{ component.beschrijving || '—' }}</dd>
-            <!-- ADR-028 — componentclassificatie (registratief): rol + BIV. -->
-            <dt class="font-semibold">Rol</dt>
-            <dd data-testid="comp-rol">{{ component.rol_label }}</dd>
-            <dt class="font-semibold">BIV-classificatie</dt>
-            <dd data-testid="comp-biv">
-              <div class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-md)] gap-y-[var(--lk-space-xs)]">
-                <span class="text-[var(--lk-color-text-muted)]">Beschikbaarheid</span>
-                <span data-testid="comp-biv-b">{{ component.biv_beschikbaarheid_label || 'Niet geclassificeerd' }}</span>
-                <span class="text-[var(--lk-color-text-muted)]">Integriteit</span>
-                <span data-testid="comp-biv-i">{{ component.biv_integriteit_label || 'Niet geclassificeerd' }}</span>
-                <span class="text-[var(--lk-color-text-muted)]">Vertrouwelijkheid</span>
-                <span data-testid="comp-biv-v">{{ component.biv_vertrouwelijkheid_label || 'Niet geclassificeerd' }}</span>
-              </div>
-            </dd>
-          </dl>
+        <!-- ADR-042 4b — vier blokken: de vier vragen in één oogopslag. -->
+        <div class="grid grid-cols-1 gap-[var(--lk-space-lg)] md:grid-cols-2 md:items-start">
+          <!-- 1. Wat is dit -->
+          <section class="card" aria-labelledby="blok-wat-titel" data-testid="blok-wat-is-dit">
+            <h2 id="blok-wat-titel" class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-lg)] font-semibold">Wat is dit</h2>
+            <dl class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
+              <dt class="font-semibold">Type</dt>
+              <dd>{{ component.componenttype_label }}</dd>
+              <dt class="font-semibold">Beschrijving</dt>
+              <dd class="whitespace-pre-wrap">{{ component.beschrijving || '—' }}</dd>
+              <dt class="font-semibold">Hostingmodel</dt>
+              <dd>{{ label(HOSTINGMODEL, component.hostingmodel) }}</dd>
+              <!-- ADR-028 — componentclassificatie (registratief): rol + BIV. -->
+              <dt class="font-semibold">Rol</dt>
+              <dd data-testid="comp-rol">{{ component.rol_label }}</dd>
+              <dt class="font-semibold">BIV-classificatie</dt>
+              <dd data-testid="comp-biv">
+                <div class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-md)] gap-y-[var(--lk-space-xs)]">
+                  <span class="text-[var(--lk-color-text-muted)]">Beschikbaarheid</span>
+                  <span data-testid="comp-biv-b">{{ component.biv_beschikbaarheid_label || 'Niet geclassificeerd' }}</span>
+                  <span class="text-[var(--lk-color-text-muted)]">Integriteit</span>
+                  <span data-testid="comp-biv-i">{{ component.biv_integriteit_label || 'Niet geclassificeerd' }}</span>
+                  <span class="text-[var(--lk-color-text-muted)]">Vertrouwelijkheid</span>
+                  <span data-testid="comp-biv-v">{{ component.biv_vertrouwelijkheid_label || 'Niet geclassificeerd' }}</span>
+                </div>
+              </dd>
+              <dt class="font-semibold">Migratiepad</dt>
+              <dd>{{ label(MIGRATIEPAD, component.migratiepad) }}</dd>
+              <dt class="font-semibold">Complexiteit</dt>
+              <dd>{{ label(NIVEAU, component.complexiteit) }}</dd>
+              <dt class="font-semibold">Prioriteit</dt>
+              <dd>{{ label(NIVEAU, component.prioriteit) }}</dd>
+            </dl>
+          </section>
 
-          <MigratiegereedheidSectie
-            v-if="isChecklistDragend"
-            ref="gereedheidSectie"
-            class="md:w-80 md:shrink-0"
-            :component-id="component.id"
-            :aantal-gescoord="scoreSectie?.aantalGescoord ?? 0"
-            :aantal-vragen="scoreSectie?.aantalVragen ?? 0"
+          <div class="flex flex-col gap-[var(--lk-space-lg)]">
+            <!-- 2. Wie is verantwoordelijk — READ-ONLY; registreren blijft op het tabblad. -->
+            <section class="card" aria-labelledby="blok-wie-titel" data-testid="blok-verantwoordelijk">
+              <h2 id="blok-wie-titel" class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-lg)] font-semibold">Wie is verantwoordelijk</h2>
+              <dl class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
+                <dt class="font-semibold">Eigenaar-organisatie</dt>
+                <dd>
+                  <router-link
+                    v-if="component.eigenaar_organisatie_id"
+                    :to="{ name: 'partij-detail', params: { id: component.eigenaar_organisatie_id } }"
+                    data-testid="comp-eigenaar-org-link"
+                    class="text-[var(--lk-color-primary)] hover:underline"
+                  >{{ component.eigenaar_organisatie_naam }}</router-link>
+                  <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="eigenaar-gat">nog niet geregistreerd</span>
+                </dd>
+                <dt class="font-semibold">Product owner</dt>
+                <dd data-testid="sleutelrol-product-owner">
+                  <span v-if="sleutelRollen.product_owner.length">{{ sleutelRollen.product_owner.join(', ') }}</span>
+                  <span v-else class="text-[var(--lk-color-text-muted)]">nog niet geregistreerd</span>
+                </dd>
+                <dt class="font-semibold">Proceseigenaar</dt>
+                <dd data-testid="sleutelrol-proceseigenaar">
+                  <span v-if="sleutelRollen.proceseigenaar.length">{{ sleutelRollen.proceseigenaar.join(', ') }}</span>
+                  <span v-else class="text-[var(--lk-color-text-muted)]">nog niet geregistreerd</span>
+                </dd>
+              </dl>
+              <button
+                type="button"
+                data-testid="alle-verantwoordelijkheden"
+                class="mt-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+                @click="activeTop = 'verantwoordelijkheden'"
+              >Alle verantwoordelijkheden →</button>
+            </section>
+
+            <!-- 4. Migratiegereedheid (bestaand blok). -->
+            <MigratiegereedheidSectie
+              v-if="isChecklistDragend"
+              ref="gereedheidSectie"
+              :component-id="component.id"
+              :aantal-gescoord="scoreSectie?.aantalGescoord ?? 0"
+              :aantal-vragen="scoreSectie?.aantalVragen ?? 0"
+            />
+          </div>
+
+          <!-- 3. Waarvoor gebruiken we het — de procesinzet, direct registreerbaar. -->
+          <ComponentProcessenSectie
+            :key="props.id"
+            class="md:col-span-2"
+            :component-id="props.id"
+            :component-naam="component.naam"
           />
         </div>
 
@@ -498,5 +567,9 @@ watch(() => props.id, async () => { await laad(); _initVanafQuery() }, { immedia
         <Button label="Definitief verwijderen" severity="danger" data-testid="verwijder-bevestig" :disabled="bezig" @click="bevestigVerwijderen" />
       </div>
     </Dialog>
+
+    <!-- ADR-042 4b — bewerken als overlay boven het detail; na opslaan herladen.
+         Lazy gemount (v-if): pas bij openen laden opties + component. -->
+    <ComponentFormulier v-if="bewerkOverlayOpen" v-model:visible="bewerkOverlayOpen" :id="props.id" @opgeslagen="onBewerkt" />
   </section>
 </template>

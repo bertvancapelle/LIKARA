@@ -35,4 +35,27 @@
   }
   .ok { color: var(--lk-color-success); font-weight: 600; }
   .error { color: var(--lk-color-danger); font-weight: 600; }
+
+  /* Tweezijdige scroll-schaduw — hét patroon voor scrollende (dialoog)inhoud (LI035).
+     Puur CSS, geen JS/listeners: vier background-lagen op het scroll-element zelf.
+     De twee dekkers (linear, background-attachment: local) scrollen MEE met de inhoud;
+     de twee schaduwen (radial, attachment: scroll) staan VAST aan de randen. Staat de
+     inhoud bovenaan, dan bedekt de bovendekker de bovenschaduw → alleen onder schaduw;
+     onderaan → alleen boven; middenin → beide; past alles → beide bedekt (geen schaduw).
+     Live bij scroll/resize/inhoudswijziging (het is background, geen toestand), geen
+     ruimtebeslag, niets voor hulptechnologie (decoratief). De dekkers gebruiken de
+     dialoog-achtergrondkleur; dekker groter dan schaduw zodat die volledig wegvalt.
+     Schaduwtint: het primaire LIKARA-blauw op 22% via color-mix — een zachte blauwe
+     zweem op de witte dialoog-achtergrond, geen grijze en geen harde blauwe balk. */
+  .lk-scroll-schaduw {
+    background-image:
+      linear-gradient(var(--lk-color-surface) 30%, transparent),
+      linear-gradient(transparent, var(--lk-color-surface) 70%),
+      radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--lk-color-primary) 22%, transparent), transparent),
+      radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--lk-color-primary) 22%, transparent), transparent);
+    background-position: center top, center bottom, center top, center bottom;
+    background-repeat: no-repeat;
+    background-size: 100% 36px, 100% 36px, 100% 12px, 100% 12px;
+    background-attachment: local, local, scroll, scroll;
+  }
 }

@@ -42,6 +42,15 @@ vi.mock('@/api', () => ({
     },
     // ADR-035 — SignaleringBadge laadt bij mount (fail-soft).
     signalering: { badgeComponent: vi.fn(() => Promise.resolve({ kritiek: 0, aandacht: 0 })) },
+    // ADR-042 4b — ComponentProcessenSectie ("Waarvoor gebruiken we het") laadt bij mount.
+    procesvervullingen: {
+      lijst: vi.fn(() => Promise.resolve([])),
+      functies: vi.fn(() => Promise.resolve([])),
+      maak: vi.fn(),
+      werkBij: vi.fn(),
+      verwijder: vi.fn(),
+    },
+    processen: { lijst: vi.fn(() => Promise.resolve({ items: [], volgende_cursor: null })) },
   },
 }))
 
@@ -62,6 +71,11 @@ function maakRouter() {
       { path: '/applicaties/:id', name: 'applicatie-detail', component: { template: '<div/>' } },
       { path: '/contracten/:id', name: 'contract-detail', component: { template: '<div/>' } },
       { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
+      // ADR-042 4b — de processectie linkt naar proces-detail/-lijst; het
+      // verantwoordelijk-blok/VerantwoordelijkheidSectie naar partij-detail.
+      { path: '/processen', name: 'proces-lijst', component: { template: '<div/>' } },
+      { path: '/processen/:id', name: 'proces-detail', component: { template: '<div/>' } },
+      { path: '/partijen/:id', name: 'partij-detail', component: { template: '<div/>' } },
     ],
   })
 }
@@ -374,5 +388,54 @@ describe('ComponentDetail', () => {
   it('"Bekijk op kaart" verborgen zonder tenant-rol (geen ARCHITECTUUR.LEZEN)', async () => {
     const { w } = await mountDetail({ rollen: [] })
     expect(w.find('[data-testid="bekijk-op-kaart-knop"]').exists()).toBe(false)
+  })
+})
+
+describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', () => {
+  it('toont de vier blokken: wat is dit / wie is verantwoordelijk / waarvoor gebruiken we het', async () => {
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="blok-wat-is-dit"]').exists()).toBe(true)
+    expect(w.find('[data-testid="blok-verantwoordelijk"]').exists()).toBe(true)
+    expect(w.find('[data-testid="component-processen-sectie"]').exists()).toBe(true)
+    // Blok 1 draagt de compacte metadata (type + rol + BIV zitten erin).
+    const wat = w.find('[data-testid="blok-wat-is-dit"]')
+    expect(wat.text()).toContain('Database')
+    expect(wat.find('[data-testid="comp-rol"]').exists()).toBe(true)
+    expect(wat.find('[data-testid="comp-biv"]').exists()).toBe(true)
+  })
+
+  it('sleutelrollen: gevulde product owner/proceseigenaar tonen namen; gaten rustig "nog niet geregistreerd"', async () => {
+    api.roltoewijzingen.lijst.mockResolvedValue([
+      { toewijzing_id: 't1', rol: 'product_owner', rol_label: 'Product owner', partij_id: 'p1', partij_naam: 'J. de Vries' },
+      { toewijzing_id: 't2', rol: 'product_owner', rol_label: 'Product owner', partij_id: 'p2', partij_naam: 'P. van Dijk' },
+      { toewijzing_id: 't3', rol: 'technisch_beheer', rol_label: 'Technisch beheer', partij_id: 'p3', partij_naam: 'X' },
+    ])
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="sleutelrol-product-owner"]').text()).toContain('J. de Vries, P. van Dijk')
+    expect(w.find('[data-testid="sleutelrol-proceseigenaar"]').text()).toContain('nog niet geregistreerd')
+  })
+
+  it('"Alle verantwoordelijkheden →" opent het bestaande tabblad (tonen hier, registreren daar)', async () => {
+    const { w } = await mountDetail()
+    // In het blok zelf géén toewijzen-affordance.
+    expect(w.find('[data-testid="blok-verantwoordelijk"]').text()).not.toContain('Toevoegen')
+    await w.find('[data-testid="alle-verantwoordelijkheden"]').trigger('click')
+    await flushPromises()
+    expect(w.find('#detailtabs-panel-verantwoordelijkheden').isVisible()).toBe(true)
+  })
+
+  it('Bewerken opent de overlay boven het detail (geen route-navigatie meer)', async () => {
+    const { w, router } = await mountDetail()
+    const routeVoor = router.currentRoute.value.fullPath
+    await w.find('[data-testid="bewerken-knop"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="component-form-overlay"]').exists()).toBe(true)
+    expect(router.currentRoute.value.fullPath).toBe(routeVoor) // detail blijft eronder
+    expect(w.find('[data-testid="veld-naam"]').element.value).toBe('Oracle FIN-DB') // voorgevuld
+  })
+
+  it('deep-link ?bewerk=1 (de oude bewerken-route) opent de overlay direct', async () => {
+    const { w } = await mountDetail({ query: '?bewerk=1' })
+    expect(w.find('[data-testid="component-form-overlay"]').exists()).toBe(true)
   })
 })

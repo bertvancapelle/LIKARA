@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
+import ComponentFormulier from '@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import {
   ARCHIMATE_ELEMENT,
@@ -230,6 +231,13 @@ function rijRoute(rij) {
   return { name: 'component-detail', params: { id: rij.id } }
 }
 
+// ADR-042 4b — aanmaken als overlay boven de lijst; na opslaan door naar het detail
+// (bestaand gedrag). De oude route `component-nieuw` redirect hierheen met ?nieuw=1.
+const nieuwOverlayOpen = ref(false)
+function onAangemaakt(resultaat) {
+  router.push({ name: 'component-detail', params: { id: resultaat.id } })
+}
+
 const hosting = (c) => label(HOSTINGMODEL, c)
 const niveau = (c) => (c ? label(NIVEAU, c) : '—')
 const laagLabel = (c) => (c ? label(ARCHIMATE_LAAG, c) : '—')
@@ -251,6 +259,8 @@ onMounted(async () => {
     .filter((s) => STATUS_OPTIES.includes(s))
   const afwijkingQ = String(route.query.afwijking ?? '') === '1'
   const klaarQ = String(route.query.klaarverklaring ?? '') === 'klaar'
+  // ADR-042 4b — deep-link /componenten/nieuw (redirect) opent de aanmaak-overlay.
+  if (String(route.query.nieuw ?? '') === '1' && magAanmaken.value) nieuwOverlayOpen.value = true
   let hersteld = false
   if (q || statussen.length || afwijkingQ || klaarQ) {
     if (q) filterType.value = q
@@ -289,9 +299,13 @@ onMounted(async () => {
         label="Nieuw component"
         data-testid="nieuw-component"
         class="ml-auto"
-        @click="router.push({ name: 'component-nieuw' })"
+        @click="nieuwOverlayOpen = true"
       />
     </div>
+
+    <!-- ADR-042 4b — aanmaak-overlay: de lijst blijft eronder zichtbaar. Lazy gemount
+         (v-if): pas bij openen laden de opties; sluiten unmount hem weer. -->
+    <ComponentFormulier v-if="nieuwOverlayOpen" v-model:visible="nieuwOverlayOpen" :id="null" @opgeslagen="onAangemaakt" />
 
     <!-- Filterbalk (CD017) — AND-gecombineerd; elke wijziging reset de cursor. -->
     <div

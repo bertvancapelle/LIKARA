@@ -37,6 +37,10 @@ const VEREIST = [
   { naam: 'secondary-vulling', match: j('bg-[var(--lk-color-primary-50)', ']') },
   { naam: 'primary-vulling',   match: j('bg-[var(--lk-color-primary)', ']') },
   { naam: 'danger-vulling',    match: j('bg-[var(--lk-color-danger)', ']') },
+  // Scroll-schaduw (LI035): geen Tailwind-utility maar een handgeschreven klasse in
+  // main.css — Tailwind kan die dus nooit zelf seeden (geen vals-groen-risico) en de
+  // naam mag hier aaneengesloten staan. Verdwijnt de definitie, dan faalt dit LUID.
+  { naam: 'dialog-scroll-schaduw', match: '.lk-scroll-schaduw' },
 ]
 
 console.log('[css-build-check] productie-build draaien…')
