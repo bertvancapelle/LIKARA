@@ -38,6 +38,8 @@ vi.mock('@/api', () => ({
     impactViews: { lijst: vi.fn(), haal: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
     // LI034/ADR-041 — persoonlijke standaardkijk (kaart-kijkfilter).
     voorkeuren: { haalAlle: vi.fn(), zet: vi.fn(), herroep: vi.fn() },
+    // LI036 slice 2 — proces-popup (basis-detail hoofdproces).
+    processen: { haal: vi.fn() },
   },
 }))
 
@@ -148,6 +150,7 @@ beforeEach(() => {
   api.voorkeuren.haalAlle.mockResolvedValue([])
   api.voorkeuren.zet.mockResolvedValue({})
   api.voorkeuren.herroep.mockResolvedValue(undefined)
+  api.processen.haal.mockResolvedValue({ id: 'pr1', naam: 'Vergunningverlening', toelichting: 'Primair proces' })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -586,8 +589,8 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v2 — alle lanes tonen; "Verberg lege lanes" houdt alleen gevulde lanes', async () => {
     const w = await mountSwimlane()
-    // Default: alle 6 lanes (incl. lege) zichtbaar; alleen componenten + infrastructuur gevuld.
-    expect(w.vm.laneBanden.length).toBe(6)
+    // Default: alle 7 banen (incl. lege; LI036: + proceslaan) zichtbaar; componenten + infrastructuur gevuld.
+    expect(w.vm.laneBanden.length).toBe(7)
     expect(w.vm.laneBanden.find((b) => b.key === 'rollen').leeg).toBe(true)
     expect(w.vm.laneBanden.find((b) => b.key === 'componenten').leeg).toBe(false)
     // "Verberg lege lanes" → alleen de gevulde lanes.
@@ -598,14 +601,15 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v3 — lane verslepen herschikt de volgorde en persisteert in sessionStorage', async () => {
     const w = await mountSwimlane()
-    // LI036 — startvolgorde: … → Contracten → Overig (Overig onderaan).
-    expect(w.vm.laneVolgorde).toEqual(['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig'])
-    w.vm._herschikLane('contracten', 'rollen') // contracten naar de positie van rollen (bovenaan)
+    // LI036 — startvolgorde: Processen bovenaan (slice 2); … → Contracten → Overig (Overig onderaan).
+    expect(w.vm.laneVolgorde).toEqual(['processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig'])
+    w.vm._herschikLane('contracten', 'rollen') // contracten naar de positie van rollen (na de proceslaan)
     await flushPromises()
-    expect(w.vm.laneVolgorde[0]).toBe('contracten')
-    expect(w.vm.laneVolgorde[1]).toBe('rollen')
+    expect(w.vm.laneVolgorde[0]).toBe('processen') // LI036 — proceslaan blijft bovenaan
+    expect(w.vm.laneVolgorde[1]).toBe('contracten')
+    expect(w.vm.laneVolgorde[2]).toBe('rollen')
     // Direct opgeslagen (geen aparte bewaar-knop).
-    expect(JSON.parse(sessionStorage.getItem('lk-state')).laneVolgorde[0]).toBe('contracten')
+    expect(JSON.parse(sessionStorage.getItem('lk-state')).laneVolgorde[1]).toBe('contracten')
     // De zijbalk-lanevolgorde-lijst is verwijderd (bug 3).
     expect(w.find('[data-testid="lk-lane-volgorde"]').exists()).toBe(false)
     expect(w.find('[data-testid="lk-lane-reset"]').exists()).toBe(false)
@@ -638,12 +642,20 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v2 — lanevolgorde + verberg-lege hersteld uit sessionStorage', async () => {
     sessionStorage.setItem('lk-state', JSON.stringify({
-      laneVolgorde: ['contracten', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
+      laneVolgorde: ['contracten', 'processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
       verbergLegeLanes: true,
     }))
     const { w } = await mountView()
     expect(w.vm.laneVolgorde[0]).toBe('contracten')
     expect(w.vm.verbergLegeLanes).toBe(true)
+  })
+
+  it('LI036 — een legacy-volgorde zónder proceslaan valt terug op de default (processen bovenaan)', async () => {
+    sessionStorage.setItem('lk-state', JSON.stringify({
+      laneVolgorde: ['contracten', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
+    }))
+    const { w } = await mountView()
+    expect(w.vm.laneVolgorde[0]).toBe('processen')
   })
 
   // ── LI036 slice 1 — "Lagen" als derde weergave (zelfde set, zelfde stijlbron, zelfde interactie) ──
@@ -912,6 +924,91 @@ describe('LandschapskaartView v3', () => {
       await flushPromises()
       expect(w.vm.fullscreen).toBe(false)
       expect(inst.add.mock.calls.length).toBe(addsVoor)
+    })
+  })
+
+  // ── LI036 slice 2 — proceslaan + ring "Processen" ──
+  describe('LI036 slice 2 — proceslaan + ring Processen', () => {
+    const PROCES_GRAF = () => ({
+      nodes: [
+        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'pr1', naam: 'Vergunningverlening', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+      ],
+      edges: [
+        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+        { bron_id: 'a1', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 2, herkomst: [{ proces_id: 'p-diep', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Registreren' }] },
+      ],
+    })
+    async function mountProces() {
+      zetGraf(PROCES_GRAF())
+      const { w } = await mountView()
+      return w
+    }
+
+    it('(a+b) proces-knoop valt in de eigen proceslaan; de laan staat bovenaan', async () => {
+      const w = await mountProces()
+      expect(w.vm._laneVan({ element_type: 'proces', laag: 'business' })).toBe('processen')
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(w.vm.laneBanden[0].key).toBe('processen')
+      const inst = w.vm.instanceProjectie.instances.find((i) => i.logischId === 'pr1')
+      expect(inst.baan).toBe('processen')
+      // (d) processen blijven tagloos (geen rol-instance-expansie).
+      expect(inst.rollen).toEqual([])
+      expect(inst.id).toBe('pr1') // identiteits-instance, geen expansie
+    })
+
+    it('(c) ring "Processen" default aan; uit → proces-knoop + vervult-lijn weg ("ring uit wint"), aan → terug', async () => {
+      const w = await mountProces()
+      expect(w.vm.ringAan.has('processen')).toBe(true) // default aan (niet in RING_DEFAULT_UIT)
+      expect(getekendeIds(w)).toContain('pr1')
+      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'processen')).toBe(true)
+      await w.find('[data-testid="lk-ring-processen"]').trigger('change') // ring UIT
+      await flushPromises()
+      expect(getekendeIds(w)).not.toContain('pr1') // alleen-via-processen-ring → knoop weg
+      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'processen')).toBe(false)
+      await w.find('[data-testid="lk-ring-processen"]').trigger('change') // weer AAN
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('pr1')
+    })
+
+    it('(e) proces zichtbaar in Overzicht én Lagen (geen weergave-conditie)', async () => {
+      const w = await mountProces()
+      expect(getekendeIds(w)).toContain('pr1') // Overzicht
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('pr1') // Lagen
+      w.vm.toonOverzicht()
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('pr1')
+    })
+
+    it('proces-knoop: afgeronde rechthoek + verloop-pijl-marker, type-regel "Proces", popup + doorklik', async () => {
+      const w = await mountProces()
+      const pr = w.vm.grafNodes.find((n) => n.id === 'pr1')
+      const d = w.vm._nodeData(pr)
+      // LI036 — proces = round-rectangle; het onderscheid met de component-rechthoek is de
+      // verloop-pijl-marker in de gedeelde stijlbron (CY_STYLE-selector op element_type).
+      expect(d.shape).toBe('round-rectangle')
+      const marker = w.vm.CY_STYLE.find((r) => r.selector === 'node[element_type = "proces"]')
+      expect(marker).toBeTruthy()
+      expect(marker.style['background-image']).toContain('data:image/svg+xml')
+      // Geen tweede type deelt de round-rectangle zónder onderscheid: alle andere vormen wijken af.
+      const vormen = ['gebruikersgroep', 'contract'].map((et) => w.vm._vormVoorType({ element_type: et }))
+      vormen.push(w.vm._vormVoorType({ element_type: 'partij', soort: 'organisatie' }))
+      vormen.push(w.vm._vormVoorType({ element_type: 'partij', soort: 'persoon' }))
+      vormen.push(w.vm._vormVoorType({ element_type: 'partij', soort: 'externe_partij' }))
+      vormen.push(w.vm._vormVoorType({ element_type: 'database', laag: 'technology' }))
+      expect(vormen).not.toContain('round-rectangle')
+      expect(d.label).toContain('\nProces')
+      await w.vm.openNodePopup('pr1')
+      await flushPromises()
+      expect(api.processen.haal).toHaveBeenCalledWith('pr1')
+      expect(w.vm.popupKind).toBe('node')
+      expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Vergunningverlening')
+      expect(w.find('[data-testid="lk-popup-velden"]').text()).toContain('Primair proces')
+      expect(w.vm.popupActies.some((a) => a.label === 'Open proces →')).toBe(true)
     })
   })
 

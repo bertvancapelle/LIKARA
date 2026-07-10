@@ -45,7 +45,10 @@ const LIFECYCLE_OPTIES = ['migratieklaar', 'in_inventarisatie', 'geblokkeerd', '
 // LI033b — 'gebruikt' ("organisatie gebruikt applicatie", org → applicatie) is een eigen ring, spiegel
 // van 'eigenaar'. Default AAN. Doet mee in de ego-kring (praatplaat) via `_burenVan` (alle actieve
 // ringen) — geen aparte impact-bedrading (IMPACT_RINGEN is met de Impact-verkenner afgeschaft).
-const RINGEN = ['applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikt', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
+// LI036 slice 2 — ring 'processen' (hoofdprocessen + vervult-lijnen uit de subgraaf-projectie):
+// standaard AAN (niet in RING_DEFAULT_UIT), zichtbaar in alle drie de weergaven. Vooraan = de
+// "waarvoor"-laag, spiegel van de proceslaan bovenaan.
+const RINGEN = ['processen', 'applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikt', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
 // ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie); standaard
 // UIT (zie ringAan), want context, niet de hoofdvraag van de kaart.
 const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
@@ -56,9 +59,12 @@ const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
 // ring-checkboxes. Geldt ALLEEN op de praatplaat en ALLEEN bij het BETREDEN (niet bij hercentreren of
 // re-render → een handmatig aangezette context-ring blijft staan). Het Overzicht houdt zijn eigen
 // startstand (`ringAan` hierboven: alles-behalve-`organisatiestructuur`).
-const RING_PRAATPLAAT_KERN = new Set(['gebruikers', 'gebruikt', 'rollen', 'contracten', 'infrastructuur', 'applicaties'])
+// LI036 — 'processen' hoort bij de kern ("waarvoor gebruiken we dit object"): de ring is besloten
+// standaard-aan in álle weergaven, dus de praatplaat-startstand zet hem niet uit.
+const RING_PRAATPLAAT_KERN = new Set(['processen', 'gebruikers', 'gebruikt', 'rollen', 'contracten', 'infrastructuur', 'applicaties'])
 // ADR-031 — leesbare ring-namen. Backend levert ring='beheerorganisatie' → bij laden gemapt op 'rollen'.
 const RING_LABELS = {
+  processen: 'Processen', // LI036 slice 2 — hoofdprocessen + vervult-lijnen (de "waarvoor"-laag)
   applicaties: 'Componenten',
   samenstelling: 'Samenstelling', // ADR-033 1b — "onderdeel van" (component↔component aggregatie)
   rollen: 'Rollen & beheer',
@@ -73,6 +79,7 @@ const RING_LABELS = {
 // volgorde (van boven naar beneden). De volgorde is gebruiker-herschikbaar (drag-drop) en wordt in
 // sessionStorage bewaard. Startvolgorde per LI036 slice 1: … → Contracten → Overig (Overig onderaan).
 const LANE_DEF = {
+  processen: { label: 'Processen', bg: '#fff7ed' }, // LI036 slice 2 — de "waarvoor"-laag, bovenaan
   rollen: { label: 'Rollen & beheer', bg: '#fef9c3' },
   gebruikers: { label: 'Gebruikers', bg: '#f0fdf4' },
   componenten: { label: 'Componenten', bg: '#eff6ff' },
@@ -80,7 +87,7 @@ const LANE_DEF = {
   overig: { label: 'Overig', bg: '#f8fafc' },
   contracten: { label: 'Contracten', bg: '#faf5ff' },
 }
-const DEFAULT_LANE_VOLGORDE = ['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
+const DEFAULT_LANE_VOLGORDE = ['processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
 // LI019 1d-v6 — swimlane-grid: nodes wrappen per lane binnen een BEGRENSDE breedte, zodat één grote
 // lane (bv. 58 partijen) de andere lanes niet uitrekt en cy.fit() niet extreem uitzoomt (kernoorzaak B).
 const MAX_LANE_W = 1200 // max model-breedte voor het node-grid per lane
@@ -1288,6 +1295,7 @@ function _detailLink(node) {
   if (!node) return null
   const id = node.id
   switch (node.element_type) {
+    case 'proces': return { label: 'Open proces →', fn: () => router.push({ name: 'proces-detail', params: { id } }) } // LI036
     case 'partij': return { label: 'Open partij →', fn: () => router.push({ name: 'partij-detail', params: { id } }) }
     case 'contract': return { label: 'Open contract →', fn: () => router.push({ name: 'contract-detail', params: { id } }) }
     case 'gebruikersgroep': return null
@@ -1353,6 +1361,12 @@ function _nodeVelden(et, d, n) {
       _veld('Contracttype', d.contracttype ? typeLabel(d.contracttype) : null),
       _veld('Looptijd', looptijd),
       _veld('Omschrijving', d.omschrijving),
+    ])
+  }
+  if (et === 'proces') {
+    // LI036 slice 2 — basis-detail hoofdproces; de herkomst-uitsplitsing per vervul-lijn is stap 3.
+    return _velden([
+      _veld('Toelichting', d.toelichting),
     ])
   }
   if (et === 'partij') {
@@ -1423,6 +1437,7 @@ async function openNodePopup(id) {
     // LI059 Slice 4 — applicatie ÍS een component; er is geen aparte /applicaties-haal meer.
     if (et === 'contract') d = await api.contracten.haal(id)
     else if (et === 'partij') d = await api.partijen.haal(id)
+    else if (et === 'proces') d = await api.processen.haal(id) // LI036 slice 2 — hoofdproces-knoop
     else d = await api.componenten.haal(id)
     if (popupKind.value !== 'node' || detailId.value !== id) return // intussen vervangen
     popupVelden.value = _nodeVelden(et, d, n)
@@ -1607,7 +1622,18 @@ const _AARD_VORM = {
   organisatie_eenheid: 'cut-rectangle', // afdeling — duidelijk anders dan organisatie-hexagon
   externe_partij: 'rhomboid',    // leverancier — schuin blok, duidelijk anders dan contract-tag
 }
+// LI036 slice 2 — verloop-pijl-marker (ArchiMate/BPMN-processignaal) voor de proces-knoop: een
+// SVG-data-URI in de node-ACHTERGROND (CY_STYLE-selector op element_type), zodat de marker bij de
+// vorm-definitie hoort en automatisch meereist, mee-dimt (node-opacity) en mee-schaalt met de knoop.
+// Kleur parametriseerbaar: donker op de lichte knoop, wit op de grijze legenda-glyph.
+const _pijlDataUri = (kleur) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 8h9M8 4l4 4-4 4" stroke="${kleur}" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
+const _PROCES_PIJL = _pijlDataUri('#475569')
 function _vormVoorType(n) {
+  // Proces = afgeronde rechthoek MET verloop-pijl (marker via CY_STYLE hieronder) — zelfde
+  // basissilhouet als component; de pijl is het onderscheid. (De eerdere pentagon schurkte te
+  // dicht tegen organisatie-hexagon/contract-tag aan.)
+  if (n.element_type === 'proces') return 'round-rectangle'
   if (n.element_type === 'gebruikersgroep') return 'octagon'        // groep/rol-badge
   if (n.element_type === 'contract') return 'tag'                   // label/"document"
   if (n.element_type === 'partij') return _AARD_VORM[n.soort] || 'round-rectangle'
@@ -1626,6 +1652,7 @@ const _AARD_LABEL = {
   externe_partij: 'Leverancier',
 }
 function _typeRegelVoor(n) {
+  if (n.element_type === 'proces') return 'Proces' // LI036 slice 2 — hoofdproces-knoop
   if (n.element_type === 'partij') return _AARD_LABEL[n.soort] || 'Partij'
   if (n.element_type === 'gebruikersgroep') return 'Gebruikersgroep'
   if (n.element_type === 'contract') return 'Contract'
@@ -1636,6 +1663,8 @@ function _typeRegelVoor(n) {
 // Legenda-glyphs: CSS-benaderingen van de Cytoscape-vormen (clip-path / border-radius). Neutrale
 // grijze vulling — kleur blijft voorbehouden aan status; deze glyphs tonen alléén de vorm→type-uitleg.
 const VORM_LEGENDA = [
+  // LI036 — proces: zelfde afgeronde rechthoek als component, met de witte verloop-pijl als onderscheid.
+  { label: 'Proces', stijl: { borderRadius: '3px', backgroundImage: `url("${_pijlDataUri('#ffffff')}")`, backgroundSize: '80%', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' } },
   { label: 'Component', stijl: { borderRadius: '3px' } },
   { label: 'Infrastructuur', stijl: { borderRadius: '50% / 35%' } },
   { label: 'Contract', stijl: { clipPath: 'polygon(0 0,80% 0,100% 50%,80% 100%,0 100%)' } },
@@ -1663,8 +1692,9 @@ function toggleLegendaFilter(label) {
   legendaTypeFilter.value = legendaTypeFilter.value === label ? null : label
 }
 const _LEGENDA_MATCH = {
-  // Component = de round-rectangle-glyph: alles wat geen gg/contract/partij/technology is.
-  Component: (n) => n.element_type !== 'gebruikersgroep' && n.element_type !== 'contract' && n.element_type !== 'partij' && n.laag !== 'technology',
+  Proces: (n) => n.element_type === 'proces', // LI036 slice 2
+  // Component = de round-rectangle-glyph: alles wat geen proces/gg/contract/partij/technology is.
+  Component: (n) => n.element_type !== 'proces' && n.element_type !== 'gebruikersgroep' && n.element_type !== 'contract' && n.element_type !== 'partij' && n.laag !== 'technology',
   Infrastructuur: (n) => n.laag === 'technology',
   Contract: (n) => n.element_type === 'contract',
   Gebruikersgroep: (n) => n.element_type === 'gebruikersgroep',
@@ -1790,6 +1820,7 @@ onBeforeUnmount(() => {
 // "Overig", ook als `laag` ontbreekt of een componenttype geen application-laag-typing heeft (bug 1).
 function _laneVan(n) {
   const et = n.element_type
+  if (et === 'proces') return 'processen' // LI036 slice 2 — vóór de rest-tak (anders → componenten)
   if (et === 'gebruikersgroep') return 'gebruikers'
   if (et === 'contract') return 'contracten'
   if (et === 'partij') return 'rollen'
@@ -1896,7 +1927,7 @@ function _edgeData(e, i) {
 // (categorie via _laneVan; de componenten-baan hoort bij de 'applicaties'-ring). 'overig'
 // (categorieloos) heeft geen ring → altijd tonen onder de toggle — daar is niets uitgezet, en
 // stil verbergen zou een echte gap onzichtbaar maken.
-const _BAAN_RING = { rollen: 'rollen', gebruikers: 'gebruikers', componenten: 'applicaties', infrastructuur: 'infrastructuur', contracten: 'contracten' }
+const _BAAN_RING = { processen: 'processen', rollen: 'rollen', gebruikers: 'gebruikers', componenten: 'applicaties', infrastructuur: 'infrastructuur', contracten: 'contracten' }
 // LI020 → LI036 — definitieve node-set voor het canvas (IDENTIEK voor alle weergaven — Lagen is
 // enkel een andere layout, geen andere set). "Ring uit wint": zichtbaar is wat de AANstaande
 // ringen dragen — een knoop is zichtbaar als hij het ego-centrum of een set-lid is (bewuste
@@ -2282,6 +2313,15 @@ const CY_STYLE = [
       'padding-left': 16, 'padding-right': 16, 'padding-top': 9, 'padding-bottom': 9,
     },
   },
+  // LI036 slice 2 — proces: afgeronde rechthoek + VERLOOP-PIJL-marker (rechtsonder, in de padding-
+  // zone). Hoort bij de vorm-definitie (geen aparte overlay): dimt en schaalt mee met de knoop.
+  {
+    selector: 'node[element_type = "proces"]',
+    style: {
+      'background-image': _PROCES_PIJL, 'background-width': 12, 'background-height': 12,
+      'background-position-x': '96%', 'background-position-y': '90%', 'background-clip': 'none',
+    },
+  },
   // Ronde vormen (ellipse/barrel) clippen het label aan de randen → ruimere padding.
   { selector: 'node.rond', style: { 'padding-left': 18, 'padding-right': 18, 'padding-top': 12, 'padding-bottom': 12 } },
   // Veelhoeken (hexagon/octagon) knijpen het label aan de hoeken → ruimere padding.
@@ -2487,7 +2527,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 

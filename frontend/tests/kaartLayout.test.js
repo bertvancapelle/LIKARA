@@ -75,8 +75,10 @@ describe('kaart-layout (ADR-040 F1 — geen samenvallende posities)', () => {
     // Spiegel van _laneVan + laneLayout + _swimlanePositions in LandschapskaartView.vue: nodes in een
     // grid per baan (LANE_COLS kolommen, wrappend), banen cumulatief gestapeld in de LI036-startvolgorde.
     const LANE_COLS = 6, NODE_W = 190, NODE_H = 72, LANE_PAD = 30, LANE_MIN_H = 110
-    const VOLGORDE = ['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
+    // LI036 slice 2 — proceslaan bovenaan; spiegel van DEFAULT_LANE_VOLGORDE + _laneVan.
+    const VOLGORDE = ['processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
     const laneVan = (n) => {
+      if (n.element_type === 'proces') return 'processen'
       if (n.element_type === 'gebruikersgroep') return 'gebruikers'
       if (n.element_type === 'contract') return 'contracten'
       if (n.element_type === 'partij') return 'rollen'
@@ -85,6 +87,7 @@ describe('kaart-layout (ADR-040 F1 — geen samenvallende posities)', () => {
     }
     // Gemengde set, incl. 8 applicaties (→ 2 rijen wrappen in de componenten-baan).
     const knopen = [
+      { id: 'pr1', element_type: 'proces', laag: 'business' }, // LI036 slice 2 — proceslaan
       { id: 'p1', element_type: 'partij' }, { id: 'p2', element_type: 'partij' },
       { id: 'gg1', element_type: 'gebruikersgroep' },
       ...Array.from({ length: 8 }, (_, i) => ({ id: 'app' + i, element_type: 'applicatie', laag: 'application' })),
