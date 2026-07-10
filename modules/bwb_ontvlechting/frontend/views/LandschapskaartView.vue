@@ -2,8 +2,9 @@
 /**
  * LandschapskaartView v3 — interactieve landschapskaart op Cytoscape.js (ADR-025 → ADR-040).
  *
- * Twee weergaven (Overzicht = brede plaat / Praatplaat = concentric centraal op één centrum + kring;
- * de `modus`-computed is nu een dunne adapter daarop — de Impact-verkenner is met ADR-040 afgeschaft),
+ * Drie weergaven (Overzicht = brede plaat / Praatplaat = concentric centraal op één centrum + kring /
+ * Lagen = preset-baanposities per laag-baan, LI036; de `modus`-computed is een dunne adapter op de
+ * weergave-as — de Impact-verkenner is met ADR-040 afgeschaft),
  * zoeken + vier filters (domein/leverancier/hosting/
  * lifecycle), actieve migratieset, node-detail met doorklik naar het applicatie-detail, en een
  * lifecycle-legenda. De Cytoscape-graaf is een afgeleide van de reactieve state (tekenGraaf());
@@ -68,8 +69,9 @@ const RING_LABELS = {
   infrastructuur: 'Infrastructuur',
   organisatiestructuur: 'Organisatiestructuur', // ADR-024 — "hoort bij" (persoon → afdeling → organisatie)
 }
-// LI019 1d-v2 — swimlane-lanes: definitie (label + bandkleur) + default-volgorde (van boven naar
-// beneden). De volgorde is gebruiker-herschikbaar (drag-drop) en wordt in sessionStorage bewaard.
+// LI019 1d-v2 → LI036 — laag-banen ("Lagen"-weergave): definitie (label + bandkleur) + default-
+// volgorde (van boven naar beneden). De volgorde is gebruiker-herschikbaar (drag-drop) en wordt in
+// sessionStorage bewaard. Startvolgorde per LI036 slice 1: … → Contracten → Overig (Overig onderaan).
 const LANE_DEF = {
   rollen: { label: 'Rollen & beheer', bg: '#fef9c3' },
   gebruikers: { label: 'Gebruikers', bg: '#f0fdf4' },
@@ -78,7 +80,7 @@ const LANE_DEF = {
   overig: { label: 'Overig', bg: '#f8fafc' },
   contracten: { label: 'Contracten', bg: '#faf5ff' },
 }
-const DEFAULT_LANE_VOLGORDE = ['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig', 'contracten']
+const DEFAULT_LANE_VOLGORDE = ['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
 // LI019 1d-v6 — swimlane-grid: nodes wrappen per lane binnen een BEGRENSDE breedte, zodat één grote
 // lane (bv. 58 partijen) de andere lanes niet uitrekt en cy.fit() niet extreem uitzoomt (kernoorzaak B).
 const MAX_LANE_W = 1200 // max model-breedte voor het node-grid per lane
@@ -89,8 +91,23 @@ const LANE_MIN_H = 110 // min lane-hoogte — lege/kleine lane blijft zichtbaar 
 const LANE_COLS = Math.max(1, Math.floor(MAX_LANE_W / NODE_W)) // kolommen per lane (= 6)
 // ADR-031 — gebruikersgroep-node-stijl (distinctief t.o.v. applicaties).
 const GG_STYLE = { bg: '#e0f2fe', border: '#0ea5e9' }
+// LI036 rolbanen — de ENE rol-tag-kleurbron (node-pill in de Lagen-weergave én de popup lezen
+// dezelfde map; geen tweede kleurdefinitie elders). Rand/vulling/vorm blijven onaangeroerd —
+// de tag is een eigen HTML-element. 'gebruikt' krijgt óók een tag (elke plek toont zijn rol;
+// géén tag = "hier geen rol", besluit B).
+const ROL_TAG = {
+  gebruikt: { label: 'gebruikt', bg: '#e0f2fe', tekst: '#075985' }, // sky — spiegelt de Gebruikers-baan
+  levert: { label: 'levert', bg: '#ccfbf1', tekst: '#0f766e' },     // teal
+  beheert: { label: 'beheert', bg: '#ede9fe', tekst: '#6d28d9' },   // paars
+  eigenaar: { label: 'eigenaar', bg: '#fce7f3', tekst: '#be185d' }, // roze
+}
+// Welke rollen landen in de "Rollen & beheer"-baan (gebruikt → Gebruikers-baan).
+const _ROLLEN_RB = ['beheert', 'eigenaar', 'levert']
 // Oranje van de geselecteerd-component-rand (node:selected) — één bron voor de focus-rand.
 const SELECTIE_RAND = '#f59e0b'
+// LI025/LI036 — de ene dim-maat voor KNOPEN (CY-stijl `node.lk-dim`) én hun rol-tags (HTML-overlay):
+// een tag deelt altijd de dim-staat van zijn knoop, met exact dezelfde opacity.
+const DIM_NODE_OPACITY = 0.35
 // Deterministische domeinkleuren (border in "kleur op domein"-modus).
 const DOMEIN_PALET = ['#2563eb', '#d97706', '#0891b2', '#7c3aed', '#16a34a', '#db2777', '#65a30d', '#dc2626']
 
@@ -100,9 +117,10 @@ const edges = ref([])
 const laden = ref(true)
 const fout = ref(null)
 
-const layoutModus = ref('radiaal') // LI019 1d — 'radiaal' (concentric) | 'swimlane' (preset lanes)
-const laneVolgorde = ref([...DEFAULT_LANE_VOLGORDE]) // LI019 1d-v2 — gebruiker-herschikbare lanevolgorde
-const verbergLegeLanes = ref(false) // LI019 1d-v2 — lege lanes verbergen voor een compactere weergave
+// LI036 — de vroegere tweede layout-as (`layoutModus` 'radiaal'|'swimlane', LI019-parkeren) is
+// GECONVERGEERD op de ene `weergave`-as hieronder: 'lagen' ís de baan-layout. Eén bron van waarheid.
+const laneVolgorde = ref([...DEFAULT_LANE_VOLGORDE]) // LI019 1d-v2 — gebruiker-herschikbare baanvolgorde
+const verbergLegeLanes = ref(false) // LI019 1d-v2 — lege banen verbergen voor een compactere weergave
 const toonRegistratiegaps = ref(false) // LI019 1d-v7 — losse nodes (registratiegaps) óók tonen (default UIT)
 const bandPx = ref([]) // schermposities van de lane-banden (top/height px), gesynct met cy pan/zoom
 const zoekterm = ref('')
@@ -122,7 +140,10 @@ const grofOnlyIds = ref(new Set())
 // de HANDELING van de gebruiker: één component inspecteren / "toon impact" / deep-link → 'praatplaat'
 // (concentric centraal op het centrum + kring); brede verkenning / view / "hele landschap" / buren
 // toevoegen → 'overzicht' (de volledige set als brede plaat). Een zichtbare schakelaar wisselt.
-const weergave = ref('overzicht') // 'overzicht' | 'praatplaat'
+// LI036 — derde weergave 'lagen': dezelfde set + filters, maar elk knoop in zijn laag-baan
+// (preset-posities; zie _swimlanePositions/_laneVan). Dit is de ENE weergave-as — er is geen
+// aparte layout-as meer.
+const weergave = ref('overzicht') // 'overzicht' | 'praatplaat' | 'lagen'
 const egoStartId = ref(null) // het praatplaat-CENTRUM (rename naar centrumId is cosmetisch; uitgesteld
                              // om de history-serialisatie niet te raken — zie de ontvlechtings-eis).
 // `modus` is nu een DUNNE adapter op de expliciete weergave-state (de ~10 lees-plekken blijven zo
@@ -166,6 +187,12 @@ function toonPraatplaat(id) {
 function toonOverzicht() {
   _verseWeergave()
   weergave.value = 'overzicht'
+}
+// LI036 — schakelaar-ingang "Lagen": zelfde set + filters, knopen in laag-banen. Schone lei bij
+// het wisselen (identiek aan toonOverzicht); het praatplaat-centrum blijft staan zodat terugwisselen kan.
+function toonLagen() {
+  _verseWeergave()
+  weergave.value = 'lagen'
 }
 const detailId = ref(null)
 const opbouwModus = ref(true) // geheel-model: true=insluiten (begint leeg), false=afpellen (begint vol)
@@ -364,7 +391,8 @@ function toggleScopeOrg(id) {
   scopeOrgs.value = s
 }
 function _inScope(n) {
-  // Scope bestuurt uitsluitend de organisatie-overlay op OVERZICHT.
+  // Scope bestuurt uitsluitend de organisatie-overlay op OVERZICHT en LAGEN (LI036 — daar is de
+  // scopebalk ook zichtbaar; nooit onzichtbaar doorfilteren).
   if (actieveSet.value.has(n.id)) return true             // set-lid (focus) → altijd zichtbaar
   // ADR-040 F1 stap 2b — op de praatplaat is de scope inert: het centrum + de kring bepalen wat je ziet,
   // dus nooit een kring-organisatie stil wegfilteren (de balk is daar ook verborgen).
@@ -1097,11 +1125,15 @@ function _pasSelectieHighlight() {
     cy.nodes?.()?.removeClass?.('hl-node')
     const sel = geselecteerdNodeId.value
     if (!sel) return
-    const node = cy.getElementById?.(String(sel))
-    if (node && node.length) {
+    // LI036 rolbanen — match op de LOGISCHE id: in de Lagen-weergave kan één partij meerdere visuele
+    // instances hebben (`logischId` in de node-data); ALLE instances + hun lijnen lichten samen op.
+    // Buiten Lagen is logischId === id → identiek aan het oude getElementById-gedrag.
+    cy.nodes?.()?.forEach?.((node) => {
+      const d = node.data?.() || {}
+      if ((d.logischId || d.id) !== String(sel)) return
       node.addClass?.('hl-node')
       node.connectedEdges?.()?.addClass?.('hl-edge')
-    }
+    })
   } catch { /* gemockte cytoscape in tests → no-op */ }
 }
 // LI034 — een selectie(-wijziging) stuurt zowel de incidente-lijn-highlight als de dim-op-klik.
@@ -1226,6 +1258,12 @@ const popupVelden = ref([]) // [{ label, waarde }] — uitsluitend ingevulde vel
 const popupFlows = ref([]) // [{ id, naam, positie:'uit'|'in', tegenNaam, richting, protocol, impact, omschrijving }]
 const popupSelId = ref(null) // geselecteerde flow (master); default = eerste rij
 const popupMelding = ref(null) // RBAC-/terugval-melding (geen technische fout)
+// LI036 rolbanen — rol-context in de popup: de rol(len) van de AANGEKLIKTE plek (instance) bovenaan,
+// de overige rol(len) van dezelfde partij eronder. `_klikRollen` wordt door de node-tap-handler gezet
+// (consume-once in openNodePopup); buiten de Lagen-weergave blijven beide leeg.
+const _klikRollen = ref([])
+const popupRolActief = ref([]) // rol-sleutels van de aangeklikte instance
+const popupRolOverig = ref([]) // overige rol-sleutels van dezelfde partij (andere instances)
 const popupGeselecteerd = computed(() => popupFlows.value.find((f) => f.id === popupSelId.value) || popupFlows.value[0] || null)
 function selecteerFlow(id) { popupSelId.value = id }
 const popupActies = ref([]) // [{ label, fn }] — doorklik-links naar detailschermen (node + edge)
@@ -1264,6 +1302,8 @@ function sluitPopup() {
   popupSelId.value = null
   popupMelding.value = null
   popupActies.value = []
+  popupRolActief.value = [] // LI036 — rol-context hoort bij déze popup
+  popupRolOverig.value = []
   // B1 — highlight van de aangeklikte edge opheffen.
   geselecteerdeEdgeId.value = null
   cy?.edges?.()?.removeClass?.('sel-edge')
@@ -1347,6 +1387,19 @@ async function openNodePopup(id) {
   popupFlows.value = []
   popupSelId.value = null
   popupVelden.value = _nodePrefill(n)
+  // LI036 rolbanen — rol-context (alleen partijen, alleen Lagen): aangeklikte rol(len) bovenaan
+  // (uit de tap-handler, consume-once), de overige rollen van dezelfde partij eronder.
+  const klik = _klikRollen.value
+  _klikRollen.value = []
+  if (weergave.value === 'lagen' && n.element_type === 'partij') {
+    const alle = [...new Set(instanceProjectie.value.instances
+      .filter((i) => i.logischId === id).flatMap((i) => i.rollen))]
+    popupRolActief.value = klik.filter((r) => alle.includes(r))
+    popupRolOverig.value = alle.filter((r) => !popupRolActief.value.includes(r))
+  } else {
+    popupRolActief.value = []
+    popupRolOverig.value = []
+  }
   popupOpen.value = true
   // ADR-031 — gebruikersgroep heeft geen detail-endpoint: toon ledental + organisatie uit node-data.
   if (n.element_type === 'gebruikersgroep') {
@@ -1499,20 +1552,22 @@ function onNodeTap(id) {
 }
 
 // Fullscreen-overlay (in-app): de hele view vult het venster via een CSS-klasse — GEEN
-// remount, dus alle state (centrum/selectie/popup/set/filters) blijft behouden. Zoom/pan
-// wordt expliciet bewaard (de ResizeObserver fit niet tijdens de toggle).
-let _behoudViewport = false
+// remount, dus alle state (centrum/selectie/popup/set/filters) blijft behouden.
+// LI036 — bij vergroten/verkleinen HERFIT de plaat (zelfde indeling, passend gecentreerd in de
+// nieuwe maat): de CSS-maatwissel triggert de bestaande ResizeObserver → `_pasCanvasMaat`
+// (resize + dezelfde fit als _naLayout; géén re-layout, knopen verspringen niet). Het vroegere
+// viewport-behoud (`_behoudViewport` + zoom/pan-herstel + setTimeout-nudge) is bewust vervallen;
+// dit dekt óók de Escape-uitgang (die zet alleen de vlag — zelfde observer-pad).
 let _recenterPending = false // LI019 1d-v4 (bug 5) — true ná een expliciete ego-recenter (dubbelklik/set-klik)
 function toggleFullscreen() {
-  const z = cy?.zoom?.()
-  const p = cy?.pan?.()
-  _behoudViewport = true
   fullscreen.value = !fullscreen.value
-  nextTick(() => {
-    cy?.resize?.()
-    if (typeof z === 'number' && p) { cy?.zoom?.(z); cy?.pan?.(p) }
-    setTimeout(() => { _behoudViewport = false }, 200)
-  })
+}
+// Hét ene maatwissel-pad (ResizeObserver-callback): her-meten + passend maken op de BESTAANDE
+// posities. De fit vuurt zoom/pan-events → de overlay-hersync (banden + rol-tags) loopt vanzelf
+// mee via de bestaande 'pan zoom resize'-handler.
+function _pasCanvasMaat() {
+  cy?.resize?.()
+  cy?.fit?.(undefined, 50)
 }
 
 function _opEscape(e) {
@@ -1632,25 +1687,31 @@ function _pasDim() {
     if (sel) {
       const scherp = _burenVan(sel)
       scherp.add(sel)
+      // LI036 rolbanen — dim matcht op de LOGISCHE id (instances delen `logischId`; buiten Lagen
+      // is logischId === id). Edge-incidentie via de logische endpoints (bronLog/doelLog).
       cy.nodes?.()?.forEach?.((node) => {
-        const nid = (node.data?.() || {}).id
-        node[scherp.has(nid) ? 'removeClass' : 'addClass']?.('lk-dim')
+        const d = node.data?.() || {}
+        node[scherp.has(d.logischId || d.id) ? 'removeClass' : 'addClass']?.('lk-dim')
       })
       cy.edges?.()?.forEach?.((edge) => {
         const d = edge.data?.() || {}
-        const incident = d.source === sel || d.target === sel
+        const incident = (d.bronLog || d.source) === sel || (d.doelLog || d.target) === sel
         edge[incident ? 'removeClass' : 'addClass']?.('lk-dim')
       })
-      return
+    } else {
+      cy.edges?.()?.removeClass?.('lk-dim')
+      const type = legendaTypeFilter.value
+      if (!type) cy.nodes?.()?.removeClass?.('lk-dim')
+      else cy.nodes?.()?.forEach?.((node) => {
+        const past = _legendaMatch(node.data?.() || {}, type)
+        node[past ? 'removeClass' : 'addClass']?.('lk-dim')
+      })
     }
-    cy.edges?.()?.removeClass?.('lk-dim')
-    const type = legendaTypeFilter.value
-    if (!type) { cy.nodes?.()?.removeClass?.('lk-dim'); return }
-    cy.nodes?.()?.forEach?.((node) => {
-      const past = _legendaMatch(node.data?.() || {}, type)
-      node[past ? 'removeClass' : 'addClass']?.('lk-dim')
-    })
   } catch { /* gemockte cytoscape in tests → no-op */ }
+  // LI036 — de rol-tag-overlay volgt de ZOJUIST gezette knoop-dim (leest `lk-dim` van het cy-element
+  // in updateRolTags — zelfde bron, geen kopie). Draait bij élke dim-wijziging: selectie-wissel en
+  // legenda-filter komen hierlangs (watches), de layout-stop roept _pasDim als laatste aan.
+  updateRolTags()
 }
 watch(legendaTypeFilter, _pasDim)
 
@@ -1717,7 +1778,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('mouseup', onPopupMouseup)
 })
 
-// LI019 1d-v5 — swimlane-indeling, afgeleid uit bestaande node-velden. Robuust voor de werkelijke
+// LI019 1d-v5 → LI036 — baan-indeling (Lagen-weergave), afgeleid uit bestaande node-velden. Robuust voor de werkelijke
 // data: ÉLK element_type dat geen partij/contract/gebruikersgroep is, is een componenttype →
 // componenten (technology-laag → infrastructuur). Zo belanden application-componenten nóóit meer in
 // "Overig", ook als `laag` ontbreekt of een componenttype geen application-laag-typing heeft (bug 1).
@@ -1729,10 +1790,11 @@ function _laneVan(n) {
   if (!et) return 'overig'
   return n.laag === 'technology' ? 'infrastructuur' : 'componenten'
 }
-// Aantal zichtbare nodes per lane (voor lege-lane-detectie en x-spreiding).
+// Aantal zichtbare INSTANCES per baan (voor lege-baan-detectie en x-spreiding). LI036 — telt de
+// instance-projectie: een partij met meerdere petten telt in élke rolbaan die ze raakt.
 const _laneTelling = computed(() => {
   const c = {}
-  for (const n of getekendeNodes.value) { const l = _laneVan(n); c[l] = (c[l] || 0) + 1 }
+  for (const inst of instanceProjectie.value.instances) { c[inst.baan] = (c[inst.baan] || 0) + 1 }
   return c
 })
 // Zichtbare lanes in gebruikersvolgorde; lege lanes alleen weg als "Verberg lege lanes" aan staat.
@@ -1745,14 +1807,14 @@ const zichtbareLanes = computed(() =>
 // LI019 1d-v6 — per lane: de nodes (gesorteerd) + grid-afmetingen. Lane-hoogte schaalt met het
 // aantal rijen (nodes wrappen over LANE_COLS kolommen); lanes worden cumulatief gestapeld (`top`).
 const laneLayout = computed(() => {
+  // LI036 — banen vullen zich met INSTANCES (partij per rolbaan; identiteitsbanen strikt één).
   const perLane = {}
-  for (const n of getekendeNodes.value) {
-    const key = _laneVan(n)
-    ;(perLane[key] ||= []).push(n)
+  for (const inst of instanceProjectie.value.instances) {
+    ;(perLane[inst.baan] ||= []).push(inst)
   }
   let top = 0
   return zichtbareLanes.value.map((l, index) => {
-    const nodes = (perLane[l.key] || []).slice().sort((a, b) => (a.naam || '').localeCompare(b.naam || ''))
+    const nodes = (perLane[l.key] || []).slice().sort((a, b) => (a.node.naam || '').localeCompare(b.node.naam || ''))
     const rows = Math.max(1, Math.ceil(nodes.length / LANE_COLS))
     const height = Math.max(LANE_MIN_H, rows * NODE_H + 2 * LANE_PAD)
     const band = { key: l.key, label: l.label, bg: l.bg, aantal: l.aantal, leeg: nodes.length === 0, index, top, height, nodes }
@@ -1816,10 +1878,15 @@ function _edgeData(e, i) {
     label = e.label || ''
   }
   // LI023 — labels staan default verborgen (text-opacity:0) en verschijnen bij hover (alle modi).
-  return { id: `e${i}-${e.bron_id}-${e.doel_id}-${e.relatietype}`, source: e.bron_id, target: e.doel_id, ring: e.ring, lc, w, ls, label }
+  // LI036 — bronLog/doelLog = de LOGISCHE endpoints (bij een rol-instance-remap wijken source/target
+  // af); de edge-tap-resolutie en de dim-op-klik matchen dáárop.
+  return {
+    id: `e${i}-${e.bron_id}-${e.doel_id}-${e.relatietype}`, source: e.bron_id, target: e.doel_id, ring: e.ring, lc, w, ls, label,
+    bronLog: e.bron_logisch || e.bron_id, doelLog: e.doel_logisch || e.doel_id,
+  }
 }
-// LI020 — definitieve node-set voor het canvas (IDENTIEK voor radiaal én swimlane — swimlane is
-// enkel een andere layout, geen andere set). Een node is zichtbaar als: het ego-centrum (ego-modus),
+// LI020 — definitieve node-set voor het canvas (IDENTIEK voor alle weergaven — Lagen is enkel een
+// andere layout, geen andere set). Een node is zichtbaar als: het ego-centrum (ego-modus),
 // OF hij raakt minstens één ZICHTBARE (ring-aan) edge. Losse nodes (registratiegaps) zijn standaard
 // verborgen; de toggle "Toon registratiegaps" (LI019 1d-v7) neemt ze óók mee. Dedup op id.
 const getekendeNodes = computed(() => {
@@ -1847,10 +1914,10 @@ const getekendeNodes = computed(() => {
     // dit → ik hoor het te zien", geen leeg canvas op Overzicht. Type-agnostisch. Niet-gekozen losse
     // nodes blijven de bewuste registratiegaten-keuze (verborgen tenzij `toonRegistratiegaps`).
     const setLid = actieveSet.value.has(n.id)
-    // LI019 1d-v8 — in SWIMLANE valt de edge-aanwezigheidseis weg: elke node hoort in een lane, dus
-    // toon álle nodes uit zichtbareNodes (de radiaal-data). De edge-filter is enkel voor radiaal
-    // (losse nodes zweven daar rond). `toonRegistratiegaps` doet dit ook in radiaal.
-    if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    // LI019 1d-v8 → LI036 — in de LAGEN-weergave valt de edge-aanwezigheidseis weg: elke node hoort
+    // in een baan, dus toon álle nodes uit zichtbareNodes. De edge-filter is enkel voor de radiale
+    // weergaven (losse nodes zweven daar rond). `toonRegistratiegaps` doet dit ook daar.
+    if (weergave.value === 'lagen' || toonRegistratiegaps.value || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
 })
@@ -1865,15 +1932,86 @@ const relatieLozeSetLeden = computed(() => {
   return getekendeNodes.value.filter((n) => actieveSet.value.has(n.id) && !metEdge.has(n.id))
 })
 
-// LI019 1d-v2 — geen compound-parents meer: lanes zijn een HTML-overlay (zie laneBanden/bandPx),
-// niet langer cytoscape-nodes. Daardoor renderen edges tussen lanes weer normaal (correctie 3).
-function _elementen() {
+// ── LI036 rolbanen — instance-projectielaag (Lagen-only) ─────────────────────────────────────────
+// Rol-afleiding per partij uit de RING van haar zichtbare edges (de rol zit al op elke geladen edge;
+// puur frontend, geen backend). Ring → rol: gebruikt → 'gebruikt'; rollen (beheerorganisatie) →
+// 'beheert'; eigenaar → 'eigenaar'; contracten+relatietype 'leverancier' ("geleverd door") → 'levert'.
+function _rollenVanPartij(id, edges) {
+  const rollen = new Set()
+  for (const e of edges) {
+    if (e.bron_id !== id && e.doel_id !== id) continue
+    if (e.ring === 'gebruikt') rollen.add('gebruikt')
+    else if (e.ring === 'rollen') rollen.add('beheert')
+    else if (e.ring === 'eigenaar') rollen.add('eigenaar')
+    else if (e.ring === 'contracten' && e.relatietype === 'leverancier') rollen.add('levert')
+  }
+  return rollen
+}
+// De projectie tussen de LOGISCHE laag (getekendeNodes/zichtbareEdges) en de teken-/banenlaag
+// (_elementen/laneLayout) — naar het gg-aggregatie-precedent (grafNodes/grafEdges hierboven):
+// - ALLEEN in de Lagen-weergave actief; daarbuiten 1-op-1 door (Overzicht/Praatplaat ongewijzigd).
+// - Identiteitsbanen (component/infra/contract/gebruikersgroep) — strikt één instance per object.
+// - PARTIJEN op hun rol: per geraakte rolbaan een visuele instance (gebruikt → Gebruikers;
+//   beheert/eigenaar/levert → Rollen & beheer). Meerdere petten = meerdere instances (id
+//   `<partijId>@<baan>`, zelfde `_nodeData`-uiterlijk, gedeelde `logischId`); één pet houdt de
+//   logische id. Partij zonder rol in deze selectie → Rollen & beheer zónder rol-tag (besluit B).
+// - Rol-edges hangen aan de instance van hun EIGEN ring (gebruikt-edge → @gebruikers; rol-/
+//   eigenaar-/levert-edge → @rollen); overige partij-edges (bv. organisatiestructuur) → de
+//   @rollen-instance, met fallback naar de enige bestaande instance (gemarkeerde default).
+const instanceProjectie = computed(() => {
   const zn = getekendeNodes.value
   const znIds = new Set(zn.map((n) => n.id))
   const ze = zichtbareEdges.value.filter((e) => znIds.has(e.bron_id) && znIds.has(e.doel_id))
+  if (weergave.value !== 'lagen') {
+    return { instances: zn.map((n) => ({ node: n, id: n.id, logischId: n.id, baan: _laneVan(n), rollen: [] })), edges: ze }
+  }
+  const instances = []
+  const instMap = new Map() // partij-logischId → { gebruikers?: instanceId, rollen?: instanceId }
+  for (const n of zn) {
+    if (n.element_type !== 'partij') {
+      instances.push({ node: n, id: n.id, logischId: n.id, baan: _laneVan(n), rollen: [] })
+      continue
+    }
+    const rollen = _rollenVanPartij(n.id, ze)
+    const banen = []
+    if (rollen.has('gebruikt')) banen.push(['gebruikers', ['gebruikt']])
+    const rb = _ROLLEN_RB.filter((r) => rollen.has(r))
+    if (rb.length || !banen.length) banen.push(['rollen', rb]) // rol-loos → Rollen & beheer, zonder tag
+    const m = {}
+    for (const [baan, rs] of banen) {
+      const iid = banen.length > 1 ? `${n.id}@${baan}` : n.id // suffix alleen bij meerdere petten
+      m[baan] = iid
+      instances.push({ node: n, id: iid, logischId: n.id, baan, rollen: rs })
+    }
+    instMap.set(n.id, m)
+  }
+  const instVoor = (logischId, ring) => {
+    const m = instMap.get(logischId)
+    if (!m) return logischId // geen partij → identiteit
+    if (ring === 'gebruikt') return m.gebruikers || m.rollen
+    return m.rollen || m.gebruikers // rol-/eigenaar-/levert-/context-edges → de wie-baan-instance
+  }
+  const edges = ze.map((e) => {
+    const b = instVoor(e.bron_id, e.ring)
+    const d = instVoor(e.doel_id, e.ring)
+    return b === e.bron_id && d === e.doel_id ? e : { ...e, bron_id: b, doel_id: d, bron_logisch: e.bron_id, doel_logisch: e.doel_id }
+  })
+  return { instances, edges }
+})
+
+// LI019 1d-v2 — geen compound-parents meer: lanes zijn een HTML-overlay (zie laneBanden/bandPx),
+// niet langer cytoscape-nodes. Daardoor renderen edges tussen lanes weer normaal (correctie 3).
+// LI036 — de teken-elementen komen uit de instance-projectie (buiten Lagen = identiek aan voorheen).
+// Instances delen de ENE knoop-stijlbron (`_nodeData` van de onderliggende node); alleen id/
+// logischId/rollen komen erbij (rand/vulling/vorm/label onaangeroerd).
+function _elementen() {
+  const { instances, edges } = instanceProjectie.value
   return [
-    ...zn.map((n) => { const d = _nodeData(n); return { data: d, classes: _SHAPE_KLASSE(d.shape) || undefined } }),
-    ...ze.map((e, i) => ({ data: _edgeData(e, i) })),
+    ...instances.map((inst) => {
+      const d = _nodeData(inst.node)
+      return { data: { ...d, id: inst.id, logischId: inst.logischId, rollen: inst.rollen }, classes: _SHAPE_KLASSE(d.shape) || undefined }
+    }),
+    ...edges.map((e, i) => ({ data: _edgeData(e, i) })),
   ]
 }
 const zichtbaarAantal = computed(() => getekendeNodes.value.length)
@@ -1881,7 +2019,7 @@ const zichtbaarAantal = computed(() => getekendeNodes.value.length)
 // LI019 1d (Taak 4) — ná de layout(-animatie): bij radiaal-Ego centreren op het centrum-component,
 // anders fit op het geheel. Wordt als layout-`stop`-callback gebruikt voor élke layout, zodat een
 // wijziging (filter/ring/selectie/view/layout) automatisch herpositioneert + centreert. Raakt geen
-// reactieve state aan → geen layout-her-trigger-loop. Respecteert de fullscreen-viewport-behoud-vlag.
+// reactieve state aan → geen layout-her-trigger-loop.
 // ADR-040 F1 (Praatplaat-ellips) — ná de concentric-plaatsing de radiale kring uitrekken tot een ELLIPS
 // die de VENSTERVERHOUDING volgt: in een liggend venster breder dan hoog, zodat de brede ruimte benut
 // wordt en buren meer onderlinge afstand krijgen (betere leesbaarheid). Deterministisch (leest cy-state,
@@ -1889,7 +2027,8 @@ const zichtbaarAantal = computed(() => getekendeNodes.value.length)
 // langs de langere canvas-as en comprimeren NOOIT → geen nieuwe overlap. Mild geclamped (max 1.7) zodat
 // het bij weinig buren een lichte ellips blijft, niet een lelijke vervorming.
 function _ellipsPraatplaat() {
-  if (!cy || modus.value !== 'ego' || layoutModus.value !== 'radiaal') return
+  // `modus === 'ego'` impliceert weergave 'praatplaat' (de concentric-tak) — in 'lagen' kan dit niet.
+  if (!cy || modus.value !== 'ego') return
   const w = cy.width?.() || 0
   const h = cy.height?.() || 0
   if (!(w > 0) || !(h > 0)) return
@@ -1908,7 +2047,7 @@ function _ellipsPraatplaat() {
   })
 }
 function _naLayout() {
-  if (!cy || _behoudViewport) return
+  if (!cy) return // LI036 — de viewport-behoud-vlag is vervallen (maatwissel herfit via _pasCanvasMaat)
   // ADR-040 F1 — de fit/resize + het opnieuw aanbrengen van highlight/legenda-dim horen DETERMINISTISCH
   // bij het EINDE van de layout (deze stop-callback), niet in een losse `setTimeout` in tekenGraaf.
   // Eerst her-meten (de flex-hoogte kan later gezet zijn), dan fitten/centreren.
@@ -1917,16 +2056,17 @@ function _naLayout() {
   // LI019 1d-v4 (bug 5) — centreer alléén op het ego-centrum ná een expliciete recenter (dubbelklik/
   // set-klik); bij elke andere wijziging (m.n. een filter die de node-set verandert) → fit op het
   // geheel, zodat de zichtbare nodes altijd in beeld komen.
-  if (_recenterPending && layoutModus.value === 'radiaal' && modus.value === 'ego' && egoStartId.value) {
+  if (_recenterPending && modus.value === 'ego' && egoStartId.value) {
     _recenterPending = false
     const c = cy.getElementById?.(String(egoStartId.value))
     if (c && c.length) cy.center?.(c)
     else cy.fit?.(undefined, 50)
   } else {
-    _recenterPending = false // recenter-verzoek geconsumeerd (bv. in swimlane waar niet gecentreerd wordt)
+    _recenterPending = false // recenter-verzoek geconsumeerd (bv. in de Lagen-weergave waar niet gecentreerd wordt)
     cy.fit?.(undefined, 50)
   }
   updateBands()
+  updateRolTags() // LI036 — rol-tag-overlay volgt de verse posities (zelfde stop-moment als de banden)
   _pasSelectieHighlight() // ADR-033 — na een (her)tekening de selectie-highlight opnieuw aanbrengen
   _pasDim() // LI025/LI034 — en de dim (selectie of legenda; nieuwe node-objecten dragen de klasse nog niet)
 }
@@ -1953,10 +2093,29 @@ function _swimlanePositions() {
 // LI019 1d-v6 — sync de HTML-band-overlay met cy's pan/zoom: per-lane model-top/-hoogte → schermpixels.
 // Banden zijn altijd volledige canvasbreedte (CSS); alleen verticale positie/hoogte volgen pan/zoom.
 function updateBands() {
-  if (!cy || layoutModus.value !== 'swimlane') { bandPx.value = []; return }
+  if (!cy || weergave.value !== 'lagen') { bandPx.value = []; return }
   const zoom = cy.zoom?.() || 1
   const pan = cy.pan?.() || { x: 0, y: 0 }
   bandPx.value = laneBanden.value.map((b) => ({ top: b.top * zoom + pan.y, height: b.height * zoom }))
+}
+// LI036 rolbanen — rol-tag-overlay: kleine HTML-pills (kleur + kort woord) ónder elke rol-instance.
+// Zelfde overlay-patroon als de banden (HTML rond het canvas, gesynct op pan/zoom/layout-stop);
+// kleuren uit de ene ROL_TAG-bron; pointer-events-none (kliks gaan naar de knoop). In de gemockte
+// suite ontbreekt renderedBoundingBox → overlay blijft daar leeg (browsercheck is het bewijs).
+const rolTagPx = ref([])
+function updateRolTags() {
+  if (!cy || weergave.value !== 'lagen') { rolTagPx.value = []; return }
+  const uit = []
+  for (const inst of instanceProjectie.value.instances) {
+    if (!inst.rollen.length) continue
+    const el = cy.getElementById?.(String(inst.id))
+    if (!el || !el.length || typeof el.renderedBoundingBox !== 'function') continue
+    const bb = el.renderedBoundingBox()
+    // LI036 — de tag deelt de dim-staat van zijn KNOOP: lees de `lk-dim`-class die `_pasDim` (de ene
+    // dim-eigenaar) zojuist op het cy-element zette — geen parallelle dim-berekening.
+    uit.push({ id: inst.id, x: (bb.x1 + bb.x2) / 2, y: bb.y2, rollen: inst.rollen, dim: !!el.hasClass?.('lk-dim') })
+  }
+  rolTagPx.value = uit
 }
 // LI019 1d-v3 — lanevolgorde herschikken door de lane-header op het canvas te verslepen.
 // `_herschikLane` is de pure reorder: verplaats `bron` naar de positie van `doel`, persisteer
@@ -2001,11 +2160,24 @@ function _layout(geenAnimatie = false) {
   // (history-herstel) blijft bestaan als parameter maar is nu de standaard.
   void geenAnimatie
   const anim = { animate: false }
-  // LI019 1d (Taak 2) — Swimlanes: custom preset-posities per lane (0 nieuwe dependencies).
+  // LI019 1d (Taak 2) → LI036 — Lagen-weergave: custom preset-posities per laag-baan (0 nieuwe
+  // dependencies; bewust GEEN compound-nodes — dat brak eerder de edge-rendering + pointer-events).
   // `positions` als object-map {nodeId: {x,y}} (Cytoscape doet de id-lookup zelf) — géén callback
   // met `node.id` (= de id-METHODE, niet de string). animate:false + fit:true geeft een direct,
   // correct geplaatst raster; de stop-callback fit + sync't de overlay als vangrail.
-  if (layoutModus.value === 'swimlane') {
+  if (weergave.value === 'lagen') {
+    // LI036-fix (render-eigenaar voltooid t/m Lagen) — de ingebouwde layouts MÉTEN vóór het
+    // positioneren álle knopen (concentric: `nodes.updateStyle()` + `layoutDimensions` per node,
+    // concentric.mjs:76/:81; grid: `layoutDimensions` in het avoidOverlap-pad). De preset-layout
+    // meet niets, waardoor de éérste frame ná het schakelen de edge-endpointgeometrie
+    // (knopen zijn `width/height:'label'`) nog niet had en álle lijnen de eerste paint oversloegen
+    // (elke klik = style-invalidatie = alsnog tekenen; LI019 maskeerde dit met de setTimeout(100)-
+    // fit die ADR-040 terecht door de stop-callback verving). Dezelfde meet-stap hier — een
+    // SYNCHRONE stateberekening binnen de ene render-eigenaar (opbouw → layout → stop-fit),
+    // géén timing-nudge/extra teken-cyclus.
+    const ns = cy?.nodes?.()
+    ns?.updateStyle?.()
+    ns?.forEach?.((n) => n.layoutDimensions?.({ nodeDimensionsIncludeLabels: true }))
     return { name: 'preset', positions: _swimlanePositions(), animate: false, fit: true, padding: 60, stop: _naLayout }
   }
   // ADR-040 F1 (stap 1+3) — DETERMINISTISCH & FCOSE-VRIJ. Geen positie-behoud (`vorigePosities`) en
@@ -2107,7 +2279,7 @@ const CY_STYLE = [
   // LI025 — legenda-typefilter: niet-matchende nodes dimmen (spotlight op het gekozen type).
   // LI034 — óók de dim-op-klik (selectie): scherp blijft de node + z'n directe buren + incidente
   // lijnen; al het overige dimt. Zelfde `lk-dim`-klasse, gedeelde teken-eigenaar `_pasDim`.
-  { selector: 'node.lk-dim', style: { opacity: 0.35 } },
+  { selector: 'node.lk-dim', style: { opacity: DIM_NODE_OPACITY } },
   // Gedimde lijnen (niet-incident aan de selectie) sterker terugleggen dan nodes, zodat het
   // opgelichte relatie-web rust krijgt; edge-labels van gedimde lijnen verdwijnen.
   { selector: 'edge.lk-dim', style: { opacity: 0.12, 'text-opacity': 0 } },
@@ -2125,7 +2297,8 @@ function _bewaarKaartState() {
       // ADR-040 — de modus is een dunne adapter op de weergave; bewaar de ACTIEVE SET zodat het beeld
       // (overzicht/praatplaat) behouden blijft bij terugnavigatie. Geen dode `modus`-sleutel.
       actieveSet: [...actieveSet.value],
-      // LI019 swimlane-parkeren — layoutModus niet meer bewaard (altijd 'radiaal').
+      // LI036 — de weergave zelf is een MOMENTKEUZE en wordt bewust niet bewaard (LI034-sortering);
+      // de baan-opties (volgorde/verberg-leeg) zijn kijk-voorkeuren en reizen wél mee.
       laneVolgorde: laneVolgorde.value,
       verbergLegeLanes: verbergLegeLanes.value,
       toonRegistratiegaps: toonRegistratiegaps.value,
@@ -2143,8 +2316,9 @@ function _herstelKaartState() {
   // geladen (set-gestuurd) → herstel de set as-is; de daaropvolgende `herlaadGraaf` haalt de subgraaf
   // van die set op.
   if (Array.isArray(s.actieveSet) && s.actieveSet.length) actieveSet.value = new Set(s.actieveSet)
-  // LI019 swimlane-parkeren — layoutModus NIET meer herstellen: altijd 'radiaal' (de enige actieve layout).
-  // Lanevolgorde herstellen mits een geldige permutatie van de bekende lanes (anders default).
+  // LI036 — de weergave wordt niet hersteld (momentkeuze; een oude `layoutModus`-sleutel uit een
+  // vroegere sessie wordt genegeerd). Baanvolgorde herstellen mits een geldige permutatie van de
+  // bekende banen (anders default).
   if (Array.isArray(s.laneVolgorde)) {
     const geldig = s.laneVolgorde.filter((k) => LANE_DEF[k])
     if (DEFAULT_LANE_VOLGORDE.every((k) => geldig.includes(k))) laneVolgorde.value = geldig
@@ -2227,13 +2401,22 @@ onMounted(async () => {
     // niet schermvullend-groot worden; minZoom houdt een grote graaf zinvol.
     cy = cytoscape({ container: containerRef.value, elements: [], style: CY_STYLE, minZoom: 0.1, maxZoom: 1.6 })
     // Enkele tap = popup (uitgesteld), dubbele tap = hercentreren — zie onNodeTap.
-    cy.on('tap', 'node', (evt) => onNodeTap(evt.target.id()))
-    // LI019 1d-v2 — houd de swimlane-band-overlay synchroon met pan/zoom/resize.
-    cy.on('pan zoom resize', updateBands)
+    // LI036 rolbanen — de LOGISCHE-id-grens: een tap op een rol-instance resolvet hier naar de
+    // onderliggende partij (alles stroomafwaarts — set/praatplaat/detail — werkt op logische ids);
+    // de rollen van de aangeklikte plek reizen mee voor de popup-rolcontext (consume-once).
+    cy.on('tap', 'node', (evt) => {
+      const d = evt.target.data?.() || {}
+      _klikRollen.value = Array.isArray(d.rollen) ? d.rollen : []
+      onNodeTap(d.logischId || evt.target.id())
+    })
+    // LI019 1d-v2 → LI036 — houd de baan-band- én rol-tag-overlay synchroon met pan/zoom/resize.
+    cy.on('pan zoom resize', () => { updateBands(); updateRolTags() })
     // Tap op een koppeling (flow-edge) opent de koppeling-popup.
     cy.on('tap', 'edge', (evt) => {
-      const src = evt.target.data('source')
-      const tgt = evt.target.data('target')
+      // LI036 rolbanen — zoek de logische edge op de LOGISCHE endpoints (bronLog/doelLog; bij een
+      // rol-instance wijken source/target af van grafEdges).
+      const src = evt.target.data('bronLog') || evt.target.data('source')
+      const tgt = evt.target.data('doelLog') || evt.target.data('target')
       const ring = evt.target.data('ring')
       const edge = grafEdges.value.find((e) => e.bron_id === src && e.doel_id === tgt && e.ring === ring)
       if (!edge) return
@@ -2251,13 +2434,10 @@ onMounted(async () => {
     // ADR-040 F1 — de INITIËLE render loopt via dezelfde ene scheduler als de re-layout-watch, zodat
     // de eerste teken + een reactieve settle (bv. scope-balk) tot ÉÉN redraw coalesceren (geen dubbel).
     _planRedraw()
-    // Her-meten + passend maken bij containerwijzigingen (modus-wissel, sidebar, venster-resize).
+    // Her-meten + passend maken bij containerwijzigingen (modus-wissel, sidebar, venster-resize,
+    // en LI036: de Vergroten/Verkleinen-maatwissel) — één gedeeld pad: `_pasCanvasMaat`.
     if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        cy?.resize?.()
-        if (_behoudViewport) return // fullscreen-toggle: zoom/pan behouden, niet fitten
-        cy?.fit?.(undefined, 50)
-      })
+      resizeObserver = new ResizeObserver(_pasCanvasMaat)
       resizeObserver.observe(containerRef.value)
     }
   }
@@ -2269,7 +2449,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, layoutModus, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, setLayoutModus, modus, weergave, toonPraatplaat, toonOverzicht, kanPraatplaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -2281,7 +2461,9 @@ defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopu
 //
 // De watch reageert op de WERKELIJK GETEKENDE node-samenstelling (`getekendeNodes`-id-compositie: vangt
 // scope/ring/zoekfilter/nieuwe subgraaf + `focusOpSet`) én op wijzigingen die de id-set niet veranderen
-// maar wél een redraw vergen (edges via ring-toggle, layout-modus, kleur-op-domein, swimlane-opties).
+// maar wél een redraw vergen (edges via ring-toggle, weergave-wissel, kleur-op-domein, baan-opties).
+// `weergave` staat er expliciet in: overzicht↔lagen wijzigt `modus` níét ('geheel'→'geheel') maar
+// vergt wél een andere layout.
 // History-herstel (terug/vooruit) tekent DIRECT (synchroon), zodat `tekenGraaf` de
 // `_herstelZonderAnimatie`-vlag synchroon consumeert (de hang-fix) — bewust buiten de coalesce.
 let _redrawPending = false
@@ -2300,7 +2482,7 @@ function _planRedraw() {
 watch(
   [
     () => getekendeNodes.value.map((n) => n.id).join('|'), // de werkelijk getekende node-set
-    zichtbareEdges, modus, layoutModus, kleurOpDomein, groepeerPerOrg, verbergLegeLanes, laneVolgorde, toonRegistratiegaps,
+    zichtbareEdges, modus, weergave, kleurOpDomein, groepeerPerOrg, verbergLegeLanes, laneVolgorde, toonRegistratiegaps,
   ],
   () => {
     if (_herstellen) _hertekenNu() // hang-fix: synchroon (buiten de coalesce)
@@ -2309,9 +2491,6 @@ watch(
   { deep: false },
 )
 
-function setLayoutModus(m) {
-  layoutModus.value = m // de teken-watch herpositioneert + centreert (Taak 4)
-}
 function centreer() {
   cy?.fit?.()
 }
@@ -2329,9 +2508,9 @@ const typeLabel = (t) => humaniseer(t)
     data-testid="lk-wrapper"
     :style="fullscreen ? 'height: 100vh' : 'height: calc(100vh - 9rem)'"
   >
-    <!-- ADR-040 F1 stap 2a — Topbar: EXPLICIETE weergave-schakelaar (Overzicht | Praatplaat) i.p.v. de
-         read-only indicator. De weergave volgt de handeling; deze knoppen tonen waar je bent en laten
-         je wisselen. Praatplaat is pas actief zodra er een centrum is (geen lege praatplaat). -->
+    <!-- ADR-040 F1 stap 2a → LI036 — Topbar: EXPLICIETE weergave-schakelaar (Overzicht | Praatplaat |
+         Lagen). De weergave volgt de handeling; deze knoppen tonen waar je bent en laten je wisselen.
+         Praatplaat is pas actief zodra er een centrum is (geen lege praatplaat). -->
     <div class="flex items-center gap-[var(--lk-space-sm)] border-b border-[var(--lk-color-border)] bg-white p-[var(--lk-space-sm)]">
       <div class="inline-flex overflow-hidden rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)]" role="group" aria-label="Weergave" data-testid="lk-weergave-schakelaar">
         <button
@@ -2348,6 +2527,13 @@ const typeLabel = (t) => humaniseer(t)
           :class="['px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold border-l border-[var(--lk-color-border)] disabled:opacity-40 disabled:cursor-not-allowed', weergave === 'praatplaat' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
           @click="toonPraatplaat()"
         >Praatplaat</button>
+        <button
+          type="button" data-testid="lk-weergave-lagen"
+          :aria-pressed="weergave === 'lagen'"
+          title="Dezelfde selectie, per laag-baan"
+          :class="['px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold border-l border-[var(--lk-color-border)]', weergave === 'lagen' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+          @click="toonLagen"
+        >Lagen</button>
       </div>
       <!-- Fase B — "Begin opnieuw": enige harde reset → terug naar het lege beginscherm. -->
       <!-- LI052 — altijd zichtbaar/bruikbaar (ook op het beginscherm: daar idempotent) → gegarandeerd verse start. -->
@@ -2573,15 +2759,16 @@ const typeLabel = (t) => humaniseer(t)
           </label>
         </template>
 
-        <!-- LI019 1d-v7 — registratiegaps: standaard toont de kaart (radiaal én swimlane) dezelfde
-             node-set (edge-rakend). Aan = óók losse nodes zonder relatie (registratiegaps). -->
+        <!-- LI019 1d-v7 — registratiegaps: standaard tonen Overzicht/Praatplaat de edge-rakende
+             node-set. Aan = óók losse nodes zonder relatie (registratiegaps); de Lagen-weergave
+             toont losse nodes sowieso (elke node hoort in een baan). -->
         <label class="mt-[var(--lk-space-sm)] flex items-center gap-2 text-[length:var(--lk-text-sm)]">
           <input type="checkbox" v-model="toonRegistratiegaps" data-testid="lk-registratiegaps" />Toon registratiegaps
         </label>
-        <!-- LI019 1d-v3 — swimlane-optie: lege lanes verbergen. De lanevolgorde wijzig je nu door de
-             lane-header op het canvas te verslepen (geen zijbalk-lijst meer). -->
-        <label v-if="layoutModus === 'swimlane'" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
-          <input type="checkbox" v-model="verbergLegeLanes" data-testid="lk-verberg-lege" />Verberg lege lanes
+        <!-- LI019 1d-v3 → LI036 — Lagen-optie: lege banen verbergen. De baanvolgorde wijzig je door de
+             baan-kop op het canvas te verslepen (geen zijbalk-lijst meer). -->
+        <label v-if="weergave === 'lagen'" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+          <input type="checkbox" v-model="verbergLegeLanes" data-testid="lk-verberg-lege" />Verberg lege banen
         </label>
 
       </aside>
@@ -2590,10 +2777,11 @@ const typeLabel = (t) => humaniseer(t)
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <!-- LI053 → ADR-040 F1 stap 2b — de balk bestuurt UITSLUITEND de organisatie-overlay: een vinkje
              toont/verbergt de organisatie-node + haar gebruikersgroepen. Componenten worden nooit geraakt.
-             Default alle aan (eenmalige seed). Alléén op OVERZICHT: op de praatplaat bepaalt het centrum +
-             de kring wat je ziet (scope daar inert) → balk verborgen. -->
+             Default alle aan (eenmalige seed). Op OVERZICHT én LAGEN (LI036 — de scope werkt daar door,
+             dus de control hoort zichtbaar te zijn: nooit stiekem verbergen, P8); op de praatplaat bepaalt
+             het centrum + de kring wat je ziet (scope daar inert) → balk verborgen. -->
         <div
-          v-if="organisatieNodes.length && weergave === 'overzicht'"
+          v-if="organisatieNodes.length && weergave !== 'praatplaat'"
           data-testid="lk-scopebalk" role="group" aria-label="Organisaties in beeld"
           class="flex flex-wrap items-center gap-x-[var(--lk-space-md)] gap-y-1 border-b border-[var(--lk-color-border)] bg-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)]"
         >
@@ -2606,10 +2794,10 @@ const typeLabel = (t) => humaniseer(t)
       <!-- Canvas — min-h-0 is kritiek: zonder negeert een flex-child de height:100% van de parent,
            waardoor Cytoscape op hoogte 0 initialiseert en de graaf leeg/onzichtbaar blijft. -->
       <div class="relative min-h-0 min-w-0 flex-1 bg-[var(--lk-color-surface)]">
-        <!-- LI019 1d-v4 — swimlane-banden in TWEE HTML-lagen ROND het canvas (geen compound-nodes,
+        <!-- LI019 1d-v4 → LI036 — laag-banen in TWEE HTML-lagen ROND het canvas (geen compound-nodes,
              zodat Cytoscape uitsluitend gewone nodes + edges bevat — edges en node-clicks werken
              normaal). (1) band-ACHTERGRONDEN onder het canvas (z-0, niet-interactief, translucent). -->
-        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-0 overflow-hidden" data-testid="lk-lanes" aria-hidden="true">
+        <div v-if="weergave === 'lagen'" class="pointer-events-none absolute inset-0 z-0 overflow-hidden" data-testid="lk-lanes" aria-hidden="true">
           <div
             v-for="b in laneBanden"
             :key="b.key"
@@ -2693,10 +2881,23 @@ const typeLabel = (t) => humaniseer(t)
           </div>
         </div>
 
-        <!-- (2) lane-HEADERS BOVEN het canvas (z-[5]). De container is pointer-events-none → node-
+        <!-- LI036 rolbanen — rol-tags (kleur + kort woord) ónder elke rol-instance (z-[4], boven het
+             canvas, onder de baan-koppen). pointer-events-none: kliks gaan naar de knoop eronder. -->
+        <div v-if="weergave === 'lagen' && rolTagPx.length" class="pointer-events-none absolute inset-0 z-[4] overflow-hidden" data-testid="lk-roltags" aria-hidden="true">
+          <!-- Tag deelt de dim-staat van zijn knoop: zelfde opacity als `node.lk-dim` (één DIM_NODE_OPACITY-bron). -->
+          <div v-for="t in rolTagPx" :key="t.id" class="absolute flex -translate-x-1/2 gap-0.5" :style="{ left: t.x + 'px', top: (t.y + 2) + 'px', opacity: t.dim ? DIM_NODE_OPACITY : 1 }">
+            <span
+              v-for="r in t.rollen" :key="r" :data-testid="`lk-roltag-${t.id}-${r}`"
+              class="rounded-full px-1.5 text-[10px] font-semibold leading-4 shadow-[var(--lk-shadow-sm)]"
+              :style="{ background: ROL_TAG[r].bg, color: ROL_TAG[r].tekst }"
+            >{{ ROL_TAG[r].label }}</span>
+          </div>
+        </div>
+
+        <!-- (2) baan-KOPPEN BOVEN het canvas (z-[5]). De container is pointer-events-none → node-
              clicks gaan ongehinderd naar het canvas; alleen de header-span vangt pointer-events af
-             (versleepbaar). De lege-lane-tekst zit ook hier zodat ze leesbaar boven het canvas staat. -->
-        <div v-if="layoutModus === 'swimlane'" class="pointer-events-none absolute inset-0 z-[5] overflow-hidden" data-testid="lk-lane-headers">
+             (versleepbaar). De lege-baan-tekst zit ook hier zodat ze leesbaar boven het canvas staat. -->
+        <div v-if="weergave === 'lagen'" class="pointer-events-none absolute inset-0 z-[5] overflow-hidden" data-testid="lk-lane-headers">
           <div
             v-for="b in laneBanden"
             :key="b.key"
@@ -2717,13 +2918,8 @@ const typeLabel = (t) => humaniseer(t)
 
         <!-- Tools (rechtsboven) -->
         <div class="absolute right-3 top-3 z-10 flex gap-1">
-          <!-- LI019 1d — layout-wisselaar: Radiaal (concentric) ↔ Swimlanes (lane-banden).
-               LI019 swimlane-parkeren — UI verborgen (v-if="false"); Radiaal is de enige actieve layout.
-               De swimlane-logica blijft in de code voor een toekomstige herwrite. -->
-          <div v-if="false" class="flex gap-0.5 rounded-[var(--lk-radius-btn)] bg-white/90 p-0.5 shadow-[var(--lk-shadow-sm)]" data-testid="lk-layout-toggle">
-            <button type="button" data-testid="lk-layout-radiaal" :aria-pressed="layoutModus === 'radiaal'" :class="['rounded-[var(--lk-radius-btn)] px-2 py-1 text-[length:var(--lk-text-sm)]', layoutModus === 'radiaal' ? 'bg-[var(--lk-color-primary)] text-white' : '']" @click="setLayoutModus('radiaal')">Radiaal</button>
-            <button type="button" data-testid="lk-layout-swimlane" :aria-pressed="layoutModus === 'swimlane'" :class="['rounded-[var(--lk-radius-btn)] px-2 py-1 text-[length:var(--lk-text-sm)]', layoutModus === 'swimlane' ? 'bg-[var(--lk-color-primary)] text-white' : '']" @click="setLayoutModus('swimlane')">Swimlanes</button>
-          </div>
+          <!-- LI036 — de vroegere geparkeerde layout-wisselaar (Radiaal↔Swimlanes, v-if="false") is
+               vervangen door de derde optie "Lagen" op de weergave-schakelaar in de topbar. -->
           <button type="button" data-testid="lk-centreer" class="rounded-[var(--lk-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--lk-text-sm)] shadow-[var(--lk-shadow-sm)]" @click="centreer">⊡ Centreer</button>
           <button type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--lk-radius-btn)] px-2 py-1 text-[length:var(--lk-text-sm)] shadow-[var(--lk-shadow-sm)]', kleurOpDomein ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
           <!-- Fullscreen-overlay (in-app): één toggle — vergroten ingebed, verkleinen in de overlay. -->
@@ -2750,6 +2946,26 @@ const typeLabel = (t) => humaniseer(t)
               <p v-if="popupSub" data-testid="lk-popup-sub" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">{{ popupSub }}</p>
             </div>
             <button type="button" data-testid="lk-popup-sluit" aria-label="Sluiten" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-text)]" @click="sluitPopup">✕</button>
+          </div>
+          <!-- LI036 rolbanen — rolcontext (partij, Lagen): de rol van de aangeklikte plek bovenaan
+               (zelfde kleur als de node-tag), de andere rol(len) van deze partij eronder. -->
+          <div v-if="popupRolActief.length || popupRolOverig.length" data-testid="lk-popup-rollen" class="mt-2 flex flex-col gap-1 text-[length:var(--lk-text-sm)]">
+            <div v-if="popupRolActief.length" class="flex flex-wrap items-center gap-1">
+              <span class="text-[var(--lk-color-text-muted)]">Rol hier:</span>
+              <span
+                v-for="r in popupRolActief" :key="r" :data-testid="`lk-popup-rol-${r}`"
+                class="rounded-full px-2 text-[length:var(--lk-text-xs)] font-semibold leading-5"
+                :style="{ background: ROL_TAG[r].bg, color: ROL_TAG[r].tekst }"
+              >{{ ROL_TAG[r].label }}</span>
+            </div>
+            <div v-if="popupRolOverig.length" class="flex flex-wrap items-center gap-1">
+              <span class="text-[var(--lk-color-text-muted)]">{{ popupRolActief.length ? 'Ook:' : 'Rollen:' }}</span>
+              <span
+                v-for="r in popupRolOverig" :key="r" :data-testid="`lk-popup-rol-${r}`"
+                class="rounded-full px-2 text-[length:var(--lk-text-xs)] font-semibold leading-5"
+                :style="{ background: ROL_TAG[r].bg, color: ROL_TAG[r].tekst }"
+              >{{ ROL_TAG[r].label }}</span>
+            </div>
           </div>
           <!-- LI034 — "wat raakt dit object": één regel per kring; registratiegaten leesbaar benoemd. -->
           <div v-if="popupSamenvatting.length" data-testid="lk-popup-samenvatting" class="mt-2 flex flex-col gap-0.5 text-[length:var(--lk-text-sm)]">

@@ -8,19 +8,26 @@ import { useAuthStore } from '@/store/auth'
 // Cytoscape gemockt (via de frontend-wrapper): de graaf-rendering is een side-effect;
 // de panelen zijn de testbare laag.
 vi.mock('@/composables/cytoscape', () => ({
-  default: vi.fn(() => ({
-    on: vi.fn(),
-    elements: () => ({ remove: vi.fn(), unselect: vi.fn() }),
-    nodes: () => ({ forEach: () => {}, map: () => [], length: 0 }), // LI032 — positie-capture in tekenGraaf
-    getElementById: () => ({ length: 0, select: vi.fn() }),
-    animate: vi.fn(),
-    zoom: () => 1,
-    add: vi.fn(),
-    layout: () => ({ run: vi.fn() }),
-    resize: vi.fn(),
-    fit: vi.fn(),
-    destroy: vi.fn(),
-  })),
+  default: vi.fn(() => {
+    // LI036 — minimaal element-register: een test kan per id een fake cy-element registreren
+    // (length ≥ 1, hasClass/renderedBoundingBox voor de rol-tag-overlay); zonder registratie
+    // geldt het oude {length:0}-gedrag voor alle bestaande tests.
+    const els = new Map()
+    return {
+      on: vi.fn(),
+      elements: () => ({ remove: vi.fn(), unselect: vi.fn() }),
+      nodes: () => ({ forEach: () => {}, map: () => [], length: 0 }), // LI032 — positie-capture in tekenGraaf
+      getElementById: (id) => els.get(id) || { length: 0, select: vi.fn() },
+      _els: els,
+      animate: vi.fn(),
+      zoom: () => 1,
+      add: vi.fn(),
+      layout: () => ({ run: vi.fn() }),
+      resize: vi.fn(),
+      fit: vi.fn(),
+      destroy: vi.fn(),
+    }
+  }),
 }))
 vi.mock('@/api', () => ({
   api: {
@@ -456,22 +463,32 @@ describe('LandschapskaartView v3', () => {
     expect(lane({})).toBe('overig')
   })
 
-  it('LI019 swimlane-parkeren — layout-toggle is verborgen uit de UI; Radiaal is de enige layout', async () => {
+  it('LI036 — "Lagen" is de derde weergave op de ENE weergave-as; de oude layout-toggle bestaat niet meer', async () => {
     const { w } = await mountView()
-    expect(w.vm.layoutModus).toBe('radiaal')
-    // De swimlane-knop én de hele toggle zijn geparkeerd → niet in de DOM.
+    expect(w.vm.weergave).toBe('overzicht')
+    // De vroegere tweede as (layoutModus/setLayoutModus + geparkeerde toggle) is geconvergeerd.
+    expect(w.vm.layoutModus).toBeUndefined()
+    expect(w.vm.setLayoutModus).toBeUndefined()
     expect(w.find('[data-testid="lk-layout-toggle"]').exists()).toBe(false)
     expect(w.find('[data-testid="lk-layout-swimlane"]').exists()).toBe(false)
-    // De swimlane-codepaden blijven programmatisch bereikbaar (toekomstige herwrite).
-    w.vm.setLayoutModus('swimlane')
+    // De derde knop op de weergave-schakelaar: altijd klikbaar, zet weergave 'lagen'.
+    const knop = w.find('[data-testid="lk-weergave-lagen"]')
+    expect(knop.exists()).toBe(true)
+    expect(knop.attributes('aria-pressed')).toBe('false')
+    await knop.trigger('click')
     await flushPromises()
-    expect(w.vm.layoutModus).toBe('swimlane')
+    expect(w.vm.weergave).toBe('lagen')
+    expect(w.find('[data-testid="lk-weergave-lagen"]').attributes('aria-pressed')).toBe('true')
+    // De baan-layout hoort erbij (preset), en terug naar Overzicht herstelt de brede plaat.
+    expect(w.vm._layout().name).toBe('preset')
+    await w.find('[data-testid="lk-weergave-overzicht"]').trigger('click')
+    expect(w.vm.weergave).toBe('overzicht')
   })
 
-  it('LI019 swimlane-parkeren — layoutModus wordt niet uit sessionStorage hersteld (altijd radiaal)', async () => {
+  it('LI036 — een oude layoutModus-sleutel in sessionStorage wordt genegeerd (weergave blijft default)', async () => {
     sessionStorage.setItem('lk-state', JSON.stringify({ layoutModus: 'swimlane' }))
     const { w } = await mountView()
-    expect(w.vm.layoutModus).toBe('radiaal')
+    expect(w.vm.weergave).toBe('overzicht')
   })
 
   const SWIM_GRAF = {
@@ -484,7 +501,7 @@ describe('LandschapskaartView v3', () => {
   async function mountSwimlane() {
     zetGraf(SWIM_GRAF)
     const { w } = await mountView()
-    w.vm.setLayoutModus('swimlane')
+    w.vm.toonLagen() // LI036 — de Lagen-weergave op de ene weergave-as (voorheen setLayoutModus)
     await flushPromises()
     return w
   }
@@ -509,7 +526,7 @@ describe('LandschapskaartView v3', () => {
     }
     zetGraf({ nodes, edges: [] })
     const { w } = await mountView()
-    w.vm.setLayoutModus('swimlane')
+    w.vm.toonLagen()
     await flushPromises()
     // De 8 componenten zijn los (geen edges) — swimlane toont ze sowieso (geen edge-eis).
     const pos = w.vm._swimlanePositions()
@@ -536,11 +553,11 @@ describe('LandschapskaartView v3', () => {
     // Radiaal (geheel): edge-rakende nodes — a1,a2 verbonden, p1 los → verborgen.
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
     // Swimlane: álle nodes uit zichtbareNodes (= radiaal-data), incl. de losse p1 — geen edge-eis.
-    w.vm.setLayoutModus('swimlane')
+    w.vm.toonLagen()
     await flushPromises()
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
     // Terug naar radiaal + "Toon registratiegaps" AAN → óók daar de losse p1.
-    w.vm.setLayoutModus('radiaal')
+    w.vm.toonOverzicht()
     await flushPromises()
     await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
     await flushPromises()
@@ -575,7 +592,8 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v3 — lane verslepen herschikt de volgorde en persisteert in sessionStorage', async () => {
     const w = await mountSwimlane()
-    expect(w.vm.laneVolgorde).toEqual(['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig', 'contracten'])
+    // LI036 — startvolgorde: … → Contracten → Overig (Overig onderaan).
+    expect(w.vm.laneVolgorde).toEqual(['rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig'])
     w.vm._herschikLane('contracten', 'rollen') // contracten naar de positie van rollen (bovenaan)
     await flushPromises()
     expect(w.vm.laneVolgorde[0]).toBe('contracten')
@@ -599,7 +617,7 @@ describe('LandschapskaartView v3', () => {
     // Swimlane toont losse nodes sowieso (zonder toggle nodig).
     await w.find('[data-testid="lk-registratiegaps"]').setValue(false)
     await flushPromises()
-    w.vm.setLayoutModus('swimlane')
+    w.vm.toonLagen()
     await flushPromises()
     const swimIds = w.vm.getekendeNodes.map((n) => n.id)
     expect(swimIds).toContain('p1') // in de Rollen-lane
@@ -614,6 +632,269 @@ describe('LandschapskaartView v3', () => {
     const { w } = await mountView()
     expect(w.vm.laneVolgorde[0]).toBe('contracten')
     expect(w.vm.verbergLegeLanes).toBe(true)
+  })
+
+  // ── LI036 slice 1 — "Lagen" als derde weergave (zelfde set, zelfde stijlbron, zelfde interactie) ──
+  describe('LI036 — Lagen-weergave', () => {
+    it('knoop-styling komt uit de ENE gedeelde bron: _nodeData is identiek in Overzicht en Lagen', async () => {
+      const { w } = await mountView()
+      const n = w.vm.grafNodes.find((x) => x.id === 'a2') // geblokkeerd + ⚠
+      const inOverzicht = JSON.stringify(w.vm._nodeData(n))
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(JSON.stringify(w.vm._nodeData(n))).toBe(inOverzicht)
+      // Vorm=type, kleur=lifecycle, ⚠ bij blokkade, type-label — ongewijzigd aanwezig.
+      const d = w.vm._nodeData(n)
+      expect(d.shape).toBe('round-rectangle')
+      expect(d.label).toContain('⚠')
+      expect(d.label).toContain('\n')
+    })
+
+    it('elke getekende node valt in de baan van zijn _laneVan; banen volgen laneVolgorde', async () => {
+      const { w } = await mountView()
+      w.vm.toonLagen()
+      await flushPromises()
+      const pos = w.vm._swimlanePositions()
+      const banden = w.vm.laneBanden
+      for (const n of w.vm.getekendeNodes) {
+        const baan = banden.find((b) => b.key === w.vm._laneVan(n))
+        expect(baan).toBeTruthy()
+        expect(pos[n.id].y).toBeGreaterThanOrEqual(baan.top)
+        expect(pos[n.id].y).toBeLessThanOrEqual(baan.top + baan.height)
+      }
+      expect(banden.map((b) => b.key)).toEqual(w.vm.laneVolgorde)
+    })
+
+    it('de scopebalk blijft zichtbaar op Lagen (scope werkt daar door — P8), verborgen op de praatplaat', async () => {
+      const { w } = await mountView()
+      expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true) // overzicht
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true) // lagen: control zichtbaar
+      // Scope filtert óók op Lagen (org uitvinken → org-node weg uit de getekende set).
+      await w.find('[data-testid="lk-scope-org-p1"]').trigger('change')
+      await flushPromises()
+      expect(getekendeIds(w)).not.toContain('p1')
+      await w.find('[data-testid="lk-scope-org-p1"]').trigger('change') // terug aan
+      await flushPromises()
+      w.vm.toonPraatplaat('a1')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(false) // praatplaat: verborgen
+    })
+
+    it('schakelen Lagen ↔ Overzicht ↔ Praatplaat behoudt de set; het canvas heeft in elke weergave nodes', async () => {
+      const { w } = await mountView({ heleLandschap: false })
+      await kies(w, 'a1'); await kies(w, 'a2') // set van 2 (kies zet praatplaat op de laatste)
+      const set = [...w.vm.actieveSet].sort()
+      w.vm.toonLagen()
+      await flushPromises()
+      expect([...w.vm.actieveSet].sort()).toEqual(set)
+      expect(w.vm.getekendeNodes.length).toBeGreaterThan(0)
+      expect(w.vm._layout().name).toBe('preset')
+      w.vm.toonOverzicht()
+      await flushPromises()
+      expect([...w.vm.actieveSet].sort()).toEqual(set)
+      expect(w.vm.getekendeNodes.length).toBeGreaterThan(0)
+      w.vm.toonPraatplaat('a1')
+      await flushPromises()
+      expect([...w.vm.actieveSet].sort()).toEqual(set)
+      expect(w.vm.getekendeNodes.length).toBeGreaterThan(0)
+      expect(w.vm._layout().name).toBe('concentric')
+    })
+
+    it('de weergave-wissel naar Lagen is één history-entry; Terug herstelt de vorige weergave', async () => {
+      const { w } = await mountView()
+      expect(w.vm.weergave).toBe('overzicht')
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(w.vm.weergave).toBe('lagen')
+      expect(w.vm.kanTerug).toBe(true)
+      w.vm.terugInHistorie()
+      await flushPromises()
+      expect(w.vm.weergave).toBe('overzicht')
+      w.vm.vooruitInHistorie()
+      await flushPromises()
+      expect(w.vm.weergave).toBe('lagen')
+    })
+
+    it('Lagen eerste opbouw: de edges zitten direct in de cy-add (niet pas na een klik)', async () => {
+      // LI036-fix — de weergave-wissel naar Lagen is één volledige (her)opbouw: nodes ÉN edges in
+      // dezelfde cy.add, en de preset-layout draait erna via de ene render-eigenaar. (Headless dekt
+      // de visuele teken-timing niet — de browsercheck blijft beslissend; dit borgt de opbouw-kant.)
+      const { w } = await mountView()
+      const inst = cytoscape.mock.results.at(-1).value
+      const addsVoor = inst.add.mock.calls.length
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(inst.add.mock.calls.length).toBeGreaterThan(addsVoor) // wissel → redraw gedraaid
+      const elementen = inst.add.mock.calls.at(-1)[0]
+      const nodes = elementen.filter((el) => el.data && !el.data.source)
+      const edges = elementen.filter((el) => el.data?.source && el.data?.target)
+      expect(nodes.length).toBeGreaterThan(0)
+      expect(edges.length).toBeGreaterThan(0) // de a1→a2-flow zit in de EERSTE Lagen-opbouw
+      expect(w.vm._layout().name).toBe('preset') // en de baan-layout is de bijbehorende layout
+    })
+
+    it('"Verberg lege banen" is alléén zichtbaar in de Lagen-weergave', async () => {
+      const { w } = await mountView()
+      expect(w.find('[data-testid="lk-verberg-lege"]').exists()).toBe(false) // overzicht
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(w.find('[data-testid="lk-verberg-lege"]').exists()).toBe(true)
+      // Registratiegaps-toggle bestaat in beide weergaven (bestaand gedrag).
+      expect(w.find('[data-testid="lk-registratiegaps"]').exists()).toBe(true)
+    })
+  })
+
+  // ── LI036 rolbanen — partij in meerdere banen via de Lagen-only instance-projectie ──
+  describe('LI036 — rolbanen (instance-projectie)', () => {
+    // o1 gebruikt én beheert a1 (twee petten); lev1 levert via contract k1; p0 speelt geen rol.
+    const ROLBAAN_GRAF = {
+      nodes: [
+        { id: 'a1', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'o1', naam: 'Gemeente Tiel', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+        { id: 'lev1', naam: 'SaaS BV', element_type: 'partij', laag: 'business', soort: 'externe_partij', blokkades_open: 0 },
+        { id: 'p0', naam: 'P. Zonder Rol', element_type: 'partij', laag: 'business', soort: 'persoon', blokkades_open: 0 },
+        { id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business', blokkades_open: 0 },
+      ],
+      edges: [
+        { bron_id: 'o1', doel_id: 'a1', relatietype: 'gebruikt', label: 'gebruikt', ring: 'gebruikt' },
+        { bron_id: 'o1', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Technisch beheer', ring: 'rollen' },
+        { bron_id: 'a1', doel_id: 'k1', relatietype: 'association', label: 'valt onder', ring: 'contracten' },
+        { bron_id: 'k1', doel_id: 'lev1', relatietype: 'leverancier', label: 'geleverd door', ring: 'contracten' },
+      ],
+    }
+    async function mountRolbanen() {
+      zetGraf(ROLBAAN_GRAF)
+      const { w } = await mountView()
+      w.vm.toonLagen()
+      await flushPromises()
+      return w
+    }
+    const instVan = (w, logischId) => w.vm.instanceProjectie.instances.filter((i) => i.logischId === logischId)
+
+    it('(a) partij met gebruikt- én beheer-edge → instance in Gebruikers ÉN Rollen & beheer (één logischId)', async () => {
+      const w = await mountRolbanen()
+      const o1 = instVan(w, 'o1')
+      expect(o1.map((i) => i.baan).sort()).toEqual(['gebruikers', 'rollen'])
+      expect(o1.map((i) => i.id).sort()).toEqual(['o1@gebruikers', 'o1@rollen'])
+      expect(o1.every((i) => i.logischId === 'o1')).toBe(true)
+      expect(o1.find((i) => i.baan === 'gebruikers').rollen).toEqual(['gebruikt'])
+      expect(o1.find((i) => i.baan === 'rollen').rollen).toEqual(['beheert'])
+      // Beide instances krijgen een baan-positie (distinct).
+      const pos = w.vm._swimlanePositions()
+      expect(pos['o1@gebruikers']).toBeDefined()
+      expect(pos['o1@rollen']).toBeDefined()
+      expect(pos['o1@gebruikers'].y).not.toBe(pos['o1@rollen'].y)
+    })
+
+    it('(b) instances delen de ENE stijlbron: identiek uiterlijk op id/logischId/rollen na', async () => {
+      const w = await mountRolbanen()
+      const els = w.vm._elementen ? w.vm._elementen() : null
+      // _elementen is niet exposed — leid dezelfde data af via de laatste cy-add.
+      const inst = cytoscape.mock.results.at(-1).value
+      const elementen = els || inst.add.mock.calls.at(-1)[0]
+      const o1s = elementen.filter((el) => el.data?.logischId === 'o1' && !el.data.source)
+      expect(o1s.length).toBe(2)
+      const kaal = ({ id, logischId, rollen, ...rest }) => rest
+      expect(JSON.stringify(kaal(o1s[0].data))).toBe(JSON.stringify(kaal(o1s[1].data)))
+    })
+
+    it('(c) rol-edges hangen aan de instance van hun eigen ring; leverancier krijgt tag "levert"', async () => {
+      const w = await mountRolbanen()
+      const edges = w.vm.instanceProjectie.edges
+      expect(edges.find((e) => e.ring === 'gebruikt').bron_id).toBe('o1@gebruikers')
+      expect(edges.find((e) => e.ring === 'rollen').bron_id).toBe('o1@rollen')
+      // lev1 heeft één pet → houdt de logische id; baan = rollen, tag = levert.
+      const lev = instVan(w, 'lev1')
+      expect(lev.length).toBe(1)
+      expect(lev[0].id).toBe('lev1')
+      expect(lev[0].baan).toBe('rollen')
+      expect(lev[0].rollen).toEqual(['levert'])
+      expect(edges.find((e) => e.relatietype === 'leverancier').doel_id).toBe('lev1')
+    })
+
+    it('(d) identiteitsbanen strikt één keer: component en contract hebben precies één instance', async () => {
+      const w = await mountRolbanen()
+      expect(instVan(w, 'a1').length).toBe(1)
+      expect(instVan(w, 'k1').length).toBe(1)
+      expect(instVan(w, 'k1')[0].baan).toBe('contracten')
+    })
+
+    it('(e) buiten Lagen (Overzicht) géén instance-duplicaten: projectie = identiteit', async () => {
+      const w = await mountRolbanen()
+      w.vm.toonOverzicht()
+      await flushPromises()
+      const p = w.vm.instanceProjectie
+      expect(p.instances.every((i) => i.id === i.logischId && !String(i.id).includes('@'))).toBe(true)
+      expect(p.edges.every((e) => !String(e.bron_id).includes('@') && !String(e.doel_id).includes('@'))).toBe(true)
+    })
+
+    it('(f) partij zonder rol → Rollen & beheer, zonder rol-tag (besluit B)', async () => {
+      const w = await mountRolbanen()
+      const p0 = instVan(w, 'p0')
+      expect(p0.length).toBe(1)
+      expect(p0[0].baan).toBe('rollen')
+      expect(p0[0].rollen).toEqual([]) // geen rollen = geen tag (tags volgen inst.rollen)
+    })
+
+    it('rol-tag deelt de dim-staat van zijn knoop (leest lk-dim van het cy-element, geen kopie)', async () => {
+      const w = await mountRolbanen()
+      const inst = cytoscape.mock.results.at(-1).value
+      const fake = (dim) => ({ length: 1, hasClass: (c) => c === 'lk-dim' && dim, renderedBoundingBox: () => ({ x1: 0, x2: 20, y1: 0, y2: 30 }) })
+      inst._els.set('o1@gebruikers', fake(false)) // opgelicht → tag vol
+      inst._els.set('o1@rollen', fake(true))      // gedimd → tag dimt mee
+      inst._els.set('lev1', fake(true))
+      w.vm._pasDim() // de dim-eigenaar synct de tag-overlay als laatste stap
+      await flushPromises()
+      const perId = Object.fromEntries(w.vm.rolTagPx.map((t) => [t.id, t.dim]))
+      expect(perId['o1@gebruikers']).toBe(false)
+      expect(perId['o1@rollen']).toBe(true)
+      expect(perId['lev1']).toBe(true)
+    })
+
+    it('popup-rolcontext: partij in Lagen toont haar rollen; buiten Lagen leeg', async () => {
+      const w = await mountRolbanen()
+      await w.vm.openNodePopup('o1')
+      await flushPromises()
+      // Zonder tap-context (geen aangeklikte instance) staan alle rollen onder "Rollen:".
+      expect(w.vm.popupRolActief).toEqual([])
+      expect([...w.vm.popupRolOverig].sort()).toEqual(['beheert', 'gebruikt'])
+      expect(w.find('[data-testid="lk-popup-rollen"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-popup-rol-gebruikt"]').exists()).toBe(true)
+      w.vm.sluitPopup()
+      w.vm.toonOverzicht()
+      await flushPromises()
+      await w.vm.openNodePopup('o1')
+      await flushPromises()
+      expect(w.vm.popupRolActief).toEqual([])
+      expect(w.vm.popupRolOverig).toEqual([]) // rolcontext is Lagen-only
+    })
+  })
+
+  // ── LI036 — maatwissel (Vergroten/Verkleinen): herfit op bestaande posities, géén re-layout ──
+  describe('LI036 — maatwissel (Vergroten/Verkleinen)', () => {
+    it('toggle hertekent NIET; het ene maatwissel-pad doet resize + dezelfde fit als _naLayout', async () => {
+      const { w } = await mountView()
+      const inst = cytoscape.mock.results.at(-1).value
+      const addsVoor = inst.add.mock.calls.length
+      inst.resize.mockClear()
+      inst.fit.mockClear()
+      w.vm.toggleFullscreen()
+      await flushPromises()
+      expect(w.vm.fullscreen).toBe(true)
+      // Géén re-layout/hertekening door de toggle zelf (indeling/posities blijven staan).
+      expect(inst.add.mock.calls.length).toBe(addsVoor)
+      // De ResizeObserver-callback (_pasCanvasMaat) = resize + exact de _naLayout-fit (padding 50).
+      w.vm._pasCanvasMaat()
+      expect(inst.resize).toHaveBeenCalled()
+      expect(inst.fit).toHaveBeenCalledWith(undefined, 50)
+      // Terugschakelen: idem — geen redraw.
+      w.vm.toggleFullscreen()
+      await flushPromises()
+      expect(w.vm.fullscreen).toBe(false)
+      expect(inst.add.mock.calls.length).toBe(addsVoor)
+    })
   })
 
   it('LI019 1b-v2 — hosting- en lifecycle-multiselect versmallen de lijst', async () => {
@@ -2170,7 +2451,7 @@ describe('LandschapskaartView v3', () => {
 
     it('filter laat de graaf ONGEWIJZIGD (dimmen, geen verbergen)', async () => {
       const { w } = await mountView()
-      w.vm.setLayoutModus('swimlane') // tekent alle nodes ongeacht edges
+      w.vm.toonLagen() // Lagen-weergave tekent alle nodes ongeacht edges (LI036)
       await flushPromises()
       const alle = getekendeIds(w)
       expect(alle).toEqual(['a1', 'a2', 'd1', 'k1', 'p1'])
