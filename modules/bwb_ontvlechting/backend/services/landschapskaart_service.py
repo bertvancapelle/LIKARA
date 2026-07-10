@@ -489,15 +489,20 @@ async def haal_grafdata_op(
                 relatietype="leverancier", label="geleverd door", ring="contracten",
             ))
 
-    # ── Ring — Processen (LI036 slice 2 · stap 1): hoofdprocessen + doorgerolde vervul-edges ──
+    # ── Ring — Processen (LI036 slice 2 → LI037 fase 1): subboom-verrijkte proces-projectie ──
     # Read-only VERRIJKING (zoals plateau_map/lev_map): gegeven de gescopede componenten leveren we
-    # de HOOFDPROCESSEN (wortels van de procesboom) die zij — direct of via een deelproces — dienen,
-    # plus per (component, hoofdproces) ÉÉN samengetrokken edge (flow-groeperingsprecedent: `aantal`
-    # = het aantal onderliggende vervul-regels; `herkomst` draagt de uitsplitsing voor de popup).
-    # ZELFDE roll-up-bron/-semantiek als `procesvervulling_service.rollup_voor_proces`
-    # (procesvervulling + `ouder_id`-boom), alleen bottom-up bewandeld (de kaart vertrekt bij de
-    # componenten). Geen schema, geen scope_ids-verbreding (processen zijn verrijking, zoals
-    # plateau-info), engine onaangeroerd.
+    # het volledige proceslandschap ónder de geraakte hoofdprocessen — deelprocessen (en dieper) als
+    # EERSTE-KLAS knopen (óók zonder vervulling: de "geen ondersteunend systeem"-schakel komt mee),
+    # hiërarchie-edges kind→ouder binnen de subboom, en per (component, GEREGISTREERD proces) één
+    # gebundelde vervult-edge (`aantal` = regels van dat paar; `herkomst` = de functie-uitsplitsing).
+    # De vroegere samentrekking naar de wortel is hiermee VERVANGEN (ADR-034 §Proces-diepte,
+    # besluit 1/A1): de wortel komt via de hiërarchie-edges in beeld, niet meer als edge-doel —
+    # géén dubbele lijn component→deelproces én component→hoofdproces.
+    # ZELFDE roll-up-bron/-semantiek als `procesvervulling_service.rollup_voor_proces` en
+    # `proces_service.subboom` (procesvervulling + `ouder_id`-boom): omhoog geklommen naar de
+    # wortel, daarna dezelfde boom batch-gewijs omlaag bewandeld — één definitie, geen tweede bron.
+    # Omvang schaalt met de selectie (alleen bomen waarvan een tak geraakt wordt). Geen schema,
+    # geen scope_ids-verbreding (processen zijn verrijking, zoals plateau-info), engine onaangeroerd.
     pv_rijen = (
         await session.execute(
             select(
@@ -508,6 +513,9 @@ async def haal_grafdata_op(
             .order_by(Procesvervulling.component_id, Procesvervulling.id)
         )
     ).all()
+    # Dangling-guard (P4) vóór de boom-bepaling: alleen vervul-regels van componenten die als knoop
+    # meekomen tellen mee — zo trekt een buiten-beeld-component ook geen subboom naar binnen.
+    pv_rijen = [r for r in pv_rijen if r.component_id in comp_node]
     if pv_rijen:
         # Proces-info batch-iteratief bijladen t/m alle voorouders. Termineert altijd: alleen
         # nog-niet-geprobeerde ids worden geladen (ook bij een cyclus of een wees-verwijzing).
@@ -553,15 +561,51 @@ async def haal_grafdata_op(
                 wortel_cache[b] = w
             return w
 
+        # Geraakte hoofdproces-wortels → de VOLLEDIGE subboom eronder, batch-iteratief omlaag
+        # (BFS per niveau, visited-set) — de spiegel van het omhoog-laden hierboven; exact de
+        # `proces_service.subboom`-semantiek, set-breed gebatcht (geen N+1, geen hang bij cycli).
+        wortels = {_wortel(r.proces_id) for r in pv_rijen}
+        subboom_ids: set[uuid.UUID] = set(wortels)
+        frontier: set[uuid.UUID] = set(wortels)
+        while frontier:
+            k_rijen = (
+                await session.execute(
+                    select(Proces.id, Proces.naam, Proces.ouder_id)
+                    .where(Proces.tenant_id == tid, Proces.ouder_id.in_(frontier))
+                )
+            ).all()
+            frontier = set()
+            for k in k_rijen:
+                proces_info[k.id] = (k.naam, k.ouder_id)
+                if k.id not in subboom_ids:
+                    subboom_ids.add(k.id)
+                    frontier.add(k.id)
+
+        # Proces-nodes: élk subboom-lid eerste-klas (óók zonder vervulling — de ondersteuningsloze
+        # schakel is juist het punt); gesorteerd voor een deterministische respons.
+        for pid in sorted(subboom_ids, key=str):
+            p_info = proces_info.get(pid)
+            nodes.append(LandschapsNode(
+                id=pid, naam=p_info[0] if p_info else f"proces {str(pid)[:8]}",
+                element_type="proces", laag="business", archimate_element="business_process",
+            ))
+        # Hiërarchie-edges kind→ouder binnen de subboom (de wortel zelf draagt er geen — bij een
+        # pseudo-wortel uit een datacyclus voorkomt dat een edge-lus; de boom blijft tekenbaar).
+        for pid in sorted(subboom_ids, key=str):
+            p_info = proces_info.get(pid)
+            ouder = p_info[1] if p_info else None
+            if pid not in wortels and ouder is not None and ouder in subboom_ids:
+                edges.append(LandschapsEdge(
+                    bron_id=pid, doel_id=ouder, relatietype="proces_hierarchie",
+                    label="onderdeel van", ring="processen",
+                ))
+
         af_labels = await af_catalog.labels(session)
-        # Samentrekken per (component, hoofdproces); dangling-guard (P4): alleen componenten die
-        # als knoop meekomen.
+        # Vervult-edges op het GEREGISTREERDE (deel)proces, gebundeld per (component, proces):
+        # meerdere functies van hetzelfde paar = één lijn met `aantal` + functie-uitsplitsing.
         bundel: dict[tuple[uuid.UUID, uuid.UUID], dict] = {}
         for r in pv_rijen:
-            if r.component_id not in comp_node:
-                continue
-            w = _wortel(r.proces_id)
-            b = bundel.setdefault((r.component_id, w), {"aantal": 0, "functies": set(), "herkomst": []})
+            b = bundel.setdefault((r.component_id, r.proces_id), {"aantal": 0, "functies": set(), "herkomst": []})
             b["aantal"] += 1
             b["functies"].add(r.applicatiefunctie)
             p_info = proces_info.get(r.proces_id)
@@ -570,18 +614,10 @@ async def haal_grafdata_op(
                 proces_naam=p_info[0] if p_info else None,
                 applicatiefunctie_label=af_catalog.resolveer_een(r.applicatiefunctie, af_labels),
             ))
-        # Hoofdproces-nodes: alleen wortels die daadwerkelijk een edge dragen (geen dangling nodes);
-        # gesorteerd voor een deterministische respons.
-        for wid in sorted({k[1] for k in bundel}, key=str):
-            w_info = proces_info.get(wid)
-            nodes.append(LandschapsNode(
-                id=wid, naam=w_info[0] if w_info else f"proces {str(wid)[:8]}",
-                element_type="proces", laag="business", archimate_element="business_process",
-            ))
-        for (cid, wid), b in bundel.items():
+        for (cid, pid), b in bundel.items():
             enkel = next(iter(b["functies"])) if len(b["functies"]) == 1 else None
             edges.append(LandschapsEdge(
-                bron_id=cid, doel_id=wid, relatietype="procesvervulling",
+                bron_id=cid, doel_id=pid, relatietype="procesvervulling",
                 label=(af_catalog.resolveer_een(enkel, af_labels) if enkel else None) or "vervult",
                 ring="processen", aantal=b["aantal"], herkomst=b["herkomst"],
             ))

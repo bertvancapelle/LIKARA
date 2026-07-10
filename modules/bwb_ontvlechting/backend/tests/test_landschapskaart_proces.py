@@ -1,9 +1,11 @@
-"""Tests — Landschapskaart proces-projectie (LI036 slice 2 · stap 1, read-only).
+"""Tests — Landschapskaart proces-projectie (LI036 slice 2 → LI037 fase 1, read-only).
 
-Offline: additief schema (herkomst) + de projectie zit in de servicebron (ring 'processen').
-Live (skip-if-no-DB): bottom-up doorrol naar het HOOFDproces (ook bij een koppeling op een diep
-deelproces), samentrekking per (component, hoofdproces) met `aantal`+`herkomst`, cyclus-veiligheid,
-geen proces-nodes zonder vervulling, en de bestaande node-/edge-set + engine ongemoeid.
+Offline: additief schema (herkomst) + de subboom-projectie zit in de servicebron (ring 'processen',
+hiërarchie-edges, subboom-verwijzing). Live (skip-if-no-DB): deelprocessen als eerste-klas knopen
+(de VOLLEDIGE subboom onder de geraakte wortel, incl. de ondersteuningsloze schakel), vervult-edges
+op het GEREGISTREERDE (deel)proces (geen wortel-dubbeling), hiërarchie-edges kind→ouder,
+selectie-schaal (een niet-geraakte boom komt niet mee), cyclus-veiligheid, en de bestaande
+node-/edge-set + engine ongemoeid.
 De engine-import-afwezigheid + read-only-bronscan voor deze service zijn module-breed geborgd in
 `test_landschapskaart.py` en dekken dit blok automatisch mee.
 """
@@ -34,7 +36,8 @@ def test_landschaps_edge_herkomst_veld_additief():
 
 
 def test_landschapskaart_serveert_processen_ring():
-    """De service projecteert hoofdprocessen + doorgerolde vervul-edges (ring 'processen')."""
+    """De service projecteert de subboom-verrijkte proces-projectie (ring 'processen'):
+    eerste-klas proces-knopen, hiërarchie-edges én vervult-edges op het geregistreerde proces."""
     import inspect
 
     import services.landschapskaart_service as s
@@ -42,9 +45,12 @@ def test_landschapskaart_serveert_processen_ring():
     bron = inspect.getsource(s)
     assert 'ring="processen"' in bron
     assert 'relatietype="procesvervulling"' in bron
+    assert 'relatietype="proces_hierarchie"' in bron  # LI037 fase 1 — de boomlijnen
     assert 'element_type="proces"' in bron
-    # Eén roll-up-definitie: het blok verwijst expliciet naar de rollup-semantiek (zelfde bron).
+    # Eén roll-up-definitie: het blok verwijst expliciet naar de rollup-/subboom-semantiek
+    # (zelfde bron als de proces-leespaden — nooit een tweede boom-definitie).
     assert "rollup_voor_proces" in bron
+    assert "subboom" in bron
 
 
 # ── Live (skip-if-no-DB) ─────────────────────────────────────────────────────────
@@ -102,10 +108,12 @@ def _maak_proces(s, tid, naam, ouder_id=None):
 
 
 @integratie
-def test_proces_projectie_rolt_door_naar_hoofdproces_live():
-    """(a)+(b)+(d)+(e): koppeling op een diep deelproces → HOOFDproces-node + één samengetrokken
-    edge (aantal=2, herkomst uitgesplitst); component zonder vervulling krijgt niets; de bestaande
-    node-/edge-set en de engine blijven ongemoeid."""
+def test_proces_projectie_subboom_eerste_klas_live():
+    """LI037 fase 1 — (a) deelprocessen als eerste-klas knopen: de VOLLEDIGE subboom onder de
+    geraakte wortel komt mee, incl. de ondersteuningsloze schakel; (b) vervult-edges landen op het
+    GEREGISTREERDE (deel)proces (geen wortel-dubbeling); (c) hiërarchie-edges kind→ouder; (d) een
+    niet-geraakte boom komt niet mee (selectie-schaal) en een component zonder vervulling krijgt
+    niets; (e) de bestaande node-/edge-set en de engine blijven ongemoeid."""
     from sqlalchemy import text as _text
 
     from models.models import Procesvervulling
@@ -125,18 +133,23 @@ def test_proces_projectie_rolt_door_naar_hoofdproces_live():
             app_id, los_id = app["id"], los["id"]
             ids += [app_id, los_id]
 
-            # Procesboom: hoofd → deel → subdeel (drie niveaus — de klim moet twee stappen maken).
+            # Geraakte boom: hoofd → deel → subdeel (3 niveaus) + een ONDERSTEUNINGSLOZE tak
+            # (kaal, onder hoofd — geen vervulling; moet tóch als knoop meekomen).
             hoofd = await _maak_proces(s, tid, "WT-PL-Hoofd")
             deel = await _maak_proces(s, tid, "WT-PL-Deel", ouder_id=hoofd)
             subdeel = await _maak_proces(s, tid, "WT-PL-Subdeel", ouder_id=deel)
-            ids += [hoofd, deel, subdeel]
+            kaal = await _maak_proces(s, tid, "WT-PL-Kaal", ouder_id=hoofd)
+            # NIET-geraakte boom (geen enkele vervulling): mag niet meekomen (selectie-schaal).
+            ander = await _maak_proces(s, tid, "WT-PL-Ander")
+            ander_deel = await _maak_proces(s, tid, "WT-PL-AnderDeel", ouder_id=ander)
+            ids += [hoofd, deel, subdeel, kaal, ander, ander_deel]
             await s.commit()
 
             # Baseline vóór de vervullingen + engine-telling.
             graf0 = await svc.haal_grafdata_op(s, _TID)
             profielen0 = (await s.execute(_text("SELECT count(*) FROM component_profiel"))).scalar_one()
 
-            # (b) Twee vervul-regels van dezelfde component, op verschillende dieptes/functies.
+            # Vervul-regels van dezelfde component op TWEE dieptes (subdeel + deel).
             s.add(Procesvervulling(tenant_id=tid, component_id=app_id, proces_id=subdeel, applicatiefunctie="registreren"))
             s.add(Procesvervulling(tenant_id=tid, component_id=app_id, proces_id=deel, applicatiefunctie="raadplegen"))
             await s.commit()
@@ -144,50 +157,66 @@ def test_proces_projectie_rolt_door_naar_hoofdproces_live():
             graf1 = await svc.haal_grafdata_op(s, _TID)
             sub = await svc.haal_grafdata_op(s, _TID, component_ids=[app_id])
             profielen1 = (await s.execute(_text("SELECT count(*) FROM component_profiel"))).scalar_one()
-            return graf0, graf1, sub, app_id, los_id, hoofd, deel, subdeel, profielen0, profielen1
+            return (graf0, graf1, sub, app_id, los_id,
+                    hoofd, deel, subdeel, kaal, ander, ander_deel, profielen0, profielen1)
         finally:
             # Self-FK op proces is RESTRICT → leaf→root wissen (kinderen zijn ná hun ouder aangemaakt).
             for eid in reversed(ids):
                 await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
             await s.commit()
 
-    graf0, graf1, sub, app_id, los_id, hoofd, deel, subdeel, prof0, prof1 = asyncio.run(_run_rls(_flow))
+    (graf0, graf1, sub, app_id, los_id,
+     hoofd, deel, subdeel, kaal, ander, ander_deel, prof0, prof1) = asyncio.run(_run_rls(_flow))
 
-    # (d) Vóór de vervullingen: géén proces-nodes voor onze boom (verrijking alleen bij koppeling).
+    eigen = {hoofd, deel, subdeel, kaal}
+
+    # Vóór de vervullingen: géén proces-nodes voor onze bomen (verrijking alleen bij koppeling).
     ids0 = {n.id for n in graf0.nodes}
-    assert hoofd not in ids0 and deel not in ids0 and subdeel not in ids0
+    assert not (eigen | {ander, ander_deel}) & ids0
 
-    # (a) Ná de vervullingen: ALLEEN het hoofdproces als node (deel/subdeel niet), met typing.
+    # (a) Ná de vervullingen: de HELE geraakte subboom als knopen — incl. de ondersteuningsloze
+    # schakel (kaal) — met typing; (d) de niet-geraakte boom blijft buiten beeld.
     proces_nodes = {n.id: n for n in graf1.nodes if n.element_type == "proces"}
-    assert hoofd in proces_nodes and deel not in proces_nodes and subdeel not in proces_nodes
+    assert eigen <= set(proces_nodes)
+    assert ander not in proces_nodes and ander_deel not in proces_nodes
     assert proces_nodes[hoofd].naam == "WT-PL-Hoofd"
-    assert proces_nodes[hoofd].laag == "business"
-    assert proces_nodes[hoofd].archimate_element == "business_process"
+    for pid in eigen:
+        assert proces_nodes[pid].laag == "business"
+        assert proces_nodes[pid].archimate_element == "business_process"
 
-    # (b) Eén samengetrokken edge component→hoofdproces: aantal=2, gemengde functies → label 'vervult',
-    # herkomst uitgesplitst (deelproces-namen + functie-labels). Self-contained (LI021): asserteer
-    # uitsluitend op de EIGEN fixtures — de dev-DB draagt ook geseede vervullingen.
-    pv_edges = [e for e in graf1.edges if e.ring == "processen" and e.bron_id == app_id]
-    assert len(pv_edges) == 1
-    e = pv_edges[0]
-    assert e.doel_id == hoofd
-    assert e.relatietype == "procesvervulling" and e.aantal == 2 and e.label == "vervult"
-    assert {h.proces_naam for h in e.herkomst} == {"WT-PL-Deel", "WT-PL-Subdeel"}
-    assert all(h.applicatiefunctie_label for h in e.herkomst)
+    # (c) Hiërarchie-edges kind→ouder binnen de subboom (de wortel draagt er zelf geen);
+    # allemaal in ring 'processen' met label "onderdeel van" (besluit 3: alles togglet samen).
+    hier_edges = [x for x in graf1.edges if x.relatietype == "proces_hierarchie"]
+    hier = {(x.bron_id, x.doel_id) for x in hier_edges}
+    assert {(deel, hoofd), (subdeel, deel), (kaal, hoofd)} <= hier
+    assert all(x.ring == "processen" and x.label == "onderdeel van" for x in hier_edges)
+    assert not any(b == hoofd for (b, _d) in hier)  # wortel zonder eigen hiërarchie-edge
+
+    # (b) Vervult-edges op het GEREGISTREERDE (deel)proces — twee losse lijnen (subdeel + deel),
+    # elk aantal=1 met het functie-label; GEEN edge naar de wortel (geen dubbeling).
+    pv_edges = {e.doel_id: e for e in graf1.edges
+                if e.relatietype == "procesvervulling" and e.bron_id == app_id}
+    assert set(pv_edges) == {subdeel, deel}
+    for e in pv_edges.values():
+        assert e.ring == "processen" and e.aantal == 1
+        assert e.label and e.label != "vervult"  # één functie → functie-label op de lijn
+        assert len(e.herkomst) == 1 and e.herkomst[0].applicatiefunctie_label
+    assert pv_edges[subdeel].herkomst[0].proces_naam == "WT-PL-Subdeel"
 
     # (d) De losse component draagt géén procesvervulling-edge.
-    assert not any(x.ring == "processen" and x.bron_id == los_id for x in graf1.edges)
+    assert not any(x.relatietype == "procesvervulling" and x.bron_id == los_id for x in graf1.edges)
 
-    # Subgraaf-variant (set = de app): zelfde projectie werkt set-scoped.
-    assert hoofd in {n.id for n in sub.nodes if n.element_type == "proces"}
-    assert any(x.ring == "processen" and x.bron_id == app_id for x in sub.edges)
+    # Subgraaf-variant (set = de app): zelfde subboom-projectie werkt set-scoped.
+    sub_proces = {n.id for n in sub.nodes if n.element_type == "proces"}
+    assert eigen <= sub_proces and ander not in sub_proces
+    assert any(x.relatietype == "procesvervulling" and x.bron_id == app_id for x in sub.edges)
+    assert any(x.relatietype == "proces_hierarchie" for x in sub.edges)
 
-    # (e) De bestaande node-/edge-set is ongemoeid: zónder onze proces-toevoeging is graf1 = graf0
-    # (incl. eventuele geseede proces-nodes/-edges, die in beide calls identiek meekomen).
-    assert {n.id for n in graf1.nodes} - {hoofd} == ids0
+    # (e) De bestaande node-/edge-set is ongemoeid: zónder onze proces-toevoegingen is graf1 = graf0.
+    assert {n.id for n in graf1.nodes} - eigen == ids0
     sig = lambda edges: sorted(  # noqa: E731
         (str(x.bron_id), str(x.doel_id), x.ring) for x in edges
-        if not (x.ring == "processen" and x.bron_id == app_id))
+        if not (x.ring == "processen" and (x.bron_id in ({app_id} | eigen) or x.doel_id in eigen)))
     assert sig(graf1.edges) == sig(graf0.edges)
 
     # Engine onaangeroerd: de projectie maakt/muteert geen profielen; lifecycle blijft leesbaar 'concept'.
@@ -199,7 +228,8 @@ def test_proces_projectie_rolt_door_naar_hoofdproces_live():
 @integratie
 def test_proces_projectie_cyclus_veilig_live():
     """(c) Een (via direct SQL geconstrueerde) ouder-lus mag de projectie nooit laten hangen:
-    de klim eindigt deterministisch op een pseudo-wortel binnen de lus."""
+    de klim eindigt deterministisch op een pseudo-wortel, en ook de subboom-afdaling termineert
+    (visited-set) — beide lus-leden verschijnen als knoop, zonder edge-lus vanaf de pseudo-wortel."""
     from sqlalchemy import text as _text
 
     from models.models import Procesvervulling
@@ -234,10 +264,17 @@ def test_proces_projectie_cyclus_veilig_live():
 
     graf, comp_id, p1, p2 = asyncio.run(_run_rls(_flow))
 
-    # De projectie is geëindigd (geen hang) en levert precies één pseudo-wortel uit de lus.
+    # De projectie is geëindigd (geen hang); de subboom-afdaling levert beide lus-leden als knoop
+    # (LI037: de pseudo-wortel + zijn "kind" — eerste-klas, deterministisch).
     proces_nodes = [n for n in graf.nodes if n.element_type == "proces" and n.id in {p1, p2}]
-    assert len(proces_nodes) == 1
-    edge = [e for e in graf.edges if e.ring == "processen" and e.bron_id == comp_id]
-    assert len(edge) == 1 and edge[0].aantal == 1
+    assert len(proces_nodes) == 2
+    # De vervult-edge landt op het GEREGISTREERDE proces (p2).
+    edge = [e for e in graf.edges if e.relatietype == "procesvervulling" and e.bron_id == comp_id]
+    assert len(edge) == 1 and edge[0].doel_id == p2 and edge[0].aantal == 1
     # Eén functie → het applicatiefunctie-label op de lijn (niet het generieke 'vervult').
     assert edge[0].label and edge[0].label != "vervult"
+    # Precies ÉÉN hiërarchie-edge binnen de lus (de pseudo-wortel draagt er zelf geen → geen
+    # edge-lus; de boom blijft tekenbaar).
+    hier = [x for x in graf.edges if x.relatietype == "proces_hierarchie"
+            and {x.bron_id, x.doel_id} <= {p1, p2}]
+    assert len(hier) == 1
