@@ -203,3 +203,13 @@ standaard") in **likara-ux**.
   systeembrede patronen (breedte-override-borging, Dialog-primitive-regels,
   scroll-schaduw, samengevoegd blok, succes-toast-standaard, MeldingBanner). Eerst de
   vraag "waar bestaat dit nog meer / wat is de regel?", dán pas de fix.
+
+## LI036 — set-acties wijzigen nooit de weergave (herziening ADR-040 "ingang → brede plaat")
+
+Bevestigd besluit: **een set-actie muteert uitsluitend de set, nooit de weergave.**
+Toevoegen/verwijderen/"haal buren erbij"/"voeg vervullende componenten toe" laten de
+gebruiker in de weergave waar hij is (Lagen blijft Lagen; de nieuwe componenten
+verschijnen dáár). Hercentreren/weergave-wissel hoort bij dubbelklik en de expliciete
+weergave-schakelaar. De vroegere ADR-040-regel "een set opbouwen via een ingang = brede
+plaat → overzicht" (`toonOverzicht()` in het gedeelde set-pad) is hiermee HERZIEN en uit
+de code verwijderd. (Hoort óók terug in ADR-040 — staat op de ADR-onderhoudslijst.)

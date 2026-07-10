@@ -390,3 +390,21 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   `tests/meldingen.test.js` één keer centraal.
 - **vitest draait ALTIJD vanuit `frontend/`** (cwd-valkuil trad in LI035 drie keer op:
   vanaf de repo-root falen de alias-resolves met "Cannot find package '@/store/auth'").
+
+## LI036-patronen (teardown-aanvulling + suite-flakiness)
+
+- **Teardown bij een self-FK-RESTRICT — aanvulling op de bestaande leaf→root-regel.**
+  (1) Een via core-SQL geconstrueerde **kring** (bv. de proces-cyclus-test: `UPDATE proces
+  SET ouder_id=…` buiten de service-validatie om) is met leaf→root alléén niet te wissen —
+  **breek eerst de kring** (`UPDATE … SET ouder_id=NULL`) en wis dán leaf→root. (2) Een
+  teardown die halverwege crasht (bv. op de RESTRICT) slaat de resterende deletes over en
+  **stapelt residu over runs heen** (LI036: 16 WT-PL-rijen uit 2 gefaalde runs, pas zichtbaar
+  in een latere sanity-meting). Borging is niet sluitend zonder meting: check restdata = 0
+  ná de run (`SELECT count(*) … WHERE naam LIKE 'WT-%'`), zeker na een gefaalde run.
+- **Suite-flakiness onder belasting (bekend broos punt, geen code-regressie).** Tests met
+  échte `setTimeout`-waits (m.n. de dubbeltap-tests, `_DBLTAP_MS`) kunnen bij rug-aan-rug
+  volledige-suite-runs/CPU-verzadiging massaal timeouten (LI036-meting: 1 van ~7 runs
+  faalde met 16 timeouts à 12s+; geïsoleerd en in 4 opeenvolgende runs daarna groen).
+  Duiding: belastinggevoeligheid van de timer-tests, niet de gewijzigde code. Keert het in
+  een rustige omgeving terug → dan wél de gerichte `git stash`-vergelijking (ADR-028-
+  diagnose-recept in likara-backend) draaien vóór er iets "gefixt" wordt.

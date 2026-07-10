@@ -554,7 +554,10 @@ altijd exempt. **Randbehandeling:** `node[rol="externe_dataprovider"]` → gesti
 vulkleur; vorm=type, vulkleur=lifecycle blijven) + legenda-entry.
 
 ### LandschapsEdge
-`bron_id, doel_id, relatietype, label, ring, richting, protocol`
+`bron_id, doel_id, relatietype, label, ring, richting, protocol, aantal` +
+(LI036) `herkomst[]` — alléén op vervult-edges (ring `processen`): per onderliggende
+vervul-regel `proces_id`/`proces_naam` + `applicatiefunctie_label` (voedt de
+popup-uitsplitsing; nullable, bestaande edges dragen None).
 
 ### Ringen
 - applicaties: flow-relaties comp↔comp, label="koppeling"
@@ -562,7 +565,9 @@ vulkleur; vorm=type, vulkleur=lifecycle blijven) + legenda-entry.
 - contracten: association-relaties (comp→contract), label="valt onder"
 - beheerorganisatie: roltoewijzing-records, label=rol-naam
 - *(uitgebreid na ADR-025: samenstelling, eigenaar (LI036), gebruikers, organisatiestructuur (ADR-024),
-  en `gebruikt` (LI033b) — zie P4 hieronder voor het afgeleide-edge-patroon.)*
+  `gebruikt` (LI033b), en `processen` (LI036 slice 2 — hoofdprocessen + vervult-edges, default aan,
+  alle weergaven; zie de LI036-proceslaan-sectie onderaan) — zie P4 hieronder voor het
+  afgeleide-edge-patroon.)*
 
 ### P4 — Afgeleide read-only kaart-edges spiegelen een bestaande edge (ADR-040)
 
@@ -699,3 +704,27 @@ buur-node) is een **eigen ADR-spoor**, geen kleine "bug".
 - **Roll-up-inzicht (slice 5)** is een pure LEESLAAG over subboom + koppelregels (mét
   `tak_id`-groepeersleutel) en het organisatie-procesbeeld een afgeleide kijk over
   eigendom + organisatiegebruik — er bestaat GEEN opgeslagen roll-up-feit.
+
+## LI036 — proceslaan op de kaart (slice 2, geverifieerd) + BEWUST OPENSTAAND diepte-punt
+
+- **Proces-projectie = read-only subgraaf-VERRIJKING** in `landschapskaart_service.haal_grafdata_op`
+  (een eigen blok naast `plateau_map`/`lev_map`; geen `scope_ids`-verbreding, geen schema, engine
+  onaangeroerd — `Proces`/`Procesvervulling` worden alleen gelezen). Gegeven de component-scope:
+  één `Procesvervulling`-query → **bottom-up klim** langs `ouder_id` naar de hoofdproces-wortel
+  (batch-iteratief bijladen dat altijd termineert + cyclus-veilige klim met visited-set/memoisatie;
+  een geconstrueerde ouder-lus geeft een deterministische pseudo-wortel, nooit een hang).
+- **Eén roll-up-definitie**: dezelfde bron/boom-semantiek als `procesvervulling_service.
+  rollup_voor_proces`, alleen andersom bewandeld (de kaart vertrekt bij componenten, de
+  rollup-route bij een proces). Nooit een tweede roll-up-bron introduceren.
+- **Output**: per hoofdproces-mét-edge één node (`element_type='proces'`, `laag='business'`,
+  `archimate_element='business_process'`; frontend-vorm: afgeronde rechthoek + verloop-pijl-marker);
+  per (component, hoofdproces) één **samengetrokken** edge (`relatietype='procesvervulling'`,
+  `ring='processen'`, `aantal` = onderliggende regels — flow-groeperingsprecedent; `label` =
+  applicatiefunctie of "vervult"; `herkomst[]` voor de popup-uitsplitsing).
+- **⚠ BEWUST OPENSTAAND ontwerppunt (top-1 volgende sessie — NIET afgesloten):** de huidige
+  projectie toont **alleen hoofdprocessen**; deelprocessen zijn enkel doorgerold zichtbaar (in de
+  `herkomst`-popup). Dit is **heroverwogen**: de gewenste richting is **deelprocessen eerste-klas
+  op de kaart** — component→(deel)proces als zichtbare koppeling, de proceshiërarchie
+  deelproces→hoofdproces als knopen+lijnen, deelprocessen detail-op-aanvraag uitvouwbaar, en
+  plotbaar vanuit zowel een component als een (deel)proces. Behandel "alleen hoofdprocessen"
+  dus als tussenstand, niet als eindstaat.

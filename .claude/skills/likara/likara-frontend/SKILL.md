@@ -706,10 +706,11 @@ Knop verborgen als er geen vorige route is (directe URL-toegang).
 **State-preservatie:** sessionStorage key `lk-state`
 (modus / egoStartId / ringAan / groepeerPerOrg — bewaard bij onBeforeRouteLeave).
 
-**Layout:** `cytoscape-dagre` is **verwijderd** (LI023, Slice 6). De composable
-(`frontend/src/composables/cytoscape.js`) registreert **fcose**. `_layout()` kiest per modus:
-`concentric` (Ego + Geheel model, radiaal-op-degree/centrum), **fcose** (Impact-verkenner,
-set-nodes gefixeerd), `preset` (swimlane + positie-stabiele re-render). Géén dagre-aanroep.
+**Layout (herzien ADR-040/LI036):** `cytoscape-dagre` én **fcose** zijn verwijderd (fcose = de
+edges-onzichtbaar-bug; de Impact-verkenner is afgeschaft). `_layout()` kiest per WEERGAVE:
+`concentric` (Praatplaat/ego, + ellips-transform in de stop-callback), built-in `grid`
+(Overzicht — deterministisch, centrumloos), `preset` (Lagen — baanposities, zie de
+Lagen-weergave-sectie). Alles `animate:false`; géén dagre-/fcose-aanroep.
 
 **Edge-labels:** standaard verborgen (`text-opacity: 0`); zichtbaar op hover of
 bij geselecteerde edge (class `sel-edge`).
@@ -817,21 +818,27 @@ function _naLayout() {
 
 ---
 
-## Landschapskaart getekendeNodes-regel (LI019, kritiek)
+## Landschapskaart getekendeNodes-regel — "ring uit wint van gaps" (LI019 → herzien LI036)
 
-`getekendeNodes` filtert op `metZichtbareEdge.has(n.id)` — nodes zonder zichtbare edge
-worden verborgen (losse nodes zweven anders in de radiaal). Dit is correct voor radiaal.
-
-**Swimlane-uitzondering (v8):** in swimlane-modus vervalt de edge-aanwezigheidseis —
-elke node hoort in een lane ongeacht of hij een edge heeft:
+Eén gedeelde conditieregel in `getekendeNodes`, identiek voor ALLE weergaven (Overzicht/
+Praatplaat/Lagen — de vroegere swimlane-"toont alles"-uitzondering is VERVALLEN):
 
 ```javascript
-if (layoutModus.value === 'swimlane' || toonRegistratiegaps.value || egoCentrum || metZichtbareEdge.has(n.id))
-  uniek.set(n.id, n)
+const catRing = _BAAN_RING[_laneVan(n)] // baan→ring; 'overig' heeft geen ring
+const gapZichtbaar = toonRegistratiegaps.value && !heeftRelatie.has(n.id) && (!catRing || ringAan.value.has(catRing))
+if (gapZichtbaar || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
 ```
 
-**toonRegistratiegaps-toggle:** standaard UIT. AAN = losse nodes (zonder edges) ook
-tonen in radiaal. In swimlane zijn ze altijd zichtbaar (swimlane-conditie evalueert eerst).
+- **Ring uit wint**: een knoop die alléén via uitgezette ringen relaties had verdwijnt —
+  óók met "Toon registratiegaps" aan (hij heeft relaties, dus is géén échte gap).
+  `metZichtbareEdge` is ring-bewust (uit `zichtbareEdges`, gefilterd op `ringAan`);
+  `heeftRelatie` telt over `grafEdges` (alle edges, ring-ongeacht).
+- **Échte gap** (geen enkele relatie) toont onder de toggle alleen als de ring van zijn
+  CATEGORIE aan staat (`_BAAN_RING`: componenten↔'applicaties'-ring); **'overig'
+  (categorieloos) heeft geen ring → altijd zichtbaar onder de toggle** (er is niets
+  uitgezet; stil verbergen zou een echte gap onzichtbaar maken).
+- `egoCentrum`/`setLid` blijven bewuste altijd-tonen-keuzes.
+- Losse knopen zijn dus in ÁLLE weergaven (ook Lagen) alleen via de gaps-toggle zichtbaar.
 
 ---
 
@@ -879,20 +886,27 @@ via endpoint `GET /partijen/{id}/componenten` (keten: contract.leverancier_id ==
 
 ---
 
-## Swimlane geparkeerd (LI019)
+## Lagen-weergave (LI036 — gebouwde realiteit; vervangt "Swimlane geparkeerd")
 
-De swimlane-layout is geparkeerd wegens technische complexiteit met Cytoscape.js
-(compound-nodes, edge-rendering tussen lanes, pointer-events-conflicten).
+De vroegere geparkeerde swimlane is met LI036 slice 1 tot leven gebracht als **derde
+weergave** — en de oude ADR-034-aanname ("HTML/CSS-div-lanes + SVG-overlay is de enige
+bewezen architectuur") is daarmee ACHTERHAALD:
 
-**Huidige staat:**
-- Layout-toggle verborgen via `v-if="false"` in LandschapskaartView.vue
-- `layoutModus` vast op `'radiaal'` (niet opgeslagen in sessionStorage)
-- Swimlane-code bewaard voor toekomstige herwrite
-- `setLayoutModus()` exposed voor programmatische toegang in tests
-
-**Toekomstige herwrite (ADR-034):** pure HTML/CSS div-lanes + SVG-overlay voor edges,
-NIET Cytoscape compound-nodes. Dit is de enige bewezen architectuur voor echte swimlanes
-met interactieve drag en edge-rendering.
+- **Eén weergave-as**: `weergave = 'overzicht' | 'praatplaat' | 'lagen'` — de aparte
+  `layoutModus`-as ('radiaal'|'swimlane') en `setLayoutModus()` bestaan NIET meer
+  (geconvergeerd; een oude `layoutModus`-sleutel in sessionStorage wordt genegeerd).
+- **Rendering = Cytoscape preset-baanposities** (`_swimlanePositions` → de preset-tak in
+  `_layout()`), **géén compound-nodes** (compound faalde eerder op edge-rendering tussen
+  lanen + pointer-events). Knopen én lijnen blijven puur Cytoscape; de baan-koppen +
+  scheidslijnen zijn een HTML-band-overlay óver het canvas (twee lagen: banden z-0 onder,
+  koppen z-5 boven, `pointer-events-none`; gesynct op pan/zoom/layout-stop).
+- Zelfde node-set (`getekendeNodes`), zelfde knoop-stijlbron (`_nodeData`/`_vormVoorType`)
+  en zelfde klik-gedrag als de andere weergaven; de ADR-040-render-eigenaar (één opbouw →
+  één layout → fit via de `stop`-callback) geldt óók hier — mét de verplichte **meet-stap
+  vóór de eerste frame** (zie LI036-patronen hieronder).
+- Baan-indeling via `_laneVan` + `LANE_DEF`/`DEFAULT_LANE_VOLGORDE` (Processen bovenaan →
+  Rollen & beheer → Gebruikers → Componenten → Infrastructuur → Contracten → Overig);
+  baan-koppen zijn versleepbaar (volgorde in sessionStorage), "Verberg lege banen"-toggle.
 
 ## LI020-patronen (Landschapskaart — adaptief, highlight, geschiedenis, vorm, scope)
 
@@ -914,7 +928,7 @@ met interactieve drag en edge-rendering.
   geschiedenis; een scope-/filter-/selectie-wijziging is wél een toestand.
 - **Vorm-per-type via één gedeelde knoop-stijlbron.** Vorm = wat het is, kleur = status.
   `_vormVoorType` (op element_type + partij-aard + infra-laag) voedt `_nodeData.shape`,
-  gelezen door alle modi én de toekomstige swimlane — geen tweede definitie. **Harde
+  gelezen door alle weergaven (incl. de Lagen-banen) — geen tweede definitie. **Harde
   contrast-eis:** tekstkleur altijd via luminantie (`_txtColor`) op de werkelijke
   vulkleur; introduceer geen nieuwe donkere vullingen; test elke vorm × elke status.
   Type-label voor álle typen als tweede signaal. Native, labelvriendelijke vormen;
@@ -1207,3 +1221,43 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   erop maar doet niets"). Lessen: class-naam-asserts in vitest bewijzen GÉÉN rendering
   (borg op dist-CSS); comment-teksten in gescande bestanden zijn Tailwind-candidates
   (noem nooit een aaneengesloten class-literal die je juist wil detecteren).
+
+## LI036-patronen (Lagen-weergave, rolbanen, kaart-interactie — geverifieerd)
+
+- **Meet-stap vóór de eerste frame bij een preset-layout (kritiek).** Nodes met
+  `width/height:'label'` hebben pas een maat ná een meting; grid/concentric meten zelf
+  (concentric.mjs:76/:81 `nodes.updateStyle()` + `layoutDimensions`), de **preset**-layout
+  meet níéts → de eerste frame heeft geen edge-endpointgeometrie en tekent GÉÉN lijnen
+  (elke latere klik/style-invalidatie herstelt het — vandaar "werkt na een klik").
+  Fix: in de preset-tak vóór het plaatsen `cy.nodes().updateStyle()` + per node
+  `layoutDimensions({ nodeDimensionsIncludeLabels: true })` — een synchrone stateberekening
+  binnen de ene render-eigenaar, géén setTimeout-nudge (LI019 maskeerde dit met de
+  100ms-fit die ADR-040 terecht verving door de stop-callback).
+- **Instance-projectie (Lagen-only) — één logische node, meerdere visuele plekken.**
+  `instanceProjectie` (naar het gg-aggregatie-precedent) zit tussen de logische laag
+  (`getekendeNodes`/`zichtbareEdges`) en de teken-/banenlaag (`_elementen`/`laneLayout`):
+  een partij krijgt per rolbaan een instance (`id = <logischId>@<baan>` + `logischId`;
+  één pet houdt de logische id), rol-edges remappen naar de instance van hun eigen ring
+  (edge-data draagt `bronLog`/`doelLog` voor de resolutie). Interactie matcht op
+  **`logischId`**: tap-grens resolvet instance→logisch, highlight/dim (`_pasSelectieHighlight`/
+  `_pasDim`) laten álle instances samen oplichten, één detailkaart. Buiten Lagen geeft de
+  projectie 1-op-1 door (geen duplicaten op Overzicht/Praatplaat). Instances delen de éne
+  stijlbron (`_nodeData`) — identiek uiterlijk per constructie.
+- **Rol-tag-accent = eigen laag, gedeelde dim-staat.** De rol-tag (kleur + kort woord:
+  gebruikt/levert/beheert/eigenaar) is een HTML-pill-overlay ónder de instance — een
+  APARTE laag naast vorm(=type/aard), vulling(=lifecycle) en rand(=selectie/blokkade);
+  één kleurbron (`ROL_TAG`) voor node-tag én popup. De tag **deelt de dim-staat van zijn
+  knoop**: `updateRolTags` leest `hasClass('lk-dim')` van het cy-element (de ene dim-
+  eigenaar `_pasDim` eindigt met de tag-sync; `DIM_NODE_OPACITY` is de ene opacity-bron
+  voor knoop én tag). Overlay synct op pan/zoom/layout-stop, `pointer-events-none`.
+- **Maatwissel = resize()+fit, nooit re-layout** (verfijning van het ResizeObserver-
+  patroon). Vergroten/verkleinen/fullscreen wijzigt alleen de container; het ene pad
+  `_pasCanvasMaat` (de observer-callback) doet `cy.resize()` + de `_naLayout`-fit op de
+  BESTAANDE posities — geen `_layout()`-herberekening (knopen verspringen niet), geen
+  viewport-behoud-vlag of `setTimeout`-nudge (die zijn met LI036 verwijderd). De fit vuurt
+  zoom/pan-events → de HTML-overlays (banden + rol-tags) hersyncen vanzelf.
+- **Proces-knoop**: `element_type='proces'` → afgeronde rechthoek + **verloop-pijl-marker**
+  (SVG-data-URI als node-achtergrond via een `CY_STYLE`-selector — hoort bij de vorm-
+  definitie, dimt/schaalt mee), eigen proceslaan + ring 'processen' (default aan, óók in
+  `RING_PRAATPLAAT_KERN`), tagloos, popup met "Vervuld door"-sectie (herkomst inklapbaar
+  per component, native `<details>`) en de vervul-toggle (zie likara-ux).

@@ -467,3 +467,41 @@ eerlijkheidslijn: een gat tonen (rustig), niet verbergen en niet schreeuwen.
 - **Lijststaat**: een gebruiker die terugkeert naar een lijst vindt hem zoals hij hem
   verliet (zie het lijststaat-patroon in likara-frontend) — deep-link wint altijd van de
   bewaarde staat.
+
+## LI036 — kaartpatronen: zichtbaarheid, rolbanen, filterbalk, toggle-acties
+
+- **"Ring uit wint van gaps" (zichtbaarheidsregel, alle weergaven).** Wat zichtbaar blijft
+  = de ringen die AAN staan. Een ring uitzetten haalt de relaties én de knopen weg die
+  alléén via die ring in beeld waren — óók met "Toon registratiegaps" aan. Een knoop met
+  nog een geldige aanstaande-ring-relatie blijft; een échte gap (geen enkele relatie)
+  volgt de ring van zijn categorie; **'overig' (categorieloos) blijft altijd zichtbaar
+  onder de toggle** (er is niets uitgezet — stil verbergen zou een echte gap verstoppen).
+  Eén gedeelde term in `getekendeNodes`, identiek op Overzicht/Praatplaat/Lagen
+  (techniek: likara-frontend).
+- **Rolbanen vs. identiteitsbanen.** Rolbanen ("wie doet wat": Rollen & beheer,
+  Gebruikers) delen in op **de rol in de relatie** — een partij verschijnt in élke rolbaan
+  waar ze die rol speelt (meerdere petten = meerdere plekken, max. één per baan; techniek:
+  instance-projectie). Identiteitsbanen (Componenten/Infrastructuur/Contracten) delen in
+  op **wat het object ís** — precies één keer. Leverancier ("geleverd door"), eigenaar en
+  beheerrollen → Rollen & beheer (elk met rol-tag); gebruikt → Gebruikers; een partij
+  zonder rol in de selectie → Rollen & beheer zónder tag (geen tag = "hier geen rol").
+- **Selectie-meebewegende filterbalk ("toont alleen wat in beeld is").** Een balk die
+  "X in beeld" heet, leidt zijn lijst af uit de getekende set **met de eigen scope-term
+  contrafeitisch weggedacht** — dan (1) bevat hij alleen items die voor déze selectie
+  relevant zijn, (2) blijft een uitgezet item zichtbaar-onaangevinkt zolang de selectie
+  het relevant maakt (uitzetten om te focussen blijft omkeerbaar via de balk), en
+  (3) beweegt de lijst automatisch mee met selectie/ringen/weergave. Lege lijst → korte
+  hint ("geen organisatie in beeld"), geen kale ruimte. Referentie: `organisatiesInBeeld`.
+- **Een toggle-actie maakt alleen z'n eigen actie ongedaan.** Een groeps-toevoegknop
+  ("+ Voeg vervullende componenten toe (N)") onthoudt precies wát ze toevoegde (per bron,
+  bv. `_vervulToegevoegd` per proces) en de omgekeerde knop ("− Verwijder …") verwijdert
+  **alleen dat** — vóór-bestaand werk (het vertrekpunt van de gebruiker) blijft staan.
+  Nooit "wis alles wat hierbij hoort": dat veegt eerder eigen werk weg (afgekeurd).
+  Alles-zat-er-al → "(0)" disabled met hint (niets ongedaan te maken). Terugkoppeling bij
+  elke klik: toevoegen licht het geraakte web op (bestaand selectie-pad), verwijderen
+  geeft een korte succes-toast. Set-acties wijzigen nooit de weergave.
+- **Detail-op-aanvraag (expliciete verankering).** Houd de plaat/lijst rustig en laag de
+  onderbouwing gelaagd achter één klik: **badge** (aantal op de gebundelde lijn) →
+  **inklap** (herkomst per component, standaard dicht) → **popup/detailscherm** (volledige
+  uitsplitsing + doorklik). Nooit alle detail front-loaden (de "Vervuld door"-tekstmuur
+  was de aanleiding); geldt als leidend principe voor elke roll-up-/bundel-weergave.
