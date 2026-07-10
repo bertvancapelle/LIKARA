@@ -931,15 +931,35 @@ describe('LandschapskaartView v3', () => {
 
   // ── LI036 slice 2 — proceslaan + ring "Processen" ──
   describe('LI036 slice 2 — proceslaan + ring Processen', () => {
+    // LI037 fase 1-datavorm: de VOLLEDIGE subboom als knopen (incl. de ondersteuningsloze
+    // schakel pr4), hiërarchie-edges kind→ouder, en vervult-edges op het GEREGISTREERDE
+    // (deel)proces — twee bomen (Vergunningverlening 3 niveaus + Burgerzaken 2 niveaus).
     const PROCES_GRAF = () => ({
       nodes: [
         { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
         { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
         { id: 'pr1', naam: 'Vergunningverlening', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+        { id: 'pr2', naam: 'Aanvraag behandelen', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+        { id: 'pr3', naam: 'Besluit vastleggen', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+        { id: 'pr4', naam: 'Bezwaar behandelen', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+        { id: 'pr5', naam: 'Burgerzaken', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+        { id: 'pr6', naam: 'Verhuizing verwerken', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
       ],
       edges: [
         { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-        { bron_id: 'a1', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 2, herkomst: [{ proces_id: 'p-diep', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Registreren' }] },
+        { bron_id: 'a1', doel_id: 'pr2', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 2,
+          herkomst: [
+            { proces_id: 'pr2', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Registreren' },
+            { proces_id: 'pr2', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Raadplegen' },
+          ] },
+        { bron_id: 'a2', doel_id: 'pr3', relatietype: 'procesvervulling', label: 'Registreren', ring: 'processen', aantal: 1,
+          herkomst: [{ proces_id: 'pr3', proces_naam: 'Besluit vastleggen', applicatiefunctie_label: 'Registreren' }] },
+        { bron_id: 'a2', doel_id: 'pr6', relatietype: 'procesvervulling', label: 'Registreren', ring: 'processen', aantal: 1,
+          herkomst: [{ proces_id: 'pr6', proces_naam: 'Verhuizing verwerken', applicatiefunctie_label: 'Registreren' }] },
+        { bron_id: 'pr2', doel_id: 'pr1', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
+        { bron_id: 'pr3', doel_id: 'pr2', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
+        { bron_id: 'pr4', doel_id: 'pr1', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
+        { bron_id: 'pr6', doel_id: 'pr5', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
       ],
     })
     async function mountProces() {
@@ -969,6 +989,10 @@ describe('LandschapskaartView v3', () => {
       await w.find('[data-testid="lk-ring-processen"]').trigger('change') // ring UIT
       await flushPromises()
       expect(getekendeIds(w)).not.toContain('pr1') // alleen-via-processen-ring → knoop weg
+      // LI037 — de HELE keten verdwijnt: ook deelprocessen, de gap-schakel en de hiërarchie-lijnen.
+      expect(getekendeIds(w)).not.toContain('pr2')
+      expect(getekendeIds(w)).not.toContain('pr4')
+      expect(w.vm.zichtbareEdges.some((e) => e.relatietype === 'proces_hierarchie')).toBe(false)
       expect(w.vm.zichtbareEdges.some((e) => e.ring === 'processen')).toBe(false)
       await w.find('[data-testid="lk-ring-processen"]').trigger('change') // weer AAN
       await flushPromises()
@@ -1012,6 +1036,89 @@ describe('LandschapskaartView v3', () => {
       expect(w.find('[data-testid="lk-popup-velden"]').text()).toContain('Primair proces')
       expect(w.vm.popupActies.some((a) => a.label === 'Open proces →')).toBe(true)
     })
+
+    // ── LI037 fase 2 — proceszone als boom + guards ──
+    it('LI037 (boom) — rij = diepte, bomen gegroepeerd naast elkaar, distinct + deterministisch', async () => {
+      const w = await mountProces()
+      w.vm.toonLagen()
+      await flushPromises()
+      const pos = w.vm._swimlanePositions()
+      // Rij = diepte: wortel boven, elk niveau een rij lager; gelijke diepte = gelijke rij.
+      expect(pos.pr1.y).toBeLessThan(pos.pr2.y)
+      expect(pos.pr2.y).toBeLessThan(pos.pr3.y)
+      expect(pos.pr4.y).toBe(pos.pr2.y)
+      expect(pos.pr5.y).toBe(pos.pr1.y)
+      expect(pos.pr6.y).toBe(pos.pr2.y)
+      // Groepering per boom: de Burgerzaken-boom (alfabetisch eerst) staat volledig links van de
+      // Vergunningverlening-boom — geen overloop.
+      const boomV = ['pr1', 'pr2', 'pr3', 'pr4'].map((id) => pos[id].x)
+      const boomB = ['pr5', 'pr6'].map((id) => pos[id].x)
+      expect(Math.max(...boomB)).toBeLessThan(Math.min(...boomV))
+      // Distinct + deterministisch (twee aanroepen identiek).
+      const ids = ['pr1', 'pr2', 'pr3', 'pr4', 'pr5', 'pr6']
+      const sig = ids.map((id) => `${pos[id].x},${pos[id].y}`)
+      expect(new Set(sig).size).toBe(ids.length)
+      const pos2 = w.vm._swimlanePositions()
+      expect(ids.map((id) => `${pos2[id].x},${pos2[id].y}`)).toEqual(sig)
+      // De andere banen blijven het wrap-grid (a1/a2 in de componenten-baan, één rij).
+      expect(pos.a1.y).toBe(pos.a2.y)
+    })
+
+    it('LI037 (cue) — "geen ondersteunend systeem": subboom-afgeleid, rand + popup, los van de gaps-toggle', async () => {
+      const w = await mountProces()
+      const node = (id) => w.vm.grafNodes.find((n) => n.id === id)
+      expect(w.vm.toonRegistratiegaps).toBe(false) // de cue hangt hier bewust NIET aan
+      expect(w.vm._nodeData(node('pr4')).procesGap).toBe(true) // Bezwaar behandelen: niets eronder
+      expect(w.vm._nodeData(node('pr2')).procesGap).toBeUndefined() // eigen vervulling
+      expect(w.vm._nodeData(node('pr1')).procesGap).toBeUndefined() // gedekt via zijn deelprocessen
+      expect(w.vm._nodeData(node('pr5')).procesGap).toBeUndefined() // gedekt via pr6
+      // Eigen rustige CY-randstijl (geen alarmkleur — border-kleur blijft data(border)).
+      const stijl = w.vm.CY_STYLE.find((r) => r.selector === 'node[?procesGap]')
+      expect(stijl).toBeTruthy()
+      expect(stijl.style['border-style']).toBe('dashed')
+      // De popup benoemt het gat in woorden; een gedekt proces niet.
+      await w.vm.openNodePopup('pr4')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-popup-geen-systeem"]').exists()).toBe(true)
+      await w.vm.openNodePopup('pr2')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-popup-geen-systeem"]').exists()).toBe(false)
+    })
+
+    it('LI037 (guard) — hiërarchie-lijnen tellen nooit als vervuller; de toggle voegt geen proces toe', async () => {
+      const w = await mountProces()
+      // pr1 draagt ALLEEN hiërarchie-edges (pr2/pr4 wijzen ernaar) → geen vervullers, actie inert.
+      await w.vm.openNodePopup('pr1')
+      await flushPromises()
+      expect(w.vm.popupVervuldDoor).toEqual([])
+      expect(w.vm.popupVervulActie.modus).toBe('geen')
+      // pr2: alléén de échte component; de toggle voegt a1 toe en nooit een proces-id.
+      await w.vm.openNodePopup('pr2')
+      await flushPromises()
+      expect(w.vm.popupVervuldDoor.map((c) => c.naam)).toEqual(['Zaaksysteem'])
+      await w.find('[data-testid="lk-popup-vervul"]').trigger('click')
+      await flushPromises()
+      expect(w.vm.actieveSet.has('a1')).toBe(true)
+      expect([...w.vm.actieveSet].some((id) => String(id).startsWith('pr'))).toBe(false)
+    })
+
+    it('LI037 (popup) — hiërarchie-lijn → "Onderdeel van"; vervult-lijn → "Vervult" op het geregistreerde proces', async () => {
+      const w = await mountProces()
+      const hier = w.vm.grafEdges.find((e) => e.relatietype === 'proces_hierarchie' && e.bron_id === 'pr2')
+      await w.vm.openEdgePopup(hier)
+      await flushPromises()
+      expect(w.vm.popupTitel).toBe('Onderdeel van')
+      const velden = Object.fromEntries(w.vm.popupVelden.map((v) => [v.label, v.waarde]))
+      expect(velden['Deelproces']).toBe('Aanvraag behandelen')
+      expect(velden['Onderdeel van']).toBe('Vergunningverlening')
+      const vervult = w.vm.grafEdges.find((e) => e.relatietype === 'procesvervulling' && e.bron_id === 'a1')
+      await w.vm.openEdgePopup(vervult)
+      await flushPromises()
+      expect(w.vm.popupTitel).toBe('Vervult')
+      const v2 = Object.fromEntries(w.vm.popupVelden.map((v) => [v.label, v.waarde]))
+      expect(v2['Proces']).toBe('Aanvraag behandelen')
+      expect(v2['Component']).toBe('Zaaksysteem')
+    })
   })
 
   // ── LI036 slice 2 · stap 3 — aantal-badge + herkomst + "voeg vervullende componenten toe" ──
@@ -1027,16 +1134,17 @@ describe('LandschapskaartView v3', () => {
       ],
       edges: [
         { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties', richting: 'eenrichting', protocol: 'rest' },
-        { bron_id: 'a1', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 3,
+        // LI037 fase-1-datavorm: de bundel staat op het GEREGISTREERDE proces; herkomst = de
+        // functie-uitsplitsing van dat éne paar (geen herkomst uit andere processen meer).
+        { bron_id: 'a1', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 2,
           herkomst: [
-            { proces_id: 'd1', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Registreren' },
-            { proces_id: 'd1', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Raadplegen' },
-            { proces_id: 'd2', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Archiveren' },
+            { proces_id: 'pr1', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Registreren' },
+            { proces_id: 'pr1', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Raadplegen' },
           ] },
         { bron_id: 'a2', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'Archiveren', ring: 'processen', aantal: 1,
-          herkomst: [{ proces_id: 'd1', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Archiveren' }] },
+          herkomst: [{ proces_id: 'pr1', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Archiveren' }] },
         { bron_id: 'x-vrij', doel_id: 'pr2', relatietype: 'procesvervulling', label: 'Registreren', ring: 'processen', aantal: 1,
-          herkomst: [{ proces_id: 'd3', proces_naam: 'Geboorte verwerken', applicatiefunctie_label: 'Registreren' }] },
+          herkomst: [{ proces_id: 'pr2', proces_naam: 'Burgerzaken', applicatiefunctie_label: 'Registreren' }] },
       ],
     })
     async function mountStap3() {
@@ -1065,19 +1173,19 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm.popupVelden.some((v) => v.label === 'Vervuld door')).toBe(false)
       const namen = w.vm.popupVervuldDoor.map((c) => c.naam)
       expect(namen).toEqual(['DMS', 'Zaaksysteem'])
-      // Herkomst per component, gegroepeerd per deelproces, achter een <details> (standaard dicht).
+      // Herkomst per component (LI037: de functie-uitsplitsing van dít paar), achter een
+      // <details> (standaard dicht).
       const zaak = w.find('[data-testid="lk-popup-vervuld-a1"]')
       expect(zaak.element.tagName).toBe('DETAILS')
       expect(zaak.element.open).toBe(false)
       const zaakData = w.vm.popupVervuldDoor.find((c) => c.id === 'a1')
       expect(zaakData.herkomst).toEqual([
-        { label: 'Aanvraag behandelen', waarde: 'Registreren, Raadplegen' },
-        { label: 'Vergunningverlening', waarde: 'Archiveren' },
+        { label: 'Vergunningverlening', waarde: 'Registreren, Raadplegen' },
       ])
       // Uitklappen toont de herkomst-regels van díe component.
       zaak.element.open = true
       await flushPromises()
-      expect(zaak.text()).toContain('Aanvraag behandelen · Registreren, Raadplegen')
+      expect(zaak.text()).toContain('Vergunningverlening · Registreren, Raadplegen')
     })
 
     it('(b3) herkomst None/leeg → alleen de componentnaam, geen uitklap', async () => {
@@ -1100,10 +1208,9 @@ describe('LandschapskaartView v3', () => {
       const per = Object.fromEntries(w.vm.popupVelden.map((v) => [v.label, v.waarde]))
       expect(w.vm.popupTitel).toBe('Vervult')
       expect(per['Component']).toBe('Zaaksysteem')
-      expect(per['Hoofdproces']).toBe('Vergunningverlening')
-      expect(per['Koppelingen']).toBe('3')
-      expect(per['Aanvraag behandelen']).toBe('Registreren, Raadplegen')
-      expect(per['Vergunningverlening']).toBe('Archiveren')
+      expect(per['Proces']).toBe('Vergunningverlening') // LI037 — de bundel staat op het geregistreerde proces
+      expect(per['Koppelingen']).toBe('2')
+      expect(per['Vergunningverlening']).toBe('Registreren, Raadplegen')
     })
 
     it('(c) vervul-toggle: toevoegen mét highlight → live om naar "− Verwijder"; alleen de groep eruit; weergave blijft', async () => {

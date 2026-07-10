@@ -18,6 +18,7 @@ import { api } from '@/api'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { neemKaartHandoff } from '@/composables/kaartHandoff'
+import { procesBoomLayout } from '../procesBoom'
 import { humaniseer } from '../labels'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 import KaartBeginscherm from './KaartBeginscherm.vue'
@@ -1357,8 +1358,43 @@ function _herkomstVelden(herkomst) {
   }
   return [...per.entries()].map(([naam, functies]) => ({ label: naam, waarde: functies.join(', ') || '—' }))
 }
-// De vervult-edges van een hoofdproces in de huidige subgraaf (bron = component, doel = proces).
-const _vervulEdgesVan = (procesId) => grafEdges.value.filter((e) => e.ring === 'processen' && e.doel_id === procesId)
+// De vervult-edges van een (deel)proces in de huidige subgraaf (bron = component, doel = proces).
+// LI037 fase 2 — HARDE guard op `relatietype`: de ring 'processen' draagt sinds fase 1 óók
+// `proces_hierarchie`-edges (deelproces→ouder); die tellen NOOIT mee als vervullers — anders zou
+// de "Vervuld door"-popup een deelproces als component tonen en de vervul-toggle proces-ids aan
+// de component-set toevoegen.
+const _vervulEdgesVan = (procesId) => grafEdges.value.filter(
+  (e) => e.relatietype === 'procesvervulling' && e.doel_id === procesId,
+)
+// LI037 fase 2 (ADR-034 besluit 6/A3) — proces-knopen ZONDER ondersteunend systeem in hun hele
+// subboom: een vervulling dekt óók de voorouders (een hoofdproces met vervulde deelprocessen is
+// géén gat — alleen takken waar écht niets onder hangt vallen op). Puur afgeleid uit de edges,
+// geen datavlag; LOS van de "Toon registratiegaps"-toggle (die blijft over relatie-loze knopen
+// gaan — een keten-deelproces hééft een hiërarchie-lijn). Cyclus-veilig (gedekt-guard).
+const _procesZonderSysteem = computed(() => {
+  const ids = new Set(grafNodes.value.filter((n) => n.element_type === 'proces').map((n) => n.id))
+  if (!ids.size) return ids
+  const ouderVan = {}
+  for (const e of grafEdges.value) {
+    if (e.relatietype === 'proces_hierarchie' && ids.has(e.bron_id)) ouderVan[e.bron_id] = e.doel_id
+  }
+  const gedekt = new Set()
+  for (const e of grafEdges.value) {
+    if (e.relatietype !== 'procesvervulling') continue
+    let cur = e.doel_id
+    while (cur != null && ids.has(cur) && !gedekt.has(cur)) {
+      gedekt.add(cur)
+      cur = ouderVan[cur]
+    }
+  }
+  return new Set([...ids].filter((id) => !gedekt.has(id)))
+})
+// De rustige popup-benoeming van dat gat (eerlijk-gaten-tonen, popupSamenvatting-lijn).
+const popupProcesGap = computed(() => {
+  if (popupKind.value !== 'node') return false
+  const n = nodePerId.value[detailId.value]
+  return !!(n && n.element_type === 'proces' && _procesZonderSysteem.value.has(n.id))
+})
 // De componenten die dit hoofdproces vervullen (voor de set-actie; dedup doet de set-functie).
 function _vervullendeComponenten(procesId) {
   return _vervulEdgesVan(procesId)
@@ -1626,13 +1662,21 @@ async function openEdgePopup(edge) {
       // ADR-024 — hoort bij: bron (persoon/afdeling) → doel (afdeling/organisatie).
       popupTitel.value = 'Hoort bij'
       popupVelden.value = _velden([_veld('Onderdeel', bronNaam), _veld('Hoort bij', doelNaam)])
+    } else if (edge.relatietype === 'proces_hierarchie') {
+      // LI037 fase 2 — hiërarchie-lijn ("onderdeel van"): eigen popup-vorm — het kind is
+      // onderdeel van de ouder; NIET de vervult-vorm (dat is een andere relatie).
+      popupTitel.value = 'Onderdeel van'
+      popupVelden.value = _velden([
+        _veld('Deelproces', bronNaam),
+        _veld('Onderdeel van', doelNaam),
+      ])
     } else if (edge.ring === 'processen') {
-      // LI036 slice 2 · stap 3 — vervult-lijn: de bundel + de herkomst van díe bundel uitgesplitst
-      // (deelproces → functies) uit edge.herkomst; None/leeg → alleen de kop-velden.
+      // LI036 slice 2 · stap 3 → LI037 — vervult-lijn: de bundel op het GEREGISTREERDE
+      // (deel)proces + de functie-uitsplitsing uit edge.herkomst; None/leeg → alleen de kop-velden.
       popupTitel.value = 'Vervult'
       popupVelden.value = _velden([
         _veld('Component', bronNaam),
-        _veld('Hoofdproces', doelNaam),
+        _veld('Proces', doelNaam),
         edge.aantal > 1 ? { label: 'Koppelingen', waarde: `${edge.aantal}` } : null,
       ]).concat(_herkomstVelden(edge.herkomst))
     } else if (edge.ring === 'gebruikers') {
@@ -1962,6 +2006,17 @@ const zichtbareLanes = computed(() =>
 )
 // LI019 1d-v6 — per lane: de nodes (gesorteerd) + grid-afmetingen. Lane-hoogte schaalt met het
 // aantal rijen (nodes wrappen over LANE_COLS kolommen); lanes worden cumulatief gestapeld (`top`).
+// LI037 fase 2 (ADR-034 besluit 2) — boom-layout van de proceszone: rij = diepte (wortel boven),
+// kolommen gegroepeerd per boom (twee bomen lopen niet in elkaar over). Gedeelde pure module
+// (`procesBoom.js`) — de layout-samenval-test draait tegen DEZELFDE definitie (geen test-spiegel).
+// Buiten Lagen wordt dit niet gelezen; ring 'processen' uit → lege zone (instances vallen weg).
+const _procesBoom = computed(() => {
+  const ids = new Set(instanceProjectie.value.instances.filter((i) => i.baan === 'processen').map((i) => i.id))
+  const hier = grafEdges.value
+    .filter((e) => e.relatietype === 'proces_hierarchie')
+    .map((e) => ({ bron: e.bron_id, doel: e.doel_id }))
+  return procesBoomLayout(ids, hier, (id) => nodePerId.value[id]?.naam || String(id))
+})
 const laneLayout = computed(() => {
   // LI036 — banen vullen zich met INSTANCES (partij per rolbaan; identiteitsbanen strikt één).
   const perLane = {}
@@ -1971,7 +2026,11 @@ const laneLayout = computed(() => {
   let top = 0
   return zichtbareLanes.value.map((l, index) => {
     const nodes = (perLane[l.key] || []).slice().sort((a, b) => (a.node.naam || '').localeCompare(b.node.naam || ''))
-    const rows = Math.max(1, Math.ceil(nodes.length / LANE_COLS))
+    // LI037 fase 2 — de proceszone is rij-per-diepte (boom), niet het wrap-grid; alle andere
+    // banen exact ongewijzigd (default-pad byte-identiek — de tak hangt alleen aan deze key).
+    const rows = l.key === 'processen' && nodes.length
+      ? _procesBoom.value.rijen
+      : Math.max(1, Math.ceil(nodes.length / LANE_COLS))
     const height = Math.max(LANE_MIN_H, rows * NODE_H + 2 * LANE_PAD)
     const band = { key: l.key, label: l.label, bg: l.bg, aantal: l.aantal, leeg: nodes.length === 0, index, top, height, nodes }
     top += height
@@ -2008,6 +2067,10 @@ function _nodeData(n) {
     // LI033 — grof-only ("nog niet verfijnd"): rustige node-markering (gestippelde rand). Alleen
     // aanwezig als de node in de grof-only-set zit (undefined → CY-selector `node[?grofOnly]` matcht niet).
     grofOnly: grofOnlyIds.value.has(n.id) ? true : undefined,
+    // LI037 fase 2 (besluit 6/A3) — "geen ondersteunend systeem": rustige rand-cue op een
+    // proces-knoop zonder vervulling in zijn hele subboom (CY-selector `node[?procesGap]`);
+    // altijd zichtbaar zolang de proces-ring aan staat, los van de registratiegaps-toggle.
+    procesGap: n.element_type === 'proces' && _procesZonderSysteem.value.has(n.id) ? true : undefined,
   }
 }
 function _edgeData(e, i) {
@@ -2269,6 +2332,18 @@ function _swimlanePositions() {
   const pos = {}
   for (const lane of laneLayout.value) {
     const { nodes, top } = lane
+    // LI037 fase 2 — proceszone als BOOM: rij = diepte, kolom uit de gedeelde boom-layout
+    // (gegroepeerd per hoofdproces), horizontaal gecentreerd rond 0 zoals de andere banen.
+    if (lane.key === 'processen' && nodes.length) {
+      const boom = _procesBoom.value
+      const off = (boom.kolommen - 1) / 2
+      nodes.forEach((n) => {
+        const kol = boom.kolom.get(n.id) ?? 0
+        const rij = boom.rij.get(n.id) ?? 0
+        pos[n.id] = { x: (kol - off) * NODE_W, y: top + LANE_PAD + rij * NODE_H + NODE_H / 2 }
+      })
+      continue
+    }
     const count = nodes.length
     nodes.forEach((n, xi) => {
       const row = Math.floor(xi / LANE_COLS)
@@ -2457,6 +2532,10 @@ const CY_STYLE = [
   // rand-KLEUR blijft data(border) (lifecycle). Onderscheidbaar van de gestreepte externe-dataprovider;
   // selectie/highlight-regels hieronder winnen (staan later en zetten border-style terug op solid).
   { selector: 'node[?grofOnly]', style: { 'border-style': 'dotted', 'border-width': 3 } },
+  // LI037 fase 2 (besluit 6/A3) — proces zonder ondersteunend systeem: rustige gestreepte rand
+  // (zelfde eerlijkheids-cue-taal als grof-only/dataprovider; géén alarmkleur — de rand-KLEUR
+  // blijft data(border)). De popup benoemt het gat in woorden. Selectie/highlight-regels winnen.
+  { selector: 'node[?procesGap]', style: { 'border-style': 'dashed', 'border-width': 3 } },
   {
     selector: 'edge',
     style: {
@@ -3185,6 +3264,13 @@ const typeLabel = (t) => humaniseer(t)
               <dd class="break-words">{{ v.waarde }}</dd>
             </template>
           </dl>
+          <!-- LI037 fase 2 (besluit 6/A3) — rustige gat-benoeming: dit (deel)proces heeft in zijn
+               hele subboom geen ondersteunend systeem (spiegel van de popupSamenvatting-gat-regels). -->
+          <p
+            v-if="popupProcesGap"
+            data-testid="lk-popup-geen-systeem"
+            class="mt-2 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+          >Geen ondersteunend systeem geregistreerd.</p>
           <!-- LI036 stap 3 (besluit A) — "Vervuld door": scanbare componentnamen; de herkomst
                (deelproces · functies) klapt per component uit (native details, standaard dicht). -->
           <div v-if="popupVervuldDoor.length" data-testid="lk-popup-vervuld" class="mt-2 flex flex-col gap-0.5 text-[length:var(--lk-text-sm)]">

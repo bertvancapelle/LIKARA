@@ -4,6 +4,8 @@
  *  edges die de degree opblazen). De config hieronder spiegelt `_layout()` in LandschapskaartView.vue. */
 import { describe, expect, it } from 'vitest'
 import cytoscape from 'cytoscape'
+// LI037 fase 2 — de ECHTE boom-layout-module (gedeeld met de view; geen test-spiegel die drift).
+import { procesBoomLayout } from '@modules/bwb_ontvlechting/frontend/procesBoom'
 
 // Spiegel van de Overzicht-config in LandschapskaartView.vue::_layout (modus 'geheel'): CENTRUMLOZE,
 // deterministische built-in `grid` (geen ster; geen externe plugin). avoidOverlap + labelgrootte houden
@@ -136,6 +138,58 @@ describe('kaart-layout (ADR-040 F1 — geen samenvallende posities)', () => {
     const cy2 = cytoscape({ headless: true, elements: knopen.map((n) => ({ data: { id: n.id } })) })
     cy2.layout({ name: 'preset', positions: bereken().pos, animate: false }).run()
     expect(cy2.nodes().map((n) => `${Math.round(n.position().x)},${Math.round(n.position().y)}`)).toEqual(sig)
+  })
+
+  it('Lagen (proceszone-boom, LI037): rij = diepte, bomen gescheiden, distinct + deterministisch', () => {
+    // De ÉCHTE gedeelde boom-module (procesBoom.js — dezelfde definitie als de view) levert de
+    // preset-posities; de echte cytoscape bewijst dat die distinct en deterministisch landen.
+    const NODE_W = 190, NODE_H = 72, LANE_PAD = 30
+    const NAAM = {
+      h1: 'Vergunningverlening', d1: 'Aanvraag behandelen', s1: 'Besluit vastleggen',
+      d2: 'Bezwaar behandelen', h2: 'Burgerzaken', d3: 'Verhuizing verwerken',
+    }
+    const ids = new Set(Object.keys(NAAM))
+    const hier = [
+      { bron: 'd1', doel: 'h1' }, { bron: 's1', doel: 'd1' }, { bron: 'd2', doel: 'h1' },
+      { bron: 'd3', doel: 'h2' },
+    ]
+    const bereken = () => {
+      const boom = procesBoomLayout(new Set(ids), hier.map((e) => ({ ...e })), (id) => NAAM[id])
+      const off = (boom.kolommen - 1) / 2
+      const pos = {}
+      for (const id of ids) {
+        pos[id] = { x: (boom.kolom.get(id) - off) * NODE_W, y: LANE_PAD + boom.rij.get(id) * NODE_H + NODE_H / 2 }
+      }
+      return { boom, pos }
+    }
+    const { boom, pos } = bereken()
+    expect(boom.rijen).toBe(3) // 3 niveaus (hoofd → deel → processtap)
+    const cy = cytoscape({
+      headless: true,
+      style: [{ selector: 'node', style: { width: 140, height: 50 } }],
+      elements: [
+        ...Object.keys(NAAM).map((id) => ({ data: { id } })),
+        ...hier.map((e, i) => ({ data: { id: `h${i}`, source: e.bron, target: e.doel } })),
+      ],
+    })
+    cy.layout({ name: 'preset', positions: pos, animate: false, fit: false }).run()
+    // Kernassertie 1: geen twee proces-knopen op dezelfde positie (boomlijnen altijd tekenbaar).
+    const sig = cy.nodes().map((n) => `${Math.round(n.position().x)},${Math.round(n.position().y)}`)
+    expect(new Set(sig).size).toBe(cy.nodes().length)
+    // Kernassertie 2: rij = diepte (wortel boven, dieper lager; gelijke diepte = gelijke rij).
+    const y = (id) => cy.getElementById(id).position().y
+    expect(y('h1')).toBeLessThan(y('d1'))
+    expect(y('d1')).toBeLessThan(y('s1'))
+    expect(y('d2')).toBe(y('d1'))
+    expect(y('h2')).toBe(y('h1'))
+    // Kernassertie 3: bomen gescheiden — Burgerzaken (alfabetisch eerst) volledig links.
+    const x = (id) => cy.getElementById(id).position().x
+    expect(Math.max(x('h2'), x('d3'))).toBeLessThan(Math.min(x('h1'), x('d1'), x('s1'), x('d2')))
+    // Kernassertie 4: deterministisch — een tweede berekening + run geeft dezelfde posities.
+    const cy2 = cytoscape({ headless: true, elements: Object.keys(NAAM).map((id) => ({ data: { id } })) })
+    cy2.layout({ name: 'preset', positions: bereken().pos, animate: false, fit: false }).run()
+    const sig2 = cy2.nodes().map((n) => `${Math.round(n.position().x)},${Math.round(n.position().y)}`)
+    expect(sig2).toEqual(cy.nodes().map((n) => `${Math.round(n.position().x)},${Math.round(n.position().y)}`))
   })
 
   it('Praatplaat-ellips: de kring uitrekken naar de vensterverhouding maakt ’m breder dan hoog, zonder overlap', () => {
