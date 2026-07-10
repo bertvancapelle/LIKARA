@@ -39,7 +39,10 @@ vi.mock('@/api', () => ({
     // LI034/ADR-041 — persoonlijke standaardkijk (kaart-kijkfilter).
     voorkeuren: { haalAlle: vi.fn(), zet: vi.fn(), herroep: vi.fn() },
     // LI036 slice 2 — proces-popup (basis-detail hoofdproces).
-    processen: { haal: vi.fn() },
+    // LI037 fase 3 — proces-ingang: klim (haal), boom-vervullers (rollup + procesvervullingen)
+    // en de "Via proces"-zoeker (lijst, gepagineerd).
+    processen: { haal: vi.fn(), rollup: vi.fn(), lijst: vi.fn() },
+    procesvervullingen: { lijst: vi.fn() },
   },
 }))
 
@@ -1100,6 +1103,166 @@ describe('LandschapskaartView v3', () => {
       await flushPromises()
       expect(w.vm.actieveSet.has('a1')).toBe(true)
       expect([...w.vm.actieveSet].some((id) => String(id).startsWith('pr'))).toBe(false)
+    })
+
+    // ── LI037 fase 3 — proces-ingang (één gedeeld handoff, ADR-034 besluit 4) ──
+    // Eigen mount ZONDER de strategie-A-hele-landschap-laad (die zou de handoff-weergave overschrijven;
+    // in de echte flow komt de gebruiker binnen via het handoff, niet via "toon het hele landschap").
+    async function mountProcesHandoff() {
+      zetGraf(PROCES_GRAF())
+      const { w } = await mountView({ heleLandschap: false })
+      return w
+    }
+
+    it('LI037 (handoff) — proces-variant opent in LAGEN met de herkomst benoemd; consume-once', async () => {
+      neemKaartHandoff.mockReturnValueOnce({
+        componentIds: ['a1'],
+        weergave: 'lagen',
+        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr3', herkomstNaam: 'Besluit vastleggen' },
+      })
+      const w = await mountProcesHandoff()
+      expect(w.vm.weergave).toBe('lagen') // niet de praatplaat-dwang van ?center
+      expect(w.vm.actieveSet.has('a1')).toBe(true)
+      expect(w.vm.beginschermOpen).toBe(false)
+      const marker = w.find('[data-testid="lk-proces-herkomst"]')
+      expect(marker.text()).toContain('Proceslandschap: Vergunningverlening')
+      expect(marker.text()).toContain('via Besluit vastleggen')
+      // 3b/3d (herzien) — GEDIMD MET FOCUS: de herkomst-knoop is de actieve (oranje) selectie
+      // (de bestaande enkelklik-mechaniek dimt al het niet-directe) en wordt gecentreerd.
+      expect(w.vm.geselecteerdNodeId).toBe('pr3')
+      expect(w.vm._selectieZonderDim).toBe(null) // dim ACTIEF (geen onderdrukking bij een deelproces)
+      expect(w.vm._edgeGehighlight({ bron_id: 'a2', doel_id: 'pr3' })).toBe(true)
+      expect(w.vm._centreerNaLayoutId).toBe('pr3') // one-shot; geconsumeerd in _naLayout (echte cy)
+      // Wisbaar met × — selectie én dim-focus weg (plaat neutraal).
+      await w.find('[data-testid="lk-proces-herkomst-wis"]').trigger('click')
+      expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
+      expect(w.vm.geselecteerdNodeId).toBe(null)
+      // Consume-once: een volgende mount zonder handoff springt niet (default-mock → null).
+      const w2 = await mountProcesHandoff()
+      expect(w2.vm.weergave).toBe('overzicht')
+      expect(w2.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
+    })
+
+    it('LI037 (handoff) — hoofdproces-ingang: boom in Lagen, ZONDER aparte deelproces-herkomst', async () => {
+      neemKaartHandoff.mockReturnValueOnce({
+        componentIds: ['a1', 'a2'],
+        weergave: 'lagen',
+        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: null, herkomstNaam: null },
+      })
+      const w = await mountProcesHandoff()
+      expect(w.vm.weergave).toBe('lagen')
+      const marker = w.find('[data-testid="lk-proces-herkomst"]')
+      expect(marker.text()).toContain('Proceslandschap: Vergunningverlening')
+      expect(marker.text()).not.toContain('via')
+      // 3d (herzien) — hoofdproces-ingang: de wortel is de GESELECTEERDE (oranje) knoop en wordt
+      // gecentreerd, maar ZONDER dim (de hele boom blijft zichtbaar): de zonder-dim-onderdrukking
+      // staat op precies deze selectie.
+      expect(w.vm.geselecteerdNodeId).toBe('pr1')
+      expect(w.vm._selectieZonderDim).toBe('pr1') // selectie-highlight zonder dim (schone splitsing)
+      expect(w.vm._centreerNaLayoutId).toBe('pr1')
+      // Geen dim → geen "Toon hele landschap"-knop in de popup van de wortel (niets op te heffen).
+      await w.vm.openNodePopup('pr1')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-popup-toon-landschap"]').exists()).toBe(false)
+      // Chip-× wist de ingang-selectie mee (levensduur = die van de chip).
+      await w.find('[data-testid="lk-proces-herkomst-wis"]').trigger('click')
+      expect(w.vm.geselecteerdNodeId).toBe(null)
+      expect(w.vm._selectieZonderDim).toBe(null)
+      // 3d — het blauwe accent bestaat niet meer: geen CY-laag en geen data-veld.
+      expect(w.vm.CY_STYLE.some((r) => r.selector === 'node[?procesHerkomst]')).toBe(false)
+      const node = (id) => w.vm.grafNodes.find((n) => n.id === id)
+      expect('procesHerkomst' in w.vm._nodeData(node('pr1'))).toBe(false)
+    })
+
+    it('LI037-3b (weg terug) — "Toon hele landschap" in de herkomst-popup heft de dim op; accent + chip blijven', async () => {
+      neemKaartHandoff.mockReturnValueOnce({
+        componentIds: ['a1'],
+        weergave: 'lagen',
+        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr3', herkomstNaam: 'Besluit vastleggen' },
+      })
+      const w = await mountProcesHandoff()
+      // De knop hoort alléén in de popup van de HERKOMST-knoop (niet bij een ander proces).
+      await w.vm.openNodePopup('pr1')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-popup-toon-landschap"]').exists()).toBe(false)
+      await w.vm.openNodePopup('pr3')
+      await flushPromises()
+      const knop = w.find('[data-testid="lk-popup-toon-landschap"]')
+      expect(knop.exists()).toBe(true)
+      await knop.trigger('click')
+      await flushPromises()
+      // 3d — alléén de dim gaat weg: de herkomst blijft de geselecteerde (oranje) knoop tot de
+      // gebruiker elders klikt; de chip blijft de herkomst benoemen.
+      expect(w.vm.geselecteerdNodeId).toBe('pr3')
+      expect(w.vm._selectieZonderDim).toBe('pr3') // dim onderdrukt voor precies deze selectie
+      expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(true)
+      // Niets meer op te heffen → de knop is weg.
+      expect(w.find('[data-testid="lk-popup-toon-landschap"]').exists()).toBe(false)
+      // Een eigen klik elders = normale enkelklik-semantiek: selectie verspringt, dim weer normaal.
+      w.vm.inspecteerNode('pr1')
+      await flushPromises()
+      expect(w.vm.geselecteerdNodeId).toBe('pr1')
+      expect(w.vm._selectieZonderDim).toBe(null)
+    })
+
+    it('LI037-3d (combi) — gap-cue + oranje selectie op één knoop: selectie wint zolang hij staat, gap-info blijft in de popup', async () => {
+      neemKaartHandoff.mockReturnValueOnce({
+        componentIds: ['a1'],
+        weergave: 'lagen',
+        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr4', herkomstNaam: 'Bezwaar behandelen' },
+      })
+      const w = await mountProcesHandoff()
+      const pr4 = w.vm.grafNodes.find((n) => n.id === 'pr4')
+      // De gap-cue (fase 2) blijft in de data; de herkomst is de actieve selectie (dim-focus).
+      expect(w.vm._nodeData(pr4).procesGap).toBe(true)
+      expect(w.vm.geselecteerdNodeId).toBe('pr4')
+      // Bestaande stijl-regel: zolang de knoop geselecteerd is wint hl-node (solid oranje) van de
+      // gap-dash; verspringt de selectie, dan is de dashed gap-rand weer zichtbaar. De popup
+      // benoemt het gat áltijd in woorden — de informatie raakt nooit zoek.
+      const selectors = w.vm.CY_STYLE.map((r) => r.selector)
+      expect(selectors.indexOf('node.hl-node')).toBeGreaterThan(selectors.indexOf('node[?procesGap]'))
+      await w.vm.openNodePopup('pr4')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-popup-geen-systeem"]').exists()).toBe(true)
+    })
+
+    it('LI037 (via proces) — beginscherm-keuze bouwt dezelfde payload en opent Lagen; "Begin opnieuw" wist de markering', async () => {
+      api.processen.haal.mockImplementation(async (id) => ({
+        pr4: { id: 'pr4', naam: 'Bezwaar behandelen', ouder_id: 'pr1' },
+        pr1: { id: 'pr1', naam: 'Vergunningverlening', ouder_id: null },
+      }[id]))
+      api.processen.rollup.mockResolvedValue([{ component_id: 'a1' }, { component_id: 'a2' }])
+      api.procesvervullingen.lijst.mockResolvedValue([{ component_id: 'a1' }])
+      const w = await mountProces()
+      await w.vm.openViaProces({ id: 'pr4' })
+      await flushPromises()
+      // Boom-vervullers (rollup ∪ wortel-eigen, dedup) als set; Lagen; herkomst = het deelproces.
+      expect(api.processen.rollup).toHaveBeenCalledWith('pr1')
+      expect(api.procesvervullingen.lijst).toHaveBeenCalledWith({ proces_id: 'pr1' })
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+      expect(w.vm.weergave).toBe('lagen')
+      expect(w.find('[data-testid="lk-proces-herkomst"]').text()).toContain('via Bezwaar behandelen')
+      expect(w.vm.beginschermOpen).toBe(false)
+      // 3b — deelproces-keuze op het beginscherm opent óók gedimd-met-focus op de herkomst.
+      expect(w.vm.geselecteerdNodeId).toBe('pr4')
+      // "Begin opnieuw" = volledige reset, incl. de herkomstmarkering én de dim-focus.
+      w.vm.wisSet()
+      await flushPromises()
+      expect(w.vm.procesIngang).toBe(null)
+      expect(w.vm.geselecteerdNodeId).toBe(null)
+    })
+
+    it('LI037 (via proces) — boom zonder ondersteunende systemen: rustige melding, geen lege kaart', async () => {
+      api.processen.haal.mockResolvedValue({ id: 'px', naam: 'Leeg proces', ouder_id: null })
+      api.processen.rollup.mockResolvedValue([])
+      api.procesvervullingen.lijst.mockResolvedValue([])
+      const w = await mountProces()
+      const setVoor = new Set(w.vm.actieveSet)
+      await w.vm.openViaProces({ id: 'px' })
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toEqual([...setVoor]) // set onaangeroerd
+      expect(w.vm.weergave).toBe('overzicht') // geen weergavesprong
+      expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
     })
 
     it('LI037 (popup) — hiërarchie-lijn → "Onderdeel van"; vervult-lijn → "Vervult" op het geregistreerde proces', async () => {

@@ -11,6 +11,8 @@ vi.mock('@/api', () => ({
     gebruikersgroepen: { contexten: vi.fn(), contextComponenten: vi.fn() },
     // LI033 — inzoom-flow: de org-bron (grove feit, grof-only incluis).
     organisatiegebruik: { lijstVoorOrganisatie: vi.fn() },
+    // LI037 fase 3 — "Via proces": de gedeelde proces-zoeker pagineert over processen.lijst.
+    processen: { lijst: vi.fn() },
   },
 }))
 
@@ -49,6 +51,14 @@ beforeEach(() => {
     { component_id: 'c5', component_naam: 'BRP', componenttype: 'applicatie', verfijnd: false },
     { component_id: 'c6', component_naam: 'Zaaksysteem', componenttype: 'applicatie', verfijnd: true },
   ])
+  // LI037 fase 3 — proces-zoeker-bron (gepagineerd; hoofd- én deelprocessen).
+  api.processen.lijst.mockResolvedValue({
+    items: [
+      { id: 'vv', naam: 'Vergunningverlening', ouder_id: null },
+      { id: 'bz', naam: 'Bezwaar behandelen', ouder_id: 'vv' },
+    ],
+    volgende_cursor: null,
+  })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -183,5 +193,24 @@ describe('KaartBeginscherm', () => {
     expect(w.vm.zoekOpen).toBe(true) // dropdown stond open
     await w.find('[data-testid="kb-res-check-c1"]').trigger('change')
     expect(w.vm.zoekOpen).toBe(false) // en is nu gesloten
+  })
+
+  // ── LI037 fase 3 — "Via proces"-ingang (ADR-034 besluit 4) ──
+  it('"Via proces": sectie aanwezig; treffer toont oudercontext; keuze emit het proces als geheel', async () => {
+    const w = mountKB()
+    const picker = zs(w, 'kb-proces')
+    expect(picker).toBeTruthy()
+    // Identiteit-patroon: deelproces toont zijn ouder ("Bezwaar behandelen — Vergunningverlening").
+    const weergave = picker.props('weergave')
+    expect(weergave({ naam: 'Bezwaar behandelen', ouder_naam: 'Vergunningverlening' })).toBe('Bezwaar behandelen — Vergunningverlening')
+    expect(weergave({ naam: 'Vergunningverlening', ouder_naam: null })).toBe('Vergunningverlening')
+    // De zoekbron pagineert over processen.lijst en filtert soepel (client-side, zoekveld-norm).
+    const r = await picker.props('zoekFunctie')({ zoek: 'bezw' })
+    expect(api.processen.lijst).toHaveBeenCalled()
+    expect(r.items.map((p) => p.naam)).toEqual(['Bezwaar behandelen'])
+    // Keuze → het HELE proces gaat omhoog (de parent bouwt de ene handoff).
+    picker.vm.$emit('keuze', { id: 'bz', naam: 'Bezwaar behandelen', ouder_id: 'vv' })
+    await flushPromises()
+    expect(w.emitted('openProces')).toEqual([[{ id: 'bz', naam: 'Bezwaar behandelen', ouder_id: 'vv' }]])
   })
 })

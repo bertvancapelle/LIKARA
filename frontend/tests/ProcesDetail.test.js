@@ -16,9 +16,12 @@ vi.mock('@/api', () => ({
 
 // LI035 succes-standaard — helper gemockt zodat de succes-flows assertbaar zijn.
 vi.mock('@/meldingen', () => ({ toastSucces: vi.fn() }))
+// LI037 fase 3 — het consume-once-handoff naar de kaart (assertbaar op de payload).
+vi.mock('@/composables/kaartHandoff', () => ({ zetKaartHandoff: vi.fn() }))
 
 import { api } from '@/api'
 import { toastSucces } from '@/meldingen'
+import { zetKaartHandoff } from '@/composables/kaartHandoff'
 import { useAuthStore } from '@/store/auth'
 import ProcesDetail from '@modules/bwb_ontvlechting/frontend/views/ProcesDetail.vue'
 
@@ -57,6 +60,8 @@ function maakRouter() {
       { path: '/processen', name: 'proces-lijst', component: { template: '<div/>' } },
       { path: '/processen/:id', name: 'proces-detail', component: ProcesDetail, props: true },
       { path: '/componenten/:id', name: 'component-detail', component: { template: '<div/>' } },
+      // LI037 fase 3 — "Bekijk op kaart"-doel.
+      { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
     ],
   })
 }
@@ -297,5 +302,71 @@ describe('ProcesComponentenSectie — koppelregels', () => {
     expect(w.find('[data-testid="pcs-regel-r1"]').exists()).toBe(true)
     expect(w.find('[data-testid="pcs-toevoegregel"]').exists()).toBe(false)
     expect(w.find('[data-testid="pcs-verwijder-r1"]').exists()).toBe(false)
+  })
+})
+
+// ── LI037 fase 3 — "Bekijk op kaart" (ADR-034 besluit 4) ─────────────────────────
+describe('ProcesDetail — Bekijk op kaart (LI037 fase 3)', () => {
+  async function mountMetRouter({ id = 'ab', rollen = ['medewerker'] } = {}) {
+    const router = maakRouter()
+    await router.push(`/processen/${id}`)
+    await router.isReady()
+    const pinia = createPinia()
+    const auth = useAuthStore(pinia)
+    auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: rollen }
+    const w = mount(ProcesDetail, {
+      props: { id },
+      global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } },
+    })
+    await flushPromises()
+    return { w, router }
+  }
+
+  it('deelproces: bouwt de ENE handoff (boom-vervullers, Lagen, herkomst = dit deelproces) en navigeert', async () => {
+    api.processen.rollup.mockResolvedValue([{ component_id: 'c1' }, { component_id: 'c2' }])
+    api.procesvervullingen.lijst.mockImplementation(async (p = {}) =>
+      p.proces_id === 'vv' ? [{ component_id: 'c2' }, { component_id: 'c3' }] : [])
+    const { w, router } = await mountMetRouter({ id: 'ab' })
+    await w.find('[data-testid="proces-bekijk-op-kaart"]').trigger('click')
+    await flushPromises()
+    // Klim naar de wortel + boom-vervullers uit rollup ∪ wortel-eigen regels (dedup).
+    expect(api.processen.rollup).toHaveBeenCalledWith('vv')
+    expect(api.procesvervullingen.lijst).toHaveBeenCalledWith({ proces_id: 'vv' })
+    expect(zetKaartHandoff).toHaveBeenCalledWith({
+      componentIds: ['c1', 'c2', 'c3'],
+      weergave: 'lagen',
+      procesIngang: { wortelId: 'vv', wortelNaam: 'Vergunningverlening', herkomstId: 'ab', herkomstNaam: 'Aanvraag behandelen' },
+    })
+    expect(router.currentRoute.value.name).toBe('landschapskaart')
+  })
+
+  it('hoofdproces: zelfde boom, ZONDER aparte deelproces-herkomst', async () => {
+    api.processen.rollup.mockResolvedValue([{ component_id: 'c1' }])
+    api.procesvervullingen.lijst.mockImplementation(async (p = {}) =>
+      p.proces_id === 'vv' ? [{ component_id: 'c1' }] : [])
+    const { w, router } = await mountMetRouter({ id: 'vv' })
+    await w.find('[data-testid="proces-bekijk-op-kaart"]').trigger('click')
+    await flushPromises()
+    expect(zetKaartHandoff).toHaveBeenCalledWith({
+      componentIds: ['c1'],
+      weergave: 'lagen',
+      procesIngang: { wortelId: 'vv', wortelNaam: 'Vergunningverlening', herkomstId: null, herkomstNaam: null },
+    })
+    expect(router.currentRoute.value.name).toBe('landschapskaart')
+  })
+
+  it('boom zonder ondersteunende systemen: rustige melding, géén handoff en géén navigatie', async () => {
+    api.processen.rollup.mockResolvedValue([])
+    api.procesvervullingen.lijst.mockResolvedValue([])
+    const { w, router } = await mountMetRouter({ id: 'ab' })
+    await w.find('[data-testid="proces-bekijk-op-kaart"]').trigger('click')
+    await flushPromises()
+    expect(zetKaartHandoff).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.name).toBe('proces-detail')
+  })
+
+  it('zonder kaart-leesrol is de knop er niet (affordance; backend handhaaft)', async () => {
+    const { w } = await mountMetRouter({ id: 'ab', rollen: [] })
+    expect(w.find('[data-testid="proces-bekijk-op-kaart"]').exists()).toBe(false)
   })
 })

@@ -11,11 +11,15 @@
  * "+ Deelproces toevoegen" in de blokkop; de toevoeg-dialog woont hier, ouder voorgevuld).
  * Beide secties :key op props.id — remount bij detail→detail-navigatie (vaste norm).
  */
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { Button, Dialog, useToast } from '@/primevue'
 import { toastSucces } from '@/meldingen'
 import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
+import { useRouter } from '@/composables/router'
+import { useAuthStore } from '@/store/auth'
+import { zetKaartHandoff } from '@/composables/kaartHandoff'
 import { api } from '@/api'
+import { bouwProcesKaartHandoff } from '../procesKaartIngang'
 import OnderliggendeProcessenSectie from './OnderliggendeProcessenSectie.vue'
 import ProcesComponentenSectie from './ProcesComponentenSectie.vue'
 import VeldUitleg from './VeldUitleg.vue'
@@ -24,6 +28,10 @@ const props = defineProps({ id: { type: String, required: true } })
 
 const { terugLabel, gaTerug } = useTerugNavigatie()
 const toast = useToast()
+const router = useRouter()
+const auth = useAuthStore()
+// Spiegel van ComponentDetail: de kaart-route is gegate op de architectuur-leesrollen.
+const magKaartZien = computed(() => auth.hasRole('viewer', 'medewerker', 'beheerder', 'auditor'))
 
 const proces = ref(null)
 const voorouders = ref([]) // wortel → directe ouder (voor de broodkruimel)
@@ -99,6 +107,28 @@ async function bevestigToevoegen() {
   }
 }
 
+// ── LI037 fase 3 — "Bekijk op kaart" (ADR-034 besluit 4) ─────────────────────
+// Zelfde gedeelde bouwer als de "Via proces"-beginschermingang: de volledige boom onder het
+// hoofdproces, in Lagen, met dít (deel)proces als benoemde herkomst. Consume-once handoff
+// (id-lijst te lang voor een URL — zelfde reden als het gebruikte-applicaties-blok).
+const kaartBezig = ref(false)
+async function bekijkOpKaart() {
+  kaartBezig.value = true
+  try {
+    const payload = await bouwProcesKaartHandoff(api, props.id)
+    if (!payload.componentIds.length) {
+      toast.add({ severity: 'info', summary: 'Dit proceslandschap heeft nog geen ondersteunende systemen — er is niets te tonen op de kaart.', life: 3500 })
+      return
+    }
+    zetKaartHandoff(payload)
+    router.push({ name: 'landschapskaart' })
+  } catch (e) {
+    if (e?.status !== 401) toast.add({ severity: 'error', summary: 'Bekijk op kaart is mislukt.', life: 3000 })
+  } finally {
+    kaartBezig.value = false
+  }
+}
+
 // Detail-view-norm: props.id-watch i.p.v. onMounted (detail→detail-navigatie herlaadt).
 watch(() => props.id, () => laad(), { immediate: true })
 </script>
@@ -123,6 +153,16 @@ watch(() => props.id, () => laad(), { immediate: true })
             {{ proces.naam }}
           </h1>
           <VeldUitleg veld="proces" testid="uitleg-proces" />
+          <!-- LI037 fase 3 — actie bij de identiteit van het proces (ComponentDetail-precedent). -->
+          <Button
+            v-if="magKaartZien"
+            label="Bekijk op kaart"
+            severity="secondary"
+            class="ml-auto"
+            data-testid="proces-bekijk-op-kaart"
+            :disabled="kaartBezig"
+            @click="bekijkOpKaart"
+          />
         </div>
         <!-- Broodkruimel (context-in-header): klikbare keten naar boven. -->
         <p v-if="voorouders.length" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]" data-testid="proces-broodkruimel">
