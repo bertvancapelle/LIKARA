@@ -1,6 +1,6 @@
-# SESSIE_BRIEFING.md — LIKARA V036
+# SESSIE_BRIEFING.md — LIKARA V037
 
-**Gegenereerd**: 2026-07-09
+**Gegenereerd**: 2026-07-10
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Veld | Waarde |
 |------|--------|
-| Build | V036 |
+| Build | V037 |
 | Datum | July 2026 |
-| Commit | 8a76f55 |
-| Tests | backend 997 (2 skipped) / frontend 80 files, 965 groen |
-| TST-rapport | TST-V036-Validatierapport.md |
+| Commit | a99fe23 |
+| Tests | backend 1001 (2 skipped) / frontend 80 files, 1006 groen |
+| TST-rapport | TST-V037-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -22,67 +22,97 @@
 ## Recente commits
 
 ```
-8a76f55 [fullstack] ADR-042 slice 5: roll-up-inzicht + organisatie-proceskijk + succes-toast-standaard
-0c4fe60 [frontend] ADR-042 slice 4b: componentkant proceswereld — vier-blokken-Overzicht, procesregels, overlay-formulier
-3a65c3b [frontend] ADR-042 slice 4a: proceswereld-schermen + regel-acties-/meldingspatroon — LI035
-ddb7b7a [backend] ADR-042 slice 2+3: applicatiefunctie-catalogus + procesvervulling-koppelregel
-cc43418 [backend] ADR-042 slice 1: proces-element + nestbare boom (schema/RBAC/audit/API)
+a99fe23 LI036: ADR-onderhoud — ADR-034/040 naar de gebouwde realiteit
+9914c25 LI036: skill-borging — Lagen-weergave, rolbanen, proceslaan, kaartpatronen
+f9a8a6f LI036 slice 2 stap 3: proceslaan afgerond — badge, herkomst-popup, vervullers-toggle
+5fa5fe0 LI036 slice 2 stap 2: proceslaan + ring "Processen" op de kaart
+d2b07f3 LI036 slice 2 stap 1: proces-projectie in de kaart-subgraaf (read-only)
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# NEXT_SESSION.md — LIKARA V036
+# NEXT_SESSION.md — LIKARA V037
 
-**Gegenereerd**: 2026-07-09
-**Vorige build**: V036
+**Gegenereerd**: 2026-07-10
+**Vorige build**: V037
 **Branch**: master
 
-> **Sessie LI035 — lijststaat-patroon + ADR-042 volledig (procesregister t/m roll-up). Geland (V036).**
+> **Sessie LI036 — Lagenweergave mét proceslaan volledig geland (V037).**
 >
-> Afgerond in LI035:
-> - **Lijststaat-patroon** — `useLijstStaat` (sessionStorage-momentstaat, route-leave + beforeunload,
->   precedentie deep-link > bewaard > default) op partij-/component-/contract-/proces-lijst (`9128a24`).
-> - **ADR-042 volledig, 5 slices**: procesregister (nestbare boom, element-subtype, migraties 0056/0057,
->   `cc43418`) · applicatiefunctie-catalogus + koppelregel procesvervulling (0058/0059, `ddb7b7a`) ·
->   proces-schermen met regel-acties + MeldingBanner (`3a65c3b`) · componentkant: vier-vragen-Overzicht +
->   overlay-formulier (`0c4fe60`) · roll-up-inzicht + organisatie-proceskijk + succes-toast-standaard
->   (`8a76f55`).
-> - **Zes browsercheck-bevindingen → zes systeembrede patronen**: Dialog-primitive (vaste kop/voetbalk,
->   min-h-0, scroll-schaduw in primair-blauw), breedte-override-borging, MeldingBanner (kleur+icoon+
->   positie+scroll-vangnet), samengevoegd "Onderliggende processen"-blok, succes-toast-standaard
->   (`toastSucces`), regel-acties-patroon.
-> - **Acht likara-skills** bijgewerkt met de LI035-patronen + correcties (CD004-scope, beheerrol=dimensie,
->   AppLayout-testlocatie, IMPACT_RINGEN afgeschaft); globale CLAUDE.md-trailer → Claude Fable 5.
+> Afgerond in LI036:
+> - **"Lagen" als derde kaart-weergave** — Cytoscape preset-baanposities + HTML-band-overlay,
+>   render-fix eerste frame (meet-stap `updateStyle` + `layoutDimensions` in de preset-tak),
+>   maatwissel = resize + fit zonder re-layout (`7b4c00c`).
+> - **Rolbanen met rol-accent** — partij als visuele instance per rolbaan (`id@baan`, interactie op
+>   `logischId`), rol-tags als HTML-pill-overlay die de dim-staat delen (`7b4c00c`).
+> - **"Ring uit wint van gaps"** + **organisatiebalk toont alleen in-beeld-organisaties (model i,
+>   contrafeitelijk; uitzetten omkeerbaar)** (`0b4a5dd`).
+> - **Proceslaan (slice 2, stap 1–3)**: backend proces-projectie in de subgraaf — roll-up naar
+>   hoofdproces, cyclus-veilig, één roll-up-definitie, engine onaangeroerd (`d2b07f3`) · frontend
+>   proceslaan + ring "Processen" + proces-vorm afgeronde rechthoek/verloop-pijl (`5fa5fe0`) ·
+>   aantal-badge + inklapbare herkomst-popup + vervul-toggle met exact-ongedaan-maken (`f9a8a6f`).
+> - **16 patronen geborgd in vijf likara-skills** (`9914c25`); **ADR-034/040 bijgewerkt naar de
+>   gebouwde realiteit** — diepte-punt "alleen hoofdprocessen" prominent als tussenstand (`a99fe23`).
 >
-> Tests: backend **997** (2 skipped) / frontend **80 files, 965** groen. Migratie-head **0059**.
+> Tests: backend **1001** (2 skipped) / frontend **80 files, 1006** groen. Migratie-head **0059**
+> (geen schema-wijziging deze sessie).
 
 ---
 
-## Volgende stappen
+## Volgende stappen — TOP-6 (in deze volgorde)
 
-### 1e taak — ADR-034-herbouw: lagenweergave op de kaart-selectie, mét proces-laan
+### 1. Deelprocessen eerste-klas op de kaart (besloten top-1)
+Component→(deel)proces zichtbaar (niet weggerold); proceshiërarchie deelproces→hoofdproces als
+knopen+lijnen; deelprocessen uitvouwbaar detail-op-aanvraag; plotbaar vanuit component én vanuit
+(deel)proces. Herziet de stap-1-diepte-keuze ("alleen hoofdprocessen" = tussenstand — zie
+ADR-034 ⚠ bewust openstaand).
 
-De lagenweergave opnieuw opbouwen op de kaart-selectie. Drie LI035-ontwerpnotities meenemen:
-- **nesting** van de procesboom binnen de business-laan (hoe diep tonen);
-- **selectie-semantiek** (wat betekent een proces-klik voor de kaart-set);
-- **roll-up in de laan** (toont een hoofdproces de doorgerolde componenten of alleen de directe).
+**Bevat het geparkeerde "proces als kaart-vertrekpunt":** "Bekijk op kaart" vanaf een
+(deel)proces zet dát proces als centrum; opent in **Lagen**; laadt de **doorgerolde
+subboom-vervullers** (unie procesvervullingen + rollup); **neutraal openen** (niet gedimd);
+vanaf een deelproces → hoofdproces-context mét oorsprong-signaal (deelproces benoemd).
+Ingangen: knop op ProcesDetail + "Via proces"-zoekingang in KaartBeginscherm. Puur frontend
+(kaartHandoff + weergave-veld). **Start met een read-only checkpoint + ontwerpdialoog.**
 
-**Kader:** ontwerp eerst (PNA + Bert), dan bouwen; de proceswereld (ADR-042) is de nieuwe laag die
-deze weergave af moet dekken.
+### 2. Plaatstaat-herstel na onbedoelde onderbreking
+lk-state (set/weergave/ringen/scope) overleeft timeout/herlaad/browser-dicht — **zonder
+tijdslimiet**; alleen bewuste actie (uitloggen/"Begin opnieuw"/nieuwe verkenning) geeft schone
+start. Herstel-na-onderbreking, géén bewaarde voorkeur (ADR-041 blijft). Eerst read-only
+feitencheck: Keycloak-sessie-/tokenlevensduur + waar lk-state leeft + bewaarplek
+(privacy-randje). Raakt de auth/401-cluster.
 
-### Daarna — zie OPVOLGPUNTEN.md (geprioriteerd, Stand V036)
-Top-5 LI036: (1) ADR-034-herbouw lagenweergave; (2) audit-dekking entiteit-deletes (systemisch
-core-execute-gat, hoog); (3) UI-consistentie-bundel (11 dialoog-klonen → BevestigVerwijderDialog,
-2 warn-banners → MeldingBanner, PartijRollenSectie-verwijder-asymmetrie); (4) kaart component-breed
-(ADR-verkenning); (5) beginscherm-/kaartverfijningen. Daarna: GEMMA-procesimport (eigen ADR-spoor,
-ná ADR-034).
+### 3. Architectuur-scherm compleet verwijderen (besluit A)
+Lagen-view + Tabel-view + zijbalk-menu + route. Ingehaald door de kaart-lagenweergave; elk
+elementtype heeft z'n eigen register. Eerst read-only inventarisatie van alles wat eraan hangt —
+**KRITISCH: `ARCHITECTUUR.LEZEN` NIET verwijderen** (de Landschapskaart gebruikt die ook); check
+`architectuur_service`, inkomende "Open in Architectuur"-links, tests. Eigen slice met gate +
+browsercheck.
+
+### 4. Beginscherm als enige vertrekpunt
+Linker filterkolom verbergen/inklappen zolang er geen selectie is (0 in beeld); pas tonen zodra
+er een set is; "Begin opnieuw" → terug naar alleen het beginscherm. Open: verbergen vs.
+inklappen; wat de kolom toont bij lege set.
+
+### 5. Rapportage & export (eigen strategisch spoor, eerst doordenken)
+PDF van een kaart-selectie: (a) grafische weergave van de getoonde plaat + (b) leesbare
+beschrijving van álle getoonde relaties (via de bestaande relatie-hertaling). Bundelt oude
+fragmenten (ADR-025 import/export/rapportage; PDF-per-applicatie; Excel/CSV bestuurlijk;
+PNG/PDF-kaart). Open: scope (hele selectie vs. per knoop); v1 sjabloon-tekst (deterministisch)
+vs. AI-proza (later, governance-kanttekening); render (SVG/PNG uit Cytoscape); backend- vs.
+frontend-PDF; UI-plek; RBAC; performance bij schaal.
+
+### 6. Bredere ruggengraat (uit OPVOLGPUNTEN)
+Audit-dekking op deletes; UI-consistentiebundel (11 bevestig-dialogen → één, 2 waarschuwingen →
+standaard, verwijder-asymmetrie partijrollen); kaart component-breed (ADR-verkenning: elk
+componenttype zoekbare knoop); contactpersoon als keuze uit personen eigen organisatie
+(schema-gate); GEMMA-procesimport (eigen ADR-spoor).
 
 ### Staande werkafspraken (ongewijzigd)
 - Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` is de exclusieve commit-trigger.
 - UX-first: gebruikerservaring is het uitgangspunt, techniek is vangrail; browsercheck-bevindingen
-  → patroon-onderzoek vóór punt-fixes (LI035-les).
+  → patroon-onderzoek vóór punt-fixes.
 - Gate-discipline: schema-/UX-slices stoppen met gate-rapport + browsercheck-draaiboek vóór commit;
   vitest altijd vanuit `frontend/`; backend-suite vanaf de repo-root.
 
@@ -92,13 +122,13 @@ ná ADR-034).
 
 | Veld | Waarde |
 |------|--------|
-| Build | V036 |
-| Datum | 2026-07-09 |
-| Tests | backend 997 (2 skipped) / frontend 80 files, 965 groen |
+| Build | V037 |
+| Datum | 2026-07-10 |
+| Tests | backend 1001 (2 skipped) / frontend 80 files, 1006 groen |
 | Migratie-head | 0059_adr042_procesvervulling |
-| TST-rapport | TST-V036-Validatierapport.md |
+| TST-rapport | TST-V037-Validatierapport.md |
 | Kritieke bevindingen | 0 |
-| Skills | acht likara-skills bijgewerkt (LI035-patronen + correcties) |
+| Skills | vijf likara-skills bijgewerkt (16 LI036-patronen); ADR-034/040 → gebouwde realiteit |
 
 
 ---
@@ -107,5 +137,5 @@ ná ADR-034).
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V036"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V037"
 4. Wacht op START: [naam] van Bert

@@ -5,40 +5,54 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V036 · 2026-07-09
-- **Commit:** acht app-commits (`233cc0c` · `9128a24` · `2ff8fa9` · `cc43418` · `ddb7b7a` · `3a65c3b` ·
-  `0c4fe60` · `8a76f55`) + afsluit-commit (8 skills + docs + build) volgt.
-- **Tests:** backend 997 / 2 skipped / 0 failed · frontend 965 groen (80 files) · 0 kritieken
-- **Migratie-head:** `0059_adr042_procesvervulling` (0056 proces-subtype+boom · 0057 RLS/grants ·
-  0058 applicatiefunctie-catalogus · 0059 procesvervulling)
-- **TST-rapport:** `docs/TST-V036-Validatierapport.md`
-- **Bekende ruis:** `LandschapskaartView.test.js` happy-dom teardown-flake (pre-existing, geen testfalen).
+- **Build:** V037 · 2026-07-10
+- **Commit:** zeven app-commits (`7b4c00c` · `0b4a5dd` · `d2b07f3` · `5fa5fe0` · `f9a8a6f` ·
+  `9914c25` · `a99fe23`) + afsluit-commit (docs + build) volgt.
+- **Tests:** backend 1001 / 2 skipped / 0 failed · frontend 1006 groen (80 files) · 0 kritieken ·
+  restdata-check expliciet 0
+- **Migratie-head:** `0059_adr042_procesvervulling` (ongewijzigd — geen schema-wijziging deze sessie;
+  proces-projectie is een pure leeslaag, `herkomst` een additief response-veld)
+- **TST-rapport:** `docs/TST-V037-Validatierapport.md`
+- **Bekende ruis:** dubbeltap-timer-tests in `LandschapskaartView.test.js` zijn belastinggevoelig
+  (timeouts onder CPU-verzadiging bij rug-aan-rug-runs; geen code-regressie — geborgd in likara-tests).
 
-## Deze sessie (LI035 — lijststaat + ADR-042 volledig) — AFGEROND
-**Kader:** de proceswereld als registratie + read-only inzicht (score blijft de enige lifecycle-driver),
-plus het lijststaat-patroon en zes browsercheck-bevindingen die systeembrede patronen werden.
-- **Lijststaat (`9128a24`).** `useLijstStaat`: sessionStorage-momentstaat per lijstscherm (route-leave +
-  beforeunload; deep-link > bewaard > default; cursor nooit mee) op 4 lijstschermen.
-- **ADR-042 (5 slices).** Proces = nestbaar element-subtype (plek=niveau; business_process = 2e
-  gemarkeerde behavior-uitzondering); koppelregel = tripel (component, proces, applicatiefunctie),
-  component-breed; applicatiefunctie = single-purpose platformcatalogus (GEMMA-startset); schermen met
-  regel-acties + MeldingBanner; componentkant met vier-vragen-Overzicht + overlay-formulier; roll-up =
-  pure leeslaag (subboom + tak_id-groepering, open-tenzij-groot) + organisatie-proceskijk (eigendom +
-  gebruik, dedupe) + succes-toast-standaard (`toastSucces`).
-- **Zes patronen uit de browsercheck:** Dialog-primitive (vaste kop/voetbalk, min-h-0, scroll-schaduw
-  primair-blauw), breedte-override-borging, MeldingBanner, samengevoegd "Onderliggende processen"-blok,
-  succes-toast, regel-acties. Vastgelegd in de acht likara-skills, mét correcties (CD004-scope,
-  beheerrol = dimensie, AppLayout-testlocatie, IMPACT_RINGEN afgeschaft).
+## Deze sessie (LI036 — Lagenweergave mét proceslaan) — AFGEROND
+**Kader:** ADR-034-herbouw als derde kaart-weergave op de kaart-selectie, met de proceswereld
+(ADR-042) als nieuwe laan. Engine onaangeroerd; geen schema-wijziging.
+- **"Lagen" als derde weergave (`7b4c00c`).** Cytoscape preset-baanposities + HTML-band-overlay
+  (geen compound-nodes); render-fix eerste frame = meet-stap (`updateStyle` + `layoutDimensions`)
+  in de preset-tak; maatwissel = `cy.resize()` + fit, geen re-layout.
+- **Rolbanen met rol-accent (`7b4c00c`).** Partij als visuele instance per rolbaan (`id@baan`,
+  interactie op `logischId`); rol-tags (gebruikt/levert/beheert/eigenaar) als HTML-pill-overlay
+  die de dim-staat van hun knoop delen.
+- **"Ring uit wint van gaps" + organisatiebalk model i (`0b4a5dd`).** Gap-knopen respecteren de
+  ring-stand; de balk toont alleen in-beeld-organisaties (contrafeitelijk afgeleid — uitgezette
+  org blijft zichtbaar-onaangevinkt, dus omkeerbaar).
+- **Proceslaan slice 2, stap 1–3.** Backend proces-projectie in de subgraaf: roll-up naar
+  hoofdproces, cyclus-veilige `_wortel`-klim, samengetrokken edges met `aantal` + `herkomst[]`,
+  één roll-up-definitie (`d2b07f3`) · frontend proceslaan + ring "Processen" + proces-vorm
+  afgeronde rechthoek/verloop-pijl (`5fa5fe0`) · aantal-badge + inklapbare herkomst-popup +
+  vervul-toggle met exact-ongedaan-maken (`_vervulToegevoegd`-administratie; set-acties wijzigen
+  nooit de weergave) (`f9a8a6f`).
+- **Borging.** 16 patronen in vijf likara-skills (`9914c25`); ADR-034/040 naar de gebouwde
+  realiteit met het diepte-punt "alleen hoofdprocessen = tussenstand" prominent open (`a99fe23`).
 
-## Top-5 prioriteiten volgende sessie (LI036)
-1. **ADR-034-herbouw lagenweergave** (op de kaart-selectie, mét proces-laan; 3 ontwerpnotities:
-   nesting business-laan, selectie-semantiek, roll-up in de laan).
-2. **Audit-dekking entiteit-deletes** (systemisch core-execute-gat, pre-existing — hoog).
-3. **UI-consistentie-bundel** (11 dialoog-klonen → BevestigVerwijderDialog; 2 warn-banners →
-   MeldingBanner; PartijRollenSectie-verwijder-asymmetrie).
-4. **Kaart component-breed** (ADR-verkenning).
-5. **Beginscherm-/kaartverfijningen** (filterbalk leeg beginscherm, view-scope, filterbalk
-   vereenvoudigen, contextvelden-unie). Daarna: GEMMA-procesimport (eigen ADR-spoor, ná ADR-034).
+## Top-6 prioriteiten volgende sessie (LI037) — zie NEXT_SESSION.md voor de volle tekst
+1. **Deelprocessen eerste-klas op de kaart** (besloten top-1; herziet de diepte-tussenstand;
+   bevat het geparkeerde "proces als kaart-vertrekpunt" — ProcesDetail-knop + "Via proces"-ingang,
+   opent in Lagen met doorgerolde subboom-vervullers, neutraal; start read-only + ontwerpdialoog).
+2. **Plaatstaat-herstel na onbedoelde onderbreking** (lk-state overleeft timeout/herlaad zonder
+   tijdslimiet; alleen bewuste actie geeft schone start; eerst read-only feitencheck auth/401).
+3. **Architectuur-scherm compleet verwijderen** (besluit A; `ARCHITECTUUR.LEZEN` NIET verwijderen —
+   de kaart gebruikt die; eerst read-only inventarisatie; eigen slice met gate + browsercheck).
+4. **Beginscherm als enige vertrekpunt** (filterkolom verbergen/inklappen bij lege set).
+5. **Rapportage & export** (eigen strategisch spoor, eerst doordenken — PDF kaart-selectie:
+   plaat + leesbare relatie-beschrijving via de bestaande hertaling).
+6. **Bredere ruggengraat** (audit-dekking deletes; UI-consistentiebundel; kaart component-breed;
+   contactpersoon uit eigen organisatie (schema-gate); GEMMA-procesimport (eigen ADR-spoor)).
+
+**Losse punten (OPVOLGPUNTEN):** rol-accent beknopt/uitgebreid als ADR-041-kijkvoorkeur;
+labelkeuze "Rollen & beheer" → "Partijen & rollen"?; ADR-register-gat (README mist ADR-026..033/035/036).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

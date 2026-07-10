@@ -7,6 +7,34 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Stand V037 (sluitprotocol LI036 — Lagenweergave mét proceslaan, 2026-07-10)
+
+Build **V036 → V037**. Geland: **"Lagen" als derde kaart-weergave** (preset-baanposities +
+HTML-band-overlay, meet-stap-render-fix, maatwissel = resize+fit, `7b4c00c`), **rolbanen met
+rol-accent** (partij als instance per rolbaan, rol-tags delen dim-staat, `7b4c00c`), **"ring uit
+wint van gaps" + organisatiebalk in-beeld model i** (`0b4a5dd`), **proceslaan slice 2 stap 1–3**:
+backend proces-projectie (roll-up naar hoofdproces, cyclus-veilig, één roll-up-definitie, engine
+onaangeroerd, `d2b07f3`) + proceslaan/ring "Processen"/proces-vorm (`5fa5fe0`) + aantal-badge/
+herkomst-popup/vervul-toggle met exact-ongedaan-maken (`f9a8a6f`). 16 patronen geborgd in vijf
+likara-skills (`9914c25`); ADR-034/040 bijgewerkt naar de gebouwde realiteit — diepte-punt "alleen
+hoofdprocessen" prominent als tussenstand (`a99fe23`). Tests: backend 1001/2 skipped, frontend
+80 files/1006. Migratie-head **0059** (geen schema-wijziging).
+
+**Top-6 volgende sessies: zie NEXT_SESSION.md** (deelprocessen eerste-klas op de kaart incl.
+proces-als-vertrekpunt; plaatstaat-herstel na onderbreking; Architectuur-scherm verwijderen;
+beginscherm als enige vertrekpunt; rapportage & export; bredere ruggengraat).
+
+**Losse/kleinere punten uit LI036 (niet in de top-6):**
+
+1. **Rol-accent beknopt/uitgebreid als persoonlijke kijkvoorkeur via ADR-041** — ná
+   browserbevestiging van de uitgebreide vorm.
+2. **Labelkeuze "Rollen & beheer" → "Partijen & rollen"?** — de baan verzamelt alle
+   partij-rollen (gebruikt/levert/beheert/eigenaar), niet alleen beheer.
+3. **ADR-register aanvullen** — `docs/adr/README.md` mist de rijen ADR-026 t/m 033, 035 en 036
+   (ouder gat, door CC gemeld deze sessie; ADR-034/040-rijen zijn wél bijgewerkt).
+
+---
+
 ### Stand V036 (sluitprotocol LI035 — lijststaat + ADR-042 volledig, 2026-07-09)
 
 Build **V035 → V036**. Geland: lijststaat-patroon (`useLijstStaat`, 4 lijstschermen, `9128a24`) en
