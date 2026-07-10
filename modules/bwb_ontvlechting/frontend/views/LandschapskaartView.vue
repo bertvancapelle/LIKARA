@@ -715,13 +715,17 @@ function _metContext(matchedIds) {
   }
   return ids
 }
-const zichtbareNodes = computed(() => {
+// LI036 organisatiebalk — de zichtbaar-pipeline als FUNCTIE met de scope-zeef als parameter, zodat
+// de balk-lijst (`organisatiesInBeeld`) exact dezelfde pipeline contrafeitisch kan draaien ("alsof de
+// org-vinkjes aan staan") zónder tweede, driftende node-pad. `zichtbareNodes` = deze functie met de
+// gewone `_inScope`.
+function _bepaalZichtbaar(inScopeFn) {
   // LI019 1c — de filterselects gelden in ALLE modi. LI019 1d-v4 — bij een actief filter komen de
   // context-buren (niet-flow ringen) van de gematchte componenten mee, zodat de ringen zichtbaar blijven.
   // ADR-024 scope: de organisatie-scope is een extra zeef VÓÓR de weergave (alleen org-nodes + hun
   // gebruikersgroepen; componenten nooit). ADR-040 F1 stap 2b — geldt op OVERZICHT; op de praatplaat is
   // `_inScope` inert. Filters/ringen/selectie werken daarbinnen ongewijzigd door.
-  const alle = grafNodes.value.filter(_inScope)
+  const alle = grafNodes.value.filter(inScopeFn)
   if (modus.value === 'ego') {
     if (!filterActief.value) return alle.filter((n) => egoZichtbaarIds.value.has(n.id))
     const matched = new Set(alle.filter((n) => egoZichtbaarIds.value.has(n.id) && _filterMatch(n)).map((n) => n.id))
@@ -737,14 +741,16 @@ const zichtbareNodes = computed(() => {
   const matched = new Set(alle.filter(_filterMatch).map((n) => n.id))
   const zichtbaar = _metContext(matched)
   return alle.filter((n) => zichtbaar.has(n.id))
-})
+}
+const zichtbareNodes = computed(() => _bepaalZichtbaar(_inScope))
 const zichtbareNodeIds = computed(() => new Set(zichtbareNodes.value.map((n) => n.id)))
-const zichtbareEdges = computed(() =>
-  grafEdges.value.filter(
-    // Fix 4 — ringAan filtert de edges in ALLE modi (niet meer alleen ego/geheel).
-    (e) => zichtbareNodeIds.value.has(e.bron_id) && zichtbareNodeIds.value.has(e.doel_id) && ringAan.value.has(e.ring),
-  ),
-)
+// Zichtbare edges bínnen een node-set: beide endpoints aanwezig + ring aan. Eén bron voor de echte
+// weergave (`zichtbareEdges`) én het contrafeitelijke balk-pad.
+function _edgesBinnen(ids) {
+  // Fix 4 — ringAan filtert de edges in ALLE modi (niet meer alleen ego/geheel).
+  return grafEdges.value.filter((e) => ids.has(e.bron_id) && ids.has(e.doel_id) && ringAan.value.has(e.ring))
+}
+const zichtbareEdges = computed(() => _edgesBinnen(zichtbareNodeIds.value))
 
 // ── Actieve set ─────────────────────────────────────────────────────────────────
 function inSet(id) {
@@ -1885,24 +1891,42 @@ function _edgeData(e, i) {
     bronLog: e.bron_logisch || e.bron_id, doelLog: e.doel_logisch || e.doel_id,
   }
 }
-// LI020 — definitieve node-set voor het canvas (IDENTIEK voor alle weergaven — Lagen is enkel een
-// andere layout, geen andere set). Een node is zichtbaar als: het ego-centrum (ego-modus),
-// OF hij raakt minstens één ZICHTBARE (ring-aan) edge. Losse nodes (registratiegaps) zijn standaard
-// verborgen; de toggle "Toon registratiegaps" (LI019 1d-v7) neemt ze óók mee. Dedup op id.
-const getekendeNodes = computed(() => {
+// LI036 "ring uit wint" — baan→ring-map voor de gaps-inperking: een écht relatie-loze knoop
+// (registratiegap) toont onder de toggle alléén als de ring van zijn CATEGORIE aan staat
+// (categorie via _laneVan; de componenten-baan hoort bij de 'applicaties'-ring). 'overig'
+// (categorieloos) heeft geen ring → altijd tonen onder de toggle — daar is niets uitgezet, en
+// stil verbergen zou een echte gap onzichtbaar maken.
+const _BAAN_RING = { rollen: 'rollen', gebruikers: 'gebruikers', componenten: 'applicaties', infrastructuur: 'infrastructuur', contracten: 'contracten' }
+// LI020 → LI036 — definitieve node-set voor het canvas (IDENTIEK voor alle weergaven — Lagen is
+// enkel een andere layout, geen andere set). "Ring uit wint": zichtbaar is wat de AANstaande
+// ringen dragen — een knoop is zichtbaar als hij het ego-centrum of een set-lid is (bewuste
+// keuzes), OF hij minstens één ZICHTBARE (ring-aan) edge raakt, OF hij onder "Toon
+// registratiegaps" een échte gap is (geen énkele relatie) in een categorie waarvan de ring aan
+// staat. Een knoop die alléén via uitgezette ringen relaties had, valt dus weg — óók met de
+// gaps-toggle aan, en óók in de Lagen-weergave (de vroegere banen-uitzondering is vervallen).
+// LI036 organisatiebalk — het getekend-predicaat als FUNCTIE over een aangeleverde zichtbaar-set,
+// zodat de balk-lijst dezelfde regels contrafeitisch kan draaien. `getekendeNodes` = deze functie
+// over de gewone `zichtbareNodes`; de edges worden per set via `_edgesBinnen` bepaald (voor de
+// echte weergave identiek aan `zichtbareEdges`).
+function _bepaalGetekend(nodesArr) {
+  const ids = new Set(nodesArr.map((n) => n.id))
+  const edges = _edgesBinnen(ids)
   const metZichtbareEdge = new Set()
-  zichtbareEdges.value.forEach((e) => { metZichtbareEdge.add(e.bron_id); metZichtbareEdge.add(e.doel_id) })
+  edges.forEach((e) => { metZichtbareEdge.add(e.bron_id); metZichtbareEdge.add(e.doel_id) })
+  // Alle relaties, ring-ONGEACHT — onderscheidt "échte gap" van "alleen-via-uitgezette-ring".
+  const heeftRelatie = new Set()
+  grafEdges.value.forEach((e) => { heeftRelatie.add(e.bron_id); heeftRelatie.add(e.doel_id) })
   // LI027 — focus op actieve set: beperk tot de set-nodes (altijd) + hun directe buren via een zichtbare edge.
   let focusIds = null
   if (focusOpSet.value && actieveSet.value.size > 0) {
     focusIds = new Set(actieveSet.value)
-    zichtbareEdges.value.forEach((e) => {
+    edges.forEach((e) => {
       if (actieveSet.value.has(e.bron_id)) focusIds.add(e.doel_id)
       if (actieveSet.value.has(e.doel_id)) focusIds.add(e.bron_id)
     })
   }
   const uniek = new Map()
-  for (const n of zichtbareNodes.value) {
+  for (const n of nodesArr) {
     if (uniek.has(n.id)) continue
     if (focusIds) {
       if (focusIds.has(n.id)) uniek.set(n.id, n) // focus-modus: set-nodes + directe buren
@@ -1914,13 +1938,27 @@ const getekendeNodes = computed(() => {
     // dit → ik hoor het te zien", geen leeg canvas op Overzicht. Type-agnostisch. Niet-gekozen losse
     // nodes blijven de bewuste registratiegaten-keuze (verborgen tenzij `toonRegistratiegaps`).
     const setLid = actieveSet.value.has(n.id)
-    // LI019 1d-v8 → LI036 — in de LAGEN-weergave valt de edge-aanwezigheidseis weg: elke node hoort
-    // in een baan, dus toon álle nodes uit zichtbareNodes. De edge-filter is enkel voor de radiale
-    // weergaven (losse nodes zweven daar rond). `toonRegistratiegaps` doet dit ook daar.
-    if (weergave.value === 'lagen' || toonRegistratiegaps.value || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
+    // LI036 "ring uit wint" — de ring-bewuste gaps-term vervangt de twee kale termen (de vroegere
+    // `weergave==='lagen'`-banen-uitzondering en de kale gaps-toggle): een gap toont alleen als hij
+    // ÉCHT relatie-loos is én de ring van zijn categorie aan staat ('overig' = geen ring = tonen).
+    const catRing = _BAAN_RING[_laneVan(n)]
+    const gapZichtbaar = toonRegistratiegaps.value && !heeftRelatie.has(n.id) && (!catRing || ringAan.value.has(catRing))
+    if (gapZichtbaar || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.set(n.id, n)
   }
   return [...uniek.values()]
-})
+}
+const getekendeNodes = computed(() => _bepaalGetekend(zichtbareNodes.value))
+
+// LI036 organisatiebalk (model i) — de balk toont alleen organisaties die bij de HUIDIGE selectie in
+// beeld (zouden) zijn: dezelfde pipeline (zichtbaar → getekend, dus ná ringen/"ring uit wint"/filters/
+// focus, cross-view identiek), maar met de org-vinkjes weggedacht. Zo valt een geladen-maar-irrelevante
+// organisatie (het RID-geval) weg, én blijft een UITGEZETTE organisatie zichtbaar-onaangevinkt in de
+// balk zolang de selectie haar relevant maakt (focussen blijft omkeerbaar). Kleine benadering: álle
+// org-vinkjes worden samen weggedacht (één extra pipeline-run i.p.v. één per organisatie) — verschil
+// kan alleen ontstaan via org↔org-edges (organisatiestructuur, default uit).
+const organisatiesInBeeld = computed(() =>
+  _bepaalGetekend(_bepaalZichtbaar((n) => _isOrg(n) || _inScope(n))).filter(_isOrg),
+)
 
 // LI034 bug A — getekende set-leden ZONDER zichtbare relatie (op Overzicht): eerlijk benoemen dat het
 // component nog geen relaties in beeld heeft (gaten tonen, niet verbergen). Alleen op Overzicht — op de
@@ -2449,7 +2487,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -2786,9 +2824,13 @@ const typeLabel = (t) => humaniseer(t)
           class="flex flex-wrap items-center gap-x-[var(--lk-space-md)] gap-y-1 border-b border-[var(--lk-color-border)] bg-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)]"
         >
           <span class="text-[length:var(--lk-text-sm)] font-semibold">Organisaties in beeld:</span>
-          <label v-for="o in organisatieNodes" :key="o.id" class="flex items-center gap-1 text-[length:var(--lk-text-sm)]">
+          <!-- LI036 — de lijst = organisaties die bij DEZE selectie in beeld (zouden) zijn
+               (`organisatiesInBeeld`, model i) — niet de volledige geladen subgraaf. Een uitgezette
+               organisatie blijft onaangevinkt staan zolang de selectie haar relevant maakt. -->
+          <label v-for="o in organisatiesInBeeld" :key="o.id" class="flex items-center gap-1 text-[length:var(--lk-text-sm)]">
             <input type="checkbox" :checked="scopeOrgs.has(o.id)" :data-testid="`lk-scope-org-${o.id}`" @change="toggleScopeOrg(o.id)" />{{ o.naam }}
           </label>
+          <span v-if="!organisatiesInBeeld.length" data-testid="lk-scope-leeg" class="text-[length:var(--lk-text-sm)] italic text-[var(--lk-color-text-muted)]">geen organisatie in beeld</span>
         </div>
 
       <!-- Canvas — min-h-0 is kritiek: zonder negeert een flex-child de height:100% van de parent,

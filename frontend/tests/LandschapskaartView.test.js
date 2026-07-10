@@ -528,7 +528,10 @@ describe('LandschapskaartView v3', () => {
     const { w } = await mountView()
     w.vm.toonLagen()
     await flushPromises()
-    // De 8 componenten zijn los (geen edges) — swimlane toont ze sowieso (geen edge-eis).
+    // LI036 ring-uit-wint — losse componenten (echte gaps) tonen óók in Lagen alleen onder de
+    // gaps-toggle (hun categorie-ring 'applicaties' staat default aan).
+    await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+    await flushPromises()
     const pos = w.vm._swimlanePositions()
     const xs = Object.values(pos).map((p) => p.x)
     const ys = new Set(Object.values(pos).map((p) => p.y))
@@ -540,7 +543,7 @@ describe('LandschapskaartView v3', () => {
     expect(comp.height).toBeGreaterThan(150)
   })
 
-  it('LI019 1d-v8 — swimlane toont álle nodes uit zichtbareNodes (radiaal-data zonder edge-eis)', async () => {
+  it('LI036 ring-uit-wint — losse knopen tonen in Lagen alléén via de gaps-toggle + hun categorie-ring', async () => {
     zetGraf({
       nodes: [
         { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'p1' },
@@ -550,18 +553,21 @@ describe('LandschapskaartView v3', () => {
       edges: [{ bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' }],
     })
     const { w } = await mountView()
-    // Radiaal (geheel): edge-rakende nodes — a1,a2 verbonden, p1 los → verborgen.
+    // Overzicht: edge-rakende nodes — a1,a2 verbonden, p1 los → verborgen.
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
-    // Swimlane: álle nodes uit zichtbareNodes (= radiaal-data), incl. de losse p1 — geen edge-eis.
+    // LI036 — de vroegere banen-uitzondering is vervallen: ook Lagen verbergt losse knopen
+    // zonder de gaps-toggle.
     w.vm.toonLagen()
     await flushPromises()
-    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
-    // Terug naar radiaal + "Toon registratiegaps" AAN → óók daar de losse p1.
-    w.vm.toonOverzicht()
-    await flushPromises()
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
+    // Gaps-toggle AAN → p1 (échte gap; categorie-ring 'rollen' staat aan) verschijnt.
     await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
     await flushPromises()
     expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'p1'])
+    // Categorie-ring uit → de gap verdwijnt, óók met de toggle aan ("ring uit wint").
+    await w.find('[data-testid="lk-ring-rollen"]').trigger('change')
+    await flushPromises()
+    expect(w.vm.getekendeNodes.map((n) => n.id).sort()).toEqual(['a1', 'a2'])
   })
 
   it('LI019 1d-v4 — banden in twee lagen rond het canvas: achtergronden niet-interactief, header interactief', async () => {
@@ -605,7 +611,7 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-lane-reset"]').exists()).toBe(false)
   })
 
-  it('LI019 1d-v8 — registratiegaps-toggle toont losse nodes in radiaal; swimlane toont ze sowieso', async () => {
+  it('LI036 — registratiegaps-toggle geldt in ALLE weergaven (Lagen niet meer "sowieso")', async () => {
     // p1 (partij) en k1 (contract) hebben geen edges → in radiaal standaard verborgen, mét toggle zichtbaar.
     const { w } = await mountView()
     expect(w.vm.getekendeNodes.map((n) => n.id)).not.toContain('p1') // los → verborgen (radiaal)
@@ -614,14 +620,20 @@ describe('LandschapskaartView v3', () => {
     const radiaalGaps = w.vm.getekendeNodes.map((n) => n.id)
     expect(radiaalGaps).toContain('p1') // nu zichtbaar in radiaal
     expect(radiaalGaps).toContain('k1')
-    // Swimlane toont losse nodes sowieso (zonder toggle nodig).
+    // LI036 — Lagen zonder toggle: losse nodes óók daar verborgen (geen banen-uitzondering meer).
     await w.find('[data-testid="lk-registratiegaps"]').setValue(false)
     await flushPromises()
     w.vm.toonLagen()
     await flushPromises()
-    const swimIds = w.vm.getekendeNodes.map((n) => n.id)
-    expect(swimIds).toContain('p1') // in de Rollen-lane
-    expect(swimIds).toContain('k1') // in de Contracten-lane
+    let swimIds = w.vm.getekendeNodes.map((n) => n.id)
+    expect(swimIds).not.toContain('p1')
+    expect(swimIds).not.toContain('k1')
+    // Toggle aan → de gaps verschijnen in hun baan (rollen-/contracten-ring staan aan).
+    await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+    await flushPromises()
+    swimIds = w.vm.getekendeNodes.map((n) => n.id)
+    expect(swimIds).toContain('p1') // in de Rollen-baan
+    expect(swimIds).toContain('k1') // in de Contracten-baan
   })
 
   it('LI019 1d-v2 — lanevolgorde + verberg-lege hersteld uit sessionStorage', async () => {
@@ -667,6 +679,9 @@ describe('LandschapskaartView v3', () => {
 
     it('de scopebalk blijft zichtbaar op Lagen (scope werkt daar door — P8), verborgen op de praatplaat', async () => {
       const { w } = await mountView()
+      // LI036 organisatiebalk — p1 (org zonder relaties) is pas "in beeld" via de gaps-toggle.
+      await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+      await flushPromises()
       expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true) // overzicht
       w.vm.toonLagen()
       await flushPromises()
@@ -832,6 +847,9 @@ describe('LandschapskaartView v3', () => {
 
     it('(f) partij zonder rol → Rollen & beheer, zonder rol-tag (besluit B)', async () => {
       const w = await mountRolbanen()
+      // LI036 ring-uit-wint — p0 is een échte gap (geen enkele relatie) → zichtbaar via de toggle.
+      await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
+      await flushPromises()
       const p0 = instVan(w, 'p0')
       expect(p0.length).toBe(1)
       expect(p0[0].baan).toBe('rollen')
@@ -894,6 +912,146 @@ describe('LandschapskaartView v3', () => {
       await flushPromises()
       expect(w.vm.fullscreen).toBe(false)
       expect(inst.add.mock.calls.length).toBe(addsVoor)
+    })
+  })
+
+  // ── LI036 — organisatiebalk toont alleen in-beeld-organisaties (model i) ──
+  describe('LI036 — organisatiebalk (model i)', () => {
+    // rid = geladen door de subgraaf-discovery (eigenaar-/hoort-bij-keten) maar zónder zichtbare
+    // relatie in deze selectie — het RID-geval. oA is wél in beeld (eigenaar-edge).
+    const BALK_GRAF = () => ({
+      nodes: [
+        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0, eigenaar_organisatie_id: 'oA' },
+        { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'oA', naam: 'Gemeente Tiel', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+        { id: 'rid', naam: 'RID Rivierenland', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+      ],
+      edges: [
+        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
+        { bron_id: 'oA', doel_id: 'a1', relatietype: 'eigenaar', label: 'is eigendom van', ring: 'eigenaar' },
+      ],
+    })
+    async function mountBalk() {
+      zetGraf(BALK_GRAF())
+      const { w } = await mountView()
+      return w
+    }
+
+    it('een geladen-maar-niet-getekende organisatie (RID-geval) staat NIET in de balk — Overzicht én Lagen', async () => {
+      const w = await mountBalk()
+      expect(w.find('[data-testid="lk-scope-org-oA"]').exists()).toBe(true) // in beeld → in de balk
+      expect(w.find('[data-testid="lk-scope-org-rid"]').exists()).toBe(false) // geladen, niet in beeld
+      expect(w.vm.organisatiesInBeeld.map((o) => o.id)).toEqual(['oA'])
+      // De seed blijft over de VOLLE geladen lijst gaan (rid blijft aangevinkt-in-scope, alleen onzichtbaar).
+      expect([...w.vm.scopeOrgs].sort()).toEqual(['oA', 'rid'])
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(w.find('[data-testid="lk-scope-org-oA"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-scope-org-rid"]').exists()).toBe(false) // cross-view identiek
+    })
+
+    it('model i — uitzetten om te focussen blijft omkeerbaar: uitgezette org blijft onaangevinkt in de balk', async () => {
+      const w = await mountBalk()
+      await w.find('[data-testid="lk-scope-org-oA"]').trigger('change') // oA uit
+      await flushPromises()
+      // De org-node verdwijnt van de plaat, maar blijft (onaangevinkt) in de balk staan.
+      expect(getekendeIds(w)).not.toContain('oA')
+      const cb = w.find('[data-testid="lk-scope-org-oA"]')
+      expect(cb.exists()).toBe(true)
+      expect(cb.element.checked).toBe(false)
+      // Weer aanzetten via de balk herstelt de org op de plaat.
+      await cb.trigger('change')
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('oA')
+    })
+
+    it('lege balk (geen enkele organisatie in beeld) → korte hint i.p.v. kale ruimte', async () => {
+      // Alleen rid geladen (irrelevant voor de selectie) → balk bestaat, lijst leeg → hint.
+      const g = BALK_GRAF()
+      g.nodes = g.nodes.filter((n) => n.id !== 'oA')
+      g.edges = g.edges.filter((e) => e.bron_id !== 'oA')
+      zetGraf(g)
+      const { w } = await mountView()
+      expect(w.find('[data-testid="lk-scopebalk"]').exists()).toBe(true)
+      expect(w.vm.organisatiesInBeeld.length).toBe(0)
+      expect(w.find('[data-testid="lk-scope-leeg"]').text()).toBe('geen organisatie in beeld')
+    })
+
+    it('de balk beweegt mee met de ringen: eigenaar-ring uit → org niet meer in beeld → uit de balk', async () => {
+      const w = await mountBalk()
+      expect(w.find('[data-testid="lk-scope-org-oA"]').exists()).toBe(true)
+      await w.find('[data-testid="lk-ring-eigenaar"]').trigger('change') // enige relevantie-ring van oA uit
+      await flushPromises()
+      expect(w.find('[data-testid="lk-scope-org-oA"]').exists()).toBe(false) // "ring uit wint" werkt door
+      expect(w.find('[data-testid="lk-scope-leeg"]').exists()).toBe(true)
+    })
+  })
+
+  // ── LI036 — "ring uit wint van gaps": zichtbaar is wat de aanstaande ringen dragen ──
+  describe('LI036 — ring uit wint van gaps', () => {
+    const RING_GRAF = {
+      nodes: [
+        { id: 'a1', naam: 'App', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'oX', naam: 'Alleen Beheer BV', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+        { id: 'oY', naam: 'Beheer en Eigenaar BV', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+        { id: 'gap1', naam: 'Losse DB', element_type: 'database', laag: 'technology', lifecycle_status: 'concept', blokkades_open: 0 },
+        { id: 'los1', naam: 'Categorieloos object' }, // geen element_type → categorie 'overig' (geen ring)
+      ],
+      edges: [
+        { bron_id: 'oX', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Technisch beheer', ring: 'rollen' },
+        { bron_id: 'oY', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Functioneel beheer', ring: 'rollen' },
+        { bron_id: 'oY', doel_id: 'a1', relatietype: 'eigenaar', label: 'is eigendom van', ring: 'eigenaar' },
+      ],
+    }
+    async function mountRing() {
+      zetGraf(RING_GRAF)
+      const { w } = await mountView()
+      await w.find('[data-testid="lk-registratiegaps"]').setValue(true) // gaps AAN in alle regeltests
+      await flushPromises()
+      return w
+    }
+
+    it('(a+b) ring uit haalt knopen weg die alléén via die ring in beeld waren — óók met gaps aan; een tweede aanstaande ring houdt de knoop vast', async () => {
+      const w = await mountRing()
+      expect(getekendeIds(w)).toContain('oX') // vooraf: rollen-ring aan → zichtbaar
+      await w.find('[data-testid="lk-ring-rollen"]').trigger('change') // Rollen & beheer UIT
+      await flushPromises()
+      const ids = getekendeIds(w)
+      expect(ids).not.toContain('oX') // alleen-via-rollen → weg (heeft relaties, dus géén echte gap)
+      expect(ids).toContain('oY') // eigenaar-ring staat nog aan → blijft
+      expect(ids).toContain('a1') // idem (endpoint van de eigenaar-edge)
+    })
+
+    it('(c) een échte gap (geen enkele relatie) volgt de ring van zijn categorie', async () => {
+      const w = await mountRing()
+      expect(getekendeIds(w)).toContain('gap1') // infrastructuur-ring aan → zichtbaar
+      await w.find('[data-testid="lk-ring-infrastructuur"]').trigger('change')
+      await flushPromises()
+      expect(getekendeIds(w)).not.toContain('gap1') // categorie-ring uit → gap weg
+    })
+
+    it('(d) een categorieloze losse knoop ("overig", geen ring) blijft zichtbaar, ongeacht ringen', async () => {
+      const w = await mountRing()
+      expect(getekendeIds(w)).toContain('los1')
+      for (const r of ['rollen', 'infrastructuur', 'applicaties', 'contracten']) {
+        await w.find(`[data-testid="lk-ring-${r}"]`).trigger('change')
+      }
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('los1') // er is voor 'overig' niets uitgezet
+    })
+
+    it('(e) identiek gedrag op Lagen (één gedeelde regel)', async () => {
+      const w = await mountRing()
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('oX')
+      await w.find('[data-testid="lk-ring-rollen"]').trigger('change')
+      await flushPromises()
+      const ids = getekendeIds(w)
+      expect(ids).not.toContain('oX') // ring uit wint, ook in de banen
+      expect(ids).toContain('oY')
+      expect(ids).toContain('gap1') // echte gap + toggle aan + infrastructuur-ring aan
+      expect(ids).toContain('los1') // overig blijft
     })
   })
 
@@ -1705,6 +1863,10 @@ describe('LandschapskaartView v3', () => {
     edges: [
       { bron_id: 'appA', doel_id: 'ggA', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' },
       { bron_id: 'appB', doel_id: 'ggLoos', relatietype: 'serving', label: 'gebruikt door', ring: 'gebruikers' },
+      // LI036 organisatiebalk — de backend levert voor een eigenaar-org een eigenaar-edge; zonder
+      // zo'n edge is een org terecht niet "in beeld" (en dus niet in de balk).
+      { bron_id: 'oA', doel_id: 'appA', relatietype: 'eigenaar', label: 'is eigendom van', ring: 'eigenaar' },
+      { bron_id: 'oB', doel_id: 'appB', relatietype: 'eigenaar', label: 'is eigendom van', ring: 'eigenaar' },
     ],
   })
   // Rauwe node-zichtbaarheid (groepeerPerOrg uit → individuele gg-nodes toetsbaar, geen aggregatie).
@@ -2451,7 +2613,10 @@ describe('LandschapskaartView v3', () => {
 
     it('filter laat de graaf ONGEWIJZIGD (dimmen, geen verbergen)', async () => {
       const { w } = await mountView()
-      w.vm.toonLagen() // Lagen-weergave tekent alle nodes ongeacht edges (LI036)
+      w.vm.toonLagen()
+      await flushPromises()
+      // LI036 ring-uit-wint — losse nodes (d1/k1/p1) tonen via de gaps-toggle (categorie-ringen aan).
+      await w.find('[data-testid="lk-registratiegaps"]').setValue(true)
       await flushPromises()
       const alle = getekendeIds(w)
       expect(alle).toEqual(['a1', 'a2', 'd1', 'k1', 'p1'])
