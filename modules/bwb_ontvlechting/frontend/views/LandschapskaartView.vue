@@ -145,8 +145,9 @@ const actieveSet = ref(new Set())
 const grofOnlyIds = ref(new Set())
 // ADR-040 F1 stap 2a — EXPLICIETE weergave-state (niet meer set-grootte-afgeleid). De weergave volgt
 // de HANDELING van de gebruiker: één component inspecteren / "toon impact" / deep-link → 'praatplaat'
-// (concentric centraal op het centrum + kring); brede verkenning / view / "hele landschap" / buren
-// toevoegen → 'overzicht' (de volledige set als brede plaat). Een zichtbare schakelaar wisselt.
+// (concentric centraal op het centrum + kring); brede verkenning / view / "hele landschap" →
+// 'overzicht' (de volledige set als brede plaat). Een zichtbare schakelaar wisselt.
+// LI036 stap 3 — set-ACTIES ("voeg toe"/buren) wijzigen de weergave NIET meer (bevestigd besluit).
 // LI036 — derde weergave 'lagen': dezelfde set + filters, maar elk knoop in zijn laag-baan
 // (preset-posities; zie _swimlanePositions/_laneVan). Dit is de ENE weergave-as — er is geen
 // aparte layout-as meer.
@@ -801,7 +802,20 @@ function voegComponentenToeAanSet(componenten) {
   actieveSet.value = s
   grofOnlyIds.value = g
   heleLandschap.value = false
-  toonOverzicht() // ADR-040 F1 stap 2a — een set opbouwen via een ingang = brede plaat → overzicht
+  // LI036 stap 3 (bevestigd besluit) — een SET-actie wijzigt uitsluitend de set, nooit de weergave:
+  // wie in Lagen "voeg toe" klikt, blijft in Lagen (de nieuwe componenten verschijnen in hun banen).
+  // De vroegere `toonOverzicht()` (ADR-040 "ingang → brede plaat") is hier vervallen; hercentreren/
+  // weergave-wissel hoort bij dubbelklik en de expliciete schakelaar.
+}
+// LI036 stap 3 (toggle) — de symmetrische spiegel van `voegComponentenToeAanSet`: verwijder een
+// GROEP ids in één set-mutatie (één herfetch; rest van de set ongemoeid). Zelfde set-mechaniek als
+// de chip-verwijdering (toggleSet), maar gebundeld; wijzigt nooit de weergave.
+function verwijderComponentenUitSet(ids) {
+  const s = new Set(actieveSet.value)
+  const g = new Set(grofOnlyIds.value)
+  for (const id of ids || []) { s.delete(id); g.delete(id) }
+  actieveSet.value = s
+  grofOnlyIds.value = g
 }
 // Slice 5 (LI023) — directe COMPONENT-buren van een node, afgeleid uit de al-geladen graaf.
 // NB: leest bewust uit `grafEdges` + `nodePerId` (de reactieve bron, idem `detailKoppelingen`) en
@@ -840,6 +854,7 @@ const focusOpSet = ref(false)
 function wisSet() {
   actieveSet.value = new Set()
   grofOnlyIds.value = new Set() // LI033 — verse start → grof-only-markering weg
+  _vervulToegevoegd.value = new Map() // LI036 stap 3 — verse start → knop-toevoeg-administratie weg
   weergave.value = 'overzicht' // ADR-040 F1 stap 2a — verse start → default-weergave
   egoStartId.value = null
   heleLandschap.value = false
@@ -1329,6 +1344,97 @@ function sluitPopup() {
 const _veld = (label, waarde) => (waarde != null && waarde !== '' ? { label, waarde } : null)
 const _velden = (arr) => arr.filter(Boolean)
 
+// ── LI036 slice 2 · stap 3 — herkomst-uitsplitsing + vervullende componenten (popup-helpers) ──
+// Herkomst-regels (edge.herkomst uit de subgraaf) compact per deelproces gegroepeerd:
+// [{ label: <deelproces>, waarde: 'Registreren, Archiveren' }]. None/leeg → geen regels.
+function _herkomstVelden(herkomst) {
+  if (!herkomst || !herkomst.length) return []
+  const per = new Map()
+  for (const h of herkomst) {
+    const k = h.proces_naam || 'Proces'
+    if (!per.has(k)) per.set(k, [])
+    if (h.applicatiefunctie_label && !per.get(k).includes(h.applicatiefunctie_label)) per.get(k).push(h.applicatiefunctie_label)
+  }
+  return [...per.entries()].map(([naam, functies]) => ({ label: naam, waarde: functies.join(', ') || '—' }))
+}
+// De vervult-edges van een hoofdproces in de huidige subgraaf (bron = component, doel = proces).
+const _vervulEdgesVan = (procesId) => grafEdges.value.filter((e) => e.ring === 'processen' && e.doel_id === procesId)
+// De componenten die dit hoofdproces vervullen (voor de set-actie; dedup doet de set-functie).
+function _vervullendeComponenten(procesId) {
+  return _vervulEdgesVan(procesId)
+    .map((e) => nodePerId.value[e.bron_id])
+    .filter(Boolean)
+    .map((m) => ({ id: m.id, naam: m.naam, element_type: m.element_type }))
+}
+// "Vervuld door"-sectie van de proces-popup (verfijning besluit A): scanbare COMPONENTNAMEN,
+// met de herkomst (deelproces · functies) INKLAPBAAR per component (standaard dicht — detail op
+// aanvraag). Reactieve afleiding op de open popup (detailId), geen snapshot.
+const popupVervuldDoor = computed(() => {
+  if (popupKind.value !== 'node') return []
+  const n = nodePerId.value[detailId.value]
+  if (!n || n.element_type !== 'proces') return []
+  return _vervulEdgesVan(n.id)
+    .map((e) => {
+      const comp = nodePerId.value[e.bron_id]
+      return comp ? { id: comp.id, naam: comp.naam, herkomst: _herkomstVelden(e.herkomst) } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.naam.localeCompare(b.naam))
+})
+// LI036 stap 3 (herzien besluit) — de verwijder-kant is een ECHTE ongedaan-maken van déze knop:
+// per proces onthouden we wélke ids de knop daadwerkelijk toevoegde (de N ontbrekende, ná dedup);
+// verwijderen haalt alléén die (nog aanwezige) ids weg — vóór-bestaande set-leden (bv. het
+// vertrekpunt Zaaksysteem) blijven staan. Netto: toevoegen + verwijderen = de set van vóór de klik.
+const _vervulToegevoegd = ref(new Map()) // proces-id → Set(door de knop toegevoegde component-ids)
+// De vervul-set-actie als TOGGLE, reactief op de actuele set én de onthouden toevoegingen:
+// - ontbreken er vervullers in de set → "+ Voeg vervullende componenten toe (N)";
+// - groep compleet én er zijn knop-toevoegingen in de set → "− Verwijder …" (alleen die toevoegingen);
+// - groep compleet zonder knop-toevoegingen (alles zat er al) of geen vervullers → disabled + hint.
+const popupVervulActie = computed(() => {
+  if (popupKind.value !== 'node') return null
+  const n = nodePerId.value[detailId.value]
+  if (!n || n.element_type !== 'proces') return null
+  const vervullers = _vervullendeComponenten(n.id)
+  if (!vervullers.length) {
+    return { modus: 'geen', vervullers, nieuw: [], terugTeDraaien: [], label: '+ Voeg vervullende componenten toe (0)', titel: 'Geen vervullende componenten in deze selectie' }
+  }
+  const nieuw = vervullers.filter((c) => !actieveSet.value.has(c.id))
+  if (nieuw.length > 0) {
+    return { modus: 'toevoegen', vervullers, nieuw, terugTeDraaien: [], label: `+ Voeg vervullende componenten toe (${nieuw.length})`, titel: '' }
+  }
+  const terugTeDraaien = [...(_vervulToegevoegd.value.get(n.id) || [])].filter((id) => actieveSet.value.has(id))
+  if (terugTeDraaien.length > 0) {
+    return { modus: 'verwijderen', vervullers, nieuw: [], terugTeDraaien, label: '− Verwijder vervullende componenten', titel: `Maakt de toevoeging van deze knop ongedaan (${terugTeDraaien.length}); eerder eigen werk blijft staan` }
+  }
+  return { modus: 'geen', vervullers, nieuw: [], terugTeDraaien: [], label: '+ Voeg vervullende componenten toe (0)', titel: 'Alle vervullende componenten staan al in beeld' }
+})
+// Klik-afhandeling van de toggle. Terugkoppeling per richting (gemarkeerde keuzes):
+// - TOEVOEGEN → het bestaande selectie-/highlight-pad op het PROCES: het vervul-web (proces +
+//   vervult-lijnen + vervullers, dus incl. de zojuist toegevoegde knopen) licht op en de rest dimt —
+//   `_naLayout` past hl/dim na de hertekening automatisch opnieuw toe (geen nieuw mechanisme).
+// - VERWIJDEREN → de knopen verdwijnen zichtbaar van de plaat + een korte succes-toast, naar het
+//   bestaande "Volgorde opgeslagen"-toastpatroon van deze view (geen flash-vóór-verwijderen: dat zou
+//   een timing-nudge zijn).
+function klikVervulActie() {
+  const a = popupVervulActie.value
+  if (!a || a.modus === 'geen') return
+  const pid = detailId.value
+  if (a.modus === 'toevoegen') {
+    voegComponentenToeAanSet(a.nieuw) // alléén de daadwerkelijk ontbrekende
+    // Onthoud wat déze knop toevoegde (accumulerend per proces; nieuwe Map → reactieve update).
+    const al = new Set(_vervulToegevoegd.value.get(pid) || [])
+    a.nieuw.forEach((c) => al.add(c.id))
+    _vervulToegevoegd.value = new Map(_vervulToegevoegd.value).set(pid, al)
+    geselecteerdNodeId.value = pid // highlight: bestaand selectie-pad op het proces
+  } else {
+    verwijderComponentenUitSet(a.terugTeDraaien)
+    const m = new Map(_vervulToegevoegd.value)
+    m.delete(pid)
+    _vervulToegevoegd.value = m
+    toast?.add?.({ severity: 'success', summary: `${a.terugTeDraaien.length} vervullende component${a.terugTeDraaien.length === 1 ? '' : 'en'} uit beeld gehaald`, life: 2000 })
+  }
+}
+
 // Directe pre-fill van een knoop-popup uit de kaart-data (vóór de detail-fetch laadt).
 function _nodePrefill(n) {
   return _velden([
@@ -1364,7 +1470,8 @@ function _nodeVelden(et, d, n) {
     ])
   }
   if (et === 'proces') {
-    // LI036 slice 2 — basis-detail hoofdproces; de herkomst-uitsplitsing per vervul-lijn is stap 3.
+    // LI036 slice 2 · stap 3 — basis-detail; de "Vervuld door"-uitsplitsing is een eigen
+    // (inklapbare) popup-sectie (`popupVervuldDoor`), niet een velden-muur in de dl.
     return _velden([
       _veld('Toelichting', d.toelichting),
     ])
@@ -1407,6 +1514,9 @@ async function openNodePopup(id) {
   popupFlows.value = []
   popupSelId.value = null
   popupVelden.value = _nodePrefill(n)
+  // LI036 slice 2 · stap 3 — proces-knoop: de "Vervuld door"-sectie (inklapbare herkomst) en de
+  // "+ Voeg vervullende componenten toe"-knop zijn REACTIEVE afleidingen op de open popup
+  // (`popupVervuldDoor`/`popupVervulActie` — geen snapshot; de telling volgt de actuele set).
   // LI036 rolbanen — rol-context (alleen partijen, alleen Lagen): aangeklikte rol(len) bovenaan
   // (uit de tap-handler, consume-once), de overige rollen van dezelfde partij eronder.
   const klik = _klikRollen.value
@@ -1516,6 +1626,15 @@ async function openEdgePopup(edge) {
       // ADR-024 — hoort bij: bron (persoon/afdeling) → doel (afdeling/organisatie).
       popupTitel.value = 'Hoort bij'
       popupVelden.value = _velden([_veld('Onderdeel', bronNaam), _veld('Hoort bij', doelNaam)])
+    } else if (edge.ring === 'processen') {
+      // LI036 slice 2 · stap 3 — vervult-lijn: de bundel + de herkomst van díe bundel uitgesplitst
+      // (deelproces → functies) uit edge.herkomst; None/leeg → alleen de kop-velden.
+      popupTitel.value = 'Vervult'
+      popupVelden.value = _velden([
+        _veld('Component', bronNaam),
+        _veld('Hoofdproces', doelNaam),
+        edge.aantal > 1 ? { label: 'Koppelingen', waarde: `${edge.aantal}` } : null,
+      ]).concat(_herkomstVelden(edge.herkomst))
     } else if (edge.ring === 'gebruikers') {
       popupTitel.value = 'Gebruikt door'
       const gg = nodePerId.value[edge.doel_id]
@@ -1910,6 +2029,10 @@ function _edgeData(e, i) {
   if (e.ring === 'applicaties') {
     const pijl = e.richting === 'tweerichting' || e.richting === 'bidirectioneel' ? '↔' : '→'
     label = ['koppeling', e.protocol ? String(e.protocol).toUpperCase() : null, pijl, e.aantal >= 2 ? `${e.aantal}×` : null].filter(Boolean).join(' · ')
+  } else if (e.ring === 'processen') {
+    // LI036 slice 2 · stap 3 — aantal-badge op de gebundelde vervult-lijn: exact het
+    // flow-bundel-patroon ("N×" in het edge-label; aantal 1 → geen badge).
+    label = [e.label || 'vervult', e.aantal >= 2 ? `${e.aantal}×` : null].filter(Boolean).join(' · ')
   } else {
     // ADR-031 — rol-naam / 'gebruikt door' / 'valt onder' / 'draait op' uit de edge-data.
     label = e.label || ''
@@ -2527,7 +2650,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, popupVervulActie, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -3062,6 +3185,20 @@ const typeLabel = (t) => humaniseer(t)
               <dd class="break-words">{{ v.waarde }}</dd>
             </template>
           </dl>
+          <!-- LI036 stap 3 (besluit A) — "Vervuld door": scanbare componentnamen; de herkomst
+               (deelproces · functies) klapt per component uit (native details, standaard dicht). -->
+          <div v-if="popupVervuldDoor.length" data-testid="lk-popup-vervuld" class="mt-2 flex flex-col gap-0.5 text-[length:var(--lk-text-sm)]">
+            <p class="font-semibold">Vervuld door: {{ popupVervuldDoor.length }} component{{ popupVervuldDoor.length === 1 ? '' : 'en' }}</p>
+            <template v-for="c in popupVervuldDoor" :key="c.id">
+              <details v-if="c.herkomst.length" :data-testid="`lk-popup-vervuld-${c.id}`" class="ml-1">
+                <summary class="cursor-pointer">{{ c.naam }}</summary>
+                <div class="ml-4 flex flex-col gap-0.5 text-[var(--lk-color-text-muted)]">
+                  <p v-for="h in c.herkomst" :key="h.label" :data-testid="`lk-popup-herkomst-${c.id}`">{{ h.label }} · {{ h.waarde }}</p>
+                </div>
+              </details>
+              <p v-else :data-testid="`lk-popup-vervuld-${c.id}`" class="ml-1">{{ c.naam }}</p>
+            </template>
+          </div>
           <!-- Koppeling-popup (flow-edge) — master-detail: links de flow-lijst (naam + richting-
                icoon), rechts het detail van de geselecteerde flow. Ook bij n=1 (ADR-023a Fase 4). -->
           <div v-if="popupKind === 'edge' && popupFlows.length" data-testid="lk-popup-md" class="mt-2 flex gap-[var(--lk-space-md)]">
@@ -3090,8 +3227,19 @@ const typeLabel = (t) => humaniseer(t)
           </div>
           <p v-else-if="popupKind === 'edge' && !popupLaden && !popupMelding" data-testid="lk-popup-md-leeg" class="mt-2 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Geen koppelingen gevonden.</p>
           <p v-if="popupMelding" data-testid="lk-popup-melding" class="mt-2 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">{{ popupMelding }}</p>
-          <div v-if="popupActies.length" class="mt-2 flex flex-col items-start gap-1">
+          <div v-if="popupActies.length || popupVervulActie" class="mt-2 flex flex-col items-start gap-1">
             <button v-for="(a, i) in popupActies" :key="i" type="button" :data-testid="i === 0 ? 'lk-popup-actie' : `lk-popup-actie-${i}`" class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] text-white" @click="a.fn">{{ a.label }}</button>
+            <!-- LI036 stap 3 — vervul-TOGGLE (reactief op de actuele set): toevoegen ⇄ alleen-deze-
+                 groep-verwijderen; alleen disabled als er géén vervullers in de selectie zijn.
+                 Wijzigt uitsluitend de set (nooit de weergave). -->
+            <button
+              v-if="popupVervulActie"
+              type="button" data-testid="lk-popup-vervul"
+              :disabled="popupVervulActie.modus === 'geen'"
+              :title="popupVervulActie.titel"
+              class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] text-white disabled:cursor-not-allowed disabled:opacity-50"
+              @click="klikVervulActie"
+            >{{ popupVervulActie.label }}</button>
           </div>
         </div>
 
