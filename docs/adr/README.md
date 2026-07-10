@@ -40,7 +40,8 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-038 | Gebruikersgroep-consolidatie: groep hoort altijd bij een organisatie; intern/extern-kenmerk op organisaties; `burger` partij-aard verwijderd (herziet ADR-036/036a) | Besloten — bouw in slices |
 | ADR-039 | Aanspreekpunt van een partij als verwijzing naar een geregistreerde persoon (vervangt vrije-tekst `contactpersoon`; alleen op organisatie/externe partij; search-first ter-plekke-aanmaken) | Besloten — gerealiseerd (schema-gate) |
 | ADR-025 | Landschapskaart (applicatie-centrische praatplaat) | Superseded door ADR-040 |
-| ADR-040 | Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor | Deels geland — Fase 1 (V034) + V035-correcties; vervolgfasen open |
+| ADR-034 | Lagenweergave (swimlane) als architectuur-lens — Lagen als derde kaart-weergave incl. rolbanen + proceslaan | Geland (LI036) — besluit 1 herzien (Cytoscape preset i.p.v. HTML/CSS), besluit 4 buiten scope; proces-diepte bewust open |
+| ADR-040 | Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor | Deels geland — Fase 1 (V034) + V035-correcties + LI036 (derde weergave Lagen, interactie-basis, set-actie-herziening, organisatiebalk); vervolgfasen open |
 | ADR-041 | Persoonlijke voorkeuren: "onthoud als mijn standaard" (per-gebruiker voorkeur-laag; kijkfilter, nooit invoerregel) | Gerealiseerd (V035) |
 | ADR-042 | Procesregister en component-in-proces-koppeling (nestbare procesboom; koppelregel component/proces/applicatiefunctie; roll-up als kijklaag) | Gerealiseerd (V036) — alle 5 slices |
 

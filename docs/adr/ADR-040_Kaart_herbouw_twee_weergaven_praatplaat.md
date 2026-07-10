@@ -1,9 +1,12 @@
 # ADR-040 — Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor
 
 **Status:** Deels geland — **Fase 1 gebouwd** (V034) + V035-correcties (bug A relatie-loos
-set-lid, bug B doorklik gelijkgetrokken, kijkfilter-standaard + reload-behoud); vervolgfasen
-open (zie "Gebouwde realiteit" + fasering; terug/vooruit-navigatie = verplichte terugbouw)
-**Datum:** 2026-07-06 (voorstel) · 2026-07-07 (Fase 1 geland, V034)
+set-lid, bug B doorklik gelijkgetrokken, kijkfilter-standaard + reload-behoud) +
+**LI036-uitbreidingen/-herzieningen** (derde weergave "Lagen" — ADR-034; interactie-basis
+klik=highlight+dim+popup geland; set-acties wijzigen de weergave niet meer — herziening;
+organisatiebalk toont alleen in-beeld-organisaties); vervolgfasen open (zie "Gebouwde
+realiteit" + fasering; terug/vooruit-navigatie is inmiddels terug)
+**Datum:** 2026-07-06 (voorstel) · 2026-07-07 (Fase 1 geland, V034) · 2026-07-10 (LI036)
 **Vervangt:** **ADR-025** (Applicatie-centrische praatplaat) — die wordt in zijn geheel *Superseded*.
 Deze ADR neemt de praatplaat-gedachte volledig over en verbreedt haar (élk object centreerbaar, twee
 weergaven, expliciete interactie- en render-laag).
@@ -45,7 +48,10 @@ alleen testdata, geen gebruikers.
 
 ## Besluit (kern)
 
-1. **Twee gerichte weergaven, elk met één taak** — in plaats van één modus-alleskunner:
+1. **Twee gerichte weergaven, elk met één taak** — in plaats van één modus-alleskunner
+   *(LI036: uitgebreid tot een **drietal** — de derde weergave **"Lagen"** (ADR-034) staat
+   op dezelfde `weergave`-as en volgt dezelfde render-eigenaar; zie de LI036-sectie
+   onder "Gebouwde realiteit")*:
    - **Overzicht** — de brede plaat: hoe hangt het landschap samen; verkennen en filteren; meerdere
      objecten; gelaagde layout.
    - **Impact-praatplaat** — één object centraal met zijn directe kring eromheen (diepte 1, radiaal);
@@ -184,6 +190,41 @@ Wat daadwerkelijk is gebouwd (met de afwijkingen t.o.v. het voorstel, en de rede
 **Nog niet gebouwd (vervolgfasen):** de volledige interactie-basis (klik=highlight+dim+popup), de 4
 component-ringen volledig, overige centreerbare objecttypes, terug/vooruit-navigatie (uitgesteld, niet
 geschrapt), scope-B-verfijning. Zie OPVOLGPUNTEN.md + de fasering hieronder.
+
+---
+
+## Gebouwde realiteit — LI036-uitbreidingen en -herzieningen (2026-07-10)
+
+- **Derde weergave "Lagen"** (ADR-034, geland): op dezelfde éne `weergave`-as
+  (`'overzicht' | 'praatplaat' | 'lagen'`, schakelaar in de topbar); Cytoscape
+  **preset-baanposities** + HTML-band-overlay; zelfde node-set, stijlbron en interactie.
+  De deterministische render-eigenaar (besluit 5) geldt óók voor Lagen, **inclusief een
+  verplichte meet-stap vóór de eerste frame**: de preset-layout meet — anders dan
+  grid/concentric — geen knoopdimensies, waardoor `width/height:'label'`-knopen bij de
+  eerste frame geen edge-geometrie hadden (lijnen tekenden pas na een klik); de fix is
+  een synchrone `updateStyle`+`layoutDimensions`-pass in de preset-tak, géén timing-nudge.
+  Details (rolbanen/instance-projectie, "ring uit wint", proceslaan): ADR-034.
+- **Interactie-basis geland**: één klik = inspecteren (highlight incidente lijnen +
+  dim-op-klik + versleepbare popup), dubbelklik = hercentreren — conform besluit 4, nu in
+  alle drie de weergaven; bij rol-instances (Lagen) lichten alle plekken van hetzelfde
+  object samen op. Terug/vooruit-navigatie (toestand-geschiedenis) is terug en neemt de
+  weergave-wissel als één stap mee.
+- **HERZIENING — set-acties wijzigen nooit de weergave.** Het Fase-1-gedrag "een set
+  opbouwen via een ingang = brede plaat → overzicht" (`toonOverzicht()` in het gedeelde
+  set-pad) is met LI036 **teruggedraaid**: toevoegen/verwijderen/"haal buren erbij"/
+  "voeg vervullende componenten toe" muteren uitsluitend de set — wie in Lagen of op de
+  praatplaat werkt, blijft daar (de nieuwe componenten verschijnen in de actieve
+  weergave). Hercentreren/weergave-wissel hoort bij dubbelklik en de expliciete
+  schakelaar. Reden: de weergavesprong verraste de gebruiker en gooide diens gekozen
+  lens weg (browsercheck-bevinding).
+- **Organisatiebalk toont alleen in-beeld-organisaties** (verfijning van open subknoop 4,
+  model i): de balk-lijst wordt afgeleid uit dezelfde pipeline als de getekende nodes,
+  met de eigen scope-term **contrafeitisch weggedacht** — alleen organisaties die voor de
+  huidige selectie relevant zijn verschijnen (een geladen-maar-relatieloze organisatie
+  niet meer); een **uitgezette** organisatie blijft zichtbaar-onaangevinkt zolang de
+  selectie haar relevant maakt (focussen blijft omkeerbaar); lege lijst → hint "geen
+  organisatie in beeld". De eenmalige alles-aan-seed (init-semantiek A) blijft de basis;
+  de balk staat op Overzicht én Lagen, en blijft inert/verborgen op de praatplaat.
 
 ---
 

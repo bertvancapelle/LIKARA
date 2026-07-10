@@ -1,10 +1,14 @@
 # ADR-034 — Lagenweergave (swimlane) als architectuur-lens
 
-**Status:** Voorstel (open subknopen nog te beslissen)
-**Datum:** 2026-06-25
-**Relatie:** Tweede weergave-lens op de Landschapskaart, náást de Impact-verkenner
-(ADR-033). Leunt op het getypeerde elementmodel (ADR-023, ArchiMate-laag per element)
-en op dezelfde relatie-data die de Landschapskaart al projecteert.
+**Status:** **Geland (LI036, V037-werk)** — met herzieningen t.o.v. het oorspronkelijke
+voorstel (zie "Gebouwde realiteit — LI036" onderaan; besluit 1 is herzien, besluit 4 is
+buiten scope gebleven)
+**Datum:** 2026-06-25 (voorstel) · 2026-07-10 (geland, LI036)
+**Relatie:** Derde weergave op de Landschapskaart, náást Overzicht en Praatplaat
+(ADR-040 — de Impact-verkenner/ADR-033 waar dit voorstel oorspronkelijk náást zou komen,
+is door ADR-040 afgeschaft). Leunt op het getypeerde elementmodel (ADR-023, ArchiMate-laag
+per element), dezelfde relatie-data die de Landschapskaart projecteert, en het
+procesregister (ADR-042) voor de proceslaan.
 **Invariant (ongewijzigd):** score blijft de enige lifecycle-driver — de engine wordt
 niet geraakt. Puur read-only weergave.
 
@@ -33,20 +37,30 @@ gedeeld** (de getypeerde relaties + de ArchiMate-laag per element liggen klaar);
 
 ## Besluit (kern)
 
-1. **Eigen weergave in HTML/CSS, niet via Cytoscape.** De banen zijn gewone HTML/CSS-
-   kolommen; de objecten zijn HTML-elementen in hun baan; een losse SVG-laag tekent de
-   relatielijnen tussen de banen. Bewust GEEN Cytoscape compound-nodes — Cytoscape is
-   gebouwd voor vrij-zwevende knopen met auto-layout en vecht tegen een strakke,
-   bestuurbare kolommenindeling.
-2. **Lagen als banen, in vaste startvolgorde:** Rollen & beheer → Gebruikers →
-   Componenten → Infrastructuur → Overig → Contracten.
+> **LI036-update (2026-07-10):** besluit 1 is bij de bouw **herzien** (Cytoscape
+> preset-baanposities i.p.v. HTML/CSS+SVG — dit voorstel dateerde van vóór de
+> ADR-040-Cytoscape-herbouw) en besluit 4 is **buiten scope** gebleven. Zie
+> "Gebouwde realiteit — LI036" onderaan voor de geldende staat.
+
+1. **~~Eigen weergave in HTML/CSS, niet via Cytoscape~~ — HERZIEN (LI036).** Gebouwd:
+   **Cytoscape preset-baanposities** (zelf-berekende x/y per knoop in zijn baan;
+   `_swimlanePositions` + de preset-tak in `_layout()`), met een **HTML-band-overlay**
+   voor baan-achtergronden en -koppen óver het canvas. Knopen én lijnen blijven puur
+   Cytoscape — dus dezelfde render-eigenaar, stijlbron en interactie als de andere
+   weergaven. Wél overeind uit het oorspronkelijke besluit: **bewust GEEN Cytoscape
+   compound-nodes** (die faalden eerder op edge-rendering tussen lanen +
+   pointer-events); de losse SVG-lijnlaag is daarmee overbodig geworden.
+2. **Lagen als banen, in vaste startvolgorde** — *volgorde herzien bij de bouw (LI036)*:
+   **Processen → Rollen & beheer → Gebruikers → Componenten → Infrastructuur →
+   Contracten → Overig** (proceslaan bovenaan als "waarvoor"-laag; Overig onderaan).
 3. **Banen herschikbaar.** De baan-headers zijn versleepbaar om de volgorde aan te
    passen; de gekozen volgorde wordt onthouden (sessionStorage). Een baan en de
    objecten erin verhuizen als één geheel mee; de relatielijnen hertekenen naar de
    nieuwe baanposities.
-4. **Versleep-interactie uit een bestaande library**, niet zelf geschreven. Alleen het
-   relatielijnen-tekenen (op basis van de getypeerde relaties + leesbare labels) is
-   eigen, omdat dat LIKARA-specifiek is en in geen externe module zit.
+4. **~~Versleep-interactie uit een bestaande library~~ — BUITEN SCOPE gebleven (LI036).**
+   De bestaande hand-rolled baan-kop-drag (pointer-events, LI019) staat en volstaat;
+   er is géén drag-library toegevoegd. Het relatielijnen-tekenen is met de herziening
+   van besluit 1 gewoon Cytoscape (geen eigen SVG-laag nodig).
 5. **Identieke look en feel met de graph.** Een knoop ziet er in de swimlane hetzelfde
    uit als in de graph: zelfde lifecycle-statuskleur, blokkade-indicatie (⚠),
    type-aanduiding, vorm, hoekradius en lettertype — alles uit de bestaande
@@ -130,3 +144,69 @@ gedeeld** (de getypeerde relaties + de ArchiMate-laag per element liggen klaar);
    lijnen hertekenen.
 
 Elke slice read-only, met engine-onaangeroerd-borging en de gangbare gate-discipline.
+
+---
+
+## Gebouwde realiteit — LI036 (2026-07-10)
+
+Wat daadwerkelijk is gebouwd (commits `7b4c00c` t/m `f9a8a6f`), met de afwijkingen t.o.v.
+het voorstel en de reden:
+
+- **Lagen = derde weergave op de éne weergave-as** (`weergave: 'overzicht' | 'praatplaat'
+  | 'lagen'`, ADR-040-schakelaar in de topbar). De vroegere geparkeerde `layoutModus`-as
+  ('radiaal'|'swimlane') is geconvergeerd en bestaat niet meer. Zelfde set + filters in
+  alle drie de weergaven ("één selectie, drie lenzen").
+- **Rendering (herziening besluit 1):** Cytoscape **preset-baanposities** + HTML-band-
+  overlay; geen compound-nodes, geen SVG-lijnlaag. Kritieke bouwles: de preset-layout
+  meet — anders dan grid/concentric — geen knoopdimensies, waardoor de eerste frame bij
+  `width/height:'label'`-knopen geen edge-geometrie had (lijnen tekenden pas na een
+  klik). Fix: een **meet-stap vóór de eerste frame** (`updateStyle` + `layoutDimensions`)
+  binnen de ADR-040-render-eigenaar — geen timing-nudge.
+- **Rolbanen vs. identiteitsbanen (nieuw t.o.v. het voorstel):** de banen "Rollen &
+  beheer" en "Gebruikers" zijn **rolbanen** — ze delen partijen in op **de rol in de
+  relatie** (gebruikt → Gebruikers; beheerrollen/eigenaar/leverancier-"geleverd door" →
+  Rollen & beheer). Eén partij met meerdere petten staat in meerdere rolbanen, via een
+  **Lagen-only instance-projectie** (visuele instances `id@baan` met gedeelde
+  `logischId`; klik licht álle instances op, één detailkaart). Identiteitsbanen
+  (Componenten/Infrastructuur/Contracten) delen in op het type — strikt één keer. Elke
+  rol-plek draagt een **rol-tag** (kleur + kort woord: gebruikt/levert/beheert/eigenaar;
+  partij zonder rol → Rollen & beheer zónder tag); de tag deelt de dim-staat van zijn
+  knoop en keert in dezelfde kleur terug in de popup.
+- **"Ring uit wint van gaps"-zichtbaarheidsregel (nieuw):** een ring uitzetten haalt de
+  relaties én de knopen weg die alléén via die ring in beeld waren — óók met "Toon
+  registratiegaps" aan; een échte gap (geen enkele relatie) volgt de ring van zijn
+  categorie; 'Overig' (categorieloos) blijft altijd zichtbaar onder de toggle. Eén
+  gedeelde term in `getekendeNodes`, identiek op alle weergaven — de oorspronkelijke
+  "toon registratiegaps"-toggle (besluit 6) is hiermee ring-bewust geworden.
+- **Besluit 5 (gedeelde knoop-styling) is vervuld** zoals voorzien: één stijlbron
+  (`_nodeData`/`_vormVoorType`) voor alle weergaven; identiek uiterlijk per constructie.
+  Besluit 6-toggles ("Verberg lege banen", registratiegaps) zijn gebouwd; besluit 3
+  (herschikbare banen, sessionStorage) werkt via de bestaande hand-rolled drag.
+
+### Proceslaan (LI036 slice 2 — verankering; relatie ADR-042)
+
+- **Ring 'processen'** (default aan, zichtbaar in álle weergaven, ook in de
+  praatplaat-kernset) + **proceslaan bovenaan**. Proces-knoop: `element_type='proces'`,
+  business-laag, vorm = **afgeronde rechthoek met verloop-pijl-marker**.
+- **Data = read-only subgraaf-projectie** (geen schema, engine onaangeroerd): een
+  verrijkingsblok in `landschapskaart_service.haal_grafdata_op` klimt **bottom-up**
+  (cyclus-veilig) van de vervul-regels (`procesvervulling`, ADR-042) naar de
+  hoofdproces-wortel — **één roll-up-definitie** (zelfde bron als `rollup_voor_proces`,
+  andersom bewandeld). Per (component, hoofdproces) één samengetrokken **vervult-edge**
+  met `aantal` (badge bij ≥2, flow-precedent) en `herkomst[]` (deelproces +
+  applicatiefunctie).
+- **Interactie:** dubbelklik = hercentreren (praatplaat rond het proces); popup toont
+  "Vervuld door: N componenten" met de herkomst **inklapbaar per component**
+  (detail-op-aanvraag) en de **vervullers-toggle**: "+ Voeg vervullende componenten toe
+  (N)" ⇄ "− Verwijder vervullende componenten" — de verwijder-kant maakt uitsluitend de
+  eigen toevoeging ongedaan (vóór-bestaand set-werk blijft staan); set-acties wijzigen
+  nooit de weergave (zie de ADR-040-herziening).
+
+### ⚠ Bewust openstaand ontwerppunt — proces-diepte (top-1 volgende sessie, NIET afgesloten)
+
+De huidige projectie toont **alleen hoofdprocessen**; deelprocessen zijn uitsluitend
+doorgerold zichtbaar (in de herkomst-popup). Dit is een **tussenstand — geen eindstaat**.
+Heroverwogen richting: **deelprocessen eerste-klas op de kaart** — component→(deel)proces
+als zichtbare koppeling, de proceshiërarchie (deelproces→hoofdproces) als knopen+lijnen,
+deelprocessen uitvouwbaar via detail-op-aanvraag, en plotbaar vanuit zowel een component
+als een (deel)proces. Besluitvorming en bouw volgen in een eigen slice.
