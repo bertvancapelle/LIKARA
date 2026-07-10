@@ -134,6 +134,11 @@ voorbeeld:
 kaart-component-breed-ADR-spoor) en een signalering "component zonder proces" (eerst
 registraties laten ontstaan). Flow/volgorde tussen processtappen blijft buiten scope.
 
+> **Statusverwijzing (LI036/LI037):** het kaart-punt hierboven is inmiddels ingehaald —
+> de **proceslaan** is geland met LI036 (zie ADR-034 §Proceslaan) en de **proces-diepte**
+> (deelprocessen eerste-klas op de kaart) is besloten in LI037
+> (zie ADR-034 §"Proces-diepte — besloten (LI037)").
+
 ---
 
 ## Invarianten

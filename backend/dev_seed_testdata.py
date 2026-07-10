@@ -1589,14 +1589,18 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         await session.commit()
         telling["verantwoordelijken"] = len(toewijzingen)
 
-    # ── 15. Processen + procesvervullingen (ADR-042) ──
+    # ── 15. Processen + procesvervullingen (ADR-042; verdiept LI037 fase 0) ──
     # Twee herkenbare procesboompjes (Vergunningverlening → Aanvraag behandelen;
     # Burgerzaken → Verhuizing verwerken) + koppelregels op bestaande componenten met de
     # GEMMA-startset-functies. Bewust: (a) één koppelregel op een NIET-applicatie
-    # ("Shared DB-server", componenttype database — bewijst component-breed) en (b) één
+    # ("Shared DB-server", componenttype database — bewijst component-breed), (b) één
     # component met TWEE functies in hetzelfde proces (Zaaksysteem in "Aanvraag behandelen"
-    # — bewijst losse, apart verwijderbare regels). Idempotent: skip-op-naam (proces) resp.
-    # skip-op-tripel (vervulling).
+    # — bewijst losse, apart verwijderbare regels), (c) LI037: één boom van DRIE niveaus
+    # (Vergunningverlening → Aanvraag behandelen → processtap "Besluit vastleggen") mét
+    # vervulling op dat derde niveau (diepte = rijhoogte is browserverifieerbaar, ADR-034),
+    # en (d) LI037: één deelproces BEWUST zonder ondersteunend systeem ("Bezwaar
+    # behandelen" — de "geen ondersteunend systeem"-cue moet ergens te zien zijn).
+    # Idempotent: skip-op-naam (proces) resp. skip-op-tripel (vervulling).
     from models.models import Proces as _Proces
     from schemas.proces import ProcesCreate
 
@@ -1615,6 +1619,11 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
 
     await _proces("Vergunningverlening", toelichting="Bedrijfsproces: vergunningaanvragen van intake tot besluit.")
     await _proces("Aanvraag behandelen", "Vergunningverlening", "Werkproces: beoordelen en besluiten op een vergunningaanvraag.")
+    # LI037 (c) — derde niveau: processtap onder het werkproces (de plek in de boom ís het niveau).
+    await _proces("Besluit vastleggen", "Aanvraag behandelen", "Processtap: het besluit formeel vastleggen en bekendmaken.")
+    # LI037 (d) — bewust ONDERSTEUNINGSLOOS deelproces (géén procesvervulling seeden; toont de
+    # "geen ondersteunend systeem"-cue op de kaart).
+    await _proces("Bezwaar behandelen", "Vergunningverlening", "Werkproces: behandelen van bezwaren tegen een vergunningbesluit.")
     await _proces("Burgerzaken", toelichting="Bedrijfsproces: burgerzaken-dienstverlening (BRP-gebonden).")
     await _proces("Verhuizing verwerken", "Burgerzaken", "Werkproces: verwerken van een binnengemeentelijke verhuizing.")
 
@@ -1625,6 +1634,9 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         ("Zaaksysteem", "Aanvraag behandelen", "registreren", "Zaakdossier van de aanvraag."),
         ("Zaaksysteem", "Aanvraag behandelen", "raadplegen", None),  # tweede functie, zelfde paar
         ("DMS", "Aanvraag behandelen", "archiveren", "Besluitdocumenten archiveren."),
+        # LI037 (c) — vervulling op PROCESSTAP-niveau (niveau 3): het formele besluit wordt in
+        # het DMS geregistreerd. ("Bezwaar behandelen" krijgt bewust géén regel — LI037 (d).)
+        ("DMS", "Besluit vastleggen", "registreren", "Formele vastlegging van het besluit."),
         ("Vergunningensysteem", "Vergunningverlening", "ondersteunen", "Vakapplicatie vergunningproces (grof niveau)."),
         ("Burgerzaken-suite", "Verhuizing verwerken", "registreren", None),
         ("BRP", "Verhuizing verwerken", "gegevens_leveren", "Persoonsgegevens bij verhuizing."),

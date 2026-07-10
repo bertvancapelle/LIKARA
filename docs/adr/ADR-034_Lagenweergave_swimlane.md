@@ -195,18 +195,61 @@ het voorstel en de reden:
   andersom bewandeld). Per (component, hoofdproces) één samengetrokken **vervult-edge**
   met `aantal` (badge bij ≥2, flow-precedent) en `herkomst[]` (deelproces +
   applicatiefunctie).
-- **Interactie:** dubbelklik = hercentreren (praatplaat rond het proces); popup toont
+- **Interactie:** dubbelklik = hercentreren (praatplaat rond het proces) — *herzien voor
+  proces-knopen, zie "Proces-diepte — besloten (LI037)" hieronder (besluit 5)*; popup toont
   "Vervuld door: N componenten" met de herkomst **inklapbaar per component**
   (detail-op-aanvraag) en de **vervullers-toggle**: "+ Voeg vervullende componenten toe
   (N)" ⇄ "− Verwijder vervullende componenten" — de verwijder-kant maakt uitsluitend de
   eigen toevoeging ongedaan (vóór-bestaand set-werk blijft staan); set-acties wijzigen
   nooit de weergave (zie de ADR-040-herziening).
 
-### ⚠ Bewust openstaand ontwerppunt — proces-diepte (top-1 volgende sessie, NIET afgesloten)
+### Proces-diepte — besloten (LI037): deelprocessen eerste-klas
 
-De huidige projectie toont **alleen hoofdprocessen**; deelprocessen zijn uitsluitend
-doorgerold zichtbaar (in de herkomst-popup). Dit is een **tussenstand — geen eindstaat**.
-Heroverwogen richting: **deelprocessen eerste-klas op de kaart** — component→(deel)proces
-als zichtbare koppeling, de proceshiërarchie (deelproces→hoofdproces) als knopen+lijnen,
-deelprocessen uitvouwbaar via detail-op-aanvraag, en plotbaar vanuit zowel een component
-als een (deel)proces. Besluitvorming en bouw volgen in een eigen slice.
+**Status: Besloten, nog te bouwen** (LI037; vervangt het vroegere "⚠ bewust openstaande"
+diepte-punt — de tussenstand "alleen hoofdprocessen" is geen eindstaat meer maar de
+vertrekbasis van de bouw; fasering: `docs/Bouwplan-deelprocessen-op-kaart-V037.md`).
+
+1. **Hele keten, niet weggerold.** Raakt een component-in-beeld een (deel)proces, dan komt
+   de **volledige subboom onder het bijbehorende hoofdproces** in beeld — inclusief
+   deelprocessen zonder ondersteunend systeem. De omvang schaalt mee met de **selectie**
+   van de gebruiker (de ketens die de componenten-in-beeld raken), niet met de hele tenant.
+2. **De proceszone leest als een boom.** Hoofdproces boven, deelprocessen (en dieper) op
+   rijen eronder, het ondersteunende systeem onderaan; **hoogte codeert de hiërarchie**
+   (geen niveau-label — spiegel van het ADR-042-principe "de plek in de boom ís het
+   niveau"). Deelprocessen zijn **visueel gegroepeerd onder hun eigen hoofdproces**, zodat
+   naburige bomen niet in elkaar overlopen; variabele diepte volgt vanzelf uit
+   "dieper = rij lager".
+3. **Leeft in Lagen, onder de bestaande ring `'processen'`.** De hele keten — proces-knopen
+   én de deelproces→hoofdproces-lijnen — valt onder die ene ring: ring uit ⇒ de hele keten
+   weg, consistent met "ring uit wint van gaps".
+4. **Twee gelijkwaardige ingangen, één breed landschap.** (a) "Bekijk op kaart" op het
+   proces-detail en (b) een "Via proces"-zoekingang op het kaart-beginscherm openen
+   **beide** hetzelfde: de volledige boom onder het hoofdproces, **neutraal** (niet
+   gedimd), in **Lagen**, met het **deelproces-van-herkomst benoemd** (waar de gebruiker
+   instapte). Eén gedeeld handoff-mechanisme (uitbreiding van het bestaande
+   consume-once-`kaartHandoff`), één weergave.
+5. **Klik-gebaren.** Enkelklik op een proces-knoop = **inspecteren** (detailkaart +
+   incidente lijnen oplichten, rest dimt) — als elke andere knoop. Dubbelklik = **bewust
+   inzoomen** op alléén dat deelproces + zijn directe subboom + de vervullende
+   componenten, met het **hoofdproces als klikbare terugweg** naar het brede landschap
+   (dit herziet, voor proces-knopen, de dubbelklik-regel "hercentreren op de praatplaat"
+   hierboven). Onderscheid: de *ingang* (besluit 4) toont het brede landschap; de
+   *dubbelklik* is de inzoom. Detail-op-aanvraag (applicatiefunctie / aantal vervul-regels
+   / herkomst) blijft in **badge → inklap → popup** op de vervult-koppelingen — niet in
+   het klik-gebaar op de proces-knoop.
+6. **Deelproces-zonder-systeem = eigen rustige cue.** Een (deel)proces zonder enige
+   procesvervulling eronder draagt een rustige **"geen ondersteunend systeem"-markering**,
+   **altijd zichtbaar zolang de proces-ring aan staat** en **los van de "Toon
+   registratiegaps"-toggle** (die blijft voor relatie-loze knopen; een keten-deelproces
+   heeft immers een hiërarchie-lijn en is dus niet relatie-loos). Eerlijk-gaten-tonen-lijn:
+   tonen, rustig, niet blokkeren.
+
+**Testdata-verankering (LI037 fase 0):** het canonieke scenario draagt sinds fase 0 een
+boom van **drie niveaus** (Vergunningverlening → Aanvraag behandelen → Besluit vastleggen)
+mét een vervulling op het derde niveau, plus het bewust ondersteuningsloze deelproces
+"Bezwaar behandelen" — zodat besluit 2 en 6 browserverifieerbaar zijn (reseed, geen
+migratie).
+
+**Invariant (ongewijzigd):** read-only projectie, engine onaangeroerd, **één
+roll-up-bron** (dezelfde `procesvervulling` + `ouder_id`-boom-semantiek als
+`rollup_voor_proces`/`subboom` — nooit een tweede bron).
