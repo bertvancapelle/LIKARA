@@ -47,6 +47,16 @@ class LandschapsNode(BaseModel):
     gebruikt_door_organisaties: list[UUID] = []
 
 
+class ProcesHerkomstItem(BaseModel):
+    """LI036 slice 2 — herkomst-regel op een doorgerolde procesvervulling-edge: het (deel)proces
+    waar de koppelregel werkelijk op zit + het applicatiefunctie-label. Voedt de popup-uitsplitsing
+    (stap 3) zonder de plaat te vervuilen."""
+
+    proces_id: UUID
+    proces_naam: str | None = None
+    applicatiefunctie_label: str | None = None
+
+
 class LandschapsEdge(BaseModel):
     bron_id: UUID
     doel_id: UUID
@@ -58,6 +68,10 @@ class LandschapsEdge(BaseModel):
     protocol: str | None = None             # bv. rest / soap / bestand / database (None bij gemengde groep)
     # ADR-023a Fase 3 — aantal samengetrokken flows op dit gericht paar (1 = enkele koppeling).
     aantal: int = 1
+    # LI036 slice 2 — ALLEEN op procesvervulling-edges (ring 'processen'): de onderliggende
+    # vervul-regels (deelproces + functie) van de doorgerolde component→hoofdproces-bundel.
+    # Additief + nullable — bestaande edges dragen None.
+    herkomst: list[ProcesHerkomstItem] | None = None
 
 
 class LandschapskaartResponse(BaseModel):

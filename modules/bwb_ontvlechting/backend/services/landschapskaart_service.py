@@ -25,11 +25,19 @@ from models.models import (
     Partij,
     PartijAard,
     Plateau,
+    Proces,
+    Procesvervulling,
     Relatie,
     RelatieKenmerkDimensie,
     Roltoewijzing,
 )
-from schemas.landschapskaart import LandschapsEdge, LandschapskaartResponse, LandschapsNode
+from schemas.landschapskaart import (
+    LandschapsEdge,
+    LandschapskaartResponse,
+    LandschapsNode,
+    ProcesHerkomstItem,
+)
+from services import applicatiefunctie_catalog as af_catalog
 from services import componentconfig_catalog as comp_catalog
 from services import gebruikersgroep_service
 from services import relatiekenmerk_catalog as rk_catalog
@@ -479,6 +487,103 @@ async def haal_grafdata_op(
             edges.append(LandschapsEdge(
                 bron_id=r.id, doel_id=r.leverancier_id,
                 relatietype="leverancier", label="geleverd door", ring="contracten",
+            ))
+
+    # ── Ring — Processen (LI036 slice 2 · stap 1): hoofdprocessen + doorgerolde vervul-edges ──
+    # Read-only VERRIJKING (zoals plateau_map/lev_map): gegeven de gescopede componenten leveren we
+    # de HOOFDPROCESSEN (wortels van de procesboom) die zij — direct of via een deelproces — dienen,
+    # plus per (component, hoofdproces) ÉÉN samengetrokken edge (flow-groeperingsprecedent: `aantal`
+    # = het aantal onderliggende vervul-regels; `herkomst` draagt de uitsplitsing voor de popup).
+    # ZELFDE roll-up-bron/-semantiek als `procesvervulling_service.rollup_voor_proces`
+    # (procesvervulling + `ouder_id`-boom), alleen bottom-up bewandeld (de kaart vertrekt bij de
+    # componenten). Geen schema, geen scope_ids-verbreding (processen zijn verrijking, zoals
+    # plateau-info), engine onaangeroerd.
+    pv_rijen = (
+        await session.execute(
+            select(
+                Procesvervulling.component_id, Procesvervulling.proces_id,
+                Procesvervulling.applicatiefunctie,
+            )
+            .where(Procesvervulling.tenant_id == tid, _sc(Procesvervulling.component_id))
+            .order_by(Procesvervulling.component_id, Procesvervulling.id)
+        )
+    ).all()
+    if pv_rijen:
+        # Proces-info batch-iteratief bijladen t/m alle voorouders. Termineert altijd: alleen
+        # nog-niet-geprobeerde ids worden geladen (ook bij een cyclus of een wees-verwijzing).
+        proces_info: dict[uuid.UUID, tuple[str, uuid.UUID | None]] = {}
+        geprobeerd: set[uuid.UUID] = set()
+        te_laden = {r.proces_id for r in pv_rijen}
+        while te_laden:
+            geprobeerd |= te_laden
+            p_rijen = (
+                await session.execute(
+                    select(Proces.id, Proces.naam, Proces.ouder_id)
+                    .where(Proces.tenant_id == tid, Proces.id.in_(te_laden))
+                )
+            ).all()
+            te_laden = set()
+            for p in p_rijen:
+                proces_info[p.id] = (p.naam, p.ouder_id)
+                if p.ouder_id is not None and p.ouder_id not in geprobeerd:
+                    te_laden.add(p.ouder_id)
+
+        # Cyclus-veilige klim naar de wortel (visited-set — een traversal mag nooit hangen, B3-les).
+        # Bij een (via direct SQL geconstrueerde) ouder-lus geldt het eerste her-bezochte proces als
+        # pseudo-wortel: deterministisch, geen hang. Memoized per proces.
+        wortel_cache: dict[uuid.UUID, uuid.UUID] = {}
+        def _wortel(pid: uuid.UUID) -> uuid.UUID:
+            bezocht: set[uuid.UUID] = set()
+            cur = pid
+            while True:
+                if cur in wortel_cache:
+                    w = wortel_cache[cur]
+                    break
+                if cur in bezocht:
+                    w = cur  # cyclus in de data → niet hangen
+                    break
+                bezocht.add(cur)
+                info = proces_info.get(cur)
+                ouder = info[1] if info else None
+                if ouder is None:
+                    w = cur
+                    break
+                cur = ouder
+            for b in bezocht:
+                wortel_cache[b] = w
+            return w
+
+        af_labels = await af_catalog.labels(session)
+        # Samentrekken per (component, hoofdproces); dangling-guard (P4): alleen componenten die
+        # als knoop meekomen.
+        bundel: dict[tuple[uuid.UUID, uuid.UUID], dict] = {}
+        for r in pv_rijen:
+            if r.component_id not in comp_node:
+                continue
+            w = _wortel(r.proces_id)
+            b = bundel.setdefault((r.component_id, w), {"aantal": 0, "functies": set(), "herkomst": []})
+            b["aantal"] += 1
+            b["functies"].add(r.applicatiefunctie)
+            p_info = proces_info.get(r.proces_id)
+            b["herkomst"].append(ProcesHerkomstItem(
+                proces_id=r.proces_id,
+                proces_naam=p_info[0] if p_info else None,
+                applicatiefunctie_label=af_catalog.resolveer_een(r.applicatiefunctie, af_labels),
+            ))
+        # Hoofdproces-nodes: alleen wortels die daadwerkelijk een edge dragen (geen dangling nodes);
+        # gesorteerd voor een deterministische respons.
+        for wid in sorted({k[1] for k in bundel}, key=str):
+            w_info = proces_info.get(wid)
+            nodes.append(LandschapsNode(
+                id=wid, naam=w_info[0] if w_info else f"proces {str(wid)[:8]}",
+                element_type="proces", laag="business", archimate_element="business_process",
+            ))
+        for (cid, wid), b in bundel.items():
+            enkel = next(iter(b["functies"])) if len(b["functies"]) == 1 else None
+            edges.append(LandschapsEdge(
+                bron_id=cid, doel_id=wid, relatietype="procesvervulling",
+                label=(af_catalog.resolveer_een(enkel, af_labels) if enkel else None) or "vervult",
+                ring="processen", aantal=b["aantal"], herkomst=b["herkomst"],
             ))
 
     return LandschapskaartResponse(nodes=nodes, edges=edges)
