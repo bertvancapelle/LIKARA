@@ -1265,6 +1265,111 @@ describe('LandschapskaartView v3', () => {
       expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
     })
 
+    // ── LI037 fase 4 — dubbelklik-inzoom (SET-inperking + history-terugweg; ≠ de fase-3-dim) ──
+    it('LI037-f4 (inzoom) — dubbelklik-inzoom perkt de plaat in tot subboom + vervullers (voorouder-keten als plek-context)', async () => {
+      api.processen.rollup.mockImplementation(async (id) => (id === 'pr2' ? [{ component_id: 'a2' }] : []))
+      api.procesvervullingen.lijst.mockImplementation(async (p = {}) => (p.proces_id === 'pr2' ? [{ component_id: 'a1' }] : []))
+      const w = await mountProces()
+      w.vm.toonLagen()
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('pr5') // breed vertrekpunt: beide bomen in beeld
+      await w.vm.zoomInOpProces('pr2')
+      await flushPromises()
+      // Set = vervullers van de HELE subboom via dezelfde leespaden als de ingang (één roll-up-bron).
+      expect(api.processen.rollup).toHaveBeenCalledWith('pr2')
+      expect(api.procesvervullingen.lijst).toHaveBeenCalledWith({ proces_id: 'pr2' })
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+      expect(w.vm.procesInzoom).toBe('pr2')
+      expect(w.vm.weergave).toBe('lagen')
+      // Plaat: de subboom (pr2+pr3) + de voorouder-keten als plek-context (pr1); de rest van het
+      // proceslandschap is écht WEG — geen dim (pr4-sibling en de Burgerzaken-boom verdwijnen).
+      const ids = getekendeIds(w)
+      expect(ids).toContain('pr2')
+      expect(ids).toContain('pr3')
+      expect(ids).toContain('pr1')
+      expect(ids).not.toContain('pr4')
+      expect(ids).not.toContain('pr5')
+      expect(ids).not.toContain('pr6')
+      expect(w.vm.geselecteerdNodeId).toBe(null) // inzoom dimt niet (dat is de fase-3-ingang)
+      expect(w.vm._centreerNaLayoutId).toBe('pr2') // inzoom-wortel in beeld via het stop-pad
+    })
+
+    it('LI037-f4 (dieper + terug) — processtap-inzoom is kleiner; "← Terug" herstelt exact de vorige staten', async () => {
+      api.processen.rollup.mockImplementation(async (id) => (id === 'pr2' ? [{ component_id: 'a2' }] : []))
+      api.procesvervullingen.lijst.mockImplementation(async (p = {}) =>
+        (p.proces_id === 'pr2' ? [{ component_id: 'a1' }] : p.proces_id === 'pr3' ? [{ component_id: 'a2' }] : []))
+      const w = await mountProces()
+      w.vm.toonLagen()
+      await flushPromises()
+      // Set-vertrekpunt (zoals na een ingang): terug-over-de-HELE-LANDSCHAP-grens is een bestaande,
+      // gedocumenteerde beperking (de heleLandschap-vlag reist niet mee in de history —
+      // _herstelToestand); de inzoom-terugweg wordt hier dus op een set-staat geborgd.
+      w.vm.voegComponentenToeAanSet([{ id: 'a1' }, { id: 'a2' }])
+      await flushPromises()
+      expect(getekendeIds(w)).toContain('pr5') // breed set-vertrekpunt: beide bomen in beeld
+      await w.vm.zoomInOpProces('pr2')
+      await flushPromises()
+      await w.vm.zoomInOpProces('pr3')
+      await flushPromises()
+      expect([...w.vm.actieveSet]).toEqual(['a2']) // kleiner dan de pr2-inzoom
+      expect(w.vm.procesInzoom).toBe('pr3')
+      const ids = getekendeIds(w)
+      expect(ids).toContain('pr3')
+      expect(ids).toContain('pr2') // keten als plek-context
+      expect(ids).not.toContain('pr4')
+      // Terug = de BESTAANDE history (geen apart mechanisme): eerst de pr2-inzoom terug…
+      expect(w.vm.kanTerug).toBe(true)
+      w.vm.terugInHistorie()
+      await flushPromises()
+      expect(w.vm.procesInzoom).toBe('pr2')
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+      // …en dan het brede set-vertrekpunt (geen inperking meer; de Burgerzaken-boom is er weer).
+      w.vm.terugInHistorie()
+      await flushPromises()
+      expect(w.vm.procesInzoom).toBe(null)
+      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
+      expect(getekendeIds(w)).toContain('pr5')
+    })
+
+    it('LI037-f4 (leeg) — inzoom op een proces zonder systemen: melding, plaat onaangeroerd', async () => {
+      api.processen.rollup.mockResolvedValue([])
+      api.procesvervullingen.lijst.mockResolvedValue([])
+      const w = await mountProces()
+      w.vm.toonLagen()
+      await flushPromises()
+      const setVoor = [...w.vm.actieveSet]
+      await w.vm.zoomInOpProces('pr4')
+      await flushPromises()
+      expect(w.vm.procesInzoom).toBe(null)
+      expect([...w.vm.actieveSet]).toEqual(setVoor)
+      expect(getekendeIds(w)).toContain('pr5') // niets ingeperkt
+    })
+
+    it('LI037-f4 (ingang↔inzoom) — dubbelklik ná een dim-ingang zoomt écht in; "← Terug" keert naar de gedimde ingang-staat', async () => {
+      neemKaartHandoff.mockReturnValueOnce({
+        componentIds: ['a1'],
+        weergave: 'lagen',
+        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr3', herkomstNaam: 'Besluit vastleggen' },
+      })
+      api.processen.rollup.mockResolvedValue([])
+      api.procesvervullingen.lijst.mockImplementation(async (p = {}) => (p.proces_id === 'pr3' ? [{ component_id: 'a2' }] : []))
+      const w = await mountProcesHandoff()
+      expect(w.vm.geselecteerdNodeId).toBe('pr3') // fase-3-ingang: dim-focus actief
+      await w.vm.zoomInOpProces('pr3')
+      await flushPromises()
+      // Echte inzoom: set ingeperkt, GEEN dim; de chip blijft de herkomst benoemen.
+      expect(w.vm.procesInzoom).toBe('pr3')
+      expect(w.vm.geselecteerdNodeId).toBe(null)
+      expect([...w.vm.actieveSet]).toEqual(['a2'])
+      expect(w.vm.procesIngang?.herkomstNaam).toBe('Besluit vastleggen')
+      // "← Terug" → exact de gedimde ingang-staat (selectie + set + geen inperking).
+      w.vm.terugInHistorie()
+      await flushPromises()
+      expect(w.vm.procesInzoom).toBe(null)
+      expect(w.vm.geselecteerdNodeId).toBe('pr3')
+      expect([...w.vm.actieveSet]).toEqual(['a1'])
+    })
+
     it('LI037 (popup) — hiërarchie-lijn → "Onderdeel van"; vervult-lijn → "Vervult" op het geregistreerde proces', async () => {
       const w = await mountProces()
       const hier = w.vm.grafEdges.find((e) => e.relatietype === 'proces_hierarchie' && e.bron_id === 'pr2')

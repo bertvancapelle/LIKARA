@@ -735,7 +735,12 @@ function _bepaalZichtbaar(inScopeFn) {
   // ADR-024 scope: de organisatie-scope is een extra zeef VÓÓR de weergave (alleen org-nodes + hun
   // gebruikersgroepen; componenten nooit). ADR-040 F1 stap 2b — geldt op OVERZICHT; op de praatplaat is
   // `_inScope` inert. Filters/ringen/selectie werken daarbinnen ongewijzigd door.
-  const alle = grafNodes.value.filter(inScopeFn)
+  let alle = grafNodes.value.filter(inScopeFn)
+  // LI037 fase 4 — actieve dubbelklik-inzoom: alleen de subboom + voorouder-keten van het
+  // aangeklikte proces blijven als proces-knopen over (de rest van het proceslandschap is écht
+  // uit de plaat — geen dim). Niet-proces-knopen volgen de gewone regels (set/ringen/filters).
+  const inz = _inzoomProcesIds.value
+  if (inz) alle = alle.filter((n) => n.element_type !== 'proces' || inz.has(n.id))
   if (modus.value === 'ego') {
     if (!filterActief.value) return alle.filter((n) => egoZichtbaarIds.value.has(n.id))
     const matched = new Set(alle.filter((n) => egoZichtbaarIds.value.has(n.id) && _filterMatch(n)).map((n) => n.id))
@@ -906,6 +911,75 @@ const popupToonLandschap = computed(() =>
   && detailId.value === procesIngang.value.herkomstId
   && geselecteerdNodeId.value === procesIngang.value.herkomstId
   && _selectieZonderDim.value !== geselecteerdNodeId.value)
+
+// ── LI037 fase 4 — dubbelklik-inzoom op een (deel)proces (SET-inperking, ≠ de fase-3-dim) ─────
+// De ingang (fase 3) DIMT (alles blijft geladen); de dubbelklik SNIJDT DE SET ÉCHT IN: de plaat
+// perkt in tot het aangeklikte proces + zijn hele subboom + alle vervullers daarvan. Dat is een
+// set-wijziging → een nieuwe staat op de bestaande kaart-history; "← Terug" is dé terugweg
+// (besluit A — geen apart mechanisme, geen aparte knop).
+const procesInzoom = ref(null) // proces-id van de actieve inzoom (null = geen inperking)
+// Zichtbare proces-knopen tijdens een inzoom: de subboom van het aangeklikte proces (alle
+// niveaus, BFS + visited) + zijn voorouder-keten (de plek-context: "onderdeel van …" blijft
+// leesbaar in de plaat). Afgeleid uit de getekende hiërarchie-edges; cyclus-veilig.
+const _inzoomProcesIds = computed(() => {
+  const start = procesInzoom.value
+  if (!start) return null
+  const ouderVan = new Map()
+  const kinderenVan = new Map()
+  for (const e of grafEdges.value) {
+    if (e.relatietype !== 'proces_hierarchie') continue
+    if (!ouderVan.has(e.bron_id)) ouderVan.set(e.bron_id, e.doel_id)
+    if (!kinderenVan.has(e.doel_id)) kinderenVan.set(e.doel_id, [])
+    kinderenVan.get(e.doel_id).push(e.bron_id)
+  }
+  const ids = new Set([start])
+  let frontier = [start]
+  while (frontier.length) {
+    const volgende = []
+    for (const p of frontier) {
+      for (const k of kinderenVan.get(p) || []) {
+        if (!ids.has(k)) { ids.add(k); volgende.push(k) }
+      }
+    }
+    frontier = volgende
+  }
+  let cur = ouderVan.get(start)
+  while (cur != null && !ids.has(cur)) { ids.add(cur); cur = ouderVan.get(cur) }
+  return ids
+})
+// De inzoom zelf: vervullers van de HELE subboom via dezelfde leespaden als de proces-ingang
+// (rollup = doorgerolde subboom-regels + de eigen regels van dit proces — één roll-up-bron,
+// geen nieuwe boom-definitie). Set-inperking + Lagen (weergave-wissel hoort bij dubbelklik,
+// LI036-regel); de dim-mechaniek wordt niet aangeraakt (neutrale, kleinere plaat).
+async function zoomInOpProces(procesId) {
+  try {
+    const [rollup, eigen] = await Promise.all([
+      api.processen.rollup(procesId),
+      api.procesvervullingen.lijst({ proces_id: procesId }),
+    ])
+    const ids = [...new Set([
+      ...(rollup || []).map((r) => String(r.component_id)),
+      ...(eigen || []).map((r) => String(r.component_id)),
+    ])]
+    if (!ids.length) {
+      toast?.add?.({ severity: 'info', summary: 'Geen ondersteunende systemen onder dit proces — er is niets om op in te zoomen.', life: 3500 })
+      return
+    }
+    procesInzoom.value = String(procesId)
+    // Eén history-staat per inzoom: bij een 1-element-set zou de bestaande set-size-watch
+    // `egoStartId` pas in een LATERE flush zetten en zo een tweede tussenstaat op de history
+    // duwen — zet 'm hier alvast, dan is die watch een no-op (zelfde waarde).
+    if (ids.length === 1) egoStartId.value = ids[0]
+    actieveSet.value = new Set(ids)
+    heleLandschap.value = false
+    weergave.value = 'lagen'
+    geselecteerdNodeId.value = null // neutrale kleinere plaat; de ingang-dim staat hier los van
+    _selectieZonderDim.value = null
+    _centreerNaLayoutId.value = String(procesId) // de inzoom-wortel in beeld (bestaand stop-pad)
+  } catch (e) {
+    if (e?.status !== 401) toast?.add?.({ severity: 'error', summary: 'Inzoomen is mislukt.', life: 3000 })
+  }
+}
 // "Via proces" op het beginscherm: bouw dezelfde payload als de ProcesDetail-knop (één bouwer,
 // `bouwProcesKaartHandoff`) en pas 'm direct toe — de kaart is al open, dus geen navigatie/handoff.
 // De set wordt vers gezet (het beginscherm is de instap); NEUTRAAL openen: geen dim/highlight.
@@ -929,6 +1003,7 @@ function _pasProcesIngangToe(payload) {
   heleLandschap.value = false
   if (payload.weergave === 'lagen') weergave.value = 'lagen'
   procesIngang.value = payload.procesIngang || null
+  procesInzoom.value = null // fase 4 — een verse ingang heft een eerdere dubbelklik-inzoom op
   _zetProcesFocus(payload.procesIngang) // 3b — deelproces: gedimd-met-focus; hoofdproces: centreren
   beginschermOpen.value = false
 }
@@ -940,6 +1015,7 @@ function wisSet() {
   procesIngang.value = null // LI037 fase 3 — verse start → herkomstmarkering weg
   geselecteerdNodeId.value = null // LI037 fase 3b — verse start → óók de dim-focus/selectie weg
   _selectieZonderDim.value = null // LI037 fase 3d — en de zonder-dim-onderdrukking
+  procesInzoom.value = null // LI037 fase 4 — en de dubbelklik-inzoom-scope
   weergave.value = 'overzicht' // ADR-040 F1 stap 2a — verse start → default-weergave
   egoStartId.value = null
   heleLandschap.value = false
@@ -963,6 +1039,7 @@ function toonHeleLandschap() {
   toonStartscherm.value = false
   actieveSet.value = new Set()
   grofOnlyIds.value = new Set() // LI033 — het hele landschap heeft geen org-gescoopte grof-only-context
+  procesInzoom.value = null // LI037 fase 4 — het hele landschap verdraagt geen proces-inperking
   toonOverzicht() // ADR-040 F1 stap 2a — hele landschap = brede plaat → overzicht
   heleLandschap.value = true
   beginschermOpen.value = false // hele landschap = bewuste ingang → sluit het beginscherm
@@ -1289,6 +1366,10 @@ function _maakToestand() {
     fHost: [...filterHosting.value], fLc: [...filterLifecycle.value],
     zoek: zoekterm.value, focus: focusOpSet.value,
     scopeOrgs: [...scopeOrgs.value],
+    // LI037 fase 4 — de dubbelklik-inzoom is een set-wijziging mét proces-scope: beide reizen
+    // mee in de history zodat "← Terug" exact de vorige plaat herstelt. `selZD` = de
+    // zonder-dim-onderdrukking van een hoofdproces-ingang (anders keert die staat gedimd terug).
+    inzoom: procesInzoom.value, selZD: _selectieZonderDim.value,
   }
 }
 // Genormaliseerde signatuur van de history-relevante toestand (volgorde-onafhankelijk) —
@@ -1301,6 +1382,7 @@ const _toestandSig = computed(() => JSON.stringify({
   fHost: [...filterHosting.value].sort(), fLc: [...filterLifecycle.value].sort(),
   zoek: zoekterm.value, focus: focusOpSet.value,
   scopeOrgs: [...scopeOrgs.value].sort(),
+  inzoom: procesInzoom.value, selZD: _selectieZonderDim.value, // LI037 fase 4
 }))
 watch(_toestandSig, () => {
   if (!_historieKlaar || _herstellen) return
@@ -1343,6 +1425,12 @@ function _herstelToestand(t) {
   // LI053 — scopeModus is vervallen; een oud-format snapshot dat het veld nog bevat laadt gewoon
   // (het overtollige veld wordt genegeerd).
   if (t.scopeOrgs && !setGelijk(scopeOrgs.value, t.scopeOrgs)) scopeOrgs.value = new Set(t.scopeOrgs)
+  // LI037 fase 4 — inzoom-scope + zonder-dim-onderdrukking herstellen (oud-format snapshots
+  // zonder deze velden → null; backward-compatibel).
+  const inz = t.inzoom ?? null
+  if (procesInzoom.value !== inz) procesInzoom.value = inz
+  const selZD = t.selZD ?? null
+  if (_selectieZonderDim.value !== selZD) _selectieZonderDim.value = selZD
   // ADR-040 F1 stap 2b — geen `_scopeAangeraakt` meer. Een pure scope-herstelstap wijzigt de set NIET →
   // de reload-watch vuurt niet → `_seedScopeOrgs` overschrijft de herstelde scope niet (terug/vooruit
   // van de scope blijft werken). Een herstel dat óók de set wijzigt herlaadt en volgt init-semantiek A
@@ -1807,6 +1895,13 @@ function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
     legendaTypeFilter.value = null // LI025 — dieper verkennen heft de legenda-dim op (schone focus)
+    // LI037 fase 4 — dubbelklik op een PROCES-knoop = bewuste INZOOM (set-inperking tot subboom +
+    // vervullers); de praatplaat-hercentrering hieronder blijft voor alle andere knopen.
+    const knoop = nodePerId.value[id]
+    if (knoop?.element_type === 'proces') {
+      zoomInOpProces(id)
+      return
+    }
     // ADR-040 F1 stap 2a — DUBBELklik = HERCENTREREN: dit component wordt het praatplaat-centrum
     // (concentric centraal + ego-kring). Zowel vanuit Overzicht als binnen de praatplaat.
     actieveSet.value = new Set([id])
@@ -2838,7 +2933,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ procesIngang, openViaProces, toonHeleBoom, wisProcesIngang, _centreerNaLayoutId, _selectieZonderDim, openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, popupVervulActie, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ procesIngang, openViaProces, toonHeleBoom, wisProcesIngang, _centreerNaLayoutId, _selectieZonderDim, procesInzoom, zoomInOpProces, openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, popupVervulActie, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
