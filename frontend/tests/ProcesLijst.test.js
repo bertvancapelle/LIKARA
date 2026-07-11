@@ -10,7 +10,7 @@ vi.mock('@/api', () => ({
   api: {
     // LI037 tree-view — rollup + procesvervullingen voeden de "geen ondersteunend systeem"-cue
     // (zelfde leespaden als de kaart-gap-cue).
-    processen: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), rollup: vi.fn() },
+    processen: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn(), rollup: vi.fn() },
     procesvervullingen: { lijst: vi.fn() },
   },
 }))
@@ -22,6 +22,7 @@ import { api } from '@/api'
 import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import ProcesLijst from '@modules/bwb_ontvlechting/frontend/views/ProcesLijst.vue'
+import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 
 function maakRouter() {
   return createRouter({
@@ -136,6 +137,96 @@ describe('ProcesLijst — boomweergave', () => {
     const w = await mountLijst({ rollen: ['viewer'] })
     expect(w.find('[data-testid="nieuw-proces"]').exists()).toBe(false)
     expect(w.find('[data-testid="proces-hernoem-vv"]').exists()).toBe(false)
+    // LI037 gate 2 — verwijderen/verplaatsen zijn óók rol-gated.
+    expect(w.find('[data-testid="proces-verwijder-vv"]').exists()).toBe(false)
+    expect(w.find('[data-testid="proces-verplaats-vv"]').exists()).toBe(false)
+  })
+
+  // ── LI037 tree-view gate 2 — verwijderen + verhangen ──
+  it('LI037-g2 (verwijderen) — bevestiging → endpoint; rij lokaal weg zonder herlaad-sprong', async () => {
+    api.processen.verwijder.mockResolvedValue(null)
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-toggle-bz"]').trigger('click')
+    await w.find('[data-testid="proces-verwijder-verh"]').trigger('click')
+    expect(w.find('[data-testid="proces-verwijder-omschrijving"]').text()).toContain('Verwijder "Verhuizing verwerken"?')
+    await w.find('[data-testid="proces-verwijder-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.processen.verwijder).toHaveBeenCalledWith('verh')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Verwijderd')
+    expect(w.find('[data-testid="processen-boom"]').text()).not.toContain('Verhuizing verwerken')
+    expect(api.processen.lijst).toHaveBeenCalledTimes(1) // lokaal bijgewerkt — geen herlaad
+  })
+
+  it('LI037-g2 (verwijderen, 409) — leesbare melding, boom onveranderd', async () => {
+    api.processen.verwijder.mockRejectedValue({ status: 409, message: 'Dit proces heeft deelprocessen; verplaats of verwijder die eerst.' })
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-verwijder-vv"]').trigger('click')
+    await w.find('[data-testid="proces-verwijder-bevestig"]').trigger('click')
+    await flushPromises()
+    const fout = w.find('[data-testid="proces-verwijder-fout"]')
+    expect(fout.exists()).toBe(true)
+    expect(fout.text()).toContain('kan niet worden verwijderd omdat er nog onderliggende processen zijn')
+    expect(w.find('[data-testid="processen-boom"]').text()).toContain('Vergunningverlening') // onveranderd
+  })
+
+  it('LI037-g2 (verhangen) — de picker sluit het proces zelf + zijn nazaten uit (kring-preventie vóóraf)', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-toggle-vv"]').trigger('click')
+    await w.find('[data-testid="proces-verplaats-ab"]').trigger('click')
+    const picker = w.findAllComponents(ZoekSelect).find((c) => c.props('testid') === 'proces-verplaats-doel')
+    expect(picker).toBeTruthy()
+    const r = await picker.props('zoekFunctie')({})
+    const namen = r.items.map((x) => x.naam)
+    expect(namen).not.toContain('Aanvraag behandelen') // zichzelf
+    expect(namen).not.toContain('Besluit vastleggen') // nazaat → zou een kring maken
+    expect(namen).toEqual(expect.arrayContaining(['Burgerzaken', 'Verhuizing verwerken', 'Vergunningverlening']))
+    // Identiteitspatroon: treffer mét oudercontext.
+    const verh = r.items.find((x) => x.id === 'verh')
+    expect(picker.props('weergave')(verh)).toBe('Verhuizing verwerken — Burgerzaken')
+  })
+
+  it('LI037-g2 (verhangen mét kinderen) — bevestiging benoemt N; werkBij met het doel; nieuwe plek klapt open', async () => {
+    api.processen.werkBij.mockResolvedValue(null)
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-toggle-vv"]').trigger('click')
+    await w.find('[data-testid="proces-verplaats-ab"]').trigger('click')
+    const picker = w.findAllComponents(ZoekSelect).find((c) => c.props('testid') === 'proces-verplaats-doel')
+    picker.vm.$emit('keuze', { id: 'bz', naam: 'Burgerzaken' })
+    await flushPromises()
+    // ab heeft 1 nazaat (bv) → de zin benoemt de meeverhuizende tak expliciet.
+    expect(w.find('[data-testid="proces-verplaats-zin"]').text())
+      .toBe('Verplaats "Aanvraag behandelen" en 1 onderliggend proces naar "Burgerzaken"?')
+    await w.find('[data-testid="proces-verplaats-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.processen.werkBij).toHaveBeenCalledWith('ab', { ouder_id: 'bz' })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Verplaatst')
+    // De nieuwe plek is opengeklapt: ab staat nu zichtbaar onder Burgerzaken.
+    expect(w.find('[data-testid="proces-rij-ab"]').exists()).toBe(true)
+  })
+
+  it('LI037-g2 (promoveren, zonder kinderen) — "Geen (maak hoofdproces)" → ouder_id null; korte zin', async () => {
+    api.processen.werkBij.mockResolvedValue(null)
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-toggle-vv"]').trigger('click')
+    await w.find('[data-testid="proces-toggle-ab"]').trigger('click')
+    await w.find('[data-testid="proces-verplaats-bv"]').trigger('click')
+    await w.find('[data-testid="proces-verplaats-geen"]').trigger('click')
+    const zin = w.find('[data-testid="proces-verplaats-zin"]').text()
+    expect(zin).toBe('Verplaats "Besluit vastleggen" naar hoofdprocesniveau?')
+    expect(zin).not.toContain('onderliggend')
+    await w.find('[data-testid="proces-verplaats-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.processen.werkBij).toHaveBeenCalledWith('bv', { ouder_id: null })
+  })
+
+  it('LI037-g2 (top-level) — "Geen (maak hoofdproces)" is uitgeschakeld voor een hoofdproces', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-verplaats-vv"]').trigger('click')
+    const geen = w.find('[data-testid="proces-verplaats-geen"]')
+    expect(geen.attributes('disabled')).toBeDefined()
+    expect(geen.attributes('title')).toBe('Dit is al een hoofdproces')
+    // Zonder keuze blijft Verplaatsen uit.
+    expect(w.find('[data-testid="proces-verplaats-bevestig"]').attributes('disabled')).toBeDefined()
   })
 
   // ── LI037 tree-view gate 1 — verbindingslijnen + gap-cue ──

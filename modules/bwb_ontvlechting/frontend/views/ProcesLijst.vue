@@ -18,8 +18,10 @@ import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
+import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import { procesBoomStructuur } from '../procesBoom'
 import VeldUitleg from './VeldUitleg.vue'
+import ZoekSelect from './ZoekSelect.vue'
 
 const auth = useAuthStore()
 const toast = useToast()
@@ -223,6 +225,134 @@ async function bevestig() {
   }
 }
 
+// ── LI037 tree-view gate 2 — verwijderen + verhangen (backend kon het al; nu de UI) ─────────
+
+// De subboom (zelf + alle nazaten) uit de GEDEELDE boom-structuur — voedt de verboden-set van
+// de verhang-picker (kring-preventie vóóraf) én de N-kinderen-telling in de bevestiging.
+function subboomIds(procesId) {
+  const ids = new Set([procesId])
+  let frontier = [procesId]
+  while (frontier.length) {
+    const volgende = []
+    for (const p of frontier) {
+      for (const k of boom.value.kinderenVan.get(p) || []) {
+        if (!ids.has(k)) { ids.add(k); volgende.push(k) }
+      }
+    }
+    frontier = volgende
+  }
+  return ids
+}
+
+// Verwijderen — gedeelde bevestigingsdialoog; 409 HEEFT_DEELPROCESSEN → leesbare warn-zin in
+// de dialoog (geen technische fout, boom onveranderd; de backend-guard blijft de vangrail).
+const verwijderProces = ref(null)
+const verwijderFout = ref(null)
+const verwijderBezig = ref(false)
+function openVerwijder(p) {
+  verwijderProces.value = p
+  verwijderFout.value = null
+}
+async function bevestigVerwijder() {
+  const p = verwijderProces.value
+  if (!p) return
+  verwijderBezig.value = true
+  verwijderFout.value = null
+  try {
+    await api.processen.verwijder(p.id)
+    toastSucces(toast, 'Verwijderd')
+    verwijderProces.value = null
+    // Lokaal bijwerken (geen herlaad-sprong): rij weg, expand-staat van de rest blijft; de
+    // gap-cue herberekent (een voorouder kan door de cascade van dekking wisselen).
+    alle.value = alle.value.filter((x) => x.id !== p.id)
+    openTakken.value = openTakken.value.filter((id) => id !== p.id)
+    laadGapCue()
+  } catch (e) {
+    if (e?.status === 409) {
+      verwijderFout.value = `"${p.naam}" kan niet worden verwijderd omdat er nog onderliggende processen zijn. Verplaats of verwijder die eerst.`
+    } else if (e?.status !== 401) {
+      verwijderFout.value = e?.message || 'Verwijderen is mislukt.'
+    }
+  } finally {
+    verwijderBezig.value = false
+  }
+}
+
+// Verhangen — "Verplaats naar…": ouder-picker (ZoekSelect over de al-geladen set, verboden-set
+// eruit gefilterd zodat een kring vooraf onmogelijk is) + expliciete optie "Geen (maak
+// hoofdproces)". De bevestigingszin benoemt de meeverhuizende kinderen alleen als die er zijn.
+const verplaatsProces = ref(null)
+const verplaatsDoel = ref(null) // null = nog geen keuze; { type: 'geen' } of { type: 'proces', id, naam }
+const verplaatsFout = ref(null)
+const verplaatsBezig = ref(false)
+const verplaatsKey = ref(0) // remount-sleutel voor de picker per opening (stale-label-les LI032)
+function openVerplaats(p) {
+  verplaatsProces.value = p
+  verplaatsDoel.value = null
+  verplaatsFout.value = null
+  verplaatsKey.value += 1
+}
+const verplaatsKinderen = computed(() =>
+  (verplaatsProces.value ? subboomIds(verplaatsProces.value.id).size - 1 : 0))
+// Geldige doelen: alles behalve het proces zelf + zijn nazaten (kring-preventie vóóraf).
+// Client-side zoeken over de al-geladen set (zoekveld-norm: partieel, hoofdletter-ongevoelig),
+// treffers mét oudercontext (identiteitspatroon "naam — ouder", zoals de proces-pickers elders).
+async function zoekVerplaatsDoelen(params = {}) {
+  const p = verplaatsProces.value
+  if (!p) return { items: [], volgende_cursor: null }
+  const verboden = subboomIds(p.id)
+  const term = (params.zoek || '').trim().toLowerCase()
+  const items = alle.value
+    .filter((x) => !verboden.has(x.id))
+    .filter((x) => !term || x.naam.toLowerCase().includes(term))
+    .map((x) => ({ ...x, ouder_naam: x.ouder_id ? (_byId.value.get(x.ouder_id)?.naam ?? null) : null }))
+    .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
+  return { items, volgende_cursor: null }
+}
+const doelWeergave = (x) => (x?.ouder_naam ? `${x.naam} — ${x.ouder_naam}` : (x?.naam ?? ''))
+function kiesVerplaatsDoel(item) {
+  if (item?.id) verplaatsDoel.value = { type: 'proces', id: item.id, naam: item.naam }
+  verplaatsFout.value = null
+}
+function kiesHoofdproces() {
+  verplaatsDoel.value = { type: 'geen' }
+  verplaatsFout.value = null
+}
+const verplaatsZin = computed(() => {
+  const p = verplaatsProces.value
+  const d = verplaatsDoel.value
+  if (!p || !d) return ''
+  const n = verplaatsKinderen.value
+  const mee = n > 0 ? ` en ${n} onderliggend${n === 1 ? '' : 'e'} proces${n === 1 ? '' : 'sen'}` : ''
+  return d.type === 'geen'
+    ? `Verplaats "${p.naam}"${mee} naar hoofdprocesniveau?`
+    : `Verplaats "${p.naam}"${mee} naar "${d.naam}"?`
+})
+async function bevestigVerplaats() {
+  const p = verplaatsProces.value
+  const d = verplaatsDoel.value
+  if (!p || !d) return
+  verplaatsBezig.value = true
+  verplaatsFout.value = null
+  try {
+    const doelId = d.type === 'geen' ? null : d.id
+    await api.processen.werkBij(p.id, { ouder_id: doelId })
+    toastSucces(toast, 'Verplaatst')
+    verplaatsProces.value = null
+    // Lokaal bijwerken: de tak verhuist mee (ouder_id van de wortel wijzigt; kinderen hangen
+    // eraan). De nieuwe plek openklappen zodat de gebruiker ziet waar het heenging; de
+    // gap-cue herberekent (de dekking verhuist met de tak mee).
+    alle.value = alle.value.map((x) => (x.id === p.id ? { ...x, ouder_id: doelId } : x))
+    if (doelId && !openTakken.value.includes(doelId)) openTakken.value = [...openTakken.value, doelId]
+    laadGapCue()
+  } catch (e) {
+    // Race op de backend-vangrail (kring/verdwenen doel) → rustige melding, boom onveranderd.
+    if (e?.status !== 401) verplaatsFout.value = e?.message || 'Verplaatsen is mislukt.'
+  } finally {
+    verplaatsBezig.value = false
+  }
+}
+
 onMounted(() => {
   // Geen doorklik-query op Processen → de bewaarde staat mag altijd terug.
   herstelLijstStaat()
@@ -343,6 +473,23 @@ onMounted(() => {
             class="ml-auto shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             @click="openHernoem(rij.proces)"
           >Hernoemen</button>
+          <!-- LI037 gate 2 — verhangen + verwijderen (rol-gated, zelfde actie-taal als Hernoemen). -->
+          <button
+            v-if="magBewerken"
+            type="button"
+            :data-testid="`proces-verplaats-${rij.proces.id}`"
+            :aria-label="`Verplaats ${rij.proces.naam}`"
+            class="shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+            @click="openVerplaats(rij.proces)"
+          >Verplaats naar…</button>
+          <button
+            v-if="magBewerken"
+            type="button"
+            :data-testid="`proces-verwijder-${rij.proces.id}`"
+            :aria-label="`Verwijder ${rij.proces.naam}`"
+            class="shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+            @click="openVerwijder(rij.proces)"
+          >Verwijderen</button>
         </li>
       </ul>
       <p v-else-if="!laden && zoekterm.trim()" data-testid="lijst-geen-match" class="p-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">
@@ -372,6 +519,55 @@ onMounted(() => {
           <Button type="button" label="Annuleren" severity="secondary" @click="dialogOpen = false" />
         </div>
       </form>
+    </Dialog>
+
+    <!-- LI037 gate 2 — verwijderen: gedeelde bevestigingsdialoog; een 409 (HEEFT_DEELPROCESSEN)
+         wordt een leesbare warn-zin ín de dialoog — de boom blijft ongewijzigd. -->
+    <BevestigVerwijderDialog
+      :visible="!!verwijderProces"
+      kop="Proces verwijderen"
+      :bezig="verwijderBezig"
+      testid="proces-verwijder"
+      @update:visible="(v) => { if (!v) verwijderProces = null }"
+      @bevestig="bevestigVerwijder"
+    >
+      <span v-if="verwijderFout" data-testid="proces-verwijder-fout" class="text-[var(--lk-color-warning)]">{{ verwijderFout }}</span>
+      <span v-else>Verwijder "{{ verwijderProces?.naam }}"?</span>
+    </BevestigVerwijderDialog>
+
+    <!-- LI037 gate 2 — verhangen: ouder-picker zonder ongeldige doelen (kring-preventie vóóraf:
+         het proces zelf + zijn nazaten zijn eruit gefilterd) + "Geen (maak hoofdproces)"; de
+         bevestigingszin benoemt de meeverhuizende onderliggende processen alleen als die er zijn. -->
+    <Dialog :visible="!!verplaatsProces" modal :closable="false" :header="`Verplaats “${verplaatsProces?.naam ?? ''}”`" data-testid="proces-verplaats-dialog" @update:visible="(v) => { if (!v) verplaatsProces = null }">
+      <div class="flex min-w-[24rem] flex-col gap-[var(--lk-space-md)]">
+        <p v-if="verplaatsFout" role="alert" data-testid="proces-verplaats-fout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ verplaatsFout }}</p>
+        <button
+          type="button"
+          data-testid="proces-verplaats-geen"
+          :disabled="!verplaatsProces?.ouder_id"
+          :title="verplaatsProces?.ouder_id ? '' : 'Dit is al een hoofdproces'"
+          :class="['rounded-[var(--lk-radius-btn)] border px-[var(--lk-space-md)] py-[var(--lk-space-xs)] text-left text-[length:var(--lk-text-sm)] disabled:cursor-not-allowed disabled:opacity-50',
+                   verplaatsDoel?.type === 'geen' ? 'border-[var(--lk-color-primary)] bg-[var(--lk-color-accent)] font-semibold' : 'border-[var(--lk-color-border)] hover:bg-[var(--lk-color-accent)]']"
+          @click="kiesHoofdproces"
+        >Geen (maak hoofdproces)</button>
+        <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+          <span>Of kies een nieuwe ouder</span>
+          <ZoekSelect
+            :key="verplaatsKey"
+            :zoek-functie="zoekVerplaatsDoelen"
+            :weergave="doelWeergave"
+            id-veld="id"
+            placeholder="Zoek proces…"
+            testid="proces-verplaats-doel"
+            @keuze="kiesVerplaatsDoel"
+          />
+        </label>
+        <p v-if="verplaatsZin" data-testid="proces-verplaats-zin" class="max-w-prose font-medium">{{ verplaatsZin }}</p>
+        <div class="flex gap-[var(--lk-space-md)]">
+          <Button type="button" label="Verplaatsen" data-testid="proces-verplaats-bevestig" :disabled="!verplaatsDoel || verplaatsBezig" @click="bevestigVerplaats" />
+          <Button type="button" label="Annuleren" severity="secondary" @click="verplaatsProces = null" />
+        </div>
+      </div>
     </Dialog>
   </section>
 </template>
