@@ -507,11 +507,11 @@ Pas dan: klaar.
 
 | Veld | Waarde |
 |------|--------|
-| Build | V037 |
+| Build | V038 |
 | Datum | July 2026 |
-| Commit | a99fe23 |
-| Tests | backend 1001 (2 skipped) / frontend 80 files, 1006 groen |
-| TST-rapport | TST-V037-Validatierapport.md |
+| Commit | d87aad7 |
+| Tests | backend 1001 (2 skipped) / frontend 81 files, 1046 groen |
+| TST-rapport | TST-V038-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 <!-- BOUWSTATUS_END -->

@@ -5,54 +5,61 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V037 · 2026-07-10
-- **Commit:** zeven app-commits (`7b4c00c` · `0b4a5dd` · `d2b07f3` · `5fa5fe0` · `f9a8a6f` ·
-  `9914c25` · `a99fe23`) + afsluit-commit (docs + build) volgt.
-- **Tests:** backend 1001 / 2 skipped / 0 failed · frontend 1006 groen (80 files) · 0 kritieken ·
-  restdata-check expliciet 0
-- **Migratie-head:** `0059_adr042_procesvervulling` (ongewijzigd — geen schema-wijziging deze sessie;
-  proces-projectie is een pure leeslaag, `herkomst` een additief response-veld)
-- **TST-rapport:** `docs/TST-V037-Validatierapport.md`
+- **Build:** V038 · 2026-07-11
+- **Commit:** zeventien LI037-commits (feature-koppen: fase 0–4 `ba6f688`·`8904b2a`·`4a29f2a`·
+  `932f607`·`a970fac` · seed-fix `ef2421f` · tree-view gate 1 `ca6501a` · gate 2 `ed0799b` ·
+  gating-/vorm-fix `d4b7266` · skill-borging `d87aad7`) + afsluit-commit (docs + build) volgt.
+- **Tests:** backend zie TST-V038 · frontend 81 files, 1046 groen · 0 kritieken
+- **Migratie-head:** `0059_adr042_procesvervulling` (ongewijzigd — geen schema-wijziging deze
+  sessie; subboom-projectie is een pure leeslaag, seed-fix raakt alleen dev-seed-data)
+- **TST-rapport:** `docs/TST-V038-Validatierapport.md`
 - **Bekende ruis:** dubbeltap-timer-tests in `LandschapskaartView.test.js` zijn belastinggevoelig
   (timeouts onder CPU-verzadiging bij rug-aan-rug-runs; geen code-regressie — geborgd in likara-tests).
 
-## Deze sessie (LI036 — Lagenweergave mét proceslaan) — AFGEROND
-**Kader:** ADR-034-herbouw als derde kaart-weergave op de kaart-selectie, met de proceswereld
-(ADR-042) als nieuwe laan. Engine onaangeroerd; geen schema-wijziging.
-- **"Lagen" als derde weergave (`7b4c00c`).** Cytoscape preset-baanposities + HTML-band-overlay
-  (geen compound-nodes); render-fix eerste frame = meet-stap (`updateStyle` + `layoutDimensions`)
-  in de preset-tak; maatwissel = `cy.resize()` + fit, geen re-layout.
-- **Rolbanen met rol-accent (`7b4c00c`).** Partij als visuele instance per rolbaan (`id@baan`,
-  interactie op `logischId`); rol-tags (gebruikt/levert/beheert/eigenaar) als HTML-pill-overlay
-  die de dim-staat van hun knoop delen.
-- **"Ring uit wint van gaps" + organisatiebalk model i (`0b4a5dd`).** Gap-knopen respecteren de
-  ring-stand; de balk toont alleen in-beeld-organisaties (contrafeitelijk afgeleid — uitgezette
-  org blijft zichtbaar-onaangevinkt, dus omkeerbaar).
-- **Proceslaan slice 2, stap 1–3.** Backend proces-projectie in de subgraaf: roll-up naar
-  hoofdproces, cyclus-veilige `_wortel`-klim, samengetrokken edges met `aantal` + `herkomst[]`,
-  één roll-up-definitie (`d2b07f3`) · frontend proceslaan + ring "Processen" + proces-vorm
-  afgeronde rechthoek/verloop-pijl (`5fa5fe0`) · aantal-badge + inklapbare herkomst-popup +
-  vervul-toggle met exact-ongedaan-maken (`_vervulToegevoegd`-administratie; set-acties wijzigen
-  nooit de weergave) (`f9a8a6f`).
-- **Borging.** 16 patronen in vijf likara-skills (`9914c25`); ADR-034/040 naar de gebouwde
-  realiteit met het diepte-punt "alleen hoofdprocessen = tussenstand" prominent open (`a99fe23`).
+## Deze sessie (LI037 — Deelprocessen eerste-klas + tree-view-procesbeheer) — AFGEROND
+**Kader:** het LI036-diepte-punt ("alleen hoofdprocessen = tussenstand") gesloten; engine
+onaangeroerd, geen schema-wijziging. ADR-034 draagt het besluitkader (amendement), ADR-042 de
+statusverwijzing.
+- **Deelprocessen eerste-klas op de kaart (fase 0–4).** Seed naar 3 niveaus + gap-deelproces →
+  backend **subboom-projectie** (élk subboom-lid eerste-klas als knoop, hiërarchie-edges
+  `proces_hierarchie`/"onderdeel van", vervult-edges op het **geregistreerde** (deel)proces —
+  wortel-bundel vervangen; selectie-schaal: alleen geraakte bomen; één roll-up-bron =
+  spiegel van `rollup_voor_proces`) → **boom-layout** in de proceszone (`procesBoomLayout`) +
+  "geen ondersteunend systeem"-cue met subboom-semantiek → **twee ingangen** (ProcesDetail-knop
+  + "Via proces" op het beginscherm) via één `kaartHandoff`; herkomst = **oranje selectie +
+  centrering** (deelproces gedimd-met-focus + "Toon hele landschap"; hoofdproces breed; blauw
+  accent afgekeurd) → **dubbelklik-inzoom** (échte set-inperking proces+subboom+vervullers,
+  terug via de bestaande history).
+- **Seed-idempotentie-fix.** Verantwoordelijken-blok vult op **vaste identiteit**
+  (component+vraagcode) i.p.v. eerstvolgende-lege (3 gevuld / 264 leeg, twee-runs-stabiel).
+- **Tree-view procesregister.** `ProcesLijst` met **verbindingslijnen** (gedeelde
+  `procesBoomStructuur` — kaart én lijst, nooit een derde boom-opbouw; └/├, guides volle
+  rijhoogte, wortels zonder connector-kolom) + gap-cue; **beheer**: verwijderen (409 leesbaar)
+  + verhangen met kring-preventie-vóóraf, "Geen (maak hoofdproces)" en een bevestiging die de
+  N meeverhuizende kinderen benoemt.
+- **Gating-/vorm-consistentie (6 plekken).** Destructieve acties gaten vooraf op
+  `magVerwijderen = hasRole('beheerder')` (ProcesLijst + Koppeling-/Structuur-/Datatype-/
+  Gebruikersgroep-/ContractSectie); rij-acties als Buttons (destructief = danger, nooit
+  tekstlink). Procesvervulling/roltoewijzing bewust ongemoeid (WIJZIGEN-guard klopt daar).
+- **Borging (`d87aad7`).** Domeinmodel naar de subboom-realiteit; UX: proces-ingang/inzoom/
+  boom-vs-netwerk + gap-cue-consistentie; frontend: gedeelde boom-opbouw, VERWIJDEREN-gating,
+  danger-norm, cytoscape-hex-aandachtspunt; werkprotocol: AKKOORD-alleen-rechtstreeks,
+  rol-gating-browsercheck met beide rollen, reikwijdte-scan vóór een klasse-fix.
 
-## Top-6 prioriteiten volgende sessie (LI037) — zie NEXT_SESSION.md voor de volle tekst
-1. **Deelprocessen eerste-klas op de kaart** (besloten top-1; herziet de diepte-tussenstand;
-   bevat het geparkeerde "proces als kaart-vertrekpunt" — ProcesDetail-knop + "Via proces"-ingang,
-   opent in Lagen met doorgerolde subboom-vervullers, neutraal; start read-only + ontwerpdialoog).
-2. **Plaatstaat-herstel na onbedoelde onderbreking** (lk-state overleeft timeout/herlaad zonder
+## Prioriteiten volgende sessie — zie NEXT_SESSION.md voor de volle tekst
+1. **Plaatstaat-herstel na onbedoelde onderbreking** (lk-state overleeft timeout/herlaad zonder
    tijdslimiet; alleen bewuste actie geeft schone start; eerst read-only feitencheck auth/401).
-3. **Architectuur-scherm compleet verwijderen** (besluit A; `ARCHITECTUUR.LEZEN` NIET verwijderen —
+2. **Architectuur-scherm compleet verwijderen** (besluit A; `ARCHITECTUUR.LEZEN` NIET verwijderen —
    de kaart gebruikt die; eerst read-only inventarisatie; eigen slice met gate + browsercheck).
-4. **Beginscherm als enige vertrekpunt** (filterkolom verbergen/inklappen bij lege set).
-5. **Rapportage & export** (eigen strategisch spoor, eerst doordenken — PDF kaart-selectie:
-   plaat + leesbare relatie-beschrijving via de bestaande hertaling).
-6. **Bredere ruggengraat** (audit-dekking deletes; UI-consistentiebundel; kaart component-breed;
+3. **Beginscherm als enige vertrekpunt** (filterkolom verbergen/inklappen bij lege set).
+4. **Rapportage & export** (eigen strategisch spoor, eerst doordenken — PDF kaart-selectie).
+5. **Bredere ruggengraat** (audit-dekking deletes; UI-consistentiebundel; kaart component-breed;
    contactpersoon uit eigen organisatie (schema-gate); GEMMA-procesimport (eigen ADR-spoor)).
 
-**Losse punten (OPVOLGPUNTEN):** rol-accent beknopt/uitgebreid als ADR-041-kijkvoorkeur;
-labelkeuze "Rollen & beheer" → "Partijen & rollen"?; ADR-register-gat (README mist ADR-026..033/035/036).
+**Zes nieuwe opvolgpunten uit LI037** (detail + status in OPVOLGPUNTEN.md): proces-only diagram
+(te ontwerpen); ADR-spoor procesafhankelijkheden/flow; detailscherm-procesbeheer (besluit A: nu
+niet); rollenmodel generiek vs. functioneel + proces-toepasbaarheid (te groot voor nu);
+proces-ingang-weergave (productie-evaluatie); history-grens hele-landschap-herstel (checkpoint+fix).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote `bertvancapelle/CompliData` → LIKARA + remote-URL; lokale

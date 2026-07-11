@@ -1,6 +1,6 @@
-# SESSIE_BRIEFING.md — LIKARA V037
+# SESSIE_BRIEFING.md — LIKARA V038
 
-**Gegenereerd**: 2026-07-10
+**Gegenereerd**: 2026-07-11
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Veld | Waarde |
 |------|--------|
-| Build | V037 |
+| Build | V038 |
 | Datum | July 2026 |
-| Commit | a99fe23 |
-| Tests | backend 1001 (2 skipped) / frontend 80 files, 1006 groen |
-| TST-rapport | TST-V037-Validatierapport.md |
+| Commit | d87aad7 |
+| Tests | backend 1001 (2 skipped) / frontend 81 files, 1046 groen |
+| TST-rapport | TST-V038-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -22,80 +22,67 @@
 ## Recente commits
 
 ```
-a99fe23 LI036: ADR-onderhoud — ADR-034/040 naar de gebouwde realiteit
-9914c25 LI036: skill-borging — Lagen-weergave, rolbanen, proceslaan, kaartpatronen
-f9a8a6f LI036 slice 2 stap 3: proceslaan afgerond — badge, herkomst-popup, vervullers-toggle
-5fa5fe0 LI036 slice 2 stap 2: proceslaan + ring "Processen" op de kaart
-d2b07f3 LI036 slice 2 stap 1: proces-projectie in de kaart-subgraaf (read-only)
+d87aad7 LI037 sluiting deel 1: skill-review + patroon-borging
+d4b7266 LI037 fix: verwijder-gating op het VERWIJDEREN-recht (6 plekken) + rij-acties als knoppen
+62e37f0 LI037 checkpoint: feitenrapport reikwijdte beheeracties (V037)
+12544d6 LI037 checkpoint: feitenrapport proces-beheer-rechten (V037)
+ed0799b LI037 tree-view gate 2: verwijderen + verhangen in het procesregister
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# NEXT_SESSION.md — LIKARA V037
+# NEXT_SESSION.md — LIKARA V038
 
-**Gegenereerd**: 2026-07-10
-**Vorige build**: V037
+**Gegenereerd**: 2026-07-11
+**Vorige build**: V038
 **Branch**: master
 
-> **Sessie LI036 — Lagenweergave mét proceslaan volledig geland (V037).**
+> **Sessie LI037 — Deelprocessen eerste-klas + tree-view-procesbeheer volledig geland (V038).**
 >
-> Afgerond in LI036:
-> - **"Lagen" als derde kaart-weergave** — Cytoscape preset-baanposities + HTML-band-overlay,
->   render-fix eerste frame (meet-stap `updateStyle` + `layoutDimensions` in de preset-tak),
->   maatwissel = resize + fit zonder re-layout (`7b4c00c`).
-> - **Rolbanen met rol-accent** — partij als visuele instance per rolbaan (`id@baan`, interactie op
->   `logischId`), rol-tags als HTML-pill-overlay die de dim-staat delen (`7b4c00c`).
-> - **"Ring uit wint van gaps"** + **organisatiebalk toont alleen in-beeld-organisaties (model i,
->   contrafeitelijk; uitzetten omkeerbaar)** (`0b4a5dd`).
-> - **Proceslaan (slice 2, stap 1–3)**: backend proces-projectie in de subgraaf — roll-up naar
->   hoofdproces, cyclus-veilig, één roll-up-definitie, engine onaangeroerd (`d2b07f3`) · frontend
->   proceslaan + ring "Processen" + proces-vorm afgeronde rechthoek/verloop-pijl (`5fa5fe0`) ·
->   aantal-badge + inklapbare herkomst-popup + vervul-toggle met exact-ongedaan-maken (`f9a8a6f`).
-> - **16 patronen geborgd in vijf likara-skills** (`9914c25`); **ADR-034/040 bijgewerkt naar de
->   gebouwde realiteit** — diepte-punt "alleen hoofdprocessen" prominent als tussenstand (`a99fe23`).
+> Afgerond in LI037:
+> - **Deelprocessen eerste-klas op de kaart (fase 0–4)** — seed 3 niveaus + gap-deelproces
+>   (`ba6f688`) · backend **subboom-projectie**: elk subboom-lid als knoop, hiërarchie-edges
+>   "onderdeel van", vervult-edges op het geregistreerde (deel)proces, één roll-up-bron
+>   (`8904b2a`) · proceszone als **boom** + gap-cue met subboom-semantiek (`4a29f2a`) ·
+>   **twee proces-ingangen** via één handoff, herkomst = oranje selectie + centrering
+>   (`932f607`) · **dubbelklik-inzoom** = set-inperking, terug via history (`a970fac`).
+>   Het LI036-diepte-punt ("alleen hoofdprocessen") is hiermee gesloten (ADR-034-amendement).
+> - **Seed-idempotentie** — verantwoordelijken op vaste identiteit, twee-runs-stabiel (`ef2421f`).
+> - **Tree-view procesregister** — verbindingslijnen op gedeelde `procesBoomStructuur` + gap-cue
+>   (`ca6501a`); verwijderen + verhangen met kring-preventie-vóóraf (`ed0799b`); gating-/
+>   vorm-consistentie: destructief → `magVerwijderen` op 6 plekken, rij-acties als danger-knoppen
+>   (`d4b7266`).
+> - **Borging** — 12 patronen in vier likara-skills + zes opvolgpunten (`d87aad7`).
 >
-> Tests: backend **1001** (2 skipped) / frontend **80 files, 1006** groen. Migratie-head **0059**
-> (geen schema-wijziging deze sessie).
+> Tests: frontend **81 files, 1046** groen; backend + TST: zie `TST-V038-Validatierapport.md`.
+> Migratie-head **0059** (geen schema-wijziging deze sessie).
 
 ---
 
-## Volgende stappen — TOP-6 (in deze volgorde)
+## Volgende stappen — TOP-5 (in deze volgorde)
 
-### 1. Deelprocessen eerste-klas op de kaart (besloten top-1)
-Component→(deel)proces zichtbaar (niet weggerold); proceshiërarchie deelproces→hoofdproces als
-knopen+lijnen; deelprocessen uitvouwbaar detail-op-aanvraag; plotbaar vanuit component én vanuit
-(deel)proces. Herziet de stap-1-diepte-keuze ("alleen hoofdprocessen" = tussenstand — zie
-ADR-034 ⚠ bewust openstaand).
-
-**Bevat het geparkeerde "proces als kaart-vertrekpunt":** "Bekijk op kaart" vanaf een
-(deel)proces zet dát proces als centrum; opent in **Lagen**; laadt de **doorgerolde
-subboom-vervullers** (unie procesvervullingen + rollup); **neutraal openen** (niet gedimd);
-vanaf een deelproces → hoofdproces-context mét oorsprong-signaal (deelproces benoemd).
-Ingangen: knop op ProcesDetail + "Via proces"-zoekingang in KaartBeginscherm. Puur frontend
-(kaartHandoff + weergave-veld). **Start met een read-only checkpoint + ontwerpdialoog.**
-
-### 2. Plaatstaat-herstel na onbedoelde onderbreking
+### 1. Plaatstaat-herstel na onbedoelde onderbreking
 lk-state (set/weergave/ringen/scope) overleeft timeout/herlaad/browser-dicht — **zonder
 tijdslimiet**; alleen bewuste actie (uitloggen/"Begin opnieuw"/nieuwe verkenning) geeft schone
 start. Herstel-na-onderbreking, géén bewaarde voorkeur (ADR-041 blijft). Eerst read-only
 feitencheck: Keycloak-sessie-/tokenlevensduur + waar lk-state leeft + bewaarplek
 (privacy-randje). Raakt de auth/401-cluster.
 
-### 3. Architectuur-scherm compleet verwijderen (besluit A)
+### 2. Architectuur-scherm compleet verwijderen (besluit A)
 Lagen-view + Tabel-view + zijbalk-menu + route. Ingehaald door de kaart-lagenweergave; elk
 elementtype heeft z'n eigen register. Eerst read-only inventarisatie van alles wat eraan hangt —
 **KRITISCH: `ARCHITECTUUR.LEZEN` NIET verwijderen** (de Landschapskaart gebruikt die ook); check
 `architectuur_service`, inkomende "Open in Architectuur"-links, tests. Eigen slice met gate +
 browsercheck.
 
-### 4. Beginscherm als enige vertrekpunt
+### 3. Beginscherm als enige vertrekpunt
 Linker filterkolom verbergen/inklappen zolang er geen selectie is (0 in beeld); pas tonen zodra
 er een set is; "Begin opnieuw" → terug naar alleen het beginscherm. Open: verbergen vs.
 inklappen; wat de kolom toont bij lege set.
 
-### 5. Rapportage & export (eigen strategisch spoor, eerst doordenken)
+### 4. Rapportage & export (eigen strategisch spoor, eerst doordenken)
 PDF van een kaart-selectie: (a) grafische weergave van de getoonde plaat + (b) leesbare
 beschrijving van álle getoonde relaties (via de bestaande relatie-hertaling). Bundelt oude
 fragmenten (ADR-025 import/export/rapportage; PDF-per-applicatie; Excel/CSV bestuurlijk;
@@ -103,18 +90,27 @@ PNG/PDF-kaart). Open: scope (hele selectie vs. per knoop); v1 sjabloon-tekst (de
 vs. AI-proza (later, governance-kanttekening); render (SVG/PNG uit Cytoscape); backend- vs.
 frontend-PDF; UI-plek; RBAC; performance bij schaal.
 
-### 6. Bredere ruggengraat (uit OPVOLGPUNTEN)
+### 5. Bredere ruggengraat (uit OPVOLGPUNTEN)
 Audit-dekking op deletes; UI-consistentiebundel (11 bevestig-dialogen → één, 2 waarschuwingen →
 standaard, verwijder-asymmetrie partijrollen); kaart component-breed (ADR-verkenning: elk
 componenttype zoekbare knoop); contactpersoon als keuze uit personen eigen organisatie
 (schema-gate); GEMMA-procesimport (eigen ADR-spoor).
 
+### Nieuw uit LI037 (niet gerangschikt — detail + status in `docs/OPVOLGPUNTEN.md`)
+Proces-only diagram (te ontwerpen, eigen slice); ADR-spoor procesafhankelijkheden/flow
+(bepaalt de rijkdom van het proces-diagram); detailscherm-procesbeheer (besluit A: nu niet);
+rollenmodel generiek vs. functioneel + proces-toepasbaarheid (te groot voor nu, strategisch
+ADR); proces-ingang-weergave (productie-evaluatiepunt); history-grens hele-landschap-herstel
+(read-only checkpoint + fix).
+
 ### Staande werkafspraken (ongewijzigd)
-- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` is de exclusieve commit-trigger.
+- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` is de exclusieve commit-trigger
+  (uitsluitend door Bert, rechtstreeks in CC — nooit in een opdracht-`.md`).
 - UX-first: gebruikerservaring is het uitgangspunt, techniek is vangrail; browsercheck-bevindingen
-  → patroon-onderzoek vóór punt-fixes.
+  → patroon-onderzoek vóór punt-fixes; rol-gating browserchecken met béíde rollen.
 - Gate-discipline: schema-/UX-slices stoppen met gate-rapport + browsercheck-draaiboek vóór commit;
-  vitest altijd vanuit `frontend/`; backend-suite vanaf de repo-root.
+  reikwijdte-scan vóór een klasse-fix; vitest altijd vanuit `frontend/`; backend-suite vanaf de
+  repo-root.
 
 ---
 
@@ -122,13 +118,13 @@ componenttype zoekbare knoop); contactpersoon als keuze uit personen eigen organ
 
 | Veld | Waarde |
 |------|--------|
-| Build | V037 |
-| Datum | 2026-07-10 |
-| Tests | backend 1001 (2 skipped) / frontend 80 files, 1006 groen |
+| Build | V038 |
+| Datum | 2026-07-11 |
+| Tests | backend zie TST-V038 / frontend 81 files, 1046 groen |
 | Migratie-head | 0059_adr042_procesvervulling |
-| TST-rapport | TST-V037-Validatierapport.md |
+| TST-rapport | TST-V038-Validatierapport.md |
 | Kritieke bevindingen | 0 |
-| Skills | vijf likara-skills bijgewerkt (16 LI036-patronen); ADR-034/040 → gebouwde realiteit |
+| Skills | vier likara-skills bijgewerkt (12 LI037-patronen); domeinmodel → subboom-realiteit |
 
 
 ---
@@ -137,5 +133,5 @@ componenttype zoekbare knoop); contactpersoon als keuze uit personen eigen organ
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V037"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V038"
 4. Wacht op START: [naam] van Bert
