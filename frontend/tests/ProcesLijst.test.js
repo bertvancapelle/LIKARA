@@ -7,7 +7,12 @@ import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
-  api: { processen: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn() } },
+  api: {
+    // LI037 tree-view — rollup + procesvervullingen voeden de "geen ondersteunend systeem"-cue
+    // (zelfde leespaden als de kaart-gap-cue).
+    processen: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), rollup: vi.fn() },
+    procesvervullingen: { lijst: vi.fn() },
+  },
 }))
 
 // LI035 succes-standaard — helper gemockt zodat de succes-flow assertbaar is.
@@ -33,10 +38,12 @@ const _p = (id, naam, ouder_id = null, toelichting = null) => ({
   created_at: '2026-07-01T10:00:00Z', updated_at: '2026-07-01T10:00:00Z',
 })
 
-// Geseede boom: Vergunningverlening → Aanvraag behandelen; Burgerzaken → Verhuizing verwerken.
+// Geseede boom (fase-0-vorm, 3 niveaus): Vergunningverlening → Aanvraag behandelen → Besluit
+// vastleggen; Burgerzaken → Verhuizing verwerken.
 const _boom = () => [
   _p('vv', 'Vergunningverlening'),
   _p('ab', 'Aanvraag behandelen', 'vv'),
+  _p('bv', 'Besluit vastleggen', 'ab'),
   _p('bz', 'Burgerzaken'),
   _p('verh', 'Verhuizing verwerken', 'bz'),
 ]
@@ -57,6 +64,10 @@ beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear() // lijststaat (useLijstStaat) mag niet tussen tests lekken
   api.processen.lijst.mockResolvedValue({ items: _boom(), volgende_cursor: null })
+  // Default: beide bomen volledig gedekt (geen gap-tags) — de gap-test overschrijft dit.
+  api.processen.rollup.mockImplementation(async (w) =>
+    (w === 'vv' ? [{ proces_id: 'ab' }, { proces_id: 'bv' }] : w === 'bz' ? [{ proces_id: 'verh' }] : []))
+  api.procesvervullingen.lijst.mockResolvedValue([{ component_id: 'c1' }])
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -125,6 +136,82 @@ describe('ProcesLijst — boomweergave', () => {
     const w = await mountLijst({ rollen: ['viewer'] })
     expect(w.find('[data-testid="nieuw-proces"]').exists()).toBe(false)
     expect(w.find('[data-testid="proces-hernoem-vv"]').exists()).toBe(false)
+  })
+
+  // ── LI037 tree-view gate 1 — verbindingslijnen + gap-cue ──
+  it('LI037 (lijnen) — connectoren op elk niveau (3 diep), laatste kind sluit af, doorloop bij broers', async () => {
+    // Extra broer onder vv → een dóórlopende guide-lijn op het diepere niveau.
+    api.processen.lijst.mockResolvedValue({
+      items: [..._boom(), _p('bez', 'Bezwaar behandelen', 'vv')],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-toggle-vv"]').trigger('click')
+    await w.find('[data-testid="proces-toggle-ab"]').trigger('click')
+    // Wortels dragen géén elleboog; kinderen wél.
+    expect(w.find('[data-testid="proces-lijn-vv"]').exists()).toBe(false)
+    expect(w.find('[data-testid="proces-lijn-ab"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-lijn-bv"]').exists()).toBe(true)
+    // "Aanvraag behandelen" is NIET het laatste kind (Bezwaar volgt) → de verticale lijn loopt
+    // door (bottom-0); "Bezwaar behandelen" is het laatste kind → elleboog sluit af (bottom-1/2).
+    expect(w.find('[data-testid="proces-lijn-ab"]').classes()).toContain('bottom-0')
+    expect(w.find('[data-testid="proces-lijn-bez"]').classes()).toContain('bottom-1/2')
+    // Gate 1c — laatste-kind-afsluiting (└): bez draagt ALLEEN elleboog + horizontale stub —
+    // géén extra lijn onder de elleboog (dat was het T-stuk-defect).
+    const bezLijnen = w.find('[data-testid="proces-rij-bez"]').findAll('[data-boomlijn]')
+    expect(bezLijnen.length).toBe(2)
+    // Niveau 3 (bv): doorlopende guide van het ab-broers-spoor + elleboog + horizontale stub = 3;
+    // alle decoratief (aria-hidden).
+    const bvLijnen = w.find('[data-testid="proces-rij-bv"]').findAll('[data-boomlijn]')
+    expect(bvLijnen.length).toBe(3)
+    expect(bvLijnen.every((s) => s.attributes('aria-hidden') === 'true')).toBe(true)
+    // Gate 1c — naadloosheid: de doorloop-guide op bv's rij bestaat (de ab↔bez-lijn loopt hier
+    // dóór — dat was het gat) en beslaat de VOLLE rijhoogte (inset-y-0). De exacte kolom-x is
+    // een calc()-inline-stijl die happy-dom niet serialiseert → de pixel-uitlijning (guide op
+    // kolom 0, elleboog op kolom 1) is een browsercheck-criterium (draaiboek stap 1–3).
+    const bvGuide = bvLijnen.find((s) => s.classes().includes('inset-y-0'))
+    expect(bvGuide).toBeTruthy()
+    // Een opengeklapte ouder draagt de omlaag-stub naar zijn kinderen.
+    const abLijnen = w.find('[data-testid="proces-rij-ab"]').findAll('[data-boomlijn]')
+    expect(abLijnen.length).toBe(3) // elleboog + horizontale stub + omlaag-stub (open)
+    // Gate 1c — bomen zijn onafhankelijk: een kind van de ándere wortel (Burgerzaken is niet de
+    // laatste wortel) krijgt GEEN doorloop-guide van het wortel-niveau (wortels dragen geen kolom).
+    await w.find('[data-testid="proces-toggle-bz"]').trigger('click')
+    const verhLijnen = w.find('[data-testid="proces-rij-verh"]').findAll('[data-boomlijn]')
+    expect(verhLijnen.length).toBe(2) // alleen elleboog + horizontale stub
+    expect(w.find('[data-testid="proces-lijn-verh"]').classes()).toContain('bottom-1/2')
+  })
+
+  it('LI037 (gap-cue) — subboom-semantiek: dekking klimt naar de voorouders; ongedekte boom toont de tag', async () => {
+    // Vergunningverlening-boom gedekt via het DIEPSTE proces (bv) — de klim dekt ab + vv mee;
+    // de Burgerzaken-boom heeft niets → bz + verh dragen de cue.
+    api.processen.rollup.mockImplementation(async (w) => (w === 'vv' ? [{ proces_id: 'bv' }] : []))
+    api.procesvervullingen.lijst.mockResolvedValue([]) // geen wortel-eigen regels
+    const w = await mountLijst()
+    // Zelfde leespaden als de kaart: rollup + wortel-eigen regels, per wortel (geen N+1 per rij).
+    expect(api.processen.rollup).toHaveBeenCalledWith('vv')
+    expect(api.processen.rollup).toHaveBeenCalledWith('bz')
+    expect(api.procesvervullingen.lijst).toHaveBeenCalledWith({ proces_id: 'vv' })
+    expect(w.find('[data-testid="proces-gap-bz"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-gap-vv"]').exists()).toBe(false) // gedekt via de klim
+    await w.find('[data-testid="proces-toggle-bz"]').trigger('click')
+    expect(w.find('[data-testid="proces-gap-verh"]').exists()).toBe(true)
+    await w.find('[data-testid="proces-toggle-vv"]').trigger('click')
+    expect(w.find('[data-testid="proces-gap-ab"]').exists()).toBe(false)
+    expect(w.find('[data-testid="proces-gap-bz"]').text()).toBe('geen ondersteunend systeem')
+  })
+
+  it('LI037 (zoeken + lijnen) — tijdens een actief filter kloppen de lijnen voor de zichtbare takken', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-zoek"]').setValue('besluit')
+    const boom = w.find('[data-testid="processen-boom"]').text()
+    expect(boom).toContain('Besluit vastleggen') // treffer, pad opengeklapt
+    expect(boom).toContain('Aanvraag behandelen')
+    expect(boom).not.toContain('Burgerzaken')
+    // bv is het enige zichtbare kind van ab → laatste (elleboog sluit af); geen doorloop-guide
+    // (ab is óók het laatste zichtbare kind van vv) → elleboog + stub = 2 lijn-elementen.
+    expect(w.find('[data-testid="proces-lijn-bv"]').classes()).toContain('bottom-1/2')
+    expect(w.find('[data-testid="proces-rij-bv"]').findAll('[data-boomlijn]').length).toBe(2)
   })
 })
 
