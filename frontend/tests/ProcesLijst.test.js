@@ -30,10 +30,18 @@ vi.mock('@/composables/cytoscape', () => ({
   })),
 }))
 
+// LI038 gate 2 — de kaart-doorschakeling: gedeelde bouwer + consume-once handoff gemockt,
+// zodat de test het exacte ProcesDetail-spiegelpad kan asserteren.
+vi.mock('@/composables/kaartHandoff', () => ({ zetKaartHandoff: vi.fn() }))
+vi.mock('@modules/bwb_ontvlechting/frontend/procesKaartIngang', () => ({ bouwProcesKaartHandoff: vi.fn() }))
+
 import { api } from '@/api'
 import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
+import { zetKaartHandoff } from '@/composables/kaartHandoff'
+import { bouwProcesKaartHandoff } from '@modules/bwb_ontvlechting/frontend/procesKaartIngang'
 import ProcesLijst from '@modules/bwb_ontvlechting/frontend/views/ProcesLijst.vue'
+import ProcesDiagram from '@modules/bwb_ontvlechting/frontend/views/ProcesDiagram.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 
 function maakRouter() {
@@ -42,6 +50,7 @@ function maakRouter() {
     routes: [
       { path: '/processen', name: 'proces-lijst', component: ProcesLijst },
       { path: '/processen/:id', name: 'proces-detail', component: { template: '<div/>' } },
+      { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
     ],
   })
 }
@@ -370,6 +379,57 @@ describe('ProcesLijst — LI038 gate 1: weergave-schakelaar Boom | Diagram', () 
     const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:proces-lijst'))
     expect(bewaard.weergave).toBe('diagram')
     w.unmount()
+  })
+})
+
+describe('ProcesLijst — LI038 gate 2: "Bekijk op de kaart" vanuit de Diagram-popup', () => {
+  // Eigen mount die de router teruggeeft (navigatie-assert), verder gelijk aan mountLijst.
+  async function mountMetRouter() {
+    const router = maakRouter()
+    await router.push('/processen')
+    await router.isReady()
+    const pinia = createPinia()
+    const auth = useAuthStore(pinia)
+    auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: ['medewerker'] }
+    const w = mount(ProcesLijst, { global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } } })
+    await flushPromises()
+    return { w, router }
+  }
+
+  async function openPopup(w) {
+    await w.find('[data-testid="weergave-diagram"]').trigger('click')
+    const diagram = w.findComponent(ProcesDiagram)
+    diagram.vm.kiesCentrum({ id: 'ab' })
+    await flushPromises()
+    diagram.vm.selecteer('ab')
+    await flushPromises()
+    return diagram
+  }
+
+  it('bouwt de handoff via de gedeelde bouwer + consume-once store en navigeert naar de kaart', async () => {
+    const payload = {
+      componentIds: ['c1', 'c2'], weergave: 'lagen',
+      procesIngang: { wortelId: 'vv', wortelNaam: 'Vergunningverlening', herkomstId: 'ab', herkomstNaam: 'Aanvraag behandelen' },
+    }
+    bouwProcesKaartHandoff.mockResolvedValue(payload)
+    const { w, router } = await mountMetRouter()
+    await openPopup(w)
+    await w.find('[data-testid="diagram-popup-kaart"]').trigger('click')
+    await flushPromises()
+    // Exact het ProcesDetail-spiegelpad: bouwer(api, procesId) → zetKaartHandoff → route.
+    expect(bouwProcesKaartHandoff).toHaveBeenCalledWith(api, 'ab')
+    expect(zetKaartHandoff).toHaveBeenCalledWith(payload)
+    expect(router.currentRoute.value.name).toBe('landschapskaart')
+  })
+
+  it('lege payload (boom zonder ondersteunende systemen) → rustige melding, géén navigatie', async () => {
+    bouwProcesKaartHandoff.mockResolvedValue({ componentIds: [], weergave: 'lagen', procesIngang: null })
+    const { w, router } = await mountMetRouter()
+    await openPopup(w)
+    await w.find('[data-testid="diagram-popup-kaart"]').trigger('click')
+    await flushPromises()
+    expect(zetKaartHandoff).not.toHaveBeenCalled()
+    expect(router.currentRoute.value.name).toBe('proces-lijst') // geen route-wissel
   })
 })
 

@@ -17,7 +17,10 @@
  * ouder mee — dezelfde afleiding als de tree-view/kaart, geen tweede bron.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Button } from '@/primevue'
+import { useAuthStore } from '@/store/auth'
 import cytoscape from '@/composables/cytoscape'
+import { useSleepbaar } from '@/composables/useSleepbaar'
 import { procesBoomLayout, procesFocusSet } from '../procesBoom'
 import ZoekSelect from './ZoekSelect.vue'
 
@@ -28,6 +31,13 @@ const props = defineProps({
   // afleiding nog laadt) — zelfde bron als de tree-view-cue.
   gapIds: { type: Object, default: null },
 })
+// LI038 gate 2 — de kaart-doorschakeling (handoff-bouwer = api-werk) leeft in de OUDER
+// (ProcesLijst, spiegel van ProcesDetail.bekijkOpKaart); dit beeld blijft zelf api-vrij.
+const emit = defineEmits(['bekijkOpKaart'])
+
+const auth = useAuthStore()
+// Zelfde affordance-gating als de "Bekijk op kaart"-knop op ProcesDetail (backend handhaaft).
+const magKaartZien = computed(() => auth.hasRole('viewer', 'medewerker', 'beheerder', 'auditor'))
 
 // Spreiding van het boom-raster (roomier dan de kaart-proceszone: dit beeld staat op zichzelf).
 const NODE_W = 210
@@ -46,11 +56,19 @@ const alleIds = computed(() => new Set(props.processen.map((p) => p.id)))
 const hierEdges = computed(() =>
   props.processen.filter((p) => p.ouder_id).map((p) => ({ bron: p.id, doel: p.ouder_id })))
 
-// De zichtbare focus-set: leeg zolang er geen (bestaand) centrum gekozen is — het beeld opent
-// leeg ("Zoek een proces om te beginnen."). Verdwijnt het centrum (bv. verwijderd in de Boom),
-// dan valt de set vanzelf terug naar leeg (procesFocusSet geeft een lege set).
-const zichtbareIds = computed(() =>
-  procesFocusSet(centrumId.value, alleIds.value, hierEdges.value, naamVan))
+// LI038 gate 2 — "Toon hele processenlandschap": de uitzoom-tegenhanger BINNEN dit beeld
+// (alle bomen naast elkaar, nog steeds strikt proces-only). Een nieuwe proces-keuze zet het
+// beeld terug op de focus rond dat centrum.
+const heleLandschap = ref(false)
+
+// De zichtbare set: het hele proceslandschap (alle bomen), of de focus rond het centrum.
+// Leeg zolang er geen (bestaand) centrum gekozen is — het beeld opent leeg ("Zoek een proces
+// om te beginnen."). Verdwijnt het centrum (bv. verwijderd in de Boom), dan valt de focus-set
+// vanzelf terug naar leeg (procesFocusSet geeft een lege set).
+const zichtbareIds = computed(() => {
+  if (heleLandschap.value) return new Set(alleIds.value)
+  return procesFocusSet(centrumId.value, alleIds.value, hierEdges.value, naamVan)
+})
 // Alleen echte ouder→kind-relaties bínnen de focus-set worden getekend.
 const zichtbareEdges = computed(() =>
   hierEdges.value.filter((e) => zichtbareIds.value.has(e.bron) && zichtbareIds.value.has(e.doel)))
@@ -67,7 +85,66 @@ async function zoekProcessen(params = {}) {
 }
 const procesWeergave = (p) => (p?.ouder_naam ? `${p.naam} — ${p.ouder_naam}` : (p?.naam ?? ''))
 function kiesCentrum(item) {
-  if (item?.id) centrumId.value = item.id
+  if (!item?.id) return
+  centrumId.value = item.id
+  heleLandschap.value = false // een nieuwe keuze zet het beeld terug op de focus
+  geselecteerdId.value = item.id // het gekozen proces draagt de oranje "kijk hier"-markering
+  popupId.value = null // kiezen = navigeren, niet inspecteren — de popup hoort bij een klik
+  _resetPopupPos() // nieuwe proceskeuze = verse context → popup terug op de standaardplek
+  _pasSelectie() // ongewijzigde set (zelfde centrum opnieuw) hertekent niet → direct bijwerken
+}
+
+// ── LI038 gate 2 — enkele klik = kijken: selectie + rustige popup ────────────────────────────
+// De klik perkt niets in en wisselt geen weergave; dubbelklik-inzoom is gate 3.
+const geselecteerdId = ref(null) // draagt de oranje selectie (knoop + aanliggende lijnen)
+const popupId = ref(null) // de popup hoort bij een klik; null = dicht
+const popupProces = computed(() => (popupId.value ? _byId.value.get(popupId.value) || null : null))
+// Ouder-map over de volledige set (voor de plek-in-woorden; onafhankelijk van de focus-zeef).
+const _ouderVan = computed(() => {
+  const m = new Map()
+  for (const p of props.processen) if (p.ouder_id) m.set(p.id, p.ouder_id)
+  return m
+})
+// De ouderketen van de popup, van de wortel naar de directe ouder (visited-guard: nooit hangen).
+const popupPad = computed(() => {
+  if (!popupId.value) return []
+  const keten = []
+  const bezocht = new Set([popupId.value])
+  let cur = _ouderVan.value.get(popupId.value)
+  while (cur != null && !bezocht.has(cur)) {
+    bezocht.add(cur)
+    const p = _byId.value.get(cur)
+    if (!p) break
+    keten.unshift(p)
+    cur = _ouderVan.value.get(cur)
+  }
+  return keten
+})
+const popupGap = computed(() => !!(popupId.value && props.gapIds?.has?.(popupId.value)))
+
+// LI038 gate 2 v2 — versleepbare popup via de gedeelde `useSleepbaar`-bouwsteen (zelfde gedrag
+// als de kaart-legenda/-popup: hele paneel is de greep, knoppen/links uitgezonderd; positie-init
+// uit de DOM bij de eerste drag; null = de CSS-standaardplek rechtsboven). De positie reset
+// wanneer de context leegt (popup sluit / nieuwe proceskeuze) — geen onthouden drift.
+const {
+  pos: popupPos, dragging: popupSleept,
+  onMousedown: onPopupSleep, reset: _resetPopupPos,
+} = useSleepbaar()
+
+function selecteer(id) {
+  if (!id || !_byId.value.has(id)) return
+  geselecteerdId.value = id
+  popupId.value = id
+  _pasSelectie()
+}
+function sluitPopup() {
+  popupId.value = null
+  geselecteerdId.value = null // klik-naast: popup dicht én selectie weg
+  _resetPopupPos() // popup dicht = terug naar de standaardplek
+  _pasSelectie()
+}
+function toonHeleLandschap() {
+  heleLandschap.value = true // verbreedt de blik BINNEN dit beeld — popup/selectie blijven
 }
 
 // ── Cytoscape (kaart-recept: composable-wrapper, min-h-vangrail, render-eigenaar) ────────────
@@ -92,9 +169,25 @@ const CY_STYLE = [
   { selector: 'node[?procesGap]', style: { 'border-style': 'dashed', 'border-width': 3 } },
   // Hiërarchie-lijnen: rustig, geen pijl/label — hoogte codeert de diepte al.
   { selector: 'edge', style: { width: 1.5, 'line-color': KLEUR_RAND, 'curve-style': 'straight' } },
-  // Het centrum draagt de bestaande oranje selectie-taal ("kijk hier").
+  // De selectie draagt de bestaande oranje "kijk hier"-taal: knoop + aanliggende lijnen
+  // (zelfde kleurbron en klassen als de Landschapskaart).
   { selector: 'node.hl-node', style: { 'border-width': 3, 'border-color': SELECTIE_RAND, 'border-style': 'solid' } },
+  { selector: 'edge.hl-edge', style: { 'line-color': SELECTIE_RAND, width: 2.5, 'z-index': 900 } },
 ]
+
+// Selectie-highlight als runtime-klassen (nooit via relayout): de geselecteerde knoop + zijn
+// aanliggende hiërarchie-lijnen. Ook aangeroepen vanuit de layout-stop (hertekening).
+function _pasSelectie() {
+  if (!cy) return
+  cy.nodes?.()?.removeClass?.('hl-node')
+  cy.edges?.()?.removeClass?.('hl-edge')
+  if (!geselecteerdId.value) return
+  const n = cy.getElementById?.(geselecteerdId.value)
+  if (n?.length) {
+    n.addClass?.('hl-node')
+    n.connectedEdges?.()?.addClass?.('hl-edge')
+  }
+}
 
 function _elementen() {
   const nodes = [...zichtbareIds.value].map((id) => ({
@@ -111,13 +204,11 @@ function _elementen() {
   return [...nodes, ...edges]
 }
 
-// Post-layout werk hoort in de stop-callback (ADR-040): her-meting + fit + centrum-markering.
+// Post-layout werk hoort in de stop-callback (ADR-040): her-meting + fit + selectie-markering.
 function _naLayout() {
   cy?.resize?.()
   cy?.fit?.(undefined, 50)
-  cy?.nodes?.()?.removeClass?.('hl-node')
-  const c = centrumId.value ? cy?.getElementById?.(centrumId.value) : null
-  if (c?.length) c.addClass?.('hl-node')
+  _pasSelectie()
 }
 
 function _layoutOpties() {
@@ -147,6 +238,10 @@ async function tekenGraaf() {
 
 onMounted(async () => {
   cy = cytoscape({ container: containerRef.value, elements: [], style: CY_STYLE, maxZoom: 1.6 })
+  // LI038 gate 2 — enkele klik = kijken (selectie + popup); klik naast een knoop sluit.
+  // (Dubbelklik-inzoom is gate 3 — de enkele klik handelt hier nog direct af.)
+  cy.on?.('tap', 'node', (evt) => selecteer(evt?.target?.id?.()))
+  cy.on?.('tap', (evt) => { if (evt?.target === cy) sluitPopup() })
   if (typeof ResizeObserver !== 'undefined') {
     // Maatwissel = resize + fit op de bestaande posities — nooit een re-layout (LI036-regel).
     resizeObserver = new ResizeObserver(() => { cy?.resize?.(); cy?.fit?.(undefined, 50) })
@@ -163,7 +258,13 @@ onBeforeUnmount(() => {
 // Eén render-eigenaar: elke wijziging van de focus-set of de gap-cue hertekent via hetzelfde pad.
 watch([zichtbareIds, () => props.gapIds], () => { tekenGraaf() })
 
-defineExpose({ kiesCentrum, centrumId, zichtbareIds })
+defineExpose({
+  kiesCentrum, centrumId, zichtbareIds,
+  // gate 2 — klik/popup/uitzoom (testbaar zonder echte cytoscape-events)
+  selecteer, sluitPopup, toonHeleLandschap, geselecteerdId, popupId, heleLandschap,
+  // gate 2 v2 — versleepbare popup (gedeelde useSleepbaar-bouwsteen)
+  popupPos, popupSleept, onPopupSleep,
+})
 </script>
 
 <template>
@@ -198,6 +299,80 @@ defineExpose({ kiesCentrum, centrumId, zichtbareIds })
       >
         Zoek een proces om te beginnen.
       </p>
+
+      <!-- LI038 gate 2 (v2) — rustige, VERSLEEPBARE klik-popup (gedeelde useSleepbaar-bouwsteen,
+           zelfde overlay-taal als de kaart: standaard rechtsboven, hele paneel = greep behalve
+           knoppen/links, gesleept = viewport-positie): naam + plek in woorden + eerlijke gap-cue,
+           met drie visueel gescheiden uitgangen. Strikt proces-only: geen componenten hier. -->
+      <div
+        v-if="popupProces"
+        data-testid="diagram-popup"
+        :style="popupPos.x !== null ? { position: 'fixed', left: popupPos.x + 'px', top: popupPos.y + 'px' } : {}"
+        :class="[
+          popupPos.x !== null ? 'z-30' : 'absolute right-3 top-3 z-10',
+          popupSleept ? 'cursor-grabbing' : 'cursor-grab',
+          'w-80 rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-md)]',
+        ]"
+        @mousedown="onPopupSleep"
+      >
+        <div class="flex items-start gap-[var(--lk-space-xs)]">
+          <h2 class="font-semibold text-[var(--lk-color-primary)]" data-testid="diagram-popup-naam">{{ popupProces.naam }}</h2>
+          <button
+            type="button"
+            aria-label="Sluit details"
+            data-testid="diagram-popup-sluit"
+            class="ml-auto leading-none text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+            @click="sluitPopup"
+          >×</button>
+        </div>
+        <!-- Plek in woorden: de ouderketen van wortel naar directe ouder, elk klikbaar
+             (klik = die knoop inspecteren — dezelfde enkelklik-semantiek als op de kaartknoop). -->
+        <p v-if="popupPad.length" data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+          onder
+          <template v-for="(v, i) in popupPad" :key="v.id">
+            <span v-if="i"> › </span>
+            <button
+              type="button"
+              class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+              :data-testid="`diagram-popup-pad-${v.id}`"
+              @click="selecteer(v.id)"
+            >{{ v.naam }}</button>
+          </template>
+        </p>
+        <p v-else data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Hoofdproces</p>
+        <!-- Eerlijke gap-cue — zelfde subboom-semantiek en cue-taal als kaart/lijst (gelezen
+             uit de gedeelde gapIds-afleiding, niet herafgeleid). -->
+        <span
+          v-if="popupGap"
+          data-testid="diagram-popup-gap"
+          class="mt-2 inline-block rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-border)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
+        >geen ondersteunend systeem</span>
+        <!-- Drie uitgangen, visueel gescheiden: verbreden BINNEN dit beeld (knop) vs. de twee
+             vertrek-navigaties (kaart = component-wereld; detailscherm) onder een deellijn. -->
+        <div class="mt-[var(--lk-space-md)] flex flex-col gap-[var(--lk-space-sm)]">
+          <Button
+            label="Toon hele processenlandschap"
+            severity="secondary"
+            data-testid="diagram-popup-landschap"
+            :disabled="heleLandschap"
+            @click="toonHeleLandschap"
+          />
+          <div class="flex flex-col gap-[var(--lk-space-xs)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+            <Button
+              v-if="magKaartZien"
+              label="Bekijk op de kaart →"
+              severity="secondary"
+              data-testid="diagram-popup-kaart"
+              @click="emit('bekijkOpKaart', popupProces)"
+            />
+            <router-link
+              :to="{ name: 'proces-detail', params: { id: popupProces.id } }"
+              data-testid="diagram-popup-open"
+              class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+            >Open proces →</router-link>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>

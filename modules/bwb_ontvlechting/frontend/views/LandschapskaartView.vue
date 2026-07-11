@@ -18,6 +18,7 @@ import { api } from '@/api'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { neemKaartHandoff } from '@/composables/kaartHandoff'
+import { useSleepbaar } from '@/composables/useSleepbaar'
 import { procesBoomLayout } from '../procesBoom'
 import { bouwProcesKaartHandoff } from '../procesKaartIngang'
 import { humaniseer } from '../labels'
@@ -2102,66 +2103,22 @@ watch(legendaTypeFilter, _pasDim)
 
 // LI025 — floating/draggable legenda. Standaard rechtsonder (CSS-fallback, x/y = null); slepen zet
 // een absolute viewport-positie. Reset naar standaard bij "Begin opnieuw" (wisSet).
-const legendaPos = ref({ x: null, y: null })
-const legendaDragging = ref(false)
-let _dragOffset = { x: 0, y: 0 }
-function onLegendaMousedown(e) {
-  if (e.target?.closest?.('button, input')) return // knoppen/inputs in de legenda werken gewoon
-  // LI034 — init vanuit de werkelijke DOM-positie (anders springt het paneel bij de eerste beweging).
-  if (legendaPos.value.x === null) {
-    const r = e.currentTarget?.getBoundingClientRect?.()
-    if (r) legendaPos.value = { x: r.left, y: r.top }
-  }
-  legendaDragging.value = true
-  _dragOffset = { x: e.clientX - (legendaPos.value.x ?? 0), y: e.clientY - (legendaPos.value.y ?? 0) }
-  e.preventDefault?.()
-}
-function onLegendaMousemove(e) {
-  if (!legendaDragging.value) return
-  legendaPos.value = { x: e.clientX - _dragOffset.x, y: e.clientY - _dragOffset.y }
-}
-function onLegendaMouseup() { legendaDragging.value = false }
-onMounted(() => {
-  document.addEventListener('mousemove', onLegendaMousemove)
-  document.addEventListener('mouseup', onLegendaMouseup)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('mousemove', onLegendaMousemove)
-  document.removeEventListener('mouseup', onLegendaMouseup)
-})
+// LI038 gate 2 v2 — het sleep-gedrag is geconvergeerd naar de gedeelde `useSleepbaar`-composable
+// (zelfde semantiek: DOM-positie-init bij eerste drag, knoppen/links/inputs geen greep, document-
+// listeners met opruiming); de proces-diagram-popup is de derde afnemer.
+const {
+  pos: legendaPos, dragging: legendaDragging,
+  onMousedown: onLegendaMousedown, onMousemove: onLegendaMousemove, onMouseup: onLegendaMouseup,
+} = useSleepbaar()
 
-// LI034 — sleepbare klik-POPUP (zelfde patroon als de legenda). De popup is nu hét ene versleepbare
+// LI034 — sleepbare klik-POPUP (zelfde patroon als de legenda). De popup is hét ene versleepbare
 // klik-detail-element (de vroegere sleep op het zijbalk-detailpaneel is vervallen — dat paneel blijft
 // gedokt als set-werkblad). null = standaard linksboven op het canvas; slepen zet een viewportpositie
 // (zodat je 'm van de opgelichte lijnen af kunt schuiven). Reset naar standaard bij "Begin opnieuw".
-const popupPos = ref({ x: null, y: null })
-const popupDragging = ref(false)
-let _popupDragOffset = { x: 0, y: 0 }
-function onPopupMousedown(e) {
-  if (e.target?.closest?.('button, a, input')) return // knoppen/links/inputs (sluit/acties/flow-lijst) werken gewoon
-  // Initialiseer vanuit de werkelijke DOM-positie als nog niet gesleept; anders behandelt `?? 0` de
-  // CSS-positie als (0,0) → de popup springt naar de hoek bij de eerste beweging.
-  if (popupPos.value.x === null) {
-    const r = e.currentTarget?.getBoundingClientRect?.()
-    if (r) popupPos.value = { x: r.left, y: r.top }
-  }
-  popupDragging.value = true
-  _popupDragOffset = { x: e.clientX - (popupPos.value.x ?? 0), y: e.clientY - (popupPos.value.y ?? 0) }
-  e.preventDefault?.()
-}
-function onPopupMousemove(e) {
-  if (!popupDragging.value) return
-  popupPos.value = { x: e.clientX - _popupDragOffset.x, y: e.clientY - _popupDragOffset.y }
-}
-function onPopupMouseup() { popupDragging.value = false }
-onMounted(() => {
-  document.addEventListener('mousemove', onPopupMousemove)
-  document.addEventListener('mouseup', onPopupMouseup)
-})
-onBeforeUnmount(() => {
-  document.removeEventListener('mousemove', onPopupMousemove)
-  document.removeEventListener('mouseup', onPopupMouseup)
-})
+const {
+  pos: popupPos, dragging: popupDragging,
+  onMousedown: onPopupMousedown, onMousemove: onPopupMousemove, onMouseup: onPopupMouseup,
+} = useSleepbaar()
 
 // LI019 1d-v5 → LI036 — baan-indeling (Lagen-weergave), afgeleid uit bestaande node-velden. Robuust voor de werkelijke
 // data: ÉLK element_type dat geen partij/contract/gebruikersgroep is, is een componenttype →

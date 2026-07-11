@@ -8,9 +8,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createRouter, createMemoryHistory } from 'vue-router'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
 import { createPinia } from 'pinia'
+import { useAuthStore } from '@/store/auth'
 
 const _cyInstanties = []
 vi.mock('@/composables/cytoscape', () => ({
@@ -46,9 +48,22 @@ const PROCESSEN = [
 ]
 
 function mountDiagram(props = {}) {
+  // Router voor de "Open proces →"-link in de popup (gate 2); pinia + auth voor de
+  // kaart-affordance-gating (spiegel van ProcesDetail: alle vier tenant-rollen).
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/', component: { template: '<div/>' } },
+      { path: '/processen/:id', name: 'proces-detail', component: { template: '<div/>' } },
+      { path: '/landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
+    ],
+  })
+  const pinia = createPinia()
+  const auth = useAuthStore(pinia)
+  auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: ['medewerker'] }
   return mount(ProcesDiagram, {
     props: { processen: PROCESSEN, gapIds: null, ...props },
-    global: { plugins: [createPinia(), [PrimeVue, { unstyled: true }], ToastService], stubs: { teleport: true } },
+    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } },
   })
 }
 
@@ -178,5 +193,143 @@ describe('ProcesDiagram — leeg openen + focus-set', () => {
     await flushPromises()
     expect(w.vm.zichtbareIds.size).toBe(0)
     expect(w.find('[data-testid="diagram-leeg"]').exists()).toBe(true)
+  })
+})
+
+describe('ProcesDiagram — LI038 gate 2: enkele klik = kijken (selectie + popup)', () => {
+  async function metCentrum(props = {}) {
+    const w = mountDiagram(props)
+    await flushPromises()
+    w.vm.kiesCentrum({ id: 'ab' })
+    await flushPromises()
+    return w
+  }
+
+  it('klik selecteert (oranje via de cy-tap-wiring) en opent de popup met naam + klikbare plek', async () => {
+    const w = await metCentrum()
+    // De echte klik-bedrading: de bij cy geregistreerde tap-handlers aanroepen.
+    const cy = _cyInstanties[0]
+    const nodeTap = cy.on.mock.calls.find((c) => c[0] === 'tap' && c[1] === 'node')[2]
+    nodeTap({ target: { id: () => 'bv' } })
+    await flushPromises()
+    expect(w.vm.geselecteerdId).toBe('bv')
+    expect(w.find('[data-testid="diagram-popup-naam"]').text()).toBe('Besluit vastleggen')
+    // Plek in woorden: de keten van wortel naar directe ouder, elk klikbaar.
+    const plek = w.find('[data-testid="diagram-popup-plek"]')
+    expect(plek.text()).toContain('onder')
+    expect(plek.text()).toContain('Vergunningverlening')
+    expect(plek.text()).toContain('Aanvraag behandelen')
+    // Kijken ≠ navigeren: set/weergave onveranderd (focus blijft rond het centrum 'ab').
+    expect(w.vm.zichtbareIds).toEqual(new Set(['ab', 'vv', 'bv', 'th']))
+    // Pad-klik inspecteert die ouder (zelfde enkelklik-semantiek).
+    await w.find('[data-testid="diagram-popup-pad-vv"]').trigger('click')
+    expect(w.find('[data-testid="diagram-popup-naam"]').text()).toBe('Vergunningverlening')
+    expect(w.find('[data-testid="diagram-popup-plek"]').text()).toBe('Hoofdproces')
+  })
+
+  it('klik naast een knoop (background-tap) sluit de popup en heft de selectie op', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('th')
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup"]').exists()).toBe(true)
+    const cy = _cyInstanties[0]
+    const bgTap = cy.on.mock.calls.find((c) => c[0] === 'tap' && typeof c[1] === 'function')[1]
+    bgTap({ target: cy }) // klik op het lege canvas: target === cy
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup"]').exists()).toBe(false)
+    expect(w.vm.geselecteerdId).toBe(null)
+    bgTap({ target: { id: () => 'x' } }) // een knoop-tap bubbelt óók hierheen → mag NIET sluiten
+    expect(w.vm.popupId).toBe(null) // (was al dicht; belangrijkste: geen crash/verkeerd pad)
+  })
+
+  it('gap-cue verschijnt alleen bij een ondersteuningsloze subboom (zelfde cue-taal)', async () => {
+    const w = await metCentrum({ gapIds: new Set(['th']) })
+    w.vm.selecteer('th')
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup-gap"]').text()).toBe('geen ondersteunend systeem')
+    w.vm.selecteer('ab')
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup-gap"]').exists()).toBe(false)
+  })
+
+  it('"Toon hele processenlandschap" verbreedt BINNEN het beeld: alle bomen, geen kaart/route/emit', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('ab')
+    await flushPromises()
+    await w.find('[data-testid="diagram-popup-landschap"]').trigger('click')
+    await flushPromises()
+    expect(w.vm.zichtbareIds).toEqual(new Set(PROCESSEN.map((p) => p.id))) // álle bomen
+    expect(w.emitted('bekijkOpKaart')).toBeUndefined() // géén kaart-doorschakeling
+    expect(w.find('[data-testid="diagram-popup"]').exists()).toBe(true) // popup blijft (kijken)
+    // Een nieuwe keuze zet het beeld terug op de focus rond dat centrum.
+    w.vm.kiesCentrum({ id: 'bz' })
+    await flushPromises()
+    expect(w.vm.zichtbareIds).toEqual(new Set(['bz', 'verh']))
+  })
+
+  it('"Bekijk op de kaart →" emit het proces — de doorschakeling (api-werk) hoort bij de ouder', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('ab')
+    await flushPromises()
+    await w.find('[data-testid="diagram-popup-kaart"]').trigger('click')
+    expect(w.emitted('bekijkOpKaart')).toHaveLength(1)
+    expect(w.emitted('bekijkOpKaart')[0][0].id).toBe('ab')
+  })
+
+  it('"Open proces →" linkt naar het proces-detailscherm', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('bv')
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup-open"]').attributes('href')).toContain('/processen/bv')
+  })
+
+  // ── LI038 gate 2 v2 — versleepbare popup (gedeelde useSleepbaar-bouwsteen) ──
+  it('v2 — de popup is versleepbaar: drag muteert de positie zonder sprong (DOM-init)', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('ab')
+    await flushPromises()
+    expect(w.vm.popupPos).toEqual({ x: null, y: null }) // standaardplek (CSS)
+    await w.find('[data-testid="diagram-popup"]').trigger('mousedown', { clientX: 700, clientY: 90 })
+    expect(w.vm.popupSleept).toBe(true)
+    expect(w.vm.popupPos.x).not.toBe(null) // geïnitialiseerd uit de DOM-positie, niet (0,0)-sprong
+    const start = { ...w.vm.popupPos }
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 750, clientY: 130 }))
+    expect(w.vm.popupPos).toEqual({ x: start.x + 50, y: start.y + 40 }) // relatief meegeschoven
+    document.dispatchEvent(new MouseEvent('mouseup'))
+    expect(w.vm.popupSleept).toBe(false)
+    // Gesleept = viewport-positie op het paneel zelf.
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup"]').attributes('style')).toContain('position: fixed')
+  })
+
+  it('v2 — de actieknoppen zijn geen sleep-greep (klik blijft klik)', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('ab')
+    await flushPromises()
+    await w.find('[data-testid="diagram-popup-landschap"]').trigger('mousedown', { clientX: 10, clientY: 10 })
+    expect(w.vm.popupSleept).toBe(false)
+    expect(w.vm.popupPos).toEqual({ x: null, y: null })
+  })
+
+  it('v2 — de positie reset bij sluiten en bij een nieuwe proceskeuze (geen onthouden drift)', async () => {
+    const w = await metCentrum()
+    w.vm.selecteer('ab')
+    await flushPromises()
+    await w.find('[data-testid="diagram-popup"]').trigger('mousedown', { clientX: 700, clientY: 90 })
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 760, clientY: 150 }))
+    document.dispatchEvent(new MouseEvent('mouseup'))
+    expect(w.vm.popupPos.x).not.toBe(null)
+    w.vm.sluitPopup() // sluiten → standaardplek terug
+    expect(w.vm.popupPos).toEqual({ x: null, y: null })
+    // Opnieuw slepen, dan een nieuwe proceskeuze → ook terug naar de standaardplek.
+    w.vm.selecteer('ab')
+    await flushPromises()
+    await w.find('[data-testid="diagram-popup"]').trigger('mousedown', { clientX: 700, clientY: 90 })
+    document.dispatchEvent(new MouseEvent('mousemove', { clientX: 720, clientY: 100 }))
+    document.dispatchEvent(new MouseEvent('mouseup'))
+    expect(w.vm.popupPos.x).not.toBe(null)
+    w.vm.kiesCentrum({ id: 'bz' })
+    await flushPromises()
+    expect(w.vm.popupPos).toEqual({ x: null, y: null })
   })
 })

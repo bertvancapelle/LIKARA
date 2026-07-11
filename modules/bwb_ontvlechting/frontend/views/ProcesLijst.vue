@@ -16,10 +16,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Dialog, useToast } from '@/primevue'
 import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
+import { useRouter } from '@/composables/router'
 import { useLijstStaat } from '@/composables/useLijstStaat'
+import { zetKaartHandoff } from '@/composables/kaartHandoff'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import { procesBoomStructuur } from '../procesBoom'
+import { bouwProcesKaartHandoff } from '../procesKaartIngang'
 import ProcesDiagram from './ProcesDiagram.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
@@ -361,6 +364,30 @@ async function bevestigVerplaats() {
   }
 }
 
+// ── LI038 gate 2 — "Bekijk op de kaart →" vanuit de Diagram-popup ────────────────────────────
+// Bewuste doorschakeling naar de component-wereld: exact het ProcesDetail-pad (één gedeelde
+// bouwer + consume-once handoff — geen route-query; zie procesKaartIngang.js). Het Diagram
+// zelf blijft api-vrij en emit alleen het gekozen proces.
+const router = useRouter()
+const kaartBezig = ref(false)
+async function bekijkOpKaart(p) {
+  if (!p?.id || kaartBezig.value) return
+  kaartBezig.value = true
+  try {
+    const payload = await bouwProcesKaartHandoff(api, p.id)
+    if (!payload.componentIds.length) {
+      toast.add({ severity: 'info', summary: 'Dit proceslandschap heeft nog geen ondersteunende systemen — er is niets te tonen op de kaart.', life: 3500 })
+      return
+    }
+    zetKaartHandoff(payload)
+    router.push({ name: 'landschapskaart' })
+  } catch (e) {
+    if (e?.status !== 401) toast.add({ severity: 'error', summary: 'Bekijk op kaart is mislukt.', life: 3000 })
+  } finally {
+    kaartBezig.value = false
+  }
+}
+
 onMounted(() => {
   // Geen doorklik-query op Processen → de bewaarde staat mag altijd terug.
   herstelLijstStaat()
@@ -403,8 +430,14 @@ onMounted(() => {
     </div>
 
     <!-- LI038 gate 1 — Diagram-weergave: proces-only structuurbeeld op de al-geladen set (zelfde
-         bron als de Boom; de gap-cue-afleiding reist als prop mee — geen tweede fetch/definitie). -->
-    <ProcesDiagram v-if="weergave === 'diagram'" :processen="alle" :gap-ids="gapIds" />
+         bron als de Boom; de gap-cue-afleiding reist als prop mee — geen tweede fetch/definitie).
+         Gate 2: de kaart-doorschakeling uit de popup landt hier (api-werk hoort bij de ouder). -->
+    <ProcesDiagram
+      v-if="weergave === 'diagram'"
+      :processen="alle"
+      :gap-ids="gapIds"
+      @bekijk-op-kaart="bekijkOpKaart"
+    />
 
     <div
       v-if="weergave === 'boom'"
