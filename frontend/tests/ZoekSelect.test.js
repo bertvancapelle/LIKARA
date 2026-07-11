@@ -52,6 +52,72 @@ describe('ZoekSelect', () => {
     expect(w.findAll('[role="option"]').length).toBe(4)
   })
 
+  it('LI038-v2 — klik op een al-gefocust veld heropent de volledige lijst (ná een keuze vuurt @focus niet)', async () => {
+    const alle = [
+      { id: 'a1', naam: 'Beheer & Exploitatie' },
+      { id: 'a2', naam: 'Directie' },
+      { id: 'a3', naam: 'Informatievoorziening' },
+    ]
+    const zoekFunctie = vi.fn((params) =>
+      Promise.resolve({
+        items: params.zoek ? alle.filter((a) => a.naam.toLowerCase().includes(params.zoek.toLowerCase())) : alle,
+        volgende_cursor: null,
+      }),
+    )
+    const { w, input } = mountZS({ zoekFunctie })
+    await input().trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="zs-optie-a2"]').trigger('mousedown')
+    expect(input().element.value).toBe('Directie') // keuze staat als label; lijst dicht
+    expect(input().attributes('aria-expanded')).toBe('false')
+    // De input hield focus (mousedown.prevent) → een nieuwe klik geeft GEEN focus-event.
+    await input().trigger('click')
+    await flushPromises()
+    // Volledige lijst — de gekozen naam is een label, geen zoekfilter.
+    expect(zoekFunctie).toHaveBeenLastCalledWith(expect.objectContaining({ zoek: undefined }))
+    expect(w.findAll('[role="option"]').length).toBe(3)
+    expect(input().attributes('aria-expanded')).toBe('true')
+  })
+
+  it('LI038-v2 — een klik tijdens het typen (lijst al open) reset de zoekterm NIET', async () => {
+    const zoekFunctie = vi.fn().mockResolvedValue({ items: [], volgende_cursor: null })
+    const { input } = mountZS({ zoekFunctie })
+    await input().trigger('focus')
+    await flushPromises()
+    vi.useFakeTimers()
+    await input().setValue('Dir')
+    vi.advanceTimersByTime(300)
+    vi.useRealTimers()
+    await flushPromises()
+    const aanroepen = zoekFunctie.mock.calls.length
+    await input().trigger('click') // cursor verplaatsen — lijst is al open
+    await flushPromises()
+    expect(zoekFunctie.mock.calls.length).toBe(aanroepen) // géén reset-zoek
+    expect(input().element.value).toBe('Dir')
+  })
+
+  it('LI038-v2 — ×-wis: keuze weg (modelValue null), veld leeg, volledige lijst weer open', async () => {
+    const zoekFunctie = vi.fn().mockResolvedValue({
+      items: [{ id: 'a1', naam: 'Directie' }, { id: 'a2', naam: 'Informatievoorziening' }],
+      volgende_cursor: null,
+    })
+    const { w, input } = mountZS({ zoekFunctie })
+    expect(w.find('[data-testid="zs-wis"]').exists()).toBe(false) // leeg veld → geen wis-gebaar
+    await input().trigger('focus')
+    await flushPromises()
+    await w.find('[data-testid="zs-optie-a1"]').trigger('mousedown')
+    expect(input().element.value).toBe('Directie')
+    const wis = w.find('[data-testid="zs-wis"]')
+    expect(wis.exists()).toBe(true)
+    expect(wis.attributes('aria-label')).toBe('Wis en zoek opnieuw')
+    await wis.trigger('click')
+    await flushPromises()
+    expect(input().element.value).toBe('')
+    expect(w.emitted('update:modelValue').at(-1)).toEqual([null])
+    expect(input().attributes('aria-expanded')).toBe('true') // volledige lijst staat weer open
+    expect(zoekFunctie).toHaveBeenLastCalledWith(expect.objectContaining({ zoek: undefined }))
+  })
+
   it('typen ná openen filtert wél soepel op de getypte term', async () => {
     const zoekFunctie = vi.fn().mockResolvedValue({ items: [], volgende_cursor: null })
     const { input } = mountZS({ zoekFunctie, modelValue: 'a3', initieelWeergave: 'Informatievoorziening' })

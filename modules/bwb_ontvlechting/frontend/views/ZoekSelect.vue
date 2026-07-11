@@ -10,6 +10,10 @@
  *
  * A11y: combobox-patroon (role=combobox, aria-expanded/controls/activedescendant; ↑/↓/Enter/
  * Escape). Werkt binnen een Dialog-focustrap. Foutstaat via aria-invalid/aria-describedby.
+ *
+ * LI038 gate 1 v2 — een gekozen waarde is een LABEL, nooit een zoekfilter: openen (focus ÉN
+ * klik-op-al-gefocust-veld) toont altijd de volledige startlijst met de tekst geselecteerd
+ * (eerste aanslag vervangt), en het ×-wis-gebaar maakt "ik wil een ander item" één handeling.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
@@ -131,6 +135,26 @@ function onInput() {
   zoekDebounced()
 }
 
+// LI038 gate 1 v2 — een klik op het veld opent de volledige startlijst óók als het veld al
+// focus had (direct ná een keuze houdt de input focus door de mousedown.prevent op de optie;
+// het @focus-pad vuurt dan niet en typen zou aan de gekozen naam plakken → filter-slot).
+// Guard op `open`: een klik om de cursor te verplaatsen tijdens het typen reset niets.
+function onClick() {
+  if (!open.value) openen()
+}
+
+// LI038 gate 1 v2 — zichtbaar "opnieuw zoeken"-gebaar: wis de keuze/zoekterm en toon de
+// volledige startlijst. Geërfd door élk (voorgevuld) picker-veld. De consument hoort de wis
+// via `update:modelValue(null)`; wie alleen op @keuze luistert (bv. het proces-diagram)
+// behoudt zijn huidige beeld tot een nieuwe keuze — precies de bedoeling.
+function wis() {
+  gekozenLabel.value = ''
+  query.value = ''
+  emit('update:modelValue', null)
+  inputRef.value?.focus()
+  if (!open.value) openen()
+}
+
 function onBlur() {
   // Sta toe dat een klik op een optie eerst afhandelt.
   setTimeout(() => {
@@ -206,12 +230,25 @@ watch(
       :placeholder="props.placeholder"
       :disabled="props.disabled"
       :data-testid="`${props.testid}-input`"
-      class="w-full rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+      class="w-full rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] pr-7 bg-white disabled:opacity-60 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
       @focus="openen"
+      @click="onClick"
       @input="onInput"
       @blur="onBlur"
       @keydown="onKeydown"
     />
+    <!-- LI038 gate 1 v2 — wis-gebaar (één handeling voor "ik wil een ander item"): zichtbaar
+         zodra er iets te wissen valt. mousedown.prevent houdt de focus op de input (geen
+         blur-sluiting), zoals de opties hieronder. -->
+    <button
+      v-if="query && !props.disabled"
+      type="button"
+      aria-label="Wis en zoek opnieuw"
+      :data-testid="`${props.testid}-wis`"
+      class="absolute right-2 top-1/2 -translate-y-1/2 leading-none text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+      @mousedown.prevent
+      @click="wis"
+    >×</button>
 
     <ul
       v-show="open"

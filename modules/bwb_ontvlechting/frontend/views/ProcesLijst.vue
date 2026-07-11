@@ -20,6 +20,7 @@ import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import { procesBoomStructuur } from '../procesBoom'
+import ProcesDiagram from './ProcesDiagram.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
@@ -37,16 +38,19 @@ const fout = ref(null)
 
 const zoekterm = ref('')
 const openTakken = ref([]) // ids van uitgeklapte processen (array → serialiseerbare lijststaat)
+// LI038 gate 1 — tweede weergave: 'boom' (register-tree) | 'diagram' (proces-only structuurbeeld).
+const weergave = ref('boom')
 
 // Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
 const _tekst = (w) => typeof w === 'string'
 const { herstel: herstelLijstStaat } = useLijstStaat(
   'proces-lijst',
-  { zoekterm, openTakken },
+  { zoekterm, openTakken, weergave },
   {
     valideer: {
       zoekterm: _tekst,
       openTakken: (w) => Array.isArray(w) && w.every(_tekst),
+      weergave: (w) => w === 'boom' || w === 'diagram',
     },
   },
 )
@@ -373,10 +377,37 @@ onMounted(() => {
         </h1>
         <VeldUitleg veld="proces" testid="uitleg-proces" />
       </div>
-      <Button v-if="magBewerken" label="Nieuw proces" data-testid="nieuw-proces" class="ml-auto" @click="openNieuw" />
+      <!-- LI038 gate 1 — expliciete weergave-schakelaar (Boom | Diagram), in de kaart-schakelaar-taal:
+           de Boom is het register (beheer + uitklappen), het Diagram het proces-only structuurbeeld. -->
+      <div
+        class="ml-auto inline-flex overflow-hidden rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)]"
+        role="group"
+        aria-label="Weergave"
+        data-testid="proces-weergave-schakelaar"
+      >
+        <button
+          type="button" data-testid="weergave-boom"
+          :aria-pressed="weergave === 'boom'"
+          :class="['px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold', weergave === 'boom' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+          @click="weergave = 'boom'"
+        >Boom</button>
+        <button
+          type="button" data-testid="weergave-diagram"
+          :aria-pressed="weergave === 'diagram'"
+          title="Proces-only structuurbeeld"
+          :class="['border-l border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold', weergave === 'diagram' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+          @click="weergave = 'diagram'"
+        >Diagram</button>
+      </div>
+      <Button v-if="magBewerken" label="Nieuw proces" data-testid="nieuw-proces" @click="openNieuw" />
     </div>
 
+    <!-- LI038 gate 1 — Diagram-weergave: proces-only structuurbeeld op de al-geladen set (zelfde
+         bron als de Boom; de gap-cue-afleiding reist als prop mee — geen tweede fetch/definitie). -->
+    <ProcesDiagram v-if="weergave === 'diagram'" :processen="alle" :gap-ids="gapIds" />
+
     <div
+      v-if="weergave === 'boom'"
       data-testid="filterbalk"
       class="mb-[var(--lk-space-md)] flex flex-wrap items-end gap-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]"
     >
@@ -396,7 +427,7 @@ onMounted(() => {
 
     <p v-if="fout" role="alert" data-testid="lijst-fout" class="mb-[var(--lk-space-md)] rounded-[var(--lk-radius-badge)] border border-[var(--lk-color-danger)] bg-[var(--lk-color-danger)]/10 px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-danger)]">{{ fout }}</p>
 
-    <div class="rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] shadow-[var(--lk-shadow-sm)]" data-testid="processen-boom">
+    <div v-if="weergave === 'boom'" class="rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] shadow-[var(--lk-shadow-sm)]" data-testid="processen-boom">
       <!-- LI037 tree-view — géén rij-scheidingslijnen meer (divide-y): de verbindingslijnen lopen
            verticaal dóór over rijgrenzen en zouden anders door de separators gekruist worden. -->
       <ul v-if="rijen.length">

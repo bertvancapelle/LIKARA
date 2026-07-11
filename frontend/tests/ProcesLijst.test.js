@@ -18,6 +18,18 @@ vi.mock('@/api', () => ({
 // LI035 succes-standaard — helper gemockt zodat de succes-flow assertbaar is.
 vi.mock('@/meldingen', () => ({ toastSucces: vi.fn() }))
 
+// LI038 gate 1 — de Diagram-weergave mount ProcesDiagram (cytoscape); gemockt volgens het
+// kaart-testpatroon zodat de schakelaar-test de echte child kan mounten.
+vi.mock('@/composables/cytoscape', () => ({
+  default: vi.fn(() => ({
+    add: vi.fn(), layout: () => ({ run: vi.fn() }), fit: vi.fn(), resize: vi.fn(),
+    destroy: vi.fn(), on: vi.fn(), zoom: () => 1,
+    nodes: () => ({ updateStyle: vi.fn(), forEach: vi.fn(), removeClass: vi.fn() }),
+    elements: () => ({ remove: vi.fn() }),
+    getElementById: () => ({ length: 0, addClass: vi.fn() }),
+  })),
+}))
+
 import { api } from '@/api'
 import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
@@ -320,6 +332,44 @@ describe('ProcesLijst — boomweergave', () => {
     // (ab is óók het laatste zichtbare kind van vv) → elleboog + stub = 2 lijn-elementen.
     expect(w.find('[data-testid="proces-lijn-bv"]').classes()).toContain('bottom-1/2')
     expect(w.find('[data-testid="proces-rij-bv"]').findAll('[data-boomlijn]').length).toBe(2)
+  })
+})
+
+describe('ProcesLijst — LI038 gate 1: weergave-schakelaar Boom | Diagram', () => {
+  it('opent default in de Boom; de schakelaar toont beide opties', async () => {
+    const w = await mountLijst()
+    expect(w.find('[data-testid="processen-boom"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-diagram"]').exists()).toBe(false)
+    expect(w.find('[data-testid="weergave-boom"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-testid="weergave-diagram"]').attributes('aria-pressed')).toBe('false')
+  })
+
+  it('wisselt naar het Diagram (proces-only, leeg openen) en terug naar de Boom', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="weergave-diagram"]').trigger('click')
+    expect(w.find('[data-testid="proces-diagram"]').exists()).toBe(true)
+    expect(w.find('[data-testid="processen-boom"]').exists()).toBe(false)
+    expect(w.find('[data-testid="filterbalk"]').exists()).toBe(false) // boom-zoek hoort bij de Boom
+    expect(w.find('[data-testid="diagram-leeg"]').text()).toContain('Zoek een proces om te beginnen.')
+    // Proces-only borging: de wissel veroorzaakt géén extra fetch (zelfde bron als de Boom)
+    // en al helemaal geen component-/vervuller-calls buiten de bestaande gap-cue-afleiding.
+    expect(api.processen.lijst).toHaveBeenCalledTimes(1)
+    await w.find('[data-testid="weergave-boom"]').trigger('click')
+    expect(w.find('[data-testid="processen-boom"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-diagram"]').exists()).toBe(false)
+  })
+
+  it('de weergave-keuze reist mee in de lijststaat (F5/terugnavigeren)', async () => {
+    sessionStorage.setItem(
+      'lijst-state:proces-lijst',
+      JSON.stringify({ zoekterm: '', openTakken: [], weergave: 'diagram' }),
+    )
+    const w = await mountLijst()
+    expect(w.find('[data-testid="proces-diagram"]').exists()).toBe(true)
+    window.dispatchEvent(new Event('beforeunload'))
+    const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:proces-lijst'))
+    expect(bewaard.weergave).toBe('diagram')
+    w.unmount()
   })
 })
 

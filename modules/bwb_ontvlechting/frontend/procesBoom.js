@@ -1,7 +1,7 @@
 /**
  * procesBoom — gedeelde pure proces-boom-opbouw + boom-layout (LI037, ADR-034 §Proces-diepte).
  *
- * Twee exports, één definitie van de boom-semantiek:
+ * Drie exports, één definitie van de boom-semantiek:
  * - `procesBoomStructuur` — de STRUCTUUR (wortels + ouder-/kinderen-maps, deterministisch
  *   gesorteerd op naam→id, cyclus-/dubbele-ouder-guard). Render-agnostisch: de kaart bouwt er
  *   zijn cytoscape-posities op, het Processen-lijstscherm zijn DOM-tree (tree-view gate 1) —
@@ -9,6 +9,9 @@
  * - `procesBoomLayout` — de kaart-LAYOUT bovenop die structuur: rij = diepte (wortel = 0),
  *   kolommen per boom aaneengesloten met een lege kolom ertussen, ouder gecentreerd boven zijn
  *   kinderen, bladeren op opeenvolgende kolommen.
+ * - `procesFocusSet` — de FOCUS-SELECTIE van het proces-only structuurbeeld (LI038): gegeven
+ *   een centrum de ouderketen tot de wortel (boven) + de volledige subboom (beneden) + de
+ *   zusjes (opzij, zónder hun subbomen). Zelfde structuur-bron, geen tweede boom-definitie.
  *
  * Bewust een gedeelde PURE module (geen Vue/cytoscape-import): `kaartLayout.test.js` borgt met
  * de ÉCHTE cytoscape dat de posities distinct + deterministisch zijn — geen test-spiegel die
@@ -81,4 +84,51 @@ export function procesBoomLayout(ids, hierEdges, naamVan = (id) => String(id)) {
     }
   }
   return { rij, kolom, rijen: maxRij + 1, kolommen: Math.max(1, volgendeKolom - 1) }
+}
+
+/**
+ * Focus-selectie voor het proces-only structuurbeeld (LI038 gate 1): welke proces-knopen
+ * horen bij "dit proces centraal"? Boven = de ouderketen tot de wortel, beneden = de
+ * volledige subboom van het centrum, opzij = de zusjes (kinderen van dezelfde directe
+ * ouder) — bewust ZONDER de subbomen van die zusjes (opzij is context, geen onderwerp).
+ * Een wortel-centrum heeft geen ouder en dus geen zusjes (andere wortels horen er niet bij).
+ * Cyclus-veilig (visited-guards); een onbekend centrum geeft een lege set.
+ *
+ * @param {string} centrumId
+ * @param {Set<string>} ids       alle proces-ids (de volledige set)
+ * @param {Array<{bron: string, doel: string}>} hierEdges  hiërarchie-paren kind→ouder
+ * @param {(id: string) => string} naamVan
+ * @returns {Set<string>} de zichtbare focus-ids (leeg als het centrum niet bestaat)
+ */
+export function procesFocusSet(centrumId, ids, hierEdges, naamVan = (id) => String(id)) {
+  if (!centrumId || !ids || !ids.has(centrumId)) return new Set()
+  const { ouderVan, kinderenVan } = procesBoomStructuur(ids, hierEdges, naamVan)
+  const focus = new Set([centrumId])
+  // Boven — ouderketen tot de wortel (visited-guard: een datakring mag nooit hangen).
+  let cur = ouderVan.get(centrumId)
+  while (cur != null && !focus.has(cur)) {
+    focus.add(cur)
+    cur = ouderVan.get(cur)
+  }
+  // Opzij — zusjes: de kinderen van de directe ouder (het centrum zit er al in).
+  const ouder = ouderVan.get(centrumId)
+  if (ouder != null) for (const z of kinderenVan.get(ouder) || []) focus.add(z)
+  // Beneden — de volledige subboom van het centrum (BFS, visited-guard). Bewust alléén
+  // vanaf het centrum: zusjes-subbomen blijven buiten beeld.
+  const bezocht = new Set([centrumId])
+  let frontier = [centrumId]
+  while (frontier.length) {
+    const volgende = []
+    for (const p of frontier) {
+      for (const k of kinderenVan.get(p) || []) {
+        if (!bezocht.has(k)) {
+          bezocht.add(k)
+          focus.add(k)
+          volgende.push(k)
+        }
+      }
+    }
+    frontier = volgende
+  }
+  return focus
 }
