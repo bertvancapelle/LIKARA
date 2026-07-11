@@ -85,6 +85,18 @@ describe('GebruikersgroepSectie', () => {
     expect((await mountSectie({ rollen: ['medewerker'] })).find('[data-testid="gg-toevoegen"]').exists()).toBe(true)
   })
 
+  it('LI037 rol-gating: medewerker mag bewerken maar NIET verwijderen (VERWIJDEREN = beheerder)', async () => {
+    api.gebruikersgroepen.lijst.mockResolvedValue({
+      items: [{ id: 'g1', organisatie_id: 'org-1', organisatie_naam: 'Gemeente Tiel', afdeling: 'Burgerzaken', aantal_gebruikers: 12 }],
+      volgende_cursor: null,
+    })
+    const m = await mountSectie({ rollen: ['medewerker'] })
+    expect(m.find('[data-testid="gg-bewerk-g1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="gg-verwijder-g1"]').exists()).toBe(false)
+    const b = await mountSectie({ rollen: ['beheerder'] })
+    expect(b.find('[data-testid="gg-verwijder-g1"]').exists()).toBe(true)
+  })
+
   it('weigert een negatief aantal gebruikers client-side', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="gg-toevoegen"]').trigger('click')

@@ -103,6 +103,15 @@ describe('ContractSectie', () => {
     expect(w.find('[data-testid="ct-ontkoppel-k1"]').exists()).toBe(false)
   })
 
+  it('LI037 rol-gating: medewerker mag koppelen/rol wijzigen maar NIET ontkoppelen (VERWIJDEREN = beheerder)', async () => {
+    const m = await mountSectie({ rollen: ['medewerker'] })
+    expect(m.find('[data-testid="ct-koppelen"]').exists()).toBe(true)
+    expect(m.find('[data-testid="ct-rol-k1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="ct-ontkoppel-k1"]').exists()).toBe(false)
+    const b = await mountSectie({ rollen: ['beheerder'] })
+    expect(b.find('[data-testid="ct-ontkoppel-k1"]').exists()).toBe(true)
+  })
+
   it('koppelen vereist een rol (geen API-call zonder rol)', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="ct-koppelen"]').trigger('click')

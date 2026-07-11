@@ -27,6 +27,10 @@ const props = defineProps({ componentId: { type: String, required: true } })
 const auth = useAuthStore()
 const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
+// LI037 — destructief = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het
+// endpoint eist Actie.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het
+// bestaande detailscherm-patroon (magVerwijderen).
+const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 // ADR-023 Fase C: het draait-op-relatietype is vast (assignment) — de UI biedt geen keuze.
 const DRAAIT_OP_TYPE = 'assignment'
@@ -189,7 +193,7 @@ laad()
         <template #body="{ data }">
           <div v-if="mag" class="flex gap-[var(--lk-space-sm)]">
             <Button label="Bewerken" severity="secondary" :data-testid="`st-bewerk-${data.structuur_id}`" @click="(e) => openBewerken(e, data)" />
-            <Button label="Ontkoppelen" severity="danger" :data-testid="`st-ontkoppel-${data.structuur_id}`" @click="(e) => vraagVerwijder(e, data)" />
+            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`st-ontkoppel-${data.structuur_id}`" @click="(e) => vraagVerwijder(e, data)" />
           </div>
         </template>
       </Column>
@@ -210,7 +214,7 @@ laad()
         <template #body="{ data }">
           <div v-if="mag" class="flex gap-[var(--lk-space-sm)]">
             <Button label="Bewerken" severity="secondary" :data-testid="`st-bewerk-${data.structuur_id}`" @click="(e) => openBewerken(e, data)" />
-            <Button label="Ontkoppelen" severity="danger" :data-testid="`st-ontkoppel-${data.structuur_id}`" @click="(e) => vraagVerwijder(e, data)" />
+            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`st-ontkoppel-${data.structuur_id}`" @click="(e) => vraagVerwijder(e, data)" />
           </div>
         </template>
       </Column>

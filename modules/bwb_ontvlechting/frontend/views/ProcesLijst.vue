@@ -26,6 +26,10 @@ import ZoekSelect from './ZoekSelect.vue'
 const auth = useAuthStore()
 const toast = useToast()
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
+// LI037 — verwijderen = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het endpoint
+// eist PROCES.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het bestaande
+// detailscherm-patroon. Aanmaken/hernoemen/verhangen blijven op Wijzigen (magBewerken).
+const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 const alle = ref([]) // platte set (alle pagina's); de boom is een client-side afgeleide
 const laden = ref(false)
@@ -465,31 +469,36 @@ onMounted(() => {
             class="shrink-0 rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-border)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
           >geen ondersteunend systeem</span>
           <span v-if="rij.proces.toelichting" class="min-w-0 truncate text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">{{ rij.proces.toelichting }}</span>
-          <button
+          <!-- LI037 — rij-acties in de knop-/gevaar-conventie van de detailschermen (geen
+               tekstlinks): Hernoemen/Verplaatsen secundair (Wijzigen-recht), Verwijderen als
+               danger-knop en alléén met het Verwijderen-recht (vooraf weren, geen 403-dialoog). -->
+          <Button
             v-if="magBewerken"
-            type="button"
+            label="Hernoemen"
+            severity="secondary"
+            class="ml-auto shrink-0"
             :data-testid="`proces-hernoem-${rij.proces.id}`"
             :aria-label="`Hernoem ${rij.proces.naam}`"
-            class="ml-auto shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             @click="openHernoem(rij.proces)"
-          >Hernoemen</button>
-          <!-- LI037 gate 2 — verhangen + verwijderen (rol-gated, zelfde actie-taal als Hernoemen). -->
-          <button
+          />
+          <Button
             v-if="magBewerken"
-            type="button"
+            label="Verplaats naar…"
+            severity="secondary"
+            class="shrink-0"
             :data-testid="`proces-verplaats-${rij.proces.id}`"
             :aria-label="`Verplaats ${rij.proces.naam}`"
-            class="shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             @click="openVerplaats(rij.proces)"
-          >Verplaats naar…</button>
-          <button
-            v-if="magBewerken"
-            type="button"
+          />
+          <Button
+            v-if="magVerwijderen"
+            label="Verwijderen"
+            severity="danger"
+            class="shrink-0"
             :data-testid="`proces-verwijder-${rij.proces.id}`"
             :aria-label="`Verwijder ${rij.proces.naam}`"
-            class="shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             @click="openVerwijder(rij.proces)"
-          >Verwijderen</button>
+          />
         </li>
       </ul>
       <p v-else-if="!laden && zoekterm.trim()" data-testid="lijst-geen-match" class="p-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">

@@ -110,6 +110,18 @@ describe('KoppelingSectie', () => {
     expect((await mountSectie({ rollen: ['beheerder'] })).find('[data-testid="kp-toevoegen"]').exists()).toBe(true)
   })
 
+  it('LI037 rol-gating: medewerker mag toevoegen/bewerken maar NIET verwijderen (VERWIJDEREN = beheerder)', async () => {
+    api.relaties.lijst.mockImplementation(({ bron_id }) =>
+      Promise.resolve(bron_id === APP ? { items: [_rel('k1', APP, ANDER)], volgende_cursor: null } : { items: [], volgende_cursor: null }),
+    )
+    const m = await mountSectie({ rollen: ['medewerker'] })
+    expect(m.find('[data-testid="kp-toevoegen"]').exists()).toBe(true)
+    expect(m.find('[data-testid="kp-bewerk-k1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="kp-verwijder-k1"]').exists()).toBe(false)
+    const b = await mountSectie({ rollen: ['beheerder'] })
+    expect(b.find('[data-testid="kp-verwijder-k1"]').exists()).toBe(true)
+  })
+
   it('vult bron met de default-app (ZoekSelect-label) en weigert bron == doel', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="kp-toevoegen"]').trigger('click')

@@ -19,6 +19,10 @@ const auth = useAuthStore()
 const toast = useToast()
 
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
+// LI037 — destructief = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het
+// endpoint eist Actie.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het
+// bestaande detailscherm-patroon (magVerwijderen).
+const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 const items = ref([])
 const cursor = ref(null)
@@ -216,7 +220,7 @@ laad({ reset: true })
         <template #body="{ data }">
           <div v-if="mag" class="flex gap-[var(--lk-space-sm)]">
             <Button label="Bewerken" severity="secondary" :data-testid="`dt-bewerk-${data.id}`" @click="(e) => openBewerken(e, data)" />
-            <Button label="Verwijderen" severity="danger" :data-testid="`dt-verwijder-${data.id}`" @click="(e) => vraagVerwijder(e, data)" />
+            <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" :data-testid="`dt-verwijder-${data.id}`" @click="(e) => vraagVerwijder(e, data)" />
           </div>
         </template>
       </Column>

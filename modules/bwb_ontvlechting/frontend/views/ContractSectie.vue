@@ -22,6 +22,10 @@ const props = defineProps({
 const auth = useAuthStore()
 const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
+// LI037 — destructief = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het
+// endpoint eist Actie.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het
+// bestaande detailscherm-patroon (magVerwijderen).
+const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 const items = ref([])
 // §3 — 'valt onder'-conventie (model garandeert geen uniciteit: 0, 1 of meer).
@@ -322,7 +326,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
             <span v-else>{{ rij.relatie_rol_label }}</span>
           </td>
           <td class="text-right">
-            <Button v-if="mag" label="Ontkoppelen" severity="danger" :data-testid="`ct-ontkoppel-${rij.koppeling_id}`" @click="(e) => vraagOntkoppel(e, rij)" />
+            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`ct-ontkoppel-${rij.koppeling_id}`" @click="(e) => vraagOntkoppel(e, rij)" />
           </td>
         </tr>
       </tbody>

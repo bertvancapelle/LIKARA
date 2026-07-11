@@ -194,4 +194,14 @@ describe('StructuurSectie', () => {
     expect(w.find('[data-testid="st-toevoegen"]').exists()).toBe(false)
     expect(w.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(false)
   })
+
+  it('LI037 rol-gating: medewerker mag toevoegen/bewerken maar NIET ontkoppelen (VERWIJDEREN = beheerder)', async () => {
+    api.componenten.structuur.mockResolvedValue({ draait_op: [_draaitOp()], gebruikt_door: [] })
+    const m = await mountSectie({ rollen: ['medewerker'] })
+    expect(m.find('[data-testid="st-toevoegen"]').exists()).toBe(true)
+    expect(m.find('[data-testid="st-bewerk-s-1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(false)
+    const b = await mountSectie({ rollen: ['beheerder'] })
+    expect(b.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(true)
+  })
 })

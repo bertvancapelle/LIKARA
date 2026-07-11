@@ -78,6 +78,15 @@ describe('DatatypeSectie', () => {
     expect(mede.find('[data-testid="dt-toevoegen"]').exists()).toBe(true)
   })
 
+  it('LI037 rol-gating: medewerker mag bewerken maar NIET verwijderen (VERWIJDEREN = beheerder)', async () => {
+    api.datatypes.lijst.mockResolvedValue({ items: [_dt('Zaakdocumenten', 'd1')], volgende_cursor: null })
+    const m = await mountSectie({ rollen: ['medewerker'] })
+    expect(m.find('[data-testid="dt-bewerk-d1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="dt-verwijder-d1"]').exists()).toBe(false)
+    const b = await mountSectie({ rollen: ['beheerder'] })
+    expect(b.find('[data-testid="dt-verwijder-d1"]').exists()).toBe(true)
+  })
+
   it('validatie blokkeert submit bij ontbrekende categorie', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="dt-toevoegen"]').trigger('click')

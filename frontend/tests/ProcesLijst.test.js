@@ -142,10 +142,27 @@ describe('ProcesLijst — boomweergave', () => {
     expect(w.find('[data-testid="proces-verplaats-vv"]').exists()).toBe(false)
   })
 
+  it('LI037 rol-gating: medewerker mag aanmaken/hernoemen/verplaatsen maar NIET verwijderen (VERWIJDEREN = beheerder)', async () => {
+    const w = await mountLijst({ rollen: ['medewerker'] })
+    expect(w.find('[data-testid="nieuw-proces"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-hernoem-vv"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-verplaats-vv"]').exists()).toBe(true)
+    expect(w.find('[data-testid="proces-verwijder-vv"]').exists()).toBe(false)
+    const b = await mountLijst({ rollen: ['beheerder'] })
+    expect(b.find('[data-testid="proces-verwijder-vv"]').exists()).toBe(true)
+  })
+
+  it('LI037 vorm: rij-acties zijn Buttons — Hernoemen/Verplaatsen secundair, Verwijderen danger', async () => {
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    expect(w.findComponent('[data-testid="proces-hernoem-vv"]').props('severity')).toBe('secondary')
+    expect(w.findComponent('[data-testid="proces-verplaats-vv"]').props('severity')).toBe('secondary')
+    expect(w.findComponent('[data-testid="proces-verwijder-vv"]').props('severity')).toBe('danger')
+  })
+
   // ── LI037 tree-view gate 2 — verwijderen + verhangen ──
   it('LI037-g2 (verwijderen) — bevestiging → endpoint; rij lokaal weg zonder herlaad-sprong', async () => {
     api.processen.verwijder.mockResolvedValue(null)
-    const w = await mountLijst()
+    const w = await mountLijst({ rollen: ['beheerder'] })
     await w.find('[data-testid="proces-toggle-bz"]').trigger('click')
     await w.find('[data-testid="proces-verwijder-verh"]').trigger('click')
     expect(w.find('[data-testid="proces-verwijder-omschrijving"]').text()).toContain('Verwijder "Verhuizing verwerken"?')
@@ -159,7 +176,7 @@ describe('ProcesLijst — boomweergave', () => {
 
   it('LI037-g2 (verwijderen, 409) — leesbare melding, boom onveranderd', async () => {
     api.processen.verwijder.mockRejectedValue({ status: 409, message: 'Dit proces heeft deelprocessen; verplaats of verwijder die eerst.' })
-    const w = await mountLijst()
+    const w = await mountLijst({ rollen: ['beheerder'] })
     await w.find('[data-testid="proces-verwijder-vv"]').trigger('click')
     await w.find('[data-testid="proces-verwijder-bevestig"]').trigger('click')
     await flushPromises()
