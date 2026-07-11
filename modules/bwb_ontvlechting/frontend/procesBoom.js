@@ -12,6 +12,8 @@
  * - `procesFocusSet` — de FOCUS-SELECTIE van het proces-only structuurbeeld (LI038): gegeven
  *   een centrum de ouderketen tot de wortel (boven) + de volledige subboom (beneden) + de
  *   zusjes (opzij, zónder hun subbomen). Zelfde structuur-bron, geen tweede boom-definitie.
+ * - `procesSubboomSet` — de INZOOM-SCOPE (LI038 gate 3, dubbelklik): uitsluitend het proces
+ *   + zijn volledige subboom (géén keten/zusjes — inzoomen perkt écht in).
  *
  * Bewust een gedeelde PURE module (geen Vue/cytoscape-import): `kaartLayout.test.js` borgt met
  * de ÉCHTE cytoscape dat de posities distinct + deterministisch zijn — geen test-spiegel die
@@ -100,6 +102,38 @@ export function procesBoomLayout(ids, hierEdges, naamVan = (id) => String(id)) {
  * @param {(id: string) => string} naamVan
  * @returns {Set<string>} de zichtbare focus-ids (leeg als het centrum niet bestaat)
  */
+/**
+ * Inzoom-scope voor het proces-only structuurbeeld (LI038 gate 3): het proces zelf + zijn
+ * volledige subboom (alle niveaus), zónder ouderketen of zusjes — de dubbelklik perkt écht
+ * in. Werkt ook op een blad (scope = alleen het proces zelf). Cyclus-veilig (visited-guard);
+ * een onbekend centrum geeft een lege set.
+ *
+ * @param {string} centrumId
+ * @param {Set<string>} ids       alle proces-ids (de volledige set)
+ * @param {Array<{bron: string, doel: string}>} hierEdges  hiërarchie-paren kind→ouder
+ * @param {(id: string) => string} naamVan
+ * @returns {Set<string>}
+ */
+export function procesSubboomSet(centrumId, ids, hierEdges, naamVan = (id) => String(id)) {
+  if (!centrumId || !ids || !ids.has(centrumId)) return new Set()
+  const { kinderenVan } = procesBoomStructuur(ids, hierEdges, naamVan)
+  const scope = new Set([centrumId])
+  let frontier = [centrumId]
+  while (frontier.length) {
+    const volgende = []
+    for (const p of frontier) {
+      for (const k of kinderenVan.get(p) || []) {
+        if (!scope.has(k)) {
+          scope.add(k)
+          volgende.push(k)
+        }
+      }
+    }
+    frontier = volgende
+  }
+  return scope
+}
+
 export function procesFocusSet(centrumId, ids, hierEdges, naamVan = (id) => String(id)) {
   if (!centrumId || !ids || !ids.has(centrumId)) return new Set()
   const { ouderVan, kinderenVan } = procesBoomStructuur(ids, hierEdges, naamVan)

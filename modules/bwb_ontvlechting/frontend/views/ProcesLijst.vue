@@ -43,6 +43,14 @@ const zoekterm = ref('')
 const openTakken = ref([]) // ids van uitgeklapte processen (array → serialiseerbare lijststaat)
 // LI038 gate 1 — tweede weergave: 'boom' (register-tree) | 'diagram' (proces-only structuurbeeld).
 const weergave = ref('boom')
+// LI038 gate 3 — "Toon in procesbeeld" (rij-actie): het proces dat het Diagram bij openen als
+// centrum krijgt (neutraal, oranje — geen inperking). Momentkeuze: bewust NIET in de lijststaat.
+const diagramStart = ref(null)
+function toonInProcesbeeld(p) {
+  if (!p?.id) return
+  diagramStart.value = p.id
+  weergave.value = 'diagram' // in-place wissel; de Boom-staat blijft bewaard (lijststaat)
+}
 
 // Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
 const _tekst = (w) => typeof w === 'string'
@@ -436,7 +444,9 @@ onMounted(() => {
       v-if="weergave === 'diagram'"
       :processen="alle"
       :gap-ids="gapIds"
+      :initieel-centrum-id="diagramStart"
       @bekijk-op-kaart="bekijkOpKaart"
+      @centrum-gewijzigd="(id) => (diagramStart = id)"
     />
 
     <div
@@ -535,12 +545,22 @@ onMounted(() => {
           <span v-if="rij.proces.toelichting" class="min-w-0 truncate text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">{{ rij.proces.toelichting }}</span>
           <!-- LI037 — rij-acties in de knop-/gevaar-conventie van de detailschermen (geen
                tekstlinks): Hernoemen/Verplaatsen secundair (Wijzigen-recht), Verwijderen als
-               danger-knop en alléén met het Verwijderen-recht (vooraf weren, geen 403-dialoog). -->
+               danger-knop en alléén met het Verwijderen-recht (vooraf weren, geen 403-dialoog).
+               LI038 gate 3 — "Toon in procesbeeld" is een LEES-actie (elke rol): in-place naar
+               het Diagram met dít proces centraal, neutraal geopend. -->
+          <Button
+            label="Toon in procesbeeld"
+            severity="secondary"
+            class="ml-auto shrink-0"
+            :data-testid="`proces-diagram-${rij.proces.id}`"
+            :aria-label="`Toon ${rij.proces.naam} in het procesbeeld`"
+            @click="toonInProcesbeeld(rij.proces)"
+          />
           <Button
             v-if="magBewerken"
             label="Hernoemen"
             severity="secondary"
-            class="ml-auto shrink-0"
+            class="shrink-0"
             :data-testid="`proces-hernoem-${rij.proces.id}`"
             :aria-label="`Hernoem ${rij.proces.naam}`"
             @click="openHernoem(rij.proces)"

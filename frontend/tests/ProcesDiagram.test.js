@@ -311,6 +311,63 @@ describe('ProcesDiagram — LI038 gate 2: enkele klik = kijken (selectie + popup
     expect(w.vm.popupPos).toEqual({ x: null, y: null })
   })
 
+  it('g3 — dubbelklik (cy-tap-wiring) zoomt in: alleen het proces + zijn subboom; enkele klik blijft direct kijken', async () => {
+    const w = await metCentrum() // focus rond 'ab' = {ab, vv, bv, th}
+    const cy = _cyInstanties[0]
+    const nodeTap = cy.on.mock.calls.find((c) => c[0] === 'tap' && c[1] === 'node')[2]
+    // Enkele klik: DIRECT popup (geen uitstel) en géén centrum-/scope-wissel.
+    nodeTap({ target: { id: () => 'bv' } })
+    await flushPromises()
+    expect(w.find('[data-testid="diagram-popup"]').exists()).toBe(true) // meteen zichtbaar
+    expect(w.vm.inzoomId).toBe(null)
+    expect(w.vm.zichtbareIds).toEqual(new Set(['ab', 'vv', 'bv', 'th']))
+    // Tweede tap binnen de drempel = dubbelklik → inzoom: het beeld perkt écht in.
+    nodeTap({ target: { id: () => 'bv' } })
+    await flushPromises()
+    expect(w.vm.inzoomId).toBe('bv')
+    expect(w.vm.centrumId).toBe('bv')
+    expect(w.vm.geselecteerdId).toBe('bv') // oranje op het nieuwe centrum
+    expect(w.vm.zichtbareIds).toEqual(new Set(['bv'])) // subboom-only (blad → alleen zichzelf)
+    expect(w.find('[data-testid="diagram-popup"]').exists()).toBe(false) // navigeren, niet inspecteren
+  })
+
+  it('g3 — inzoom op een blad met 0 kinderen én 0 vervullers slaagt (geen weigering — het proces-only pad)', async () => {
+    const w = await metCentrum()
+    w.vm.zoomInOp('bv') // blad; het diagram is api-vrij, dus vervuller-calls zijn onmogelijk
+    await flushPromises()
+    expect(w.vm.zichtbareIds).toEqual(new Set(['bv']))
+    expect(w.find('[data-testid="diagram-leeg"]').exists()).toBe(false) // nette, niet-lege stand
+  })
+
+  it('g3 — "← Terug" herstelt de vorige stand, ook over meerdere stappen (history)', async () => {
+    const w = await metCentrum() // staat 2: focus rond ab (zaad = lege staat 1)
+    expect(w.find('[data-testid="diagram-terug"]').exists()).toBe(true) // er is al een vorige (leeg)
+    w.vm.zoomInOp('ab') // staat 3: inzoom ab = {ab, bv} (th hangt onder vv, niet onder ab)
+    await flushPromises()
+    expect(w.vm.zichtbareIds).toEqual(new Set(['ab', 'bv']))
+    w.vm.zoomInOp('bv') // staat 4: inzoom bv = {bv}
+    await flushPromises()
+    expect(w.vm.zichtbareIds).toEqual(new Set(['bv']))
+    await w.find('[data-testid="diagram-terug"]').trigger('click') // → staat 3
+    expect(w.vm.inzoomId).toBe('ab')
+    expect(w.vm.zichtbareIds).toEqual(new Set(['ab', 'bv']))
+    await w.find('[data-testid="diagram-terug"]').trigger('click') // → staat 2
+    await flushPromises()
+    expect(w.vm.inzoomId).toBe(null)
+    expect(w.vm.zichtbareIds).toEqual(new Set(['ab', 'vv', 'bv', 'th'])) // focus exact terug
+  })
+
+  it('g3 — "Toon in procesbeeld"-ingang (initieelCentrumId): neutraal open, oranje, géén inperking, verse history-wortel', async () => {
+    const w = mountDiagram({ initieelCentrumId: 'ab' })
+    await flushPromises()
+    expect(w.vm.centrumId).toBe('ab')
+    expect(w.vm.geselecteerdId).toBe('ab') // oranje "kijk hier"
+    expect(w.vm.inzoomId).toBe(null) // neutraal — geen set-inperking
+    expect(w.vm.zichtbareIds).toEqual(new Set(['ab', 'vv', 'bv', 'th'])) // volledige focus
+    expect(w.find('[data-testid="diagram-terug"]').exists()).toBe(false) // ingang = history-wortel
+    expect(w.emitted('centrumGewijzigd').at(-1)).toEqual(['ab']) // ouder blijft bij (plek behouden)
+  })
+
   it('v2 — de positie reset bij sluiten en bij een nieuwe proceskeuze (geen onthouden drift)', async () => {
     const w = await metCentrum()
     w.vm.selecteer('ab')

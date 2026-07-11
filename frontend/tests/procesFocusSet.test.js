@@ -1,11 +1,12 @@
 /**
- * Tests — procesFocusSet (LI038 gate 1, pure module procesBoom.js).
+ * Tests — procesFocusSet + procesSubboomSet (LI038 gate 1/3, pure module procesBoom.js).
  *
  * De focus-selectie van het proces-only structuurbeeld: centrum + ouderketen (boven) +
- * volledige subboom (beneden) + zusjes (opzij, zónder hun subbomen). Cyclus-veilig.
+ * volledige subboom (beneden) + zusjes (opzij, zónder hun subbomen). De subboom-set is de
+ * dubbelklik-inzoom-scope: alleen het proces + zijn subboom. Beide cyclus-veilig.
  */
 import { describe, expect, it } from 'vitest'
-import { procesFocusSet } from '@modules/bwb_ontvlechting/frontend/procesBoom'
+import { procesFocusSet, procesSubboomSet } from '@modules/bwb_ontvlechting/frontend/procesBoom'
 
 // Twee bomen:
 //   w ─ a ─ a1 ─ a1x        w2 ─ w2a
@@ -61,5 +62,24 @@ describe('procesFocusSet', () => {
     expect(focus.has('c3')).toBe(true)
     expect(focus.has('c1')).toBe(true) // ouder
     expect(focus.has('c2')).toBe(true) // voorouder tot de kring dichtklapt
+  })
+})
+
+describe('procesSubboomSet (LI038 gate 3 — inzoom-scope)', () => {
+  it('levert het proces + zijn volledige subboom, zónder keten of zusjes', () => {
+    expect(procesSubboomSet('a', IDS, EDGES)).toEqual(new Set(['a', 'a1', 'a2', 'a1x', 'a2x']))
+    expect(procesSubboomSet('a', IDS, EDGES).has('w')).toBe(false) // geen ouderketen
+    expect(procesSubboomSet('a', IDS, EDGES).has('b')).toBe(false) // geen zusjes
+  })
+
+  it('een blad zonder kinderen geeft alleen zichzelf (inzoom weigert nooit)', () => {
+    expect(procesSubboomSet('a1x', IDS, EDGES)).toEqual(new Set(['a1x']))
+  })
+
+  it('onbekend centrum → lege set; datakring termineert', () => {
+    expect(procesSubboomSet('bestaat-niet', IDS, EDGES)).toEqual(new Set())
+    const ids = new Set(['c1', 'c2'])
+    const edges = [{ bron: 'c1', doel: 'c2' }, { bron: 'c2', doel: 'c1' }]
+    expect(procesSubboomSet('c1', ids, edges).has('c1')).toBe(true) // eindigt, hangt niet
   })
 })

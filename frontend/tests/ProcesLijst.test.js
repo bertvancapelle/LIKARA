@@ -368,6 +368,30 @@ describe('ProcesLijst — LI038 gate 1: weergave-schakelaar Boom | Diagram', () 
     expect(w.find('[data-testid="proces-diagram"]').exists()).toBe(false)
   })
 
+  // ── LI038 gate 3 — "Toon in procesbeeld" (rij-actie) ──
+  it('g3 — "Toon in procesbeeld" wisselt in-place naar het Diagram met dát proces centraal, neutraal', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="proces-toggle-vv"]').trigger('click')
+    await w.find('[data-testid="proces-diagram-ab"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="proces-diagram"]').exists()).toBe(true) // in-place naar Diagram
+    const diagram = w.findComponent(ProcesDiagram)
+    expect(diagram.vm.centrumId).toBe('ab') // dát proces centraal
+    expect(diagram.vm.geselecteerdId).toBe('ab') // oranje
+    expect(diagram.vm.inzoomId).toBe(null) // neutraal — géén set-inperking
+    // Terug naar de Boom: de plek (uitgeklapte tak) is behouden via de lijststaat.
+    await w.find('[data-testid="weergave-boom"]').trigger('click')
+    expect(w.find('[data-testid="proces-rij-ab"]').exists()).toBe(true) // vv staat nog open
+  })
+
+  it('g3 — de rij-actie is een LEES-actie: ook een viewer ziet en gebruikt hem', async () => {
+    const w = await mountLijst({ rollen: ['viewer'] })
+    expect(w.find('[data-testid="proces-diagram-vv"]').exists()).toBe(true)
+    await w.find('[data-testid="proces-diagram-vv"]').trigger('click')
+    await flushPromises()
+    expect(w.findComponent(ProcesDiagram).vm.centrumId).toBe('vv')
+  })
+
   it('de weergave-keuze reist mee in de lijststaat (F5/terugnavigeren)', async () => {
     sessionStorage.setItem(
       'lijst-state:proces-lijst',
