@@ -144,6 +144,12 @@ toegestane variatie is:
   transparant + primary-tekst). Per scherm geldt: **maximaal één primary** (de hoofdactie).
 - **(b) breedte** — past zich aan de tekst aan (`px-4`, geen vaste breedte).
 
+**Destructief = danger-knop, nooit tekstlink (LI037).** Een destructieve actie draagt **altijd**
+de `danger`-vorm en is een Button — geen rustige tekstlink met `hover:underline` (de gevaarlijkste
+actie mag er niet het minst gevaarlijk uitzien). Beheeracties op rijen/lijsten spiegelen de
+detailscherm-knopconventie: secundair voor nevenacties (Bewerken/Hernoemen/Verplaatsen), danger
+voor destructief.
+
 **Geen per-call-site hoogte/padding-overrides** (`class`/`:pt`/`style`) — alleen positionering
 (`ml-auto`/`mt-*`) is toegestaan. Alle knoppen lopen via het ene preset; zo kan een
 hoogteafwijking structureel niet meer ontstaan.
@@ -380,6 +386,16 @@ auth.hasRole('medewerker', 'beheerder')   // toont/verbergt knoppen
 
 De UI verbergt alleen knoppen; de **backend** handhaaft via `vereist_permissie`.
 Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
+
+**Destructief gate't op het specifieke Verwijderen-recht (LI037).** Een **destructieve** actie
+(verwijderen/ontkoppelen) hangt aan `magVerwijderen = computed(() => auth.hasRole('beheerder'))`
+(het `_INHOUD`-patroon: VERWIJDEREN = beheerder-only), **niet** aan de bredere bewerk-check
+(`magBewerken`/`mag` = medewerker|beheerder). Vooraf weren (actie niet tonen), nooit een
+backend-403-pas-in-de-dialoog op een destructieve knop. Niet-destructieve acties
+(toevoegen/bewerken/verplaatsen) blijven op Wijzigen. Let op de bewuste uitzonderingen:
+procesvervulling-verbreken en roltoewijzing-verwijderen guarden backend-zijdig op **WIJZIGEN**
+en horen dus wél op de medewerker-check. (LI037: zes plekken gelijkgetrokken — ProcesLijst +
+Koppeling-/Structuur-/Datatype-/Gebruikersgroep-/ContractSectie.)
 
 ## Login-patroon (LoginView)
 
@@ -1261,3 +1277,20 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   definitie, dimt/schaalt mee), eigen proceslaan + ring 'processen' (default aan, óók in
   `RING_PRAATPLAAT_KERN`), tagloos, popup met "Vervuld door"-sectie (herkomst inklapbaar
   per component, native `<details>`) en de vervul-toggle (zie likara-ux).
+
+## LI037-patronen (procesboom gedeeld, tree-view, cytoscape-kleur)
+
+- **Eén gedeelde boom-opbouw voor kaart én lijst** —
+  `modules/bwb_ontvlechting/frontend/procesBoom.js`: `procesBoomStructuur(ids, hierEdges,
+  naamVan)` → `{wortels, ouderVan, kinderenVan}` (deterministische naam→id-sortering,
+  cyclus-/dubbele-ouder-guard); `procesBoomLayout` is erop gerefactord. De kaart bouwt er
+  zijn cytoscape-posities op, het Processen-lijstscherm zijn DOM-tree. **Nooit een derde
+  boom-opbouw** — bij ontdekking van een tweede variant: convergeren naar deze module.
+  Alleen de rendering is schermspecifiek: cytoscape-preset (kaart) vs. DOM-overlay-
+  connectoren (lijst: laatste kind = └, anders ├; guides beslaan de volle rijhoogte;
+  wortels dragen geen connector-kolom — de wortel-lus zaait een lege lijnen-prefix).
+- **Cytoscape-kleur zonder CSS-var-resolutie.** Cytoscape resolvet geen CSS-custom-properties
+  (`var(--…)` = invalide-color-warning) → waar een cy-stijl een UI-kleur moet spiegelen is een
+  **concrete hex** nodig, mét commentaar welk token de hex spiegelt (bv. `#64748b` =
+  `--lk-color-text-muted`, edge-labelkleur) — **token-drift is een bekend aandachtspunt**.
+  Vermijd een losse hex waar het via node-data/klassen kan (de `_nodeData`-stijlbron).

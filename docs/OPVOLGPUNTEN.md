@@ -7,6 +7,35 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuwe opvolgpunten uit LI037 (2026-07-11)
+
+1. **Proces-only diagram — eigen slice.** De kaart-proceszone met een **proces-only filter**
+   (hergebruikt de bestaande Lagen-inzoom/doorwandel-mechaniek). Bestaansrecht bevestigd
+   (structuur zien/presenteren), ook zonder afhankelijkheden. Status: **nog te ontwerpen**
+   (eigen ontwerpdialoog) + bouwen.
+2. **ADR-spoor procesafhankelijkheden/flow.** Proces→proces bestaat NIET als feature
+   (`ouder_id` = enige band; ADR-042 parkeerde flow). Ze registreerbaar maken = domeinbesluit
+   langs de Facade-over-Relatie-lijn (flow hergebruiken of triggering als 9e type +
+   typeborging/registratie/projectie). Bepaalt hoe rijk het proces-diagram (punt 1) kan worden.
+   Status: **open, ADR-waardig**.
+3. **Detailscherm-procesbeheer.** Verwijderen/verhangen óók op het proces-detailscherm (nu
+   alleen op de lijst). **Besluit A: nu niet** — de taakverdeling (structuur = lijst, inhoud =
+   detail) is bewust. Status: **kandidaat-slice**.
+4. **Rollenmodel: generieke matrix vs. functionele rollen.** Bv. een "Procesbeheerder" die de
+   processtructuur en -toepasbaarheid beheert, los van de technische platformbeheerder.
+   Strategisch ADR (raakt RBAC/Keycloak/seed platformbreed); + aanpalend concept
+   **proces-toepasbaarheid** (wel/niet van toepassing, mogelijk per tenant — bestaat nu niet).
+   Status: **te groot voor nu, bewust geparkeerd**.
+5. **Productie-evaluatiepunt: proces-ingang-weergave.** Slimme default + wisselen achteraf
+   (geen keuzevraag vooraf). Met echte gebruikers toetsen of een expliciete keuze of een
+   voorkeur-laag (ADR-041) gemist wordt. Status: **evaluatie in productiegebruik**.
+6. **History-grens hele-landschap-herstel** (bestaand punt, herbevestigd LI037). "← Terug"
+   over de set→hele-landschap-vlag-grens herstelt de vlag niet (`_herstelToestand`); de
+   inzoom-terugweg set↔set werkt volledig. Status: **read-only checkpoint + fix in een
+   volgende sessie**.
+
+---
+
 ### Stand V037 (sluitprotocol LI036 — Lagenweergave mét proceslaan, 2026-07-10)
 
 Build **V036 → V037**. Geland: **"Lagen" als derde kaart-weergave** (preset-baanposities +

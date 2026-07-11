@@ -428,6 +428,13 @@ Levende instanties: de klik-popup benoemt ontbrekende relaties ("nog geen eigena
 (`lk-geen-relaties`); en de bestaande "nog niet verfijnd"-markering / `toonRegistratiegaps`. Consistente
 eerlijkheidslijn: een gat tonen (rustig), niet verbergen en niet schreeuwen.
 
+**Registratiegap-cue consistent over schermen (LI037).** De "geen ondersteunend systeem"-cue geldt
+**identiek op de kaart én de processen-lijst**, met **subboom-semantiek**: een proces is pas een gat
+als zijn **héle subboom** geen enkele vervulling draagt (zo toont een hoofdproces met vervulde
+deelprocessen zich niet onterecht als gat). De cue is **altijd zichtbaar zolang de proces-ring aan
+staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll-up-leespaden
+(rollup + procesvervullingen), nooit een eigen tweede afleiding per scherm.
+
 ## LI035 — Regel-acties, meldingen, overlay en de proceswereld (ADR-042)
 
 - **Regel-acties zijn een recht van elke regel.** Wat een gebruiker registreert moet hij
@@ -505,3 +512,24 @@ eerlijkheidslijn: een gat tonen (rustig), niet verbergen en niet schreeuwen.
   **inklap** (herkomst per component, standaard dicht) → **popup/detailscherm** (volledige
   uitsplitsing + doorklik). Nooit alle detail front-loaden (de "Vervuld door"-tekstmuur
   was de aanleiding); geldt als leidend principe voor elke roll-up-/bundel-weergave.
+
+## LI037 — kaartpatronen: proces-ingang, inzoom, boom vs. netwerk
+
+- **Herkomst-aanwijzen = de bestaande selectie (oranje), geen eigen accent-kleur.** Bij een
+  kaart-ingang vanaf een (deel)proces wordt de herkomst-knoop de **geselecteerde** knoop
+  (oranje) + gecentreerd — LIKARA's eigen "kijk hier"-taal. Een tweede markering-kleur (het
+  blauwe accent) is **afgekeurd**: viel weg tussen de knopen én dupliceerde betekenis. De
+  chip benoemt de herkomst in woorden; oranje = "waar sta ik nu".
+- **Ingang dimt, inzoom snijdt (twee onderscheiden gebaren).** Een proces-**ingang** ("Bekijk
+  op kaart"/"Via proces") opent het brede landschap: deelproces gedimd-met-focus (hele boom
+  geladen; "Toon hele landschap" in de popup heft de dim op), hoofdproces breed/neutraal —
+  beide met oranje selectie + centrering, **géén set-inperking**. Een **dubbelklik-inzoom**
+  perkt de set écht in (proces + hele subboom + vervullers) = nieuwe history-staat; "← Terug"
+  loopt via de bestaande history (waar je vandaan kwam), geen apart terug-mechanisme. Houd de
+  twee begripsmatig gescheiden.
+- **Hiërarchie = boom, netwerk = kaart.** Een boom-weergave (kaart-proceszone én
+  lijst-tree-view) toont **hoogte codeert diepte**, gegroepeerd per boom; verbindingslijnen =
+  **uitsluitend echte geregistreerde ouder→kind-relaties** (spiegelt "geen afgeleide relaties",
+  ADR-023 b7). **Geen verbindende stam tussen losse wortels** (dat suggereert een ouder die er
+  niet is). Netwerk-/afhankelijkheidsrelaties horen op de kaart, nooit in een tree-view
+  (één-ouder-per-knoop).

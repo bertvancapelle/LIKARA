@@ -28,7 +28,17 @@
 
 ## Volgende stappen — TOP-6 (in deze volgorde)
 
-### 1. Deelprocessen eerste-klas op de kaart (besloten top-1)
+### 1. Deelprocessen eerste-klas op de kaart — ✅ GELAND in LI037
+Volledig gebouwd en gecommit in LI037 (fase 0–4: seed 3 niveaus + ADR-034-amendement,
+backend-subboom-projectie, proceszone-als-boom + gap-cue, twee proces-ingangen via één
+handoff met oranje-selectie-focus, dubbelklik-inzoom) — plus tree-view-procesbeheer
+(lijnen/gap-cue, verwijderen + verhangen) en de gating-/vorm-fix. **Zes nieuwe
+opvolgpunten uit LI037 staan in `docs/OPVOLGPUNTEN.md`** (proces-only diagram; ADR-spoor
+procesafhankelijkheden; detailscherm-procesbeheer; rollenmodel/functionele rollen;
+proces-ingang-evaluatie; history-grens hele-landschap). Oorspronkelijke opdracht hieronder
+ter referentie.
+
+#### (oorspronkelijk) Deelprocessen eerste-klas op de kaart (besloten top-1)
 Component→(deel)proces zichtbaar (niet weggerold); proceshiërarchie deelproces→hoofdproces als
 knopen+lijnen; deelprocessen uitvouwbaar detail-op-aanvraag; plotbaar vanuit component én vanuit
 (deel)proces. Herziet de stap-1-diepte-keuze ("alleen hoofdprocessen" = tussenstand — zie

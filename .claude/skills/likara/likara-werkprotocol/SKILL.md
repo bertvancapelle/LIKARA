@@ -51,6 +51,9 @@ Correctie: terug naar de gebruikersvraag. Altijd.
   **geen** commit-triggers.
 - Akkoord met een advies ≠ commit-goedkeuring.
 - claude.ai scheidt dit strikt in alle formuleringen.
+- `AKKOORD: commit` wordt **uitsluitend door Bert, rechtstreeks in CC** gegeven — **nooit**
+  door claude.ai in een opdracht-`.md` geschreven (een `.md` bevat alleen `START:`-instructies).
+  Zo commit CC nooit op bestandsinhoud.
 
 ### Stapelen in één werktree — alléén bij samenhangend, samen-committend werk (ADR-040)
 
@@ -81,6 +84,15 @@ lezen, een read-only reproductie) en **stopt-en-rapporteert bij discrepantie** �
 voor een filter/symbool/bug die niet blijkt te bestaan. (Deze sessie: een "verweesde-org-opruimfilter"
 dat er niet was; een scope-bug die scenario-afhankelijk bleek, geen defect.)
 
+### Reikwijdte-scan vóór een klasse-fix (LI037)
+
+Een fout die een **klasse** kan zijn (een niet-idempotente seed-stap, te-ruime rol-gating, een
+gedupliceerd patroon) wordt eerst read-only **breed geïnventariseerd** — waar zit hetzelfde
+patroon nog? — vóór de fix wordt afgebakend. Niet één plek dichten en de rest laten staan; de
+scan bepaalt de reikwijdte, Bert beslist over de afbakening. (LI037: seed-idempotentie en
+verwijder-gating beide zo aangepakt — de gating-scan vond zes plekken i.p.v. één, én
+falsifieerde een vermeende zevende.)
+
 ### Herijk de fasering als stappen niet los toetsbaar blijken
 
 Klein-houden is een **middel, geen doel**. Als een gate niet zelfstandig in de browser te beoordelen
@@ -98,6 +110,11 @@ browser stuk was. Daarom: bij elke slice die **UX, keuzevelden (pickers), of aut
 raakt, verifieert **Bert de betrokken schermen in de echte browser vóór `AKKOORD: commit`**. Het
 gate-rapport levert daarvoor een **browsercheck-draaiboek** (per stap: handeling → verwacht
 resultaat). Groene tests ≠ commit-toestemming.
+
+**Rol-gating toetst met béíde rollen in de echte browser (LI037).** Een mock dekt "welk recht"
+niet: een groene test zag "knop verborgen bij magBewerken=false", maar niet dat verwijderen een
+**ánder** recht eist dan bewerken (medewerker zag de knop en kreeg pas een 403 in de dialoog).
+Bij elke slice die rol-gating raakt bevat het draaiboek stappen als medewerker én als beheerder.
 
 ## Geen schuld laten ontstaan (LI032)
 

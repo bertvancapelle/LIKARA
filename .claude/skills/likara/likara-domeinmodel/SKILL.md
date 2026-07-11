@@ -705,7 +705,7 @@ buur-node) is een **eigen ADR-spoor**, geen kleine "bug".
   `tak_id`-groepeersleutel) en het organisatie-procesbeeld een afgeleide kijk over
   eigendom + organisatiegebruik — er bestaat GEEN opgeslagen roll-up-feit.
 
-## LI036 — proceslaan op de kaart (slice 2, geverifieerd) + BEWUST OPENSTAAND diepte-punt
+## LI036/LI037 — proces-projectie op de kaart (subboom, geland LI037)
 
 - **Proces-projectie = read-only subgraaf-VERRIJKING** in `landschapskaart_service.haal_grafdata_op`
   (een eigen blok naast `plateau_map`/`lev_map`; geen `scope_ids`-verbreding, geen schema, engine
@@ -713,18 +713,17 @@ buur-node) is een **eigen ADR-spoor**, geen kleine "bug".
   één `Procesvervulling`-query → **bottom-up klim** langs `ouder_id` naar de hoofdproces-wortel
   (batch-iteratief bijladen dat altijd termineert + cyclus-veilige klim met visited-set/memoisatie;
   een geconstrueerde ouder-lus geeft een deterministische pseudo-wortel, nooit een hang).
+- **Subboom-projectie (LI037 fase 1 — vervangt de wortel-bundel):** de projectie levert **de hele
+  subboom onder elk geraakt hoofdproces** — élk subboom-lid eerste-klas als knoop (óók
+  ondersteuningsloze deelprocessen), hiërarchie-edges kind→ouder binnen de subboom
+  (`relatietype='proces_hierarchie'`, label "onderdeel van", `ring='processen'`; de wortel draagt
+  er zelf geen), en **vervult-edges op het geregistreerde (deel)proces** — gebundeld per
+  (component, proces) met `aantal` + `herkomst[]` voor de popup. De oude samentrekking naar de
+  hoofdproces-wortel bestaat niet meer.
+- **Selectie-schaal:** alleen bomen waarvan een tak door de component-scope geraakt wordt komen
+  mee — een buiten-beeld-component trekt geen subboom naar binnen.
 - **Eén roll-up-definitie**: dezelfde bron/boom-semantiek als `procesvervulling_service.
-  rollup_voor_proces`, alleen andersom bewandeld (de kaart vertrekt bij componenten, de
-  rollup-route bij een proces). Nooit een tweede roll-up-bron introduceren.
-- **Output**: per hoofdproces-mét-edge één node (`element_type='proces'`, `laag='business'`,
-  `archimate_element='business_process'`; frontend-vorm: afgeronde rechthoek + verloop-pijl-marker);
-  per (component, hoofdproces) één **samengetrokken** edge (`relatietype='procesvervulling'`,
-  `ring='processen'`, `aantal` = onderliggende regels — flow-groeperingsprecedent; `label` =
-  applicatiefunctie of "vervult"; `herkomst[]` voor de popup-uitsplitsing).
-- **⚠ BEWUST OPENSTAAND ontwerppunt (top-1 volgende sessie — NIET afgesloten):** de huidige
-  projectie toont **alleen hoofdprocessen**; deelprocessen zijn enkel doorgerold zichtbaar (in de
-  `herkomst`-popup). Dit is **heroverwogen**: de gewenste richting is **deelprocessen eerste-klas
-  op de kaart** — component→(deel)proces als zichtbare koppeling, de proceshiërarchie
-  deelproces→hoofdproces als knopen+lijnen, deelprocessen detail-op-aanvraag uitvouwbaar, en
-  plotbaar vanuit zowel een component als een (deel)proces. Behandel "alleen hoofdprocessen"
-  dus als tussenstand, niet als eindstaat.
+  rollup_voor_proces` — de omlaag-subboom is de spiegel van de bestaande omhoog-klim. Nooit een
+  tweede roll-up-bron introduceren.
+- Het eerdere ⚠-diepte-punt ("alleen hoofdprocessen" als tussenstand) is hiermee **geland (LI037)**
+  en niet langer openstaand.
