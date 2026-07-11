@@ -1554,40 +1554,43 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     # ── ADR-037 — verantwoordelijke per checklistantwoord (afdeling-dan-persoon), demonstratief ──
     # Maakt de UX zichtbaar: één blokkerend antwoord mét PERSOON-verantwoordelijke (de bijbehorende
     # OPEN blokkade toont die afgeleid, "persoon — afdeling"), één niet-blokkerend antwoord met een
-    # AFDELING, één met een PERSOON, en de overige antwoorden BEWUST LEEG (voedt het Pass 2-signaal).
-    # Registratief: `werk_bij` stuurt géén score mee → engine no-op. Idempotent (alleen lege rijen).
+    # AFDELING, één met een PERSOON, en ALLE overige antwoorden BEWUST LEEG (voedt het Pass 2-signaal
+    # `antwoord_zonder_verantwoordelijke`).
+    # LI037-fix — doelrijen op VASTE IDENTITEIT (component + vraagcode) i.p.v. "de eerstvolgende
+    # lege rij op created_at": dat criterium schoof elke run op en liet de bewust-lege rijen per
+    # reseed met 2 dichtslibben. Zaaksysteem 1.1 is per scenario-constructie hét blokkerende
+    # antwoord (blokkeer=1 → CODES[0]='1.1' scoort 'nee'); 1.2/1.3 zijn niet-blokkerend ('ja').
+    # Vul-als-leeg op die identiteit: een al (handmatig) gezette waarde wordt nooit overschreven
+    # en run 2 vindt de drie gevuld en doet niets → écht idempotent (run-stabiel op identiteit).
+    # Registratief: `werk_bij` stuurt géén score mee → engine no-op.
     pers_id = partij_id.get("J. de Vries")           # persoon; draagt afdeling "Informatievoorziening"
     afd_id = partij_id.get("Informatievoorziening")  # afdeling (organisatie_eenheid)
-    if pers_id and afd_id:
-        actieve_blok = {
-            sid for (sid,) in (await session.execute(
-                select(Blokkade.checklistscore_id).where(
-                    Blokkade.tenant_id == tid,
-                    Blokkade.status.in_([BlokkadeStatus.open, BlokkadeStatus.in_behandeling]),
+    zaak_id = app_id.get("Zaaksysteem")
+    if pers_id and afd_id and zaak_id:
+        doelen = [
+            ("1.1", pers_id),  # blokkerend antwoord → PERSOON (blokkade toont "persoon — afdeling")
+            ("1.2", afd_id),   # niet-blokkerend → AFDELING
+            ("1.3", pers_id),  # niet-blokkerend → PERSOON
+        ]
+        gevuld = 0
+        for code, verantw_id in doelen:
+            rij = (await session.execute(
+                select(Checklistscore)
+                .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
+                .where(
+                    Checklistscore.tenant_id == tid,
+                    Checklistscore.component_id == zaak_id,
+                    ChecklistVraag.code == code,
                 )
-            )).all()
-        }
-        leeg = (await session.execute(
-            select(Checklistscore).where(
-                Checklistscore.tenant_id == tid,
-                Checklistscore.verantwoordelijke_id.is_(None),
-            ).order_by(Checklistscore.created_at)
-        )).scalars().all()
-        blok_rij = next((s for s in leeg if s.id in actieve_blok), None)
-        nonblok = [s for s in leeg if s.id not in actieve_blok]
-        toewijzingen = []
-        if blok_rij is not None:                       # blokkerend antwoord → PERSOON
-            toewijzingen.append((blok_rij.id, pers_id))
-        if len(nonblok) >= 1:                           # niet-blokkerend → AFDELING
-            toewijzingen.append((nonblok[0].id, afd_id))
-        if len(nonblok) >= 2:                           # niet-blokkerend → PERSOON
-            toewijzingen.append((nonblok[1].id, pers_id))
-        for score_id, verantw_id in toewijzingen:
+            )).scalars().first()
+            if rij is None or rij.verantwoordelijke_id is not None:
+                continue  # rij ontbreekt (afwijkende seed-stand) of al gezet → idempotent overslaan
             await checklistscore_service.werk_bij(
-                session, tid, score_id, ChecklistscoreUpdate(verantwoordelijke_id=verantw_id)
+                session, tid, rij.id, ChecklistscoreUpdate(verantwoordelijke_id=verantw_id)
             )
+            gevuld += 1
         await session.commit()
-        telling["verantwoordelijken"] = len(toewijzingen)
+        telling["verantwoordelijken"] = gevuld  # run 1: 3 · run 2: 0 (het idempotentie-bewijs)
 
     # ── 15. Processen + procesvervullingen (ADR-042; verdiept LI037 fase 0) ──
     # Twee herkenbare procesboompjes (Vergunningverlening → Aanvraag behandelen;
