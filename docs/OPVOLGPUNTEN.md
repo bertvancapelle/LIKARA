@@ -7,6 +7,18 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI038 (2026-07-12) — ADR-043 herijkt ADR-042
+
+1. **ADR-042 is herijkt door ADR-043** (`docs/adr/ADR-043_Bedrijfsfunctie_als_logische_ruggengraat.md`):
+   de "waarvoor"-as van de logische kaart verschuift van **proces** naar **bedrijfsfunctie**
+   (eigen element-as, ArchiMate BusinessFunction; referentiemodel als eerste-klas begrip,
+   GEMMA = instantie 1; bronsleutel = identiteit; vervallen ≠ verwijderen).
+2. **Het procesregister is GEPARKEERD — verborgen, niet verwijderd** (ADR-043 MVP-scope):
+   in de MVP geen menu-item/ingang/proceskolom; `proces`/`procesvervulling` en de LI038-bouw
+   (boom, diagram, inzoom/history, gap-cue) blijven intact en worden door de functie-as
+   **hergebruikt** (n≥2-abstractie). Terugkeer later als detaillering ónder de functie-as,
+   nooit ernaast. Status: **besloten (LI038); bouw-fasering + open subknopen in ADR-043**.
+
 ### Nieuwe opvolgpunten uit LI037 (2026-07-11)
 
 1. **Proces-only diagram — eigen slice.** De kaart-proceszone met een **proces-only filter**

@@ -43,7 +43,8 @@ beslissingen krijgen status `Vervallen` met verwijzing naar de opvolger).
 | ADR-034 | Lagenweergave (swimlane) als architectuur-lens — Lagen als derde kaart-weergave incl. rolbanen + proceslaan | Geland (LI036) — besluit 1 herzien (Cytoscape preset i.p.v. HTML/CSS), besluit 4 buiten scope; proces-diepte bewust open |
 | ADR-040 | Kaart-herbouw: twee gerichte weergaven + object-centrische praatplaat-motor | Deels geland — Fase 1 (V034) + V035-correcties + LI036 (derde weergave Lagen, interactie-basis, set-actie-herziening, organisatiebalk); vervolgfasen open |
 | ADR-041 | Persoonlijke voorkeuren: "onthoud als mijn standaard" (per-gebruiker voorkeur-laag; kijkfilter, nooit invoerregel) | Gerealiseerd (V035) |
-| ADR-042 | Procesregister en component-in-proces-koppeling (nestbare procesboom; koppelregel component/proces/applicatiefunctie; roll-up als kijklaag) | Gerealiseerd (V036) — alle 5 slices |
+| ADR-042 | Procesregister en component-in-proces-koppeling (nestbare procesboom; koppelregel component/proces/applicatiefunctie; roll-up als kijklaag) | Gerealiseerd (V036) — alle 5 slices; herijkt door ADR-043 (procesregister geparkeerd/verborgen in MVP) |
+| ADR-043 | Bedrijfsfunctie als logische ruggengraat (herijking ADR-042): eigen functie-as (ArchiMate BusinessFunction), referentiemodel als eerste-klas begrip (GEMMA = instantie 1), bronsleutel als identiteit, vervallen ≠ verwijderen | Besloten (LI038) — open subknopen vóór de bouw |
 
 > **Component-focus-herfundering (LI057–LI059, migraties 0045–0047):** `migratiepad/complexiteit/prioriteit`
 > zijn component-breed, de `applicatie`-subtabel is gedropt en de applicatie-**facade** (routes/service/
