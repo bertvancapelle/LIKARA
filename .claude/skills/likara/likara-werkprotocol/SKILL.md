@@ -1,7 +1,7 @@
 ---
 name: likara-werkprotocol
 description: Werkprotocol voor PNA-interacties (claude.ai) en CC-uitvoering. Niet-onderhandelbaar. Lees bij elke sessiestart.
-bijgewerkt: V024
+bijgewerkt: V038
 ---
 
 # LIKARA Werkprotocol
@@ -17,6 +17,39 @@ gebruikersvraag dat vereist: onmiddellijk terugkeren naar de functionele vraag.
 
 Bekende faalpatroon: te snel/diep de techniek of het proces in duiken.
 Correctie: terug naar de gebruikersvraag. Altijd.
+
+---
+
+## KERNLES LI038 — een regel in de skills is geen borging; hij houdt pas als een gedeelde bouwsteen hem afdwingt
+
+**Bewijs (twee onafhankelijke gevallen, beide gevonden in de browser — niet door 1000+
+groene tests en niet door de skills zelf):**
+
+- **Picker-regel 4** ("voorgevuld openen toont de volledige lijst; de voorgevulde waarde is
+  een label, nooit een zoekfilter") stond **sinds LI032 in likara-ux** — en `ZoekSelect` deed
+  het aantoonbaar níét (het filter-slot; faalmodus in likara-frontend §LI038).
+- Het **draggable-overlay-recept** stond beschreven in likara-ux — maar leefde **twee keer
+  inline** in `LandschapskaartView` (legenda + klik-popup), in strijd met de
+  n≥2-convergentieregel die óók al in twee skills stond.
+
+**Werkregel:**
+1. Bij elke slice die een **bestaande skill-regel** raakt: **verifieer read-only dat de code
+   de regel daadwerkelijk nakomt** — een geschreven regel is een *claim*, geen *garantie*.
+2. Leg een regel bij voorkeur vast **in een gedeelde bouwsteen** (composable/component/
+   service), niet alleen in tekst. Alleen dan erft elke nieuwe consument hem automatisch.
+3. Wordt een regel geschonden aangetroffen: **fix in de bouwsteen, niet in de consument** —
+   anders plant je de volgende schending.
+4. **Sterkste borging = structureel onmogelijk maken** (zie "Scope voeren op eigen ids"
+   hieronder: de api-vrije view).
+
+## Scope voeren op de ids van je eigen domein (LI038)
+
+Voer een set-/scope-actie op de identiteiten van het domein dat je toont — niet op een
+naburig domein. LI038: de proces-inzoom voert op **proces-ids** (proces-only pad); het
+component-/vervuller-subgraaf-pad was ongeschikt (component-scope, **weigert bij 0
+vervullers**). **Sterkste borging is structureel:** `ProcesDiagram` is **api-vrij** (data als
+props uit de lijst) — een vervuller-call is daarmee *onmogelijk*, niet slechts "niet
+aangeroepen". Verkies dit boven een afspraak of een test.
 
 ---
 

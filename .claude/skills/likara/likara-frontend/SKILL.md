@@ -2,7 +2,7 @@
 name: likara-frontend
 description: Frontend-patronen voor LIKARA (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V023
+bijgewerkt: V038
 ---
 
 # LIKARA Frontend Skill
@@ -1294,3 +1294,38 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   **concrete hex** nodig, mét commentaar welk token de hex spiegelt (bv. `#64748b` =
   `--lk-color-text-muted`, edge-labelkleur) — **token-drift is een bekend aandachtspunt**.
   Vermijd een losse hex waar het via node-data/klassen kan (de `_nodeData`-stijlbron).
+
+## LI038-patronen (useSleepbaar, ZoekSelect-filter-slot, proces-only diagram)
+
+- **`useSleepbaar` — de ENIGE overlay-sleep-bron (geconvergeerd LI038).** Het sleep-*recept*
+  stond al in likara-ux; de *bouwsteen* ontbrak. Nu: `frontend/src/composables/useSleepbaar.js`
+  is de enige bron. `pos {x:null,y:null}` (null = CSS-standaardplek), positie-init uit
+  `getBoundingClientRect()` bij de eerste drag (nooit `?? 0` — anders springt de overlay weg),
+  knoppen/links/inputs zijn **geen greep**, mousemove/mouseup op `document` met opruiming bij
+  unmount, `reset()`. **Kaart-legenda en kaart-klik-popup draaien er nu ook op** (de twee
+  inline-kopieën zijn vervangen; exposed namen via destructuring-aliassen behouden). **Elke
+  nieuwe overlay haakt hieraan aan — nooit een nieuwe inline kopie.** **Reset-semantiek:**
+  reset bij een verse context (nieuwe keuze / `wisSet()` / popup sluiten); een
+  **inspectie-reeks** (achtereenvolgens knopen aanklikken) behoudt bewust de gesleepte plek.
+- **ZoekSelect — de faalmodus achter picker-regel 4 (LI038).** De regel (§ZoekSelect-patronen
+  regel 4) bestond; dit is **waaróm hij stukging**, zodat hij niet terugkomt: de volledige
+  startlijst opende alleen op **`@focus`**. Direct ná een keuze **behoudt de input focus** (de
+  optie-klik gebruikt `mousedown.prevent`) → een nieuwe klik vuurt **geen** focus-event → de
+  lijst opent niet en typen **plakt aan de voorgevulde naam** = filter-slot. **Fix in de
+  bouwsteen:** `@click` opent de volle startlijst **óók bij bestaande focus** (met guard: een
+  klik terwijl de lijst al open is — cursor verplaatsen tijdens typen — reset niets), plus een
+  **×-wis-gebaar** ("Wis en zoek opnieuw": veld leeg, `update:modelValue(null)`, volledige
+  lijst open, focus vastgehouden met `mousedown.prevent`). Het ×-gebaar **erft platform-breed**
+  op alle ZoekSelect-consumenten; in formulieren betekent × = keuze leeg (`modelValue null`),
+  wat de bestaande verplicht-veld-validatie afvangt.
+- **Consument behoudt zijn beeld tot een NIEUWE keuze.** Een view die op **`@keuze`** luistert
+  (niet op elke input-mutatie) houdt zijn huidige weergave staan bij focus / typen / wissen —
+  het beeld wisselt **pas** bij een écht nieuwe keuze. De gebruiker verliest zijn zicht niet
+  halverwege het zoeken. Referentie: `ProcesDiagram` (centrum wijzigt uitsluitend in
+  `kiesCentrum`/`zoomInOp`).
+- **Proces-only diagram — vindplaatsen (LI038).** `ProcesDiagram.vue` (api-vrij: volledige
+  set + gap-cue als props uit ProcesLijst — zie de werkprotocol-kernles), pure afleidingen
+  `procesFocusSet` (focus: keten boven / subboom beneden / zusjes opzij) en `procesSubboomSet`
+  (inzoom: alleen proces + subboom) in `procesBoom.js`; snapshot+cursor-history op de
+  beeld-velden (kaart-patroon); ingang-prop `initieelCentrumId` + emit `centrumGewijzigd`
+  (plek behouden over Boom↔Diagram-wissels).

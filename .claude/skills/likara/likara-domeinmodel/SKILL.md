@@ -8,8 +8,8 @@ description: >
   catalogus-families (scope platform vs. tenant), engine-invariant, RBAC/audit-
   ankerpunten, en harde architectuurregels. De HOE (implementatiepatronen) staat
   in likara-db en likara-backend; dit bestand beschrijft het WAT.
-stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026
-bijgewerkt: V028
+stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026/043
+bijgewerkt: V038
 ---
 
 # LIKARA Domeinmodel — Kaart
@@ -727,3 +727,52 @@ buur-node) is een **eigen ADR-spoor**, geen kleine "bug".
   tweede roll-up-bron introduceren.
 - Het eerdere ⚠-diepte-punt ("alleen hoofdprocessen" als tussenstand) is hiermee **geland (LI037)**
   en niet langer openstaand.
+
+## LI038/ADR-043 — referentiemodellen & registratie-feiten (herijkt ADR-042)
+
+### Logische as = stabiele as
+
+LIKARA levert een **Logische ICT Kaart**: wat er moet gebeuren, los van hoe het toevallig is
+ingericht. Een logische kaart rust daarom op wat **stabiel** is (**bedrijfsfunctie** — GEMMA
+Basisarchitectuur, wijzigt in jaren), niet op wat met elke reorganisatie schuift (**proces**).
+**ADR-043 herijkt ADR-042:** de "waarvoor"-as verschuift van proces naar bedrijfsfunctie; het
+procesregister wordt de **verdieping eronder** ("zo doen wij dat concreet"), nooit ernaast —
+in de MVP **verborgen, niet verwijderd** (de LI038-bouw wordt door de functie-as hergebruikt,
+n≥2-abstractie). Grond: `docs/Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md`.
+
+### Modelinhoud lees je — je wijzigt hem niet
+
+Voor élke ingelezen referentie-inhoud (GEMMA nu; andere modellen later):
+- **Bronsleutel is de identiteit.** Herhaalbaar bijwerken matcht op de bronsleutel, **nooit op
+  naam** (naam is niet uniek; hernoemd/verhangen zou onherkenbaar zijn).
+- **Modelinhoud is leesbaar, niet bewerkbaar.** Naam/definitie/plek komen van de bron.
+- **Eigen inhoud toevoegen mag** (draagt geen bronsleutel → de import raakt het nooit aan).
+- **Afwijken doe je *bij* het object, niet *erin*** — een eigen laag ernaast ("de bron zegt
+  dit — wij zeggen dit"). **Verworpen:** "een wijziging maakt er automatisch eigen inhoud
+  van" — dat splitst ongemerkt een knooppunt **mét registratie** af (welke componenten gaan
+  mee? welke kinderen?), geeft dubbelen bij de volgende herinlees, en koppelt de tenant stil
+  los van de referentie.
+- **Vervallen ≠ verwijderen.** Hard verwijderen sleept via **CASCADE de eigen registratie**
+  mee (feitelijk bevestigd op `procesvervulling`). Markeren + eerlijk signaal: *"bestaat niet
+  meer in het model, maar N componenten hangen er nog aan."*
+- **Geen synchronisatiemachine.** Stabiel model → herinlees is een **zeldzame, bewuste
+  handeling**: gevalideerd bestand → **voorbeeldscherm** (nieuw / bijgewerkt / vervallen + wat
+  nog in gebruik is) → bevestigen. Nooit stil doorvoeren.
+- **Motor generiek, aanbod gesloten.** De inlees-motor is modelonafhankelijk (ArchiMate/
+  AMEFF); welke modellen worden **aangeboden** is een productkeuze. Nooit een "GEMMA-importer"
+  bouwen — dan is model twee een herbouw.
+
+### Registratie-feiten op objecten — één model, twee ankers (ADR-spoor, besloten LI038)
+
+Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzingen**: label
++ adres) horen op **elk** object dat ertoe doet: component, contract, proces/bedrijfsfunctie
+**én de koppeling** tussen twee componenten.
+- **Twee ankers:** elementen (gedeelde element-identiteit) én koppelingen (`relatie.id`).
+  Identieke velden/UI/signalering; alleen het anker verschilt.
+- **Geen polymorfe FK / exclusieve arc.** Twee dunne tabellen op dezelfde leest —
+  n≥2-discipline (zie harde regel 8).
+- **Document = een benoemde verwijzing, GEEN bestandsupload** (opslag/versies/retentie/scan
+  dupliceert het DMS; LIKARA wijst naar waar het document leeft). Upload = apart, later
+  besluit.
+- De "eigen laag bij een referentie-object" (hierboven) **is een instantie hiervan** — samen
+  ontwerpen, niet twee keer bouwen.

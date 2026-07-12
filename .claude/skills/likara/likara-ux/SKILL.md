@@ -1,7 +1,7 @@
 ---
 name: likara-ux
 description: Interaction-design-denkmethode voor LIKARA. Verplicht te raadplegen bij ELKE frontend-rakende slice (nieuw scherm, nieuwe sectie, nieuwe actie) — door zowel CC als claude.ai. Borgt dat een functie de UI logisch en compleet houdt voor de gebruiker: geen lege lijsten zonder route naar de actie, actie op de plek waar de gebruiker hem verwacht, terminologie vanuit de gebruiker. Dit is GEEN stijl-/visuele skill (dat is likara-frontend); dit gaat over of het scherm doet wat de gebruiker verwacht.
-bijgewerkt: V024
+bijgewerkt: V038
 ---
 
 # LIKARA UX / Interaction-Design Skill
@@ -533,3 +533,32 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   ADR-023 b7). **Geen verbindende stam tussen losse wortels** (dat suggereert een ouder die er
   niet is). Netwerk-/afhankelijkheidsrelaties horen op de kaart, nooit in een tree-view
   (één-ouder-per-knoop).
+
+## LI038 — proces-only structuurbeeld
+
+- **Een componentloos beeld hoort NIET in de kaart.** De kaart is component-/applicatie-
+  centrisch. Een **componentloos** beeld (alleen processen, alleen functies, …) hoort als
+  **weergave binnen het eigen registerscherm** — LI038: **Boom | Diagram** in het
+  processen-scherm. Twee representaties van dezelfde structuur: **Boom = beheren**,
+  **Diagram = begrijpen/navigeren**. Een componentloos beeld tussen Overzicht/Praatplaat/Lagen
+  breekt het mentale model ("waar zijn ineens de componenten?").
+- **Het derde gebaar: enkele klik = kijken.** Aanvulling op *"ingang dimt, inzoom snijdt"*
+  (LI037) — die regel **geldt ook buiten de kaart**. Volledig:
+  - **Enkele klik = kijken** — highlight van de knoop **inclusief zijn verbindingen** + popup.
+    **Géén set-inperking, géén weergave-wissel.** De gebruiker oriënteert zich alleen.
+  - **Dubbelklik = snijden** — knoop + subboom worden de scope, **zónder ouderketen/zusjes**;
+    nieuwe history-staat; "← Terug" via de bestaande history-laag (snapshot + cursor,
+    veld-agnostisch).
+  - **Ingang = neutraal openen** — centraal + oranje selectie, **géén inperking**.
+
+  **Weging bij dubbelklik-onderscheiding:** de enkele klik moet **direct** aanvoelen (popup
+  zonder uitstel). LI038 koos daarom bewust "popup-direct" boven "geen flikker" — bij een
+  dubbelklik flitst de popup heel kort. Browserverificatie besliste dit, niet de test.
+- **"Verbreden binnen het beeld" ≠ "overstappen naar een andere wereld".** Twee **visueel en
+  functioneel gescheiden** uitgangen; nooit op één knop:
+  - *"Toon hele processenlandschap"* — heft de focus op, **blijft in hetzelfde (proces-only)
+    beeld**.
+  - *"Bekijk op de kaart →"* — **bewuste overstap** naar de component-wereld (via de bestaande
+    handoff-bouwer + consume-once store, **niet** de `?center=`-component-deeplink).
+
+  Samen op één knop zou "meer processen zien" laten lezen als "componenten erbij halen".
