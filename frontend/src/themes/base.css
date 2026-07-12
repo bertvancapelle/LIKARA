@@ -34,6 +34,10 @@
   --lk-color-success: #1D9E75;
   --lk-color-danger: #E24B4A;
   --lk-color-warning: #ba7517;
+  /* "Kijk hier"-selectietaal (kaart-/diagram-selectie + de aanstip van een zojuist
+     vastgelegde rij) — één bron; cytoscape kan geen CSS-vars lezen en spiegelt deze
+     waarde als hex mét token-comment (LI037-patroon). */
+  --lk-color-selectie: #f59e0b;
   --lk-color-text: #1A1A2E;
   --lk-color-text-muted: rgba(45, 55, 72, 0.7);
   --lk-color-surface: #ffffff;

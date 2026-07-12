@@ -61,6 +61,9 @@ export const AUDIT_ENTITEIT = {
   // ADR-042 — procesregister + koppelregel (sprekend label i.p.v. humanize-fallback).
   proces: 'Proces',
   procesvervulling: 'Proces-koppeling',
+  // ADR-043 — bedrijfsfunctie-as + ingelezen referentiemodel.
+  bedrijfsfunctie: 'Bedrijfsfunctie',
+  referentiemodel: 'Referentiemodel',
 }
 
 // LI019 — leesbare labels voor systeem-actoren (actor_sub met "system:"-prefix).

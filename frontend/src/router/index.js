@@ -33,6 +33,8 @@ const ContractLijst = () => import('@modules/bwb_ontvlechting/frontend/views/Con
 // ADR-042 slice 4a — procesregister (boom + detail), lazy.
 const ProcesLijst = () => import('@modules/bwb_ontvlechting/frontend/views/ProcesLijst.vue')
 const ProcesDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ProcesDetail.vue')
+// ADR-043 gate 1a — bedrijfsfunctieboom (Boom | Diagram), lazy.
+const BedrijfsfunctieLijst = () => import('@modules/bwb_ontvlechting/frontend/views/BedrijfsfunctieLijst.vue')
 const ContractFormulier = () => import('@modules/bwb_ontvlechting/frontend/views/ContractFormulier.vue')
 const ContractDetail = () => import('@modules/bwb_ontvlechting/frontend/views/ContractDetail.vue')
 // ADR-029 Fase 4 — gebruikersbeheer (beheerder-only; backend handhaaft via GEBRUIKERSBEHEER).
@@ -135,6 +137,8 @@ const routes = [
       // ADR-042 — procesregister. Statische subpaden vóór de dynamische /:id.
       { path: 'processen', name: 'proces-lijst', component: ProcesLijst },
       { path: 'processen/:id', name: 'proces-detail', component: ProcesDetail, props: true },
+      // ADR-043 gate 1a — bedrijfsfunctieboom (beheer + diagram op één scherm, geen detail-route).
+      { path: 'bedrijfsfuncties', name: 'bedrijfsfunctie-lijst', component: BedrijfsfunctieLijst },
       { path: 'contracten', name: 'contract-lijst', component: ContractLijst },
       { path: 'contracten/nieuw', name: 'contract-nieuw', component: ContractFormulier },
       { path: 'contracten/:id', name: 'contract-detail', component: ContractDetail, props: true },

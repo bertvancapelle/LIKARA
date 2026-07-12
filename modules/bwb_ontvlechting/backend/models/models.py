@@ -192,6 +192,10 @@ class ElementType(str, Enum):
     # ADR-042 slice 1 — procesregister (business process). Nestbaar via een ouder-self-FK
     # op de subtabel; de plek in de boom ís het niveau (geen niveau-label).
     proces = "proces"
+    # ADR-043 gate 1a — bedrijfsfunctie-as (business function): de logische ruggengraat
+    # van de kaart. Nestbaar via een ouder-self-FK (proces-recept); topgroeperingen
+    # (Besturend/Primair/Ondersteunend) zijn gewone wortelknopen (besluit LI039-4).
+    bedrijfsfunctie = "bedrijfsfunctie"
 
 
 class PartijAard(str, Enum):
@@ -711,6 +715,104 @@ class Procesvervulling(Base, TenantMixin, TimestampMixin):
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class Referentiemodel(Base, TenantMixin, TimestampMixin):
+    """ADR-043 gate 1a — de INGELEZEN referentiemodel-instantie van déze tenant (wélk
+    model, welke versie, wanneer ingelezen). Tenant-scoped registratie-feit (FORCE RLS
+    via de migratie) — GEEN ArchiMate-element, dus geen element-subtype.
+
+    Twee lagen (besluit LI039-5): het AANBOD is platform-gecureerd
+    (`referentiemodel_optie`, platform-catalogus); het INLEZEN doet de tenant-beheerder
+    en de ingelezen inhoud ís het landschap van de gemeente (tenant-tabel).
+    `model_sleutel` verwijst app-side naar `referentiemodel_optie.optie_sleutel` (geen
+    harde FK — catalogus-conventie); `naam`/`versie` zijn de ingelezen snapshot.
+    `UNIQUE(tenant_id, model_sleutel)`: een herinlees wérkt de bestaande instantie bij
+    (versie), er ontstaat geen tweede rij per model. Engine onaangeroerd."""
+
+    __tablename__ = "referentiemodel"
+    __table_args__ = (
+        # Composiet-FK-target voor `bedrijfsfunctie.bron_model_id` (tenant-consistent).
+        UniqueConstraint("tenant_id", "id", name="uq_referentiemodel_tenant_id"),
+        UniqueConstraint("tenant_id", "model_sleutel", name="uq_referentiemodel_sleutel"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    model_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    naam: Mapped[str] = mapped_column(String(150), nullable=False)
+    versie: Mapped[str] = mapped_column(String(60), nullable=False)
+    ingelezen_op: Mapped[datetime] = mapped_column(
+        sa.DateTime(timezone=True), nullable=False, server_default=text("now()")
+    )
+
+
+class Bedrijfsfunctie(Base, TenantMixin, TimestampMixin):
+    """ADR-043 gate 1a — bedrijfsfunctie-element: de logische ruggengraat van de kaart
+    (wat de organisatie hóórt te doen — GEMMA Basisarchitectuur), nestbaar van grof naar
+    fijn (de plek in de boom ís het niveau; topgroeperingen zijn gewone wortelknopen).
+    Element-subtype (shared-PK via composiet-FK `(tenant_id, id)` → `element`, FORCE RLS
+    via de migratie) — het proces-recept (0057) 1-op-1, plus drie ADR-043-eigen velden:
+
+    - **Herkomst** (`bron_model_id` + `bron_sleutel`): beide gezet = modelinhoud (naam/
+      definitie/ouder read-only, bijgewerkt door een herinlees op de bronsleutel — nooit
+      op naam); beide leeg = eigen functie van de gemeente (een import raakt haar nooit
+      aan). Samen-gezet-of-samen-leeg is een CHECK (harde invariant → schema);
+      `UNIQUE(tenant_id, bron_model_id, bron_sleutel)` dwingt uniciteit alléén op
+      niet-NULL af (NULL is distinct — het `checklistvraag.betekenis`-precedent).
+    - **`vervallen`** (besluit LI039-6): "bestaat niet meer in het ingelezen model" —
+      zichtbaar blijven mét markering, NIET meer koppelbaar (nieuwe kinderen/koppelingen
+      geweigerd in de service); nooit hard verwijderen (CASCADE zou eigen registratie
+      meesleuren). Eerste soft-deactivate op een element i.p.v. een catalogus.
+
+    `ouder_id` = composiet self-FK met **ON DELETE RESTRICT** (subboom nooit stilzwijgend
+    wegvagen); cycluspreventie in de servicelaag, de DB-CHECK weert de directe
+    self-parent. Puur registratief — geen engine-koppeling (score blijft de enige
+    lifecycle-driver)."""
+
+    __tablename__ = "bedrijfsfunctie"
+    __table_args__ = (
+        # Composiet-FK-target voor de self-FK (tenant-consistent).
+        UniqueConstraint("tenant_id", "id", name="uq_bedrijfsfunctie_tenant_id"),
+        # Bronsleutel = identiteit binnen één ingelezen model; NULL distinct ⇒ onbeperkt
+        # veel eigen functies (geen partial index nodig — betekenis-precedent).
+        UniqueConstraint(
+            "tenant_id", "bron_model_id", "bron_sleutel", name="uq_bedrijfsfunctie_bron"
+        ),
+        CheckConstraint(
+            "ouder_id IS NULL OR ouder_id <> id",
+            name="ck_bedrijfsfunctie_geen_self_parent",
+        ),
+        # Herkomst is een paar: model + sleutel samen gezet, of samen leeg (eigen functie).
+        CheckConstraint(
+            "(bron_model_id IS NULL) = (bron_sleutel IS NULL)",
+            name="ck_bedrijfsfunctie_bron_paar",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "id"], ["element.tenant_id", "element.id"],
+            name="fk_bedrijfsfunctie_element", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "ouder_id"], ["bedrijfsfunctie.tenant_id", "bedrijfsfunctie.id"],
+            name="fk_bedrijfsfunctie_ouder", ondelete="RESTRICT",
+        ),
+        # Een ingelezen model met functies verdwijnt niet stil (geen delete-endpoint;
+        # RESTRICT is de backstop — een vervallen model blijft resolvebaar).
+        ForeignKeyConstraint(
+            ["tenant_id", "bron_model_id"],
+            ["referentiemodel.tenant_id", "referentiemodel.id"],
+            name="fk_bedrijfsfunctie_bron_model", ondelete="RESTRICT",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    naam: Mapped[str] = mapped_column(String(255), nullable=False)
+    definitie: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ouder_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    bron_model_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    bron_sleutel: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    vervallen: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("false")
+    )
+
+
 # ADR-023 B-mig-2 slice 1: het `Koppeling`-model is vervangen door `flow`-relaties in het
 # unified relatiemodel (`Relatie`). De enums Koppelrichting/Koppelprotocol/ImpactVerbreking
 # blijven — ze typeren nu de flow-kenmerken (richting/protocol/impact_bij_verbreking).
@@ -1043,6 +1145,29 @@ class ApplicatiefunctieOptie(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
+
+
+class ReferentiemodelOptie(Base):
+    """ADR-043 gate 1a — platform-gecureerd AANBOD van referentiemodellen (GEEN RLS, GEEN
+    tenant_id): welke modellen LIKARA aanbiedt (naam, herkomst, versie). Het
+    catalogus-recept (`applicatiefunctie_optie`-spiegel) met twee model-eigen kolommen
+    (`herkomst`, `versie`). Soft-deactivate via `actief` (geen DELETE-grant/-endpoint);
+    grants lk_app SELECT-only, lk_platform S/I/U. De TENANT-zijde (wélk model is
+    ingelezen) is de aparte `referentiemodel`-tabel — besluit LI039-5: aanbod =
+    platform, ingelezen inhoud = tenant. Voedt de engine NIET."""
+
+    __tablename__ = "referentiemodel_optie"
+    __table_args__ = (
+        UniqueConstraint("optie_sleutel", name="uq_referentiemodel_optie"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    optie_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    label: Mapped[str] = mapped_column(String(150), nullable=False)
+    herkomst: Mapped[str] = mapped_column(String(255), nullable=False)
+    versie: Mapped[str] = mapped_column(String(60), nullable=False)
     volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     actief: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("true"))
 

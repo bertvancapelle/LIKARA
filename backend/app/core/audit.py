@@ -70,6 +70,8 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "plateau", "work_package", "deliverable", "gap",
     # ADR-042 — procesregister (nestbare procesboom) + koppelregel component→proces.
     "proces", "procesvervulling",
+    # ADR-043 gate 1a — bedrijfsfunctie-as + ingelezen referentiemodel-instantie.
+    "bedrijfsfunctie", "referentiemodel",
     # ADR-027 — niet-scorende component-klaarverklaring (klaar→open→klaar mét reden,
     # per-veld-diffs in de append-only audit-trail; geen aparte historie-tabel).
     "component_klaarverklaring",
@@ -87,6 +89,8 @@ AUDIT_PLATFORM_ENTITEITEN: frozenset[str] = frozenset({
     "componentrol_optie", "biv_schaal_optie",
     # ADR-042 — applicatiefunctie-catalogus (platform-breed beheer).
     "applicatiefunctie_optie",
+    # ADR-043 — referentiemodel-aanbod (platform-gecureerd).
+    "referentiemodel_optie",
 })
 
 # Altijd systeem-afgeleid (Besluit 1): lifecycle leeft alleen als afgeleide → `derive`.

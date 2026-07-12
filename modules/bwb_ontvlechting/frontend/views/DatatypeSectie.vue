@@ -10,6 +10,7 @@
 import { computed, nextTick, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
+import { useAanstip } from '@/composables/useToonNieuweRij'
 import { api } from '@/api'
 import { DATATYPE_CATEGORIE, label } from '../labels'
 import VeldUitleg from './VeldUitleg.vue'
@@ -28,6 +29,10 @@ const items = ref([])
 const cursor = ref(null)
 const laden = ref(false)
 const fout = ref(null)
+
+// LI039 blok B — korte "kijk hier"-aanstip op een zojuist toegevoegde rij (gedeelde bouwsteen).
+const { aangestiptId, aanstip } = useAanstip()
+const rijKlasse = (data) => (data?.id === aangestiptId.value ? 'lk-aangestipt' : '')
 
 // Sortering (CD020) — null = server-default (created_at asc), niet meegestuurd
 // (backwards-compatible). PrimeVue gebruikt sortOrder 1/-1; de API asc/desc.
@@ -158,11 +163,22 @@ async function opslaan() {
       omschrijving: form.omschrijving.trim() || null,
       omvang_indicatie: form.omvang_indicatie.trim() || null,
     }
-    if (bewerkenId.value) await api.datatypes.werkBij(bewerkenId.value, data)
-    else await api.datatypes.maak({ ...data, applicatie_id: props.applicatieId })
-    toast.add({ severity: 'success', summary: bewerkenId.value ? 'Opgeslagen' : 'Toegevoegd', life: 3000 })
-    dialogOpen.value = false
-    await laad({ reset: true })
+    if (bewerkenId.value) {
+      await api.datatypes.werkBij(bewerkenId.value, data)
+      toast.add({ severity: 'success', summary: 'Opgeslagen', life: 3000 })
+      dialogOpen.value = false
+      await laad({ reset: true })
+    } else {
+      // LI039 blok B — het nieuwe item is HOE DAN OOK zichtbaar: vooraan invoegen mét
+      // de aanstip als drager van de uitleg ("dit heb je zojuist toegevoegd") — niet
+      // achter "Meer laden" (created_at asc → nieuw landt achteraan). De volgende
+      // verse laadbeurt toont gewoon de natuurlijke volgorde.
+      const nieuw = await api.datatypes.maak({ ...data, applicatie_id: props.applicatieId })
+      toast.add({ severity: 'success', summary: 'Toegevoegd', life: 3000 })
+      dialogOpen.value = false
+      items.value = [nieuw, ...items.value.filter((i) => i.id !== nieuw.id)]
+      aanstip(nieuw.id)
+    }
   } catch (e) {
     if (!_serverveldfouten(e)) _toastFout(e)
   } finally {
@@ -208,6 +224,7 @@ laad({ reset: true })
       lazy
       :sort-field="sortVeld"
       :sort-order="primeSortOrder"
+      :row-class="rijKlasse"
       data-testid="dt-tabel"
       @sort="onSort"
     >

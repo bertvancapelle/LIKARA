@@ -23,6 +23,8 @@ def test_element_type_enum_waarden():
         "partij",
         # ADR-042 slice 1 — procesregister (business process).
         "proces",
+        # ADR-043 gate 1a — bedrijfsfunctie-as (business function).
+        "bedrijfsfunctie",
     ]
 
 

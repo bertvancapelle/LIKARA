@@ -139,10 +139,22 @@ gestuurd door `frontend/src/presets/Button.js`. Er is **GEEN** size-variatie —
 bestaat niet meer (preset-tak verwijderd; een `size`-prop heeft geen hoogte-effect). De enige
 toegestane variatie is:
 
-- **(a) kleur per rol** — `primary` (donkerblauw, hoofdactie; default zonder severity),
+- **(a) kleur/vorm per rol** — `primary` (donkerblauw, hoofdactie; default zonder severity),
   `secondary` (lichtblauw, nevenactie), `danger` (rood, destructief), `text` (ghost/tertiair,
-  transparant + primary-tekst). Per scherm geldt: **maximaal één primary** (de hoofdactie).
+  transparant + primary-tekst) en `outlined` (LI039, bekrachtigd — lichte omlijning,
+  transparante vulling, gedempte tekst; de standaard-PrimeVue boolean-prop, in het preset
+  geactiveerd). Per scherm geldt: **maximaal één primary** (de hoofdactie).
 - **(b) breedte** — past zich aan de tekst aan (`px-4`, geen vaste breedte).
+
+**Wanneer-je-wat (LI039, drievorm in rij-context):** `text` = **navigatie/doorklik** ("hier
+ga je naartoe" — label mét pijl, bv. "Toon in functiebeeld →"); `outlined` = **rustige
+mutatie** in lees-context (rij-acties als Bewerken/Verplaatsen/+ Deelfunctie: onmiskenbaar
+een knop, zonder kleurdruk); `secondary` = nevenactie in formulier-/dialoogcontext;
+`danger` = destructief (ALTIJD, ook tussen rustige rij-acties — LI037 blijft staan);
+`primary` = dé hoofdactie. Rij-acties leven in de gedeelde **`RijActies`-bouwsteen**
+(`src/components/RijActies.vue` + `.lk-rij`/`.lk-rij-acties` in main.css): onzichtbaar in
+rust, zichtbaar op de actieve rij (hover) én via `:focus-within`; op touch permanent
+zichtbaar (`@media (hover: none)`).
 
 **Destructief = danger-knop, nooit tekstlink (LI037).** Een destructieve actie draagt **altijd**
 de `danger`-vorm en is een Button — geen rustige tekstlink met `hover:underline` (de gevaarlijkste

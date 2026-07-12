@@ -16,8 +16,9 @@ niet ongemerkt ontstaan wanneer Fase E nieuwe element-typen realiseert.
 from models.models import ElementType
 
 # Toegestane waardelijsten (ADR-023 OK-3). OK-3 stelde `behavior` oorspronkelijk "leeg";
-# die lijn is inmiddels tweemaal bewust en gemarkeerd doorbroken: work_package (Fase E,
-# ArchiMate-gedragselement) en proces (ADR-042, ArchiMate Business Process).
+# die lijn is inmiddels driemaal bewust en gemarkeerd doorbroken: work_package (Fase E,
+# ArchiMate-gedragselement), proces (ADR-042, ArchiMate Business Process) en
+# bedrijfsfunctie (ADR-043, ArchiMate Business Function).
 TOEGESTANE_LAGEN = frozenset({"business", "application", "technology", "implementation_migration"})
 TOEGESTANE_ASPECTEN = frozenset({"active", "passive", "behavior"})
 
@@ -36,6 +37,8 @@ TOEGESTANE_ELEMENTEN = frozenset({
     "business_actor", "business_role", "business_service", "contract", "business_object",
     # ADR-042 — procesregister (gedragselement; expliciete uitbreiding van de gesloten lijst).
     "business_process",
+    # ADR-043 — bedrijfsfunctie-as (gedragselement; heropent de door ADR-042 geparkeerde as).
+    "business_function",
     # Implementation & Migration layer
     "plateau", "gap", "work_package", "deliverable",
 })
@@ -63,9 +66,14 @@ ELEMENT_ARCHIMATE_TYPING: dict[ElementType, dict[str, str]] = {
     # ── ADR-042 slice 1 — procesregister ───────────────────────────────────────────
     # Proces: business-laag, GEDRAGSelement (ArchiMate Business Process) — de TWEEDE
     # gemarkeerde behavior-afwijking op OK-3, naast work_package (zie het comment boven
-    # TOEGESTANE_LAGEN). `business_function` is bewust NIET opgenomen: de
-    # bedrijfsfunctie-as is een geparkeerd, eigen ADR-spoor (ADR-042 besluit 1).
+    # TOEGESTANE_LAGEN).
     ElementType.proces: {"archimate_element": "business_process", "laag": "business", "aspect": "behavior"},
+    # ── ADR-043 gate 1a — bedrijfsfunctie-as ─────────────────────────────────────────
+    # Bedrijfsfunctie: business-laag, GEDRAGSelement (ArchiMate Business Function) — de
+    # DERDE gemarkeerde behavior-afwijking op OK-3, naast work_package en proces. Dit
+    # heropent de door ADR-042 besluit 1 geparkeerde as (ADR-043: de bedrijfsfunctie
+    # wordt de logische ruggengraat; het procesregister wordt de verdieping eronder).
+    ElementType.bedrijfsfunctie: {"archimate_element": "business_function", "laag": "business", "aspect": "behavior"},
 }
 
 # Element-typen die de `ElementType`-enum al kent maar die in het huidige model nog GEEN

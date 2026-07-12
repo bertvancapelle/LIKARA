@@ -41,6 +41,13 @@ const VEREIST = [
   // main.css — Tailwind kan die dus nooit zelf seeden (geen vals-groen-risico) en de
   // naam mag hier aaneengesloten staan. Verdwijnt de definitie, dan faalt dit LUID.
   { naam: 'dialog-scroll-schaduw', match: '.lk-scroll-schaduw' },
+  // LI039 — aanstip ("wat je zojuist hebt vastgelegd, zie je altijd") + rustige
+  // rij-acties (hover/focus-within-onthulling): handgeschreven main.css-klassen,
+  // zelfde geen-vals-groen-redenering als de scroll-schaduw.
+  { naam: 'aanstip-nieuwe-rij', match: '.lk-aangestipt' },
+  { naam: 'rij-acties-onthulling', match: '.lk-rij:focus-within .lk-rij-acties' },
+  { naam: 'boomrij-scan-laag', match: '.lk-rij-kop' },
+  { naam: 'boomrij-lees-laag', match: '.lk-rij-definitie' },
 ]
 
 console.log('[css-build-check] productie-build draaien…')

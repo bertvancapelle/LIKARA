@@ -43,6 +43,8 @@ VERWACHT = {
     PlatformEntiteit.BIVSCHAALCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
     # ADR-042: applicatiefunctie-catalogus — zelfde verdeling (geen V, soft-deactivate).
     PlatformEntiteit.APPLICATIEFUNCTIECONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
+    # ADR-043: referentiemodel-aanbod — zelfde verdeling (geen V, soft-deactivate).
+    PlatformEntiteit.REFERENTIEMODELCONFIG: {PlatformRol.PLATFORMBEHEERDER: _LAW, PlatformRol.PLATFORMOPERATOR: _L},
 }
 
 

@@ -53,6 +53,13 @@ class Entiteit(str, Enum):
     # ADR-042 slice 3 — koppelregel component→proces (eigen entiteit: de regel heeft geen
     # eenduidige "bron"-kant om op mee te liften, anders dan roltoewijzing→PARTIJ).
     PROCESVERVULLING = "procesvervulling"
+    # ADR-043 gate 1a — bedrijfsfunctie-as (tenant-zijde, inhoud-entiteit): de logische
+    # ruggengraat van de kaart. Modelinhoud-bescherming (bronsleutel → read-only) zit in
+    # de servicelaag, bovenop deze RBAC-gate.
+    BEDRIJFSFUNCTIE = "bedrijfsfunctie"
+    # ADR-043 gate 1a — de ingelezen referentiemodel-instantie van de tenant (registratie-
+    # feit; het inlezen zelf — gate 1b — loopt via dit recht).
+    REFERENTIEMODEL = "referentiemodel"
     # ADR-023 Fase F / F-2 — read-only cross-element laagprojectie (architectuuroverzicht).
     ARCHITECTUUR = "architectuur"
     # ADR-027 — niet-scorende categorie-klaarverklaring (tenant-zijde, inhoud-entiteit).
@@ -153,6 +160,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.PROCES: dict(_INHOUD),
     # ADR-042 slice 3 — koppelregel: inhoud-patroon (verbreken guardt op WIJZIGEN, zie routes).
     Entiteit.PROCESVERVULLING: dict(_INHOUD),
+    # ADR-043 gate 1a — bedrijfsfunctie-as + ingelezen referentiemodel: inhoud-patroon.
+    Entiteit.BEDRIJFSFUNCTIE: dict(_INHOUD),
+    Entiteit.REFERENTIEMODEL: dict(_INHOUD),
     # ADR-023 Fase F / F-2: cross-element laagprojectie — read-only overzicht; élke
     # tenant-rol mag lezen (consistent met het feit dat alle rollen al elk element-type lezen).
     Entiteit.ARCHITECTUUR: dict(_ALLEEN_LEZEN),

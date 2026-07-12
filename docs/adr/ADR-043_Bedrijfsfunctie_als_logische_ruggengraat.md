@@ -1,9 +1,10 @@
 # ADR-043 — Bedrijfsfunctie als logische ruggengraat (herijking ADR-042)
 
-**Status:** Besloten (LI038)
+**Status:** Besloten (LI038; subknopen beslist LI039)
 **Datum:** 2026-07-12
 **Herijkt:** ADR-042 (procesregister als "waarvoor"-as; bedrijfsfunctie-as bewust geparkeerd)
-**Grond:** `docs/Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md` (read-only, geverifieerd) +
+**Grond:** `docs/Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md` +
+`docs/Feitenrapport-bedrijfsfunctie-as-V039.md` (beide read-only, geverifieerd) +
 GEMMA-bron (gemmaonline.nl/wiki/Bedrijfsfuncties, VNG Realisatie)
 **Invariant (ongewijzigd):** score blijft de enige lifecycle-driver — de engine wordt niet geraakt.
 Dit is registratie + leeslaag.
@@ -145,28 +146,59 @@ GEMMA-topgroeperingen (Besturend/Primair/Ondersteunend) hebben nog **geen dragen
 
 ---
 
-## Open subknopen (te beslissen vóór de bouw — met voorlopige default)
+## Besloten (LI039) — de acht subknopen
 
-1. **Element-subtype `bedrijfsfunctie`:** eigen subtype via het bestaande recept (shared-PK,
-   FORCE RLS, partitietest). *Default: ja, eigen subtype; `business_function` toevoegen aan de
-   ArchiMate-typering.*
-2. **Bronsleutel + herkomst: waar?** Op het element-subtype (`bron_model_id` + `bron_sleutel`) of een
-   aparte herkomst-tabel? *Default: op het subtype — het is een eigenschap van de rij, niet van een
-   relatie.*
-3. **Referentiemodel-entiteit:** naam, herkomst, versie, ingelezen-op. Platform-scoped of tenant-scoped?
-   *Default: het aanbod is platform-scoped (LIKARA cureert), de ingelezen inhoud is tenant-scoped.*
-4. **De koppelregel functie ↔ component:** hergebruikt hij de `procesvervulling`-vorm (met
-   applicatiefunctie), of is het een lichtere "ondersteunt"-relatie? *Default: dezelfde vorm — één
-   patroon, geen tweede mechanisme; applicatiefunctie optioneel.*
-5. **Topgroeperingen** (Besturend / Primair / Ondersteunend): eigen wortelknopen in de boom, of een
-   kenmerk? *Default: wortelknopen (de boom kan het dragen).*
-6. **Soft-vervallen op elementen:** hergebruik het bestaande `actief`-/soft-deactivate-patroon.
-   *Default: ja.*
-7. **Import-route:** AMEFF-parser (Open Exchange) — bestaande dependency of nieuw? *Te bepalen bij de
-   bouw-validatie; raakt de ooit geparkeerde ADR-023 Open-Exchange-lijn, maar dan aan de **import**-kant.*
-8. **Verhouding tot het registratie-feiten-spoor** (toelichting/verwijzingen/verantwoordelijke op
-   objecten, besloten LI038): de "eigen laag bij de functie" (besluit 5) is daar een instantie van.
-   *Default: samen ontwerpen, zodat de eigen-laag één patroon is en niet functie-specifiek.*
+Grond: het feitenrapport bedrijfsfunctie-as (V039). De besluiten in functionele taal:
+
+1. **De koppeling applicatie ↔ functie is kaal.** Het paar *(component, bedrijfsfunctie)*, **één regel
+   per paar**. **Géén applicatiefunctie/werkwoord** op de functie-as. Reden: op functieniveau is het
+   werkwoord niet scherp te geven ("een zaaksysteem doet alles een beetje binnen een brede functie");
+   een veld dat willekeurig wordt ingevuld maakt de kaart onbetrouwbaar in plaats van rijker. Het
+   werkwoord blijft bij het **proces**, waar het wél onderscheidend is — dat wordt straks het
+   bestaansrecht van het procesregister als verdieping. *Dit is een expliciete afwijking van de eerdere
+   default bij deze subknoop (hergebruik van de `procesvervulling`-vorm mét applicatiefunctie).*
+2. **Koppelen mag op elk niveau van de boom** — ook heel grof. Reden: het koppelen gebeurt in een
+   **begeleide (consultancy) sessie**; dwing je naar het diepste niveau, dan gokt de gemeente in de
+   workshop en zit die gok mét consultancy-gezag voorgoed in de kaart. Een grof feit is eerlijk en
+   later verfijnbaar.
+3. **"Grof gekoppeld — verfijning ontbreekt" is een AFGELEID SIGNAAL, geen status.** Een koppeling op
+   een functie **die kinderen heeft**, terwijl er onder die functie geen enkele verfijning staat, geeft
+   een rustige cue. Geen tweede waarheid om bij te houden, geen afvinkactie: de registratie lost het
+   signaal op. Dit is het bestaande *"begin grof → detaillering ontbreekt"*-patroon (ADR-036), tweede
+   toepassing. **Randgeval bewust niet opgelost:** soms ís grof de waarheid (een generiek systeem
+   ondersteunt een functie breed) — dan blijft het signaal rustig staan. Pas als de praktijk uitwijst
+   dat het gaat zeuren, is de klaarverklaring (ADR-027) het bestaande antwoord. Nu géén
+   ontsnappingsluik bouwen.
+4. **Topgroeperingen** (Besturend / Primair / Ondersteunend) = **gewone wortelknopen** in dezelfde
+   boom. Geen apart begrip, geen tweede mechanisme.
+5. **Aanbod is platform-gecureerd; het inlezen doet de tenant-beheerder** (in de praktijk de
+   consultant, werkend in de omgeving van de gemeente). Functioneel: de ingelezen functies **zijn** het
+   landschap van de gemeente. Structureel: een platform-account heeft principieel geen tenant-context
+   (ADR-012) en kán niet in tenant-tabellen schrijven — dit is een harde grens, geen voorkeur.
+6. **Vervallen functie: zichtbaar met markering, NIET meer koppelbaar.** Bestaande koppelingen blijven
+   staan en zichtbaar (signaal: *"bestaat niet meer in het model — N applicaties hangen er nog aan"* =
+   de werklijst om te verhangen). Nieuwe koppelingen kunnen er niet meer bij: verder bouwen op een
+   verdwenen fundament mag niet stil gebeuren. Nooit hard verwijderen (CASCADE sleept eigen registratie
+   mee — bevestigd op de FK's). Dit is soft-deactivate, voor het eerst op een **element** in plaats van
+   een catalogus.
+7. **Eigen functies toevoegen mag** (dragen geen bronsleutel → een herinlees raakt ze nooit aan).
+   **"Afwijken bij de bron"** (eigen naam/definitie naast de referentie) gaat **niet** functie-specifiek
+   in de MVP: het is een instantie van het bredere **registratie-feiten-spoor** (toelichting/
+   verwijzingen/verantwoordelijke op elk object) — daar één keer bouwen, niet twee keer
+   (n≥2-discipline).
+8. **Procesregister volledig uit beeld in de MVP** — menu, ingangen **én de proceslaan op de kaart**.
+   Reden: één verhaal, één plek; een proceslaan náást een functielaan roept meteen "waar hoort dit nou
+   bij?" op, en de proces-ingangen op de kaart zouden doodlopen. **Model en code blijven intact**
+   (`procesvervulling`, procesboom, diagram) — het is de verdieping die terugkomt zodra de functie het
+   anker is.
+
+**Vangrail-knopen — volgen het bestaande recept (vastgelegd, geen keuze):**
+- Bedrijfsfunctie = **eigen element-subtype** via het bestaande recept (shared-PK, FORCE RLS,
+  partitietest), zoals `proces`.
+- **Bronsleutel + herkomst op het subtype** (`bron_model_id` + `bron_sleutel`) — een eigenschap van de
+  rij, niet van een relatie.
+- De **inlees-motor is modelonafhankelijk** (ArchiMate Open Exchange / AMEFF) — nooit een
+  "GEMMA-importer"; welke modellen worden aangeboden is een productkeuze.
 
 ---
 

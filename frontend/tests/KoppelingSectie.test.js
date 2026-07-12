@@ -137,8 +137,12 @@ describe('KoppelingSectie', () => {
     expect(api.relaties.maak).not.toHaveBeenCalled()
   })
 
-  it('maakt een flow-relatie aan met geldige bron≠doel en ververst beide richtingen', async () => {
-    api.relaties.maak.mockResolvedValueOnce({ id: 'new' })
+  it('LI039 blok B — een nieuwe flow staat direct VOORAAN in de juiste richtingtabel, aangestipt', async () => {
+    api.relaties.maak.mockResolvedValueOnce({
+      id: 'new', bron_id: APP, doel_id: ANDER, naam: 'Mijn koppeling',
+      kenmerken: { richting: 'eenrichting', protocol: 'api', impact_bij_verbreking: 'hoog' },
+      omschrijving: null,
+    })
     const w = await mountSectie()
     const voor = api.relaties.lijst.mock.calls.length
     await w.find('[data-testid="kp-toevoegen"]').trigger('click')
@@ -158,7 +162,13 @@ describe('KoppelingSectie', () => {
       naam: 'Mijn koppeling',
       kenmerken: { richting: 'eenrichting', protocol: 'api', impact_bij_verbreking: 'hoog' },
     })
-    expect(api.relaties.lijst.mock.calls.length).toBe(voor + 2) // beide richtingen herladen
+    // Geen herlaad-sprong: het aanmaak-antwoord wordt via dezelfde mapper vooraan in de
+    // uitgaande tabel gezet (created_at asc zou het achter "Meer laden" verstoppen);
+    // de aanstip draagt de uitleg. Een verse laadbeurt toont de natuurlijke volgorde.
+    expect(api.relaties.lijst.mock.calls.length).toBe(voor)
+    const eersteRij = w.find('[data-testid="kp-tabel-uitgaand"] tbody tr')
+    expect(eersteRij.text()).toContain('Mijn koppeling')
+    expect(eersteRij.attributes('class')).toContain('lk-aangestipt')
   })
 
   it('verwijdert een koppeling via api.relaties.verwijder', async () => {

@@ -98,6 +98,14 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('order=desc')
     expect(laatsteUrl).toContain('ouder_id=p-1')
   })
+
+  it('ADR-043: bedrijfsfuncties.lijst zet zoek/sort/order/ouder_id in de URL', async () => {
+    await api.bedrijfsfuncties.lijst({ zoek: 'dienst', sort: 'naam', order: 'asc', ouder_id: 'f-1' })
+    expect(laatsteUrl).toContain('/bedrijfsfuncties')
+    expect(laatsteUrl).toContain('zoek=dienst')
+    expect(laatsteUrl).toContain('sort=naam')
+    expect(laatsteUrl).toContain('ouder_id=f-1')
+  })
 })
 
 describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', () => {
@@ -126,6 +134,12 @@ describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', ()
   it('ADR-042: processen.lijst met camelCase ouderId gooit LUID', () => {
     expect(() => api.processen.lijst({ ouderId: 'p-1' })).toThrow(
       /onbekende filter-parameter 'ouderId' voor processen\.lijst/,
+    )
+  })
+
+  it('ADR-043: bedrijfsfuncties.lijst met camelCase ouderId gooit LUID', () => {
+    expect(() => api.bedrijfsfuncties.lijst({ ouderId: 'f-1' })).toThrow(
+      /onbekende filter-parameter 'ouderId' voor bedrijfsfuncties\.lijst/,
     )
   })
 

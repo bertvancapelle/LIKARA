@@ -118,6 +118,14 @@ async function uitloggen() {
           >
             Componenten
           </router-link>
+          <!-- ADR-043 — bedrijfsfunctieboom (de logische "waarvoor"-as van de kaart). -->
+          <router-link
+            :to="{ name: 'bedrijfsfunctie-lijst' }"
+            data-testid="nav-bedrijfsfuncties"
+            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Bedrijfsfuncties
+          </router-link>
           <!-- ADR-042 — procesregister (welke processen raakt het?). -->
           <router-link
             :to="{ name: 'proces-lijst' }"

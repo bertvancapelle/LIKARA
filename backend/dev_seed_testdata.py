@@ -80,6 +80,7 @@ from services import (  # noqa: E402
     gebruikersgroep_service,
     organisatiegebruik_service,
     partij_service,
+    bedrijfsfunctie_service,
     proces_service,
     procesvervulling_service,
     relatie_service,
@@ -999,6 +1000,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         "applicaties", "contracten", "associaties", "flows", "roltoewijzingen",
         "scores", "organisatiegebruik", "gebruikersgroepen",
         "processen", "procesvervullingen",
+        "referentiemodellen", "bedrijfsfuncties",
     )}
 
     partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
@@ -1657,6 +1659,113 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             telling["procesvervullingen"] += 1
         except RegistratieConflict:
             pass  # idempotent: het tripel bestaat al
+
+    # ── 16. Bedrijfsfunctie-as (ADR-043 gate 1a) ──
+    # Eén ingelezen referentiemodel-instantie (GEMMA) + een kleine GEMMA-achtige
+    # functieboom: de drie topgroeperingen als gewone wortels (besluit LI039-4), per
+    # wortel een paar functies en één niveau daaronder. Model-functies dragen een
+    # bronsleutel (identiteit — idempotent get-or-create op sleutel, LI037-les: vaste
+    # identiteit, nooit "de eerstvolgende rij"); één functie is bewust VERVALLEN
+    # (markering zichtbaar, niet koppelbaar) en één functie is EIGEN (geen bronsleutel
+    # → in de browser bewerkbaar, het verschil met read-only modelinhoud).
+    from models.models import Bedrijfsfunctie as _Bfunc
+    from models.models import Referentiemodel as _Refmodel
+    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
+
+    refmodel = (await session.execute(
+        select(_Refmodel).where(_Refmodel.model_sleutel == "gemma_bedrijfsfuncties")
+    )).scalar_one_or_none()
+    if refmodel is None:
+        refmodel = _Refmodel(
+            tenant_id=tid, model_sleutel="gemma_bedrijfsfuncties",
+            naam="GEMMA Bedrijfsfuncties", versie="GEMMA 2 (2025)",
+        )
+        session.add(refmodel)
+        await session.commit()
+        await session.refresh(refmodel)
+        telling["referentiemodellen"] += 1
+
+    bf_per_sleutel = {
+        r.bron_sleutel: r
+        for r in (await session.execute(
+            select(_Bfunc).where(_Bfunc.bron_model_id == refmodel.id)
+        )).scalars().all()
+    }
+
+    async def _modelfunctie(sleutel, naam, definitie, ouder_sleutel=None, vervallen=False):
+        """Get-or-create op de bronsleutel (de identiteit — nooit op naam)."""
+        bestaand = bf_per_sleutel.get(sleutel)
+        if bestaand is not None:
+            return bestaand.id
+        ouder_id = bf_per_sleutel[ouder_sleutel].id if ouder_sleutel else None
+        obj = await bedrijfsfunctie_service.maak_aan(
+            session, tid, BedrijfsfunctieCreate(naam=naam, definitie=definitie, ouder_id=ouder_id),
+            bron_model_id=refmodel.id, bron_sleutel=sleutel,
+        )
+        rij = await bedrijfsfunctie_service.haal_op(session, tid, obj["id"])
+        if vervallen:
+            # Het gate-1b-herinlees-pad markeert vervallen; de seed zet de vlag direct
+            # (ORM-update → audit-gedekt) zodat de markering in de browser te zien is.
+            rij.vervallen = True
+            await session.commit()
+            await session.refresh(rij)
+        bf_per_sleutel[sleutel] = rij
+        telling["bedrijfsfuncties"] += 1
+        return rij.id
+
+    # Wortels = de drie topgroeperingen (gewone wortelknopen, geen apart begrip).
+    await _modelfunctie("besturend", "Besturend",
+                        "Richting geven aan de organisatie: strategie, beleid en verantwoording.")
+    await _modelfunctie("primair", "Primair",
+                        "De kernactiviteiten waarvoor de gemeente bestaat: dienstverlening aan burgers en bedrijven.")
+    await _modelfunctie("ondersteunend", "Ondersteunend",
+                        "Alles wat de primaire functies mogelijk maakt: bedrijfsvoering en informatievoorziening.")
+    # Besturend — twee functies + één verdieping.
+    await _modelfunctie("strategie_beleid", "Strategie en beleid",
+                        "Ontwikkelen en vaststellen van strategie en beleid.", "besturend")
+    await _modelfunctie("sturing_verantwoording", "Sturing en verantwoording",
+                        "Sturen op resultaat en verantwoorden over de uitvoering.", "besturend")
+    await _modelfunctie("beleidsontwikkeling", "Beleidsontwikkeling",
+                        "Vertalen van maatschappelijke opgaven naar concreet beleid.", "strategie_beleid")
+    # Primair — twee functies + verdieping.
+    await _modelfunctie("dienstverlening", "Dienstverlening",
+                        "Leveren van producten en diensten aan burgers en bedrijven.", "primair")
+    await _modelfunctie("vergunning_handhaving", "Vergunningverlening en handhaving",
+                        "Beoordelen van aanvragen, verlenen van vergunningen en toezien op naleving.", "primair")
+    await _modelfunctie("klantcontact", "Klantcontact",
+                        "Afhandelen van vragen en contacten via alle kanalen.", "dienstverlening")
+    await _modelfunctie("burgerzaken_f", "Burgerzaken",
+                        "Registreren van en informeren over persoonsgegevens en levensgebeurtenissen.", "dienstverlening")
+    # Ondersteunend — twee functies + verdieping.
+    await _modelfunctie("informatievoorziening", "Informatievoorziening",
+                        "Beschikbaar stellen en beheren van informatie en informatiesystemen.", "ondersteunend")
+    await _modelfunctie("bedrijfsvoering", "Bedrijfsvoering",
+                        "Ondersteunende processen: financiën, personeel, facilitair.", "ondersteunend")
+    await _modelfunctie("financien", "Financiën",
+                        "Begroten, betalen, innen en verantwoorden van geldstromen.", "bedrijfsvoering")
+    await _modelfunctie("hrm", "HRM",
+                        "Werven, ontwikkelen en beheren van personeel.", "bedrijfsvoering")
+    # LI039-6-demo — vervallen model-functie: zichtbaar mét markering, niet koppelbaar.
+    await _modelfunctie("regionale_samenwerking", "Regionale samenwerking",
+                        "Vervallen in de nieuwe modelversie — bestaande registratie blijft zichtbaar.",
+                        "besturend", vervallen=True)
+
+    # EIGEN functie (geen bronsleutel — een herinlees raakt haar nooit aan); idempotent
+    # skip-op-naam binnen de eigen (bronloze) functies.
+    eigen_bestaat = (await session.execute(
+        select(_Bfunc).where(
+            _Bfunc.bron_sleutel.is_(None), _Bfunc.naam == "Datagedreven werken"
+        )
+    )).scalar_one_or_none()
+    if eigen_bestaat is None:
+        await bedrijfsfunctie_service.maak_aan(
+            session, tid, BedrijfsfunctieCreate(
+                naam="Datagedreven werken",
+                definitie="Eigen functie van de gemeente (staat niet in het referentiemodel).",
+                ouder_id=bf_per_sleutel["informatievoorziening"].id,
+            ),
+        )
+        telling["bedrijfsfuncties"] += 1
 
     return telling
 

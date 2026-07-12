@@ -76,7 +76,8 @@ def test_proces_schema_validatie():
 
 def test_proces_typing_business_process_behavior():
     """Proces = business_process / business / behavior — de TWEEDE gemarkeerde
-    behavior-afwijking op OK-3, naast work_package."""
+    behavior-afwijking op OK-3, naast work_package. (ADR-043 voegde de DERDE toe:
+    bedrijfsfunctie — zie test_bedrijfsfunctie_adr043.)"""
     from models.models import ElementType
     from services.archimate_typing import TOEGESTANE_ELEMENTEN, typing_voor
 
@@ -84,25 +85,28 @@ def test_proces_typing_business_process_behavior():
     assert typing_voor(ElementType.proces) == {
         "archimate_element": "business_process", "laag": "business", "aspect": "behavior",
     }
-    # Precies TWEE behavior-elementen (work_package + proces) — een derde is een bewust besluit.
+    # Precies DRIE behavior-elementen (work_package + proces + bedrijfsfunctie, ADR-043)
+    # — een vierde is opnieuw een bewust besluit.
     from services.archimate_typing import ELEMENT_ARCHIMATE_TYPING
 
     behavior = {et for et, t in ELEMENT_ARCHIMATE_TYPING.items() if t["aspect"] == "behavior"}
-    assert behavior == {ElementType.work_package, ElementType.proces}
+    assert behavior == {ElementType.work_package, ElementType.proces, ElementType.bedrijfsfunctie}
 
 
-def test_proces_business_function_bewust_afwezig():
-    """ADR-042 besluit 1: de bedrijfsfunctie-as is geparkeerd — géén element-type, géén
-    whitelist-entry; de geparkeerde set blijft leeg (geen functie-parkeren)."""
+def test_proces_business_function_via_adr043_aanwezig():
+    """HISTORIE-UPDATE (gate 1a): ADR-042 besluit 1 parkeerde de bedrijfsfunctie-as
+    ("business_function bewust afwezig" — de vorige vorm van deze test); ADR-043 heeft
+    die as heropend. De whitelist-entry bestaat nu dus WÉL; de geparkeerde set blijft
+    leeg (bedrijfsfunctie is gerealiseerd, niet geparkeerd)."""
     from models.models import ElementType
     from services.archimate_typing import (
         ELEMENT_TYPEN_NOG_NIET_GEREALISEERD,
         TOEGESTANE_ELEMENTEN,
     )
 
-    assert "business_function" not in TOEGESTANE_ELEMENTEN
+    assert "business_function" in TOEGESTANE_ELEMENTEN
     assert ELEMENT_TYPEN_NOG_NIET_GEREALISEERD == frozenset()
-    assert not any(e.value == "functie" for e in ElementType)
+    assert any(e.value == "bedrijfsfunctie" for e in ElementType)
 
 
 def test_proces_sorteer_allowlist_synchroon():

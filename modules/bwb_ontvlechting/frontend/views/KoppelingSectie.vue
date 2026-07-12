@@ -19,6 +19,7 @@
 import { computed, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
+import { useAanstip } from '@/composables/useToonNieuweRij'
 import { api } from '@/api'
 import { IMPACT_SEVERITY, IMPACT_VERBREKING, KOPPELPROTOCOL, KOPPELRICHTING, label } from '../labels'
 import VeldUitleg from './VeldUitleg.vue'
@@ -260,10 +261,27 @@ function _maakKoppeling(extra = {}) {
   })
 }
 
-function _gelukt() {
+// LI039 blok B — korte "kijk hier"-aanstip op een zojuist toegevoegde koppeling (gedeelde
+// bouwsteen); geldt voor beide richtingtabellen (rowClass).
+const { aangestiptId, aanstip } = useAanstip()
+const rijKlasse = (data) => (data?.id === aangestiptId.value ? 'lk-aangestipt' : '')
+
+function _gelukt(nieuweRelatie = null) {
   toast.add({ severity: 'success', summary: bewerkenId.value ? 'Opgeslagen' : 'Toegevoegd', life: 3000 })
   dialogOpen.value = false
-  laadBeide() // ververs beide richtingen (relevante richting is altijd inbegrepen)
+  if (!bewerkenId.value && nieuweRelatie?.id) {
+    // LI039 blok B — de nieuwe koppeling is HOE DAN OOK zichtbaar: vooraan in de juiste
+    // richtingtabel, mét de aanstip als drager van de uitleg — niet achter "Meer laden"
+    // (created_at asc → nieuw landt achteraan). Het aanmaak-antwoord is dezelfde
+    // relatie-vorm als de lijst-items en loopt door dezelfde mapper (_naarKoppeling);
+    // de volgende verse laadbeurt toont gewoon de natuurlijke volgorde.
+    const rij = _naarKoppeling(nieuweRelatie)
+    const state = nieuweRelatie.bron_id === props.applicatieId ? uitgaand : inkomend
+    state.items = [rij, ...state.items.filter((i) => i.id !== rij.id)]
+    aanstip(rij.id)
+    return
+  }
+  laadBeide() // bewerken: ververs beide richtingen (relevante richting is altijd inbegrepen)
 }
 
 async function opslaan() {
@@ -277,10 +295,10 @@ async function opslaan() {
         kenmerken: _kenmerken(),
         omschrijving: form.omschrijving.trim() || null,
       })
+      _gelukt()
     } else {
-      await _maakKoppeling()
+      _gelukt(await _maakKoppeling())
     }
-    _gelukt()
   } catch (e) {
     // 409 KOPPELING_DUBBEL → bevestigingsdialoog (geen fout-toast); overige 409 → bestaand gedrag.
     if (!bewerkenId.value && e?.status === 409 && e?.code === 'KOPPELING_DUBBEL') {
@@ -298,9 +316,9 @@ const dubbelOpen = ref(false)
 async function bevestigDubbel() {
   bezig.value = true
   try {
-    await _maakKoppeling({ negeer_waarschuwing: true })
+    const res = await _maakKoppeling({ negeer_waarschuwing: true })
     dubbelOpen.value = false
-    _gelukt()
+    _gelukt(res)
   } catch (e) {
     if (!_serverveldfouten(e)) _toastFout(e)
   } finally {
@@ -348,6 +366,7 @@ laadBeide()
       lazy
       :sort-field="uitgaand.sort"
       :sort-order="primeSortOrder(uitgaand)"
+      :row-class="rijKlasse"
       data-testid="kp-tabel-uitgaand"
       @sort="onSortUitgaand"
     >
@@ -376,6 +395,7 @@ laadBeide()
       lazy
       :sort-field="inkomend.sort"
       :sort-order="primeSortOrder(inkomend)"
+      :row-class="rijKlasse"
       data-testid="kp-tabel-inkomend"
       @sort="onSortInkomend"
     >

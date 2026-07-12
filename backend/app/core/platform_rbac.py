@@ -38,6 +38,8 @@ class PlatformEntiteit(str, Enum):
     BIVSCHAALCONFIG = "bivschaalconfig"
     # ADR-042: applicatiefunctie-catalogus (het wát-veld op de koppelregel component→proces).
     APPLICATIEFUNCTIECONFIG = "applicatiefunctieconfig"
+    # ADR-043: referentiemodel-aanbod (welke modellen LIKARA aanbiedt — platform-gecureerd).
+    REFERENTIEMODELCONFIG = "referentiemodelconfig"
 
 
 KNOWN_PLATFORM_ROLES: frozenset[str] = frozenset(r.value for r in PlatformRol)
@@ -105,6 +107,11 @@ PLATFORM_PERMISSIES: dict[PlatformEntiteit, dict[PlatformRol, frozenset[Actie]]]
     },
     # ADR-042: applicatiefunctie-catalogus — beheerder LAW (geen V), operator L (soft-deactivate).
     PlatformEntiteit.APPLICATIEFUNCTIECONFIG: {
+        PlatformRol.PLATFORMBEHEERDER: _LAW,
+        PlatformRol.PLATFORMOPERATOR: _L,
+    },
+    # ADR-043: referentiemodel-aanbod — beheerder LAW (geen V), operator L (soft-deactivate).
+    PlatformEntiteit.REFERENTIEMODELCONFIG: {
         PlatformRol.PLATFORMBEHEERDER: _LAW,
         PlatformRol.PLATFORMOPERATOR: _L,
     },

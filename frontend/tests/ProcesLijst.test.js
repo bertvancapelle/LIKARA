@@ -173,11 +173,24 @@ describe('ProcesLijst — boomweergave', () => {
     expect(b.find('[data-testid="proces-verwijder-vv"]').exists()).toBe(true)
   })
 
-  it('LI037 vorm: rij-acties zijn Buttons — Hernoemen/Verplaatsen secundair, Verwijderen danger', async () => {
+  it('LI039 vorm: doorklik = text mét pijl, mutaties = outlined, Verwijderen danger; vaste kop-kolom', async () => {
     const w = await mountLijst({ rollen: ['beheerder'] })
-    expect(w.findComponent('[data-testid="proces-hernoem-vv"]').props('severity')).toBe('secondary')
-    expect(w.findComponent('[data-testid="proces-verplaats-vv"]').props('severity')).toBe('secondary')
+    // Doorklik (navigatie): ghost-vorm mét pijl — "hier ga je naartoe".
+    const doorklik = w.findComponent('[data-testid="proces-diagram-vv"]')
+    expect(doorklik.props('text')).toBe(true)
+    expect(doorklik.props('label')).toContain('→')
+    // Mutaties: rustige omlijnde knop-vorm (outlined) — zichtbaar ánders dan de doorklik.
+    expect(w.findComponent('[data-testid="proces-hernoem-vv"]').props('outlined')).toBe(true)
+    expect(w.findComponent('[data-testid="proces-verplaats-vv"]').props('outlined')).toBe(true)
+    // Destructief blijft de danger-vorm dragen — de gevaarlijkste actie mag er niet het
+    // minst gevaarlijk uitzien; de rust komt uit het verschijnen-op-de-actieve-rij.
     expect(w.findComponent('[data-testid="proces-verwijder-vv"]').props('severity')).toBe('danger')
+    // Gedeelde bouwstenen: rij draagt lk-rij, acties in de lk-rij-acties-container,
+    // en de vaste kop-kolom (.lk-rij-kop) draagt de inspringing + naam (punt 3).
+    const rij = w.find('[data-testid="proces-rij-vv"]')
+    expect(rij.attributes('class')).toContain('lk-rij')
+    expect(rij.find('.lk-rij-acties [data-testid="proces-hernoem-vv"]').exists()).toBe(true)
+    expect(rij.find('.lk-rij-kop [data-testid="proces-link"]').exists()).toBe(true)
   })
 
   // ── LI037 tree-view gate 2 — verwijderen + verhangen ──

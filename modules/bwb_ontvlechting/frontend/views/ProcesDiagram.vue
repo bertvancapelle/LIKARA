@@ -15,6 +15,17 @@
  * (spoor 2) kan als tweede edge-soort naast deze hiërarchie-edges aanhaken zonder herbouw.
  * De "geen ondersteunend systeem"-cue (subboom-semantiek) komt als `gapIds`-prop van de
  * ouder mee — dezelfde afleiding als de tree-view/kaart, geen tweede bron.
+ *
+ * ADR-043 blok 2 — STRUCTUUR-GENERIEK gemaakt (LI039-feitenrapport: props al vorm-generiek;
+ * alleen de huid was proces-gebonden). Het beeld werkt op élke genestelde structuur met
+ * platte `{id, naam, ouder_id}`-rijen; de proces-huid is de DEFAULT zodat het processen-
+ * scherm ongewijzigd blijft (geen tweede kopie — de bouwsteen-kernles LI038):
+ * - `items` = de generieke rijen-prop (valt terug op de historische `processen`-prop);
+ * - `teksten` = de schermtaal (zoektitel/placeholder/leeg/wortel/landschap/detail/cue);
+ * - `gapIds` = generieke RUSTIGE-CUE-set (dashed rand + popup-badge; het label komt uit
+ *   `teksten.gap` — processen: "geen ondersteunend systeem", functies: vervallen-markering);
+ * - `detailRoute` (null = geen detail-uitgang) + `metKaartUitgang` (functies: geen kaart);
+ * - slot `popup-extra` voor scherm-eigen popup-inhoud (bv. definitie + herkomst).
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { Button } from '@/primevue'
@@ -25,20 +36,57 @@ import { procesBoomLayout, procesFocusSet, procesSubboomSet } from '../procesBoo
 import ZoekSelect from './ZoekSelect.vue'
 
 const props = defineProps({
-  // De volledige processet (platte rijen mét ouder_id) — geleverd door ProcesLijst.
-  processen: { type: Array, required: true },
-  // Set van proces-ids waarvan de héle subboom geen ondersteuning draagt (of null zolang de
-  // afleiding nog laadt) — zelfde bron als de tree-view-cue.
+  // Historische prop-naam (processen-scherm); nieuwe consumenten gebruiken `items`.
+  processen: { type: Array, default: () => [] },
+  // De volledige set (platte rijen mét ouder_id) — generieke naam; wint van `processen`.
+  items: { type: Array, default: null },
+  // Set van ids met de GAP-cue ("hier ontbreekt iets" — gestippelde rand + popup-badge,
+  // label = teksten.gap), of null zolang de afleiding nog laadt — zelfde bron als de
+  // tree-view-cue. De gestippelde rand is en blijft de taal van de gap-familie.
   gapIds: { type: Object, default: null },
-  // LI038 gate 3 — "Toon in procesbeeld" (Boom-rij-actie): open NEUTRAAL met dit proces als
+  // LI039 blok C — Set van ids met de VERVALLEN-markering ("bestaat niet meer in het
+  // referentiemodel"): een EIGEN kanaal naast gapIds, want beide toestanden kunnen
+  // tegelijk gelden en moeten uit elkaar te houden blijven. Taal: solid rand in de
+  // warning-kleur (knoop) + ⚠-badge (popup, label = teksten.vervallen).
+  // Combinaties: gap = gestippeld gedempt · vervallen = solid warning · beide =
+  // gestippeld in de warning-kleur.
+  vervallenIds: { type: Object, default: null },
+  // LI038 gate 3 — "Toon in procesbeeld" (Boom-rij-actie): open NEUTRAAL met dit item als
   // centrum (oranje, focus-beeld — géén inperking; dat is het dubbelklik-gebaar).
   initieelCentrumId: { type: String, default: null },
+  // Scherm-taal (proces-defaults; zie _TEKSTEN) — consumenten overschrijven per sleutel.
+  teksten: { type: Object, default: () => ({}) },
+  // Detail-uitgang in de popup (named route met :id); null = geen detail-link.
+  detailRoute: { type: String, default: 'proces-detail' },
+  // LI039 UI-afronding v3 — generieke open-uitgang ZONDER route: label voor een
+  // `openItem`-emit (bv. "Open functie →" → terug naar de Boom-rij). De POPUP ZELF
+  // bestaat op grond van de INHOUD (v-if op het item) — uitgangen zijn optioneel en
+  // hun afwezigheid mag de popup nooit laten wegvallen (regressie-geborgd).
+  openLabel: { type: String, default: null },
+  // Kaart-uitgang in de popup (proces-only handoff); functies hebben er geen.
+  metKaartUitgang: { type: Boolean, default: true },
+  // Root-testid (tests van beide consumenten blijven onderscheidbaar).
+  testid: { type: String, default: 'proces-diagram' },
 })
+
+const _TEKSTEN = {
+  zoekTitel: 'Zoek een proces',
+  zoekPlaceholder: 'Zoek proces…',
+  leeg: 'Zoek een proces om te beginnen.',
+  wortel: 'Hoofdproces',
+  landschap: 'Toon hele processenlandschap',
+  detailLink: 'Open proces →',
+  gap: 'geen ondersteunend systeem',
+  vervallen: 'vervallen in het referentiemodel',
+}
+const T = computed(() => ({ ..._TEKSTEN, ...props.teksten }))
+// De generieke rijen-bron: `items` wint; `processen` blijft de back-compat-naam.
+const _rijen = computed(() => props.items ?? props.processen)
 // LI038 gate 2 — de kaart-doorschakeling (handoff-bouwer = api-werk) leeft in de OUDER
 // (ProcesLijst, spiegel van ProcesDetail.bekijkOpKaart); dit beeld blijft zelf api-vrij.
 // Gate 3 — `centrumGewijzigd` houdt de ouder bij welk proces centraal staat, zodat een
 // Boom↔Diagram-schakelwissel het laatste centrum behoudt (het gate-1-punt, nu gesloten).
-const emit = defineEmits(['bekijkOpKaart', 'centrumGewijzigd'])
+const emit = defineEmits(['bekijkOpKaart', 'centrumGewijzigd', 'openItem'])
 
 const auth = useAuthStore()
 // Zelfde affordance-gating als de "Bekijk op kaart"-knop op ProcesDetail (backend handhaaft).
@@ -48,18 +96,19 @@ const magKaartZien = computed(() => auth.hasRole('viewer', 'medewerker', 'beheer
 const NODE_W = 210
 const NODE_H = 110
 // Concrete hexen mét token-spiegel: cytoscape resolvet geen CSS-custom-properties (LI037-patroon).
-const SELECTIE_RAND = '#f59e0b' // zelfde oranje als de Landschapskaart-selectie ("kijk hier")
+const SELECTIE_RAND = '#f59e0b' // = --lk-color-selectie ("kijk hier" — kaart/diagram/aanstip)
 const KLEUR_RAND = '#94a3b8' // ~ --lk-color-text-muted (rustige knoop-/lijnrand)
 const KLEUR_TEKST = '#1e293b' // ~ --lk-color-text
 const KLEUR_VLAK = '#ffffff' // ~ --lk-color-surface
+const KLEUR_WARNING = '#ba7517' // = --lk-color-warning (vervallen-markering, LI039 blok C)
 
 const centrumId = ref(null)
 
-const _byId = computed(() => new Map(props.processen.map((p) => [p.id, p])))
+const _byId = computed(() => new Map(_rijen.value.map((p) => [p.id, p])))
 const naamVan = (id) => _byId.value.get(id)?.naam || String(id)
-const alleIds = computed(() => new Set(props.processen.map((p) => p.id)))
+const alleIds = computed(() => new Set(_rijen.value.map((p) => p.id)))
 const hierEdges = computed(() =>
-  props.processen.filter((p) => p.ouder_id).map((p) => ({ bron: p.id, doel: p.ouder_id })))
+  _rijen.value.filter((p) => p.ouder_id).map((p) => ({ bron: p.id, doel: p.ouder_id })))
 
 // LI038 gate 2 — "Toon hele processenlandschap": de uitzoom-tegenhanger BINNEN dit beeld
 // (alle bomen naast elkaar, nog steeds strikt proces-only). Een nieuwe proces-keuze zet het
@@ -86,7 +135,7 @@ const zichtbareEdges = computed(() =>
 // ongevoelig; identiteit "naam — ouder" zoals de proces-pickers elders) ──────────────────────
 async function zoekProcessen(params = {}) {
   const term = (params.zoek || '').trim().toLowerCase()
-  const items = props.processen
+  const items = _rijen.value
     .filter((p) => !term || p.naam.toLowerCase().includes(term))
     .map((p) => ({ ...p, ouder_naam: (p.ouder_id && _byId.value.get(p.ouder_id)?.naam) || null }))
     .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
@@ -113,7 +162,7 @@ const popupProces = computed(() => (popupId.value ? _byId.value.get(popupId.valu
 // Ouder-map over de volledige set (voor de plek-in-woorden; onafhankelijk van de focus-zeef).
 const _ouderVan = computed(() => {
   const m = new Map()
-  for (const p of props.processen) if (p.ouder_id) m.set(p.id, p.ouder_id)
+  for (const p of _rijen.value) if (p.ouder_id) m.set(p.id, p.ouder_id)
   return m
 })
 // De ouderketen van de popup, van de wortel naar de directe ouder (visited-guard: nooit hangen).
@@ -132,6 +181,8 @@ const popupPad = computed(() => {
   return keten
 })
 const popupGap = computed(() => !!(popupId.value && props.gapIds?.has?.(popupId.value)))
+// LI039 blok C — vervallen is een eigen feit naast de gap; beide badges kunnen samen staan.
+const popupVervallen = computed(() => !!(popupId.value && props.vervallenIds?.has?.(popupId.value)))
 
 // LI038 gate 2 v2 — versleepbare popup via de gedeelde `useSleepbaar`-bouwsteen (zelfde gedrag
 // als de kaart-legenda/-popup: hele paneel is de greep, knoppen/links uitgezonderd; positie-init
@@ -261,9 +312,13 @@ const CY_STYLE = [
       'padding-left': 16, 'padding-right': 16, 'padding-top': 10, 'padding-bottom': 10,
     },
   },
-  // "Geen ondersteunend systeem" — zelfde rustige eerlijkheids-cue-taal als kaart/lijst
-  // (gestreepte rand, geen alarmkleur); de selectie-regel hieronder wint (solid).
+  // GAP-cue — zelfde rustige eerlijkheids-cue-taal als kaart/lijst (gestreepte rand,
+  // geen alarmkleur); de selectie-regel hieronder wint (solid).
   { selector: 'node[?procesGap]', style: { 'border-style': 'dashed', 'border-width': 3 } },
+  // VERVALLEN-markering (LI039 blok C) — eigen kanaal, eigen taal: solid rand in de
+  // warning-kleur. NA de gap-regel: draagt een knoop beide toestanden, dan combineren
+  // ze tot "gestippeld in de warning-kleur" (gap levert de streep, vervallen de kleur).
+  { selector: 'node[?vervallenCue]', style: { 'border-color': KLEUR_WARNING, 'border-width': 3 } },
   // Hiërarchie-lijnen: rustig, geen pijl/label — hoogte codeert de diepte al.
   { selector: 'edge', style: { width: 1.5, 'line-color': KLEUR_RAND, 'curve-style': 'straight' } },
   // De selectie draagt de bestaande oranje "kijk hier"-taal: knoop + aanliggende lijnen
@@ -290,9 +345,10 @@ function _elementen() {
   const nodes = [...zichtbareIds.value].map((id) => ({
     data: {
       id, label: naamVan(id),
-      // undefined (niet false) als er geen gat is: de CY-selector `node[?procesGap]` matcht
-      // dan niet (zelfde conventie als de kaart-node-data).
+      // undefined (niet false) als de cue niet geldt: de CY-selectors `node[?…]` matchen
+      // dan niet (zelfde conventie als de kaart-node-data). Twee ONAFHANKELIJKE kanalen.
       procesGap: props.gapIds?.has?.(id) ? true : undefined,
+      vervallenCue: props.vervallenIds?.has?.(id) ? true : undefined,
     },
   }))
   const edges = zichtbareEdges.value.map((e, i) => ({
@@ -356,8 +412,9 @@ onBeforeUnmount(() => {
   cy = null
 })
 
-// Eén render-eigenaar: elke wijziging van de focus-set of de gap-cue hertekent via hetzelfde pad.
-watch([zichtbareIds, () => props.gapIds], () => { tekenGraaf() })
+// Eén render-eigenaar: elke wijziging van de focus-set of van een cue-set hertekent via
+// hetzelfde pad (gap en vervallen zijn onafhankelijke kanalen).
+watch([zichtbareIds, () => props.gapIds, () => props.vervallenIds], () => { tekenGraaf() })
 
 defineExpose({
   kiesCentrum, centrumId, zichtbareIds,
@@ -371,17 +428,17 @@ defineExpose({
 </script>
 
 <template>
-  <div data-testid="proces-diagram" class="flex flex-col gap-[var(--lk-space-md)]">
+  <div :data-testid="props.testid" class="flex flex-col gap-[var(--lk-space-md)]">
     <div
       class="flex flex-wrap items-end gap-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]"
     >
       <label class="flex w-72 flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Zoek een proces</span>
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">{{ T.zoekTitel }}</span>
         <ZoekSelect
           :zoek-functie="zoekProcessen"
           :weergave="procesWeergave"
           id-veld="id"
-          placeholder="Zoek proces…"
+          :placeholder="T.zoekPlaceholder"
           testid="diagram-zoek"
           @keuze="kiesCentrum"
         />
@@ -409,7 +466,7 @@ defineExpose({
         data-testid="diagram-leeg"
         class="pointer-events-none absolute inset-0 flex items-center justify-center text-[var(--lk-color-text-muted)]"
       >
-        Zoek een proces om te beginnen.
+        {{ T.leeg }}
       </p>
 
       <!-- LI038 gate 2 (v2) — rustige, VERSLEEPBARE klik-popup (gedeelde useSleepbaar-bouwsteen,
@@ -451,37 +508,60 @@ defineExpose({
             >{{ v.naam }}</button>
           </template>
         </p>
-        <p v-else data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Hoofdproces</p>
-        <!-- Eerlijke gap-cue — zelfde subboom-semantiek en cue-taal als kaart/lijst (gelezen
-             uit de gedeelde gapIds-afleiding, niet herafgeleid). -->
+        <p v-else data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">{{ T.wortel }}</p>
+        <!-- Eerlijke rustige cue — zelfde cue-taal als kaart/lijst (gelezen uit de gedeelde
+             gapIds-afleiding, niet herafgeleid; het label komt uit de scherm-taal). -->
         <span
           v-if="popupGap"
           data-testid="diagram-popup-gap"
           class="mt-2 inline-block rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-border)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
-        >geen ondersteunend systeem</span>
-        <!-- Drie uitgangen, visueel gescheiden: verbreden BINNEN dit beeld (knop) vs. de twee
+        >{{ T.gap }}</span>
+        <!-- Vervallen-markering (LI039 blok C) — eigen taal (warning, ⚠ + tekst; solid rand),
+             naast en onderscheidbaar van de gestippelde gap-badge hierboven. De vorm laat de
+             gate-2-telling ("— N applicaties hangen er nog aan") in de tekst passen. -->
+        <span
+          v-if="popupVervallen"
+          data-testid="diagram-popup-vervallen"
+          class="mt-2 flex items-start gap-1 rounded-[var(--lk-radius-badge)] border border-[var(--lk-color-warning)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-warning)]"
+        ><span aria-hidden="true">⚠</span><span>{{ T.vervallen }}</span></span>
+        <!-- Scherm-eigen popup-inhoud (ADR-043 blok 2: bv. definitie + herkomstvermelding). -->
+        <slot name="popup-extra" :item="popupProces" />
+        <!-- Uitgangen, visueel gescheiden: verbreden BINNEN dit beeld (knop) vs. de
              vertrek-navigaties (kaart = component-wereld; detailscherm) onder een deellijn. -->
         <div class="mt-[var(--lk-space-md)] flex flex-col gap-[var(--lk-space-sm)]">
           <Button
-            label="Toon hele processenlandschap"
+            :label="T.landschap"
             severity="secondary"
             data-testid="diagram-popup-landschap"
             :disabled="heleLandschap"
             @click="toonHeleLandschap"
           />
-          <div class="flex flex-col gap-[var(--lk-space-xs)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+          <div
+            v-if="(metKaartUitgang && magKaartZien) || detailRoute || openLabel"
+            class="flex flex-col gap-[var(--lk-space-xs)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]"
+          >
             <Button
-              v-if="magKaartZien"
+              v-if="metKaartUitgang && magKaartZien"
               label="Bekijk op de kaart →"
               severity="secondary"
               data-testid="diagram-popup-kaart"
               @click="emit('bekijkOpKaart', popupProces)"
             />
             <router-link
-              :to="{ name: 'proces-detail', params: { id: popupProces.id } }"
+              v-if="detailRoute"
+              :to="{ name: detailRoute, params: { id: popupProces.id } }"
               data-testid="diagram-popup-open"
               class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-            >Open proces →</router-link>
+            >{{ T.detailLink }}</router-link>
+            <!-- Route-loze open-uitgang (LI039 v3): de consument bepaalt de landing
+                 (bv. terug naar de Boom-rij) via de openItem-emit. -->
+            <button
+              v-else-if="openLabel"
+              type="button"
+              data-testid="diagram-popup-open"
+              class="text-left text-[length:var(--lk-text-sm)] text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+              @click="emit('openItem', popupProces)"
+            >{{ openLabel }}</button>
           </div>
         </div>
       </div>

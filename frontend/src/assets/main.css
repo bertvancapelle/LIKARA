@@ -58,4 +58,74 @@
     background-size: 100% 36px, 100% 36px, 100% 12px, 100% 12px;
     background-attachment: local, local, scroll, scroll;
   }
+
+  /* Aanstip van een zojuist vastgelegde rij (LI039 — "wat je zojuist hebt vastgelegd,
+     zie je altijd"): de bestaande "kijk hier"-selectietaal (--lk-color-selectie, hetzelfde
+     oranje als de kaart-/diagram-selectie), kort gezet door useToonNieuweRij (timer).
+     Werkt op boom-rijen (li) én DataTable-rijen (tr, via rowClass). */
+  .lk-aangestipt {
+    outline: 2px solid var(--lk-color-selectie);
+    outline-offset: -2px;
+    border-radius: var(--lk-radius-badge);
+    transition: outline-color var(--lk-transition-normal);
+  }
+
+  /* Rustige rij-acties (LI039 C0 — "eerst rust, dan signaal"): acties zijn er altijd,
+     maar dringen zich niet op — zichtbaar op de actieve rij (hover) én via het
+     toetsenbord (:focus-within; een gefocuste actie maakt zichzelf zichtbaar).
+     Op aanraakschermen (geen hover) blijven ze permanent zichtbaar — de bewuste
+     MVP-afweging (begeleide sessie) mét vangnet. Contract: de rij draagt `.lk-rij`,
+     de actie-container `.lk-rij-acties` (gedeelde bouwsteen: RijActies.vue). */
+  .lk-rij .lk-rij-acties {
+    opacity: 0;
+    transition: opacity var(--lk-transition-fast);
+  }
+  .lk-rij:hover .lk-rij-acties,
+  .lk-rij:focus-within .lk-rij-acties {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .lk-rij .lk-rij-acties { opacity: 1; }
+  }
+
+  /* Tweelaags boom-rij (LI039 UI-afronding v2): de rij-inhoud is een eigen kolom met
+     twee lagen — de SCAN-laag (naam + alleen-wat-afwijkt-badges) en daaronder de
+     LEES-laag (de definitie/toelichting, gedempt, volle breedte, max twee regels).
+     De acties hebben een GERESERVEERDE kolom rechts (flex: none — de inhoud neemt
+     wat overblijft, nooit andersom); wordt het écht te smal, dan wrapt de
+     actiekolom als geheel onder de inhoud (li = flex-wrap) — knoppen vallen nooit
+     buiten beeld. Gedeeld door de twee boom-schermen (bedrijfsfuncties + processen). */
+  .lk-rij {
+    flex-wrap: wrap;
+  }
+  .lk-rij-inhoud {
+    flex: 1 1 20rem;
+    min-width: 0;
+  }
+  /* Scan-laag: naam-regel (inspringing zit als padding op deze laag). */
+  .lk-rij-kop {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex-wrap: wrap;
+    column-gap: var(--lk-space-sm);
+    row-gap: 2px;
+  }
+  /* Lees-laag: de definitie — volledig leesbaar over de volle breedte, gekapt op
+     twee regels (op woordgrens, met ellipsis); de volledige tekst leeft op het
+     detail/de popup. Geen tooltip, geen uitklap: zichtbaar zonder muisbeweging. */
+  .lk-rij-definitie {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* Gereserveerde actiekolom: claimt zijn eigen breedte; binnen de kolom mogen de
+     knoppen stapelen (wrap) — er valt er nooit één buiten beeld. */
+  .lk-rij-acties {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
 }

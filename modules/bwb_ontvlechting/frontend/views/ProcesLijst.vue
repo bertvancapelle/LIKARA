@@ -18,9 +18,12 @@ import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from '@/composables/router'
 import { useLijstStaat } from '@/composables/useLijstStaat'
+import { useToonInBoom } from '@/composables/useToonNieuweRij'
 import { zetKaartHandoff } from '@/composables/kaartHandoff'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
+import MeldingBanner from '@/components/MeldingBanner.vue'
+import RijActies from '@/components/RijActies.vue'
 import { procesBoomStructuur } from '../procesBoom'
 import { bouwProcesKaartHandoff } from '../procesKaartIngang'
 import ProcesDiagram from './ProcesDiagram.vue'
@@ -169,6 +172,23 @@ const rijen = computed(() => {
 // toggle-kolom w-5 → midden op 0.625rem). Gedeeld door guides, ellebogen en de omlaag-stub.
 const lijnX = (niveau) => `calc(var(--lk-space-md) + ${niveau * 1.5}rem + 0.625rem)`
 
+// LI039 blok B — "wat je zojuist hebt vastgelegd, zie je altijd" (gedeelde bouwsteen,
+// zelfde als het bedrijfsfuncties-scherm; aanmaken én verplaatsen): pad openklappen +
+// korte aanstip + een verbergende zoekterm wijkt zichtbaar.
+const { aangestiptId, wijkMelding, toonRij } = useToonInBoom({
+  openTakken,
+  zoekterm,
+  matcht: (id) => {
+    const p = _byId.value.get(String(id))
+    return !!p && _matcht(p)
+  },
+  ouderVan: (id) => {
+    const o = _byId.value.get(String(id))?.ouder_id
+    return o == null ? null : String(o)
+  },
+  wijkTekst: 'Zoekterm opzij gezet om je nieuwe proces te tonen.',
+})
+
 // ── LI037 — "geen ondersteunend systeem"-cue (zelfde subboom-semantiek + leespaden als de
 // kaart-gap-cue: per wortel rollup (doorgerolde subboom-regels) + de wortel-eigen regels; een
 // vervulling dekt óók de voorouders — één roll-up-bron, geen nieuwe definitie). PROGRESSIEF:
@@ -232,11 +252,18 @@ async function bevestig() {
   bezig.value = true
   try {
     const data = { naam: form.naam.trim(), toelichting: form.toelichting.trim() || null }
-    if (dialogProces.value) await api.processen.werkBij(dialogProces.value.id, data)
-    else await api.processen.maak(data)
+    let nieuwId = null
+    if (dialogProces.value) {
+      await api.processen.werkBij(dialogProces.value.id, data)
+    } else {
+      const res = await api.processen.maak(data)
+      nieuwId = res?.id ?? null
+    }
     toastSucces(toast, dialogProces.value ? 'Opgeslagen' : 'Proces aangemaakt')
     dialogOpen.value = false
     await laad()
+    // LI039 blok B — het zojuist aangemaakte proces is ALTIJD zichtbaar (gedeelde bouwsteen).
+    if (nieuwId != null) toonRij(nieuwId)
   } catch (e) {
     if (e?.status !== 401) formFout.value = e?.message || 'Opslaan is mislukt.'
   } finally {
@@ -359,10 +386,11 @@ async function bevestigVerplaats() {
     toastSucces(toast, 'Verplaatst')
     verplaatsProces.value = null
     // Lokaal bijwerken: de tak verhuist mee (ouder_id van de wortel wijzigt; kinderen hangen
-    // eraan). De nieuwe plek openklappen zodat de gebruiker ziet waar het heenging; de
-    // gap-cue herberekent (de dekking verhuist met de tak mee).
+    // eraan). LI039 blok B — de verhuisde rij is altijd zichtbaar (gedeelde bouwsteen:
+    // nieuwe ouderketen open + aanstip + zoekterm wijkt zichtbaar — het vroegere losse
+    // openklappen is hierin geconvergeerd); de gap-cue herberekent (de dekking verhuist mee).
     alle.value = alle.value.map((x) => (x.id === p.id ? { ...x, ouder_id: doelId } : x))
-    if (doelId && !openTakken.value.includes(doelId)) openTakken.value = [...openTakken.value, doelId]
+    toonRij(p.id)
     laadGapCue()
   } catch (e) {
     // Race op de backend-vangrail (kring/verdwenen doel) → rustige melding, boom onveranderd.
@@ -470,6 +498,16 @@ onMounted(() => {
 
     <p v-if="fout" role="alert" data-testid="lijst-fout" class="mb-[var(--lk-space-md)] rounded-[var(--lk-radius-badge)] border border-[var(--lk-color-danger)] bg-[var(--lk-color-danger)]/10 px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-danger)]">{{ fout }}</p>
 
+    <!-- LI039 blok B — de zoekterm week zichtbaar opzij voor de zojuist vastgelegde rij
+         (nooit stil); verdwijnt zodra de gebruiker het zoekveld weer aanraakt. -->
+    <MeldingBanner
+      v-if="weergave === 'boom' && wijkMelding"
+      soort="info"
+      :tekst="wijkMelding"
+      testid="proces-wijk-melding"
+      class="mb-[var(--lk-space-md)]"
+    />
+
     <div v-if="weergave === 'boom'" class="rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] shadow-[var(--lk-shadow-sm)]" data-testid="processen-boom">
       <!-- LI037 tree-view — géén rij-scheidingslijnen meer (divide-y): de verbindingslijnen lopen
            verticaal dóór over rijgrenzen en zouden anders door de separators gekruist worden. -->
@@ -477,8 +515,10 @@ onMounted(() => {
         <li
           v-for="rij in rijen"
           :key="rij.proces.id"
-          class="relative flex items-center gap-[var(--lk-space-sm)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)]"
-          :style="{ paddingLeft: `calc(var(--lk-space-md) + ${rij.diepte * 1.5}rem)` }"
+          :class="[
+            'lk-rij relative flex items-center gap-[var(--lk-space-sm)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)]',
+            rij.proces.id === aangestiptId ? 'lk-aangestipt' : '',
+          ]"
           :data-testid="`proces-rij-${rij.proces.id}`"
         >
           <!-- LI037 tree-view — verbindingslijnen (PUUR DECORATIEF, aria-hidden: de structuur
@@ -520,69 +560,80 @@ onMounted(() => {
             class="pointer-events-none absolute bottom-0 top-1/2 w-[1.5px] bg-[var(--lk-color-text-muted)]"
             :style="{ left: lijnX(rij.diepte) }"
           ></span>
-          <button
-            v-if="rij.heeftKinderen"
-            type="button"
-            :aria-expanded="rij.open"
-            :aria-label="`${rij.open ? 'Klap in' : 'Klap uit'}: ${rij.proces.naam}`"
-            :data-testid="`proces-toggle-${rij.proces.id}`"
-            class="relative w-5 shrink-0 bg-[var(--lk-color-surface)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-            @click="toggle(rij.proces.id)"
-          >{{ rij.open ? '▾' : '▸' }}</button>
-          <span v-else class="w-5 shrink-0" aria-hidden="true"></span>
-          <router-link
-            :to="{ name: 'proces-detail', params: { id: rij.proces.id } }"
-            data-testid="proces-link"
-            class="font-medium text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-          >{{ rij.proces.naam }}</router-link>
-          <!-- LI037 — "geen ondersteunend systeem" (zelfde subboom-semantiek als de kaart-gap-cue;
-               rustige tag in de eerlijkheids-cue-taal: gestreepte rand, geen alarmkleur). -->
-          <span
-            v-if="isGap(rij.proces.id)"
-            :data-testid="`proces-gap-${rij.proces.id}`"
-            class="shrink-0 rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-border)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
-          >geen ondersteunend systeem</span>
-          <span v-if="rij.proces.toelichting" class="min-w-0 truncate text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">{{ rij.proces.toelichting }}</span>
-          <!-- LI037 — rij-acties in de knop-/gevaar-conventie van de detailschermen (geen
-               tekstlinks): Hernoemen/Verplaatsen secundair (Wijzigen-recht), Verwijderen als
-               danger-knop en alléén met het Verwijderen-recht (vooraf weren, geen 403-dialoog).
-               LI038 gate 3 — "Toon in procesbeeld" is een LEES-actie (elke rol): in-place naar
-               het Diagram met dít proces centraal, neutraal geopend. -->
-          <Button
-            label="Toon in procesbeeld"
-            severity="secondary"
-            class="ml-auto shrink-0"
-            :data-testid="`proces-diagram-${rij.proces.id}`"
-            :aria-label="`Toon ${rij.proces.naam} in het procesbeeld`"
-            @click="toonInProcesbeeld(rij.proces)"
-          />
-          <Button
-            v-if="magBewerken"
-            label="Hernoemen"
-            severity="secondary"
-            class="shrink-0"
-            :data-testid="`proces-hernoem-${rij.proces.id}`"
-            :aria-label="`Hernoem ${rij.proces.naam}`"
-            @click="openHernoem(rij.proces)"
-          />
-          <Button
-            v-if="magBewerken"
-            label="Verplaats naar…"
-            severity="secondary"
-            class="shrink-0"
-            :data-testid="`proces-verplaats-${rij.proces.id}`"
-            :aria-label="`Verplaats ${rij.proces.naam}`"
-            @click="openVerplaats(rij.proces)"
-          />
-          <Button
-            v-if="magVerwijderen"
-            label="Verwijderen"
-            severity="danger"
-            class="shrink-0"
-            :data-testid="`proces-verwijder-${rij.proces.id}`"
-            :aria-label="`Verwijder ${rij.proces.naam}`"
-            @click="openVerwijder(rij.proces)"
-          />
+          <!-- LI039 UI-afronding v2 — tweelaags rij-inhoud (gedeelde vorm met de
+               functieboom): SCAN-laag (naam + alleen wat afwijkt) en daaronder de
+               LEES-laag (de toelichting, volledig leesbaar, max twee regels). -->
+          <div class="lk-rij-inhoud" :style="{ paddingLeft: `${rij.diepte * 1.5}rem` }">
+            <div class="lk-rij-kop">
+              <button
+                v-if="rij.heeftKinderen"
+                type="button"
+                :aria-expanded="rij.open"
+                :aria-label="`${rij.open ? 'Klap in' : 'Klap uit'}: ${rij.proces.naam}`"
+                :data-testid="`proces-toggle-${rij.proces.id}`"
+                class="relative w-5 shrink-0 bg-[var(--lk-color-surface)] text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+                @click="toggle(rij.proces.id)"
+              >{{ rij.open ? '▾' : '▸' }}</button>
+              <span v-else class="w-5 shrink-0" aria-hidden="true"></span>
+              <router-link
+                :to="{ name: 'proces-detail', params: { id: rij.proces.id } }"
+                data-testid="proces-link"
+                class="min-w-0 font-medium text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+              >{{ rij.proces.naam }}</router-link>
+              <!-- LI037 — "geen ondersteunend systeem" (zelfde subboom-semantiek als de kaart-gap-cue;
+                   rustige tag in de eerlijkheids-cue-taal: gestreepte rand, geen alarmkleur). -->
+              <span
+                v-if="isGap(rij.proces.id)"
+                :data-testid="`proces-gap-${rij.proces.id}`"
+                class="shrink-0 rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-border)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
+              >geen ondersteunend systeem</span>
+            </div>
+            <p
+              v-if="rij.proces.toelichting"
+              class="lk-rij-definitie pl-7 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+              :data-testid="`proces-toelichting-${rij.proces.id}`"
+            >{{ rij.proces.toelichting }}</p>
+          </div>
+          <!-- Rij-acties — rustig (LI039 C0, gedeelde RijActies-bouwsteen: tertiair, zichtbaar
+               op de actieve rij/via focus). Rechtenverdeling ongewijzigd (LI037): Hernoemen/
+               Verplaatsen op Wijzigen, Verwijderen alléén met het Verwijderen-recht en mét de
+               danger-vorm (de gevaarlijkste actie mag er niet het minst gevaarlijk uitzien).
+               "Toon in procesbeeld" is een LEES-actie (elke rol). -->
+          <RijActies>
+            <!-- Doorklik (navigatie) = text/ghost mét pijl; mutaties = outlined (rustige
+                 knop-vorm) — het verschil is zichtbaar (LI039 UI-afronding punt 1). -->
+            <Button
+              label="Toon in procesbeeld →"
+              text
+              :data-testid="`proces-diagram-${rij.proces.id}`"
+              :aria-label="`Toon ${rij.proces.naam} in het procesbeeld`"
+              @click="toonInProcesbeeld(rij.proces)"
+            />
+            <Button
+              v-if="magBewerken"
+              label="Hernoemen"
+              outlined
+              :data-testid="`proces-hernoem-${rij.proces.id}`"
+              :aria-label="`Hernoem ${rij.proces.naam}`"
+              @click="openHernoem(rij.proces)"
+            />
+            <Button
+              v-if="magBewerken"
+              label="Verplaats naar…"
+              outlined
+              :data-testid="`proces-verplaats-${rij.proces.id}`"
+              :aria-label="`Verplaats ${rij.proces.naam}`"
+              @click="openVerplaats(rij.proces)"
+            />
+            <Button
+              v-if="magVerwijderen"
+              label="Verwijderen"
+              severity="danger"
+              :data-testid="`proces-verwijder-${rij.proces.id}`"
+              :aria-label="`Verwijder ${rij.proces.naam}`"
+              @click="openVerwijder(rij.proces)"
+            />
+          </RijActies>
         </li>
       </ul>
       <p v-else-if="!laden && zoekterm.trim()" data-testid="lijst-geen-match" class="p-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">

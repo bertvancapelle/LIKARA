@@ -119,8 +119,8 @@ describe('DatatypeSectie', () => {
     expect(w.find('[data-testid="dt-fout-omvang"]').text()).toContain('te lang')
   })
 
-  it('ververst de lijst na een geslaagde aanmaak', async () => {
-    api.datatypes.maak.mockResolvedValueOnce({ id: 'new' })
+  it('LI039 blok B — een nieuwe rij staat direct VOORAAN in beeld, aangestipt (niet achter "Meer laden")', async () => {
+    api.datatypes.maak.mockResolvedValueOnce({ id: 'new', categorie: 'documenten', omschrijving: 'Zojuist toegevoegd', omvang_indicatie: null })
     const w = await mountSectie()
     const voor = api.datatypes.lijst.mock.calls.length
     await w.find('[data-testid="dt-toevoegen"]').trigger('click')
@@ -129,7 +129,13 @@ describe('DatatypeSectie', () => {
     await w.find('[data-testid="dt-form"]').trigger('submit')
     await flushPromises()
     expect(api.datatypes.maak).toHaveBeenCalledTimes(1)
-    expect(api.datatypes.lijst.mock.calls.length).toBe(voor + 1) // refresh
+    // Geen herlaad-sprong: het nieuwe item wordt vooraan ingevoegd (created_at asc zou
+    // het anders achter "Meer laden" verstoppen); de aanstip draagt de uitleg "dit heb
+    // je zojuist toegevoegd". Een volgende verse laadbeurt toont de natuurlijke volgorde.
+    expect(api.datatypes.lijst.mock.calls.length).toBe(voor)
+    const eersteRij = w.find('[data-testid="dt-tabel"] tbody tr')
+    expect(eersteRij.text()).toContain('Zojuist toegevoegd')
+    expect(eersteRij.attributes('class')).toContain('lk-aangestipt')
   })
 })
 

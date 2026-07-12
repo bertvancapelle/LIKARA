@@ -34,6 +34,7 @@ from services.seed_componentconfig import seed_componentconfig  # noqa: E402
 from services.seed_componentrol import seed_componentrol  # noqa: E402
 from services.seed_contractconfig import seed_contractconfig  # noqa: E402
 from services.seed_partijsoort import seed_partijsoort  # noqa: E402
+from services.seed_referentiemodel import seed_referentiemodel  # noqa: E402
 from services.seed_relatiekenmerk import seed_relatiekenmerk  # noqa: E402
 from services.seed_vraagbetekenis import seed_vraagbetekenis  # noqa: E402
 
@@ -75,6 +76,8 @@ async def platform_init(session_factory=None) -> int:
             await seed_bivschaal(session)
             # ADR-042 — applicatiefunctie-catalogus (het wát-veld op de koppelregel).
             await seed_applicatiefunctie(session)
+            # ADR-043 — referentiemodel-aanbod (platform-gecureerd; GEMMA = instantie 1).
+            await seed_referentiemodel(session)
             return aantal
     finally:
         reset_audit_context(audit_tokens)

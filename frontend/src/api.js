@@ -409,6 +409,17 @@ export const api = {
     werkBij: (id, data) => request(`/procesvervullingen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/procesvervullingen/${id}`, { method: 'DELETE' }),
   },
+  // ADR-043 gate 1a — bedrijfsfunctie-as (de logische ruggengraat). Het gebruikers-pad
+  // maakt uitsluitend EIGEN functies; modelinhoud is server-side read-only (422
+  // MODELINHOUD_BESCHERMD — de UI toont die affordance dan ook niet).
+  bedrijfsfuncties: {
+    lijst: (params = {}) => request(`/bedrijfsfuncties${_filterQuery('bedrijfsfuncties.lijst', params, ['limit', 'after', 'sort', 'order', 'zoek', 'ouder_id'])}`),
+    haal: (id) => request(`/bedrijfsfuncties/${id}`),
+    maak: (data) => request('/bedrijfsfuncties', { method: 'POST', body: JSON.stringify(data) }),
+    werkBij: (id, data) => request(`/bedrijfsfuncties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/bedrijfsfuncties/${id}`, { method: 'DELETE' }),
+    subboom: (id) => request(`/bedrijfsfuncties/${id}/subboom`),
+  },
   deliverables: {
     lijst: (params = {}) => request(`/deliverables${_filterQuery('deliverables.lijst', params, ['limit', 'after'])}`),
     haal: (id) => request(`/deliverables/${id}`),
