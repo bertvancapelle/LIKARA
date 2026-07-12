@@ -18,17 +18,30 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    (boom, diagram, inzoom/history, gap-cue) blijven intact en worden door de functie-as
    **hergebruikt** (n≥2-abstractie). Terugkeer later als detaillering ónder de functie-as,
    nooit ernaast. Status: **besloten (LI038); bouw-fasering + open subknopen in ADR-043**.
+3. **ADR-043: 8 open subknopen** — te beslissen vóór de bouw van de bedrijfsfunctie-as
+   (subtype, bronsleutel-plek, referentiemodel-entiteit, koppelregel-vorm, topgroeperingen,
+   soft-vervallen, AMEFF-parser, verhouding tot het registratie-feiten-spoor). Status: **open,
+   eerste stap van TOP-1**.
+4. **ADR-spoor "generieke registratie-feiten op objecten"** (besloten LI038; vastgelegd in
+   likara-domeinmodel §LI038/ADR-043): verantwoordelijkheid (met rol) + toelichting/benoemde
+   verwijzingen op component, contract, proces/bedrijfsfunctie **én koppeling** (`relatie.id`).
+   Twee ankers, geen polymorfe FK, document = benoemde verwijzing (geen upload).
+   **Dwarsdoorsnede:** de "eigen laag bij een referentie-object" (ADR-043 besluit 5) is
+   hiervan een instantie → **samen ontwerpen met de bedrijfsfunctie-as**, niet erna, anders
+   bouwen we de eigen-laag twee keer. Status: **open, ADR-waardig**.
 
 ### Nieuwe opvolgpunten uit LI037 (2026-07-11)
 
-1. **Proces-only diagram — eigen slice.** De kaart-proceszone met een **proces-only filter**
-   (hergebruikt de bestaande Lagen-inzoom/doorwandel-mechaniek). Bestaansrecht bevestigd
-   (structuur zien/presenteren), ook zonder afhankelijkheden. Status: **nog te ontwerpen**
-   (eigen ontwerpdialoog) + bouwen.
-2. **ADR-spoor procesafhankelijkheden/flow.** Proces→proces bestaat NIET als feature
-   (`ouder_id` = enige band; ADR-042 parkeerde flow). Ze registreerbaar maken = domeinbesluit
-   langs de Facade-over-Relatie-lijn (flow hergebruiken of triggering als 9e type +
-   typeborging/registratie/projectie). Bepaalt hoe rijk het proces-diagram (punt 1) kan worden.
+1. **Proces-only diagram — GESLOTEN (geland LI038, commits 82806ff/e91f2a2/f1d3270).**
+   Boom|Diagram-schakelaar in het processen-scherm, zoeken (label-niet-filter + ×-wis in
+   ZoekSelect), klik-popup met drie uitgangen, dubbelklik-inzoom op proces-ids + history
+   ("← Terug"), "Toon in procesbeeld" vanuit de Boom. Ook het gate-1-punt "centrum vervalt
+   bij weergave-wissel" is in gate 3 **gesloten** (`centrumGewijzigd` behoudt de plek).
+2. **ADR-spoor procesafhankelijkheden/flow (spoor 2).** Proces→proces bestaat NIET als feature
+   (`ouder_id` = enige band; ADR-042 parkeerde flow). Harde belofte: de "opzij" in het Diagram
+   is nu **zusjes**; doorstroom-opzij komt er bovenop **zonder herbouw**. Let op: de
+   relatie-facade valideert **géén** bron/doel-elementtype → een flowlaag vergt expliciete
+   type-borging. *Urgentie gedaald door ADR-043 (proces is niet langer de dragende as).*
    Status: **open, ADR-waardig**.
 3. **Detailscherm-procesbeheer.** Verwijderen/verhangen óók op het proces-detailscherm (nu
    alleen op de lijst). **Besluit A: nu niet** — de taakverdeling (structuur = lijst, inhoud =
