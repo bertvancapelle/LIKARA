@@ -1,15 +1,16 @@
-"""Tests — ADR-043 gate 1a: Bedrijfsfunctie-element + referentiemodel-lagen.
+"""Tests — ADR-043 gate 1a + ADR-044 gate 1a-bis: Bedrijfsfunctie + plaatsingen.
 
-Offline: model (element-subtype + composiet self-FK RESTRICT + CHECK's, herkomst-paar,
-vervallen-vlag), referentiemodel (tenant + platform-aanbod), schema, ArchiMate-typing
-(business_function in de whitelist; DERDE gemarkeerde behavior-afwijking),
-sorteer-allowlist-sync, RBAC (tenant + platform), audit-allowlists + de regressie-
-borging dat de functie-laag de engine NIET raakt.
-Live (skip-if-no-DB): CRUD + subboom, modelinhoud-bescherming (422), vervallen-guard
-(422), verwijdergedrag (409 + model-functie 422), cycluspreventie, RLS-isolatie,
-audit-capture + geen-engine-mutatie. Live-tests ruimen hun element-rijen structureel op
-(element-supertype, leaf→root, in finally); de referentiemodel-rij via een directe
-DELETE (geen element).
+Offline: model (element-subtype; ADR-044: GÉÉN ouder-kolom/self-FK meer — de boom leeft
+in aggregation-plaatsingen), referentiemodel (tenant + platform-aanbod), schema's
+(Update zonder plaatsing-velden), ArchiMate-typing (business_function; DERDE gemarkeerde
+behavior-afwijking), sorteer-allowlist-sync, RBAC (tenant + platform), audit-allowlists
+(plaatsingen liften mee op het relatie-spoor) + engine-borging.
+Live (skip-if-no-DB): CRUD + subboom over plaatsingen, MEERVOUDIGE ouders (het
+"Toezicht"-geval), endpoint-typeborging (422), modelinhoud-bescherming (422),
+vervallen-guard (422), dubbele plaatsing (409), cyclus over de meervoudige-ouders-graaf
+(422), verwijdergedrag (409), RLS-isolatie, audit + geen-engine-mutatie. Live-tests
+ruimen hun element-rijen structureel op (element-supertype, leaf→root, in finally);
+plaatsings-relaties cascaden mee met hun endpoints.
 """
 import asyncio
 import uuid
@@ -32,51 +33,47 @@ _LK_APP_URL = "postgresql+asyncpg://lk_app:changeme_dev@localhost:5432/likara"
 
 # ── Offline: model + schema ──────────────────────────────────────────────────────
 
-def test_bedrijfsfunctie_is_element_subtype_met_fks():
+def test_bedrijfsfunctie_is_element_subtype_zonder_ouderkolom():
+    """ADR-044: de boom is geen kolom — geen ouder_id, geen self-FK, geen
+    self-parent-CHECK; wél de shared-PK-cascade en de herkomst-FK (RESTRICT)."""
     from models.models import Bedrijfsfunctie
 
     assert Bedrijfsfunctie.__tablename__ == "bedrijfsfunctie"
+    kols = Bedrijfsfunctie.__table__.columns
+    assert "ouder_id" not in kols  # ADR-044 — plaatsing is een relatie, geen veld
+    for k in ("naam", "definitie", "bron_model_id", "bron_sleutel", "vervallen"):
+        assert k in kols
     fks = {
         con.name: con
         for con in Bedrijfsfunctie.__table__.constraints
         if con.__class__.__name__ == "ForeignKeyConstraint"
     }
-    # shared-PK → element(tenant_id,id), cascade.
     assert fks["fk_bedrijfsfunctie_element"].ondelete == "CASCADE"
-    # composiet self-FK met RESTRICT (subboom niet stilzwijgend wegvagen).
-    assert fks["fk_bedrijfsfunctie_ouder"].ondelete == "RESTRICT"
-    # herkomst-FK naar de INGELEZEN instantie (tenant-zijde), RESTRICT — een model met
-    # functies verdwijnt niet stil (besluit LI039-5/6).
     assert fks["fk_bedrijfsfunctie_bron_model"].ondelete == "RESTRICT"
-    kols = Bedrijfsfunctie.__table__.columns
-    for k in ("naam", "definitie", "ouder_id", "bron_model_id", "bron_sleutel", "vervallen"):
-        assert k in kols
-
-
-def test_bedrijfsfunctie_checks_en_bron_uniciteit():
-    from models.models import Bedrijfsfunctie
-
+    assert "fk_bedrijfsfunctie_ouder" not in fks
     checks = [
         con.name for con in Bedrijfsfunctie.__table__.constraints
         if con.__class__.__name__ == "CheckConstraint"
     ]
-    assert "ck_bedrijfsfunctie_geen_self_parent" in checks
-    # Herkomst is een paar: model + sleutel samen gezet of samen leeg (eigen functie).
     assert "ck_bedrijfsfunctie_bron_paar" in checks
+    assert "ck_bedrijfsfunctie_geen_self_parent" not in checks
+
+
+def test_bedrijfsfunctie_bron_uniciteit():
+    from models.models import Bedrijfsfunctie
+
     uniques = [
         sorted(c.name for c in con.columns)
         for con in Bedrijfsfunctie.__table__.constraints
         if con.__class__.__name__ == "UniqueConstraint"
     ]
-    # Bronsleutel = identiteit binnen één ingelezen model (NULL distinct → eigen
-    # functies onbeperkt, betekenis-precedent).
     assert ["bron_model_id", "bron_sleutel", "tenant_id"] in uniques
-    assert ["id", "tenant_id"] in uniques  # composiet-FK-target self-FK
+    assert ["id", "tenant_id"] in uniques
 
 
 def test_referentiemodel_twee_lagen():
     """Besluit LI039-5: aanbod = platform (`referentiemodel_optie`, geen tenant_id),
-    ingelezen inhoud = tenant (`referentiemodel`, tenant-scoped, herinlees = bijwerken)."""
+    ingelezen inhoud = tenant (`referentiemodel`, herinlees = bijwerken)."""
     from models.models import Referentiemodel, ReferentiemodelOptie
 
     assert "tenant_id" not in ReferentiemodelOptie.__table__.columns
@@ -89,33 +86,40 @@ def test_referentiemodel_twee_lagen():
         for con in Referentiemodel.__table__.constraints
         if con.__class__.__name__ == "UniqueConstraint"
     ]
-    assert ["id", "tenant_id"] in uniques            # composiet-FK-target
-    assert ["model_sleutel", "tenant_id"] in uniques  # één instantie per model
+    assert ["id", "tenant_id"] in uniques
+    assert ["model_sleutel", "tenant_id"] in uniques
 
 
 def test_bedrijfsfunctie_schema_validatie():
     from pydantic import ValidationError
-    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
+    from schemas.bedrijfsfunctie import (
+        BedrijfsfunctieCreate,
+        BedrijfsfunctieUpdate,
+        PlaatsingCreate,
+    )
 
-    ok = BedrijfsfunctieCreate(naam="Dienstverlening")
+    ok = BedrijfsfunctieCreate(naam="Toezicht")
     assert ok.ouder_id is None
-    BedrijfsfunctieCreate(naam="Klantcontact", ouder_id=uuid.uuid4())
+    BedrijfsfunctieCreate(naam="Handhaving", ouder_id=uuid.uuid4())  # gemak: mét 1e plaatsing
     with pytest.raises(ValidationError):  # naam verplicht
         BedrijfsfunctieCreate(naam="  ")
     with pytest.raises(ValidationError):  # extra veld verboden
         BedrijfsfunctieCreate(naam="X", onbekend="y")
     with pytest.raises(ValidationError):  # herkomst NOOIT via het gebruikers-pad
         BedrijfsfunctieCreate(naam="X", bron_sleutel="s")
-    with pytest.raises(ValidationError):  # vervallen NOOIT via het gebruikers-pad
-        BedrijfsfunctieCreate(naam="X", vervallen=True)
+    # ADR-044: Update kent GEEN plaatsing-velden — plaatsingen via de eigen endpoints.
+    with pytest.raises(ValidationError):
+        BedrijfsfunctieUpdate(ouder_id=uuid.uuid4())
+    PlaatsingCreate(ouder_id=uuid.uuid4())
+    with pytest.raises(ValidationError):
+        PlaatsingCreate()
 
 
 # ── Offline: ArchiMate-typing (ADR-043) ──────────────────────────────────────────
 
 def test_bedrijfsfunctie_typing_business_function_behavior():
     """Bedrijfsfunctie = business_function / business / behavior — de DERDE gemarkeerde
-    behavior-afwijking op OK-3 (naast work_package en proces). ADR-043 heropent de door
-    ADR-042 geparkeerde as."""
+    behavior-afwijking op OK-3 (naast work_package en proces)."""
     from models.models import ElementType
     from services.archimate_typing import TOEGESTANE_ELEMENTEN, typing_voor
 
@@ -137,10 +141,14 @@ def test_bedrijfsfunctie_sorteer_allowlist_synchroon():
 # ── Offline: RBAC + audit + regressie ────────────────────────────────────────────
 
 def test_bedrijfsfunctie_in_audit_allowlists():
+    """ADR-044 1.2 — geverifieerd: plaatsingen zijn `relatie`-rijen en liften mee op het
+    bestaande relatie-audit-spoor; de functie zelf + het referentiemodel zijn eigen
+    allowlist-entries."""
     from app.core.audit import AUDIT_PLATFORM_ENTITEITEN, AUDIT_TENANT_ENTITEITEN
 
     assert "bedrijfsfunctie" in AUDIT_TENANT_ENTITEITEN
     assert "referentiemodel" in AUDIT_TENANT_ENTITEITEN
+    assert "relatie" in AUDIT_TENANT_ENTITEITEN  # ← draagt de plaatsingen
     assert "referentiemodel_optie" in AUDIT_PLATFORM_ENTITEITEN
 
 
@@ -173,8 +181,8 @@ def test_referentiemodelconfig_platform_law_zonder_v():
 
 
 def test_bedrijfsfunctie_service_raakt_engine_niet():
-    """ADR-043-invariant: score blijft de enige lifecycle-driver — de functie-service
-    importeert géén engine-onderdeel."""
+    """ADR-043/044-invariant: score blijft de enige lifecycle-driver — de functie-service
+    importeert géén engine-onderdeel (Relatie is registratie, geen engine)."""
     import services.bedrijfsfunctie_service as bs
 
     for naam in (
@@ -184,12 +192,16 @@ def test_bedrijfsfunctie_service_raakt_engine_niet():
         assert not hasattr(bs, naam), f"bedrijfsfunctie_service mag de engine niet importeren: {naam!r}"
 
 
-def test_seed_referentiemodel_puur_en_idempotent_vormgegeven():
+def test_seed_referentiemodel_bekrachtigde_herkomst():
+    """LI039 — het aanbod draagt de navolgbare, bekrachtigde herkomst (bron-repository +
+    licentie + release-versie), niet meer het verzonnen 'GEMMA 2 (2025)'."""
     from services.seed_referentiemodel import bouw_referentiemodel
 
     rijen = bouw_referentiemodel()
-    assert any(r["optie_sleutel"] == "gemma_bedrijfsfuncties" for r in rijen)
-    assert all(r["actief"] for r in rijen)
+    gemma = next(r for r in rijen if r["optie_sleutel"] == "gemma_bedrijfsfuncties")
+    assert gemma["versie"] == "release 1 juli 2026"
+    assert "GEMMA-Archi-repository" in gemma["herkomst"]
+    assert "EUPL" in gemma["herkomst"]
 
 
 # ── Live (skip-if-no-DB) ─────────────────────────────────────────────────────────
@@ -202,9 +214,12 @@ def _db_bereikbaar() -> bool:
         eng = create_async_engine(_LK_APP_URL)
         try:
             async with eng.connect() as c:
-                # De bedrijfsfunctie-tabel moet bestaan (migratie 0062), anders skippen.
-                res = (await c.execute(text("SELECT to_regclass('bedrijfsfunctie')"))).scalar()
-            return res is not None
+                # ADR-044 toegepast? De ouder-kolom moet wég zijn (migratie 0063).
+                res = (await c.execute(text(
+                    "SELECT count(*) FROM information_schema.columns "
+                    "WHERE table_name='bedrijfsfunctie' AND column_name='ouder_id'"
+                ))).scalar()
+            return res == 0
         finally:
             await eng.dispose()
     try:
@@ -214,7 +229,7 @@ def _db_bereikbaar() -> bool:
 
 
 integratie = pytest.mark.skipif(
-    not _db_bereikbaar(), reason="lk_app-DB/bedrijfsfunctie-tabel niet bereikbaar"
+    not _db_bereikbaar(), reason="lk_app-DB niet bereikbaar of migratie 0063 niet toegepast"
 )
 
 
@@ -236,12 +251,12 @@ async def _run_rls(tenant, actor, fn):
 
 
 async def _ruim(s, ids, model_ids=()):
-    """Element-rijen leaf→root (RESTRICT-veilig) via het supertype; daarna de
-    referentiemodel-rij(en) (geen element — directe DELETE, ná de functies i.v.m. de
-    bron-FK RESTRICT)."""
+    """Element-rijen opruimen via het supertype (plaatsings-relaties cascaden mee met
+    hun endpoints); daarna de referentiemodel-rij(en) — ná de functies i.v.m. de
+    bron-FK RESTRICT."""
     from sqlalchemy import text as _text
 
-    for eid in reversed(ids):  # aanmaakvolgorde root→leaf → omgekeerd opruimen
+    for eid in reversed(ids):
         await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
     for mid in model_ids:
         await s.execute(_text("DELETE FROM referentiemodel WHERE id=:i"), {"i": str(mid)})
@@ -249,7 +264,6 @@ async def _ruim(s, ids, model_ids=()):
 
 
 async def _maak_model(s, sleutel="wt_bf_model"):
-    """Testfixture: één ingelezen-referentiemodel-rij (ORM → audit-gedekt)."""
     from models.models import Referentiemodel
 
     rij = Referentiemodel(
@@ -262,187 +276,172 @@ async def _maak_model(s, sleutel="wt_bf_model"):
     return rij.id
 
 
-async def _maak_modelfunctie(s, svc, naam, sleutel, model_id, ouder_id=None):
+async def _maak_modelfunctie(s, svc, naam, sleutel, model_id):
     from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
 
     return await svc.maak_aan(
-        s, _TID, BedrijfsfunctieCreate(naam=naam, ouder_id=ouder_id),
+        s, _TID, BedrijfsfunctieCreate(naam=naam),
         bron_model_id=model_id, bron_sleutel=sleutel,
     )
 
 
 @integratie
-def test_bedrijfsfunctie_crud_boom_subboom_en_herkomst_live():
+def test_bedrijfsfunctie_meervoudige_ouders_en_subboom_live():
+    """ADR-044-kern: één functie op TWEE plekken (het Toezicht-geval) — één identiteit,
+    twee plaatsingen; de read levert beide ouders; de subboom bereikt haar éénmaal."""
     from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
     from services import bedrijfsfunctie_service as svc
 
     async def _flow(s):
-        ids, mids = [], []
+        ids = []
         try:
-            mid = await _maak_model(s)
-            mids.append(mid)
-            a = await _maak_modelfunctie(s, svc, "WT-BF Primair", "wt_primair", mid)
-            ids.append(a["id"])
-            b = await _maak_modelfunctie(s, svc, "WT-BF Dienstverlening", "wt_dienst", mid, a["id"])
-            ids.append(b["id"])
-            eigen = await svc.maak_aan(
-                s, _TID, BedrijfsfunctieCreate(naam="WT-BF Eigen functie", ouder_id=b["id"])
-            )
-            ids.append(eigen["id"])
-            subboom = await svc.subboom(s, _TID, a["id"])
-            detail = await svc.lees_detail(s, _TID, a["id"])
-            return a, b, eigen, subboom, detail
+            wortel = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P Uitvoering"))
+            ids.append(wortel["id"])
+            d1 = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P Domein A", ouder_id=wortel["id"]))
+            ids.append(d1["id"])
+            d2 = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P Domein B", ouder_id=wortel["id"]))
+            ids.append(d2["id"])
+            toezicht = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P Toezicht", ouder_id=d1["id"]))
+            ids.append(toezicht["id"])
+            # De tweede plaatsing: zelfde functie, tweede ouder.
+            na = await svc.plaats(s, _TID, toezicht["id"], d2["id"])
+            subboom = await svc.subboom(s, _TID, wortel["id"])
+            detail = await svc.lees_detail(s, _TID, toezicht["id"])
+            return d1, d2, toezicht, na, subboom, detail
         finally:
-            await _ruim(s, ids, mids)
+            await _ruim(s, ids)
 
-    a, b, eigen, subboom, detail = asyncio.run(_run_rls(_TID, "test:bert", _flow))
-    # Herkomst-resolutie: model-functie draagt sleutel + modelnaam/-versie; eigen niet.
-    assert a["bron_sleutel"] == "wt_primair" and a["bron_model_naam"] == "WT-BF Testmodel"
-    assert detail["bron_model_versie"] == "t1"
-    assert eigen["bron_sleutel"] is None and eigen["bron_model_naam"] is None
-    per_id = {x["id"]: x for x in subboom}
-    assert per_id[b["id"]]["niveau"] == 1 and per_id[eigen["id"]]["niveau"] == 2
-    assert per_id[eigen["id"]]["pad"][-1] == "WT-BF Eigen functie"
+    d1, d2, toezicht, na, subboom, detail = asyncio.run(_run_rls(_TID, "test:bert", _flow))
+    assert sorted(map(str, na["ouder_ids"])) == sorted([str(d1["id"]), str(d2["id"])])
+    assert sorted(map(str, detail["ouder_ids"])) == sorted([str(d1["id"]), str(d2["id"])])
+    # Subboom: Toezicht komt éénmaal voor (één identiteit), op zijn kortste afstand.
+    per_id = [x for x in subboom if str(x["id"]) == str(toezicht["id"])]
+    assert len(per_id) == 1 and per_id[0]["niveau"] == 2
 
 
 @integratie
-def test_bedrijfsfunctie_modelinhoud_beschermd_live():
-    """ADR-043 kern: modelinhoud lees je — je wijzigt hem niet (naam/definitie/plek),
-    en je verwijdert hem nooit. Eigen functies zijn wél volledig bewerkbaar."""
-    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate, BedrijfsfunctieUpdate
-    from services import bedrijfsfunctie_service as svc
-    from services.errors import OngeldigeRegistratie
-
-    async def _flow(s):
-        ids, mids = [], []
-        try:
-            mid = await _maak_model(s)
-            mids.append(mid)
-            mf = await _maak_modelfunctie(s, svc, "WT-BF Model", "wt_model", mid)
-            ids.append(mf["id"])
-            eigen = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-BF Eigen"))
-            ids.append(eigen["id"])
-            fouten = {}
-            for veld, upd in (
-                ("naam", BedrijfsfunctieUpdate(naam="Hernoemd")),
-                ("definitie", BedrijfsfunctieUpdate(definitie="Eigen tekst")),
-                ("ouder", BedrijfsfunctieUpdate(ouder_id=eigen["id"])),
-            ):
-                try:
-                    await svc.werk_bij(s, _TID, mf["id"], upd)
-                except OngeldigeRegistratie as e:
-                    fouten[veld] = e.code
-            try:
-                await svc.verwijder(s, _TID, mf["id"])
-            except OngeldigeRegistratie as e:
-                fouten["verwijder"] = e.code
-            # Eigen functie: bewerken slaagt gewoon.
-            bewerkt = await svc.werk_bij(
-                s, _TID, eigen["id"], BedrijfsfunctieUpdate(naam="WT-BF Eigen v2")
-            )
-            return fouten, bewerkt
-        finally:
-            await _ruim(s, ids, mids)
-
-    fouten, bewerkt = asyncio.run(_run_rls(_TID, "test:bert", _flow))
-    assert fouten == {
-        "naam": "MODELINHOUD_BESCHERMD", "definitie": "MODELINHOUD_BESCHERMD",
-        "ouder": "MODELINHOUD_BESCHERMD", "verwijder": "MODELINHOUD_BESCHERMD",
-    }
-    assert bewerkt["naam"] == "WT-BF Eigen v2"
-
-
-@integratie
-def test_bedrijfsfunctie_vervallen_niet_koppelbaar_live():
-    """Besluit LI039-6: vervallen = zichtbaar mét markering, NIET meer koppelbaar —
-    geen nieuwe functies eronder (aanmaken én verplaatsen geweigerd); bestaande
-    kinderen blijven staan."""
+def test_plaatsing_typeborging_en_regels_live():
+    """Endpoint-typeborging (422 op een niet-functie), modelinhoud-slot (422),
+    vervallen-guard (422), dubbele plaatsing (409), zelf/kring (422)."""
     from sqlalchemy import text as _text
-    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate, BedrijfsfunctieUpdate
+    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
     from services import bedrijfsfunctie_service as svc
-    from services.errors import OngeldigeRegistratie
+    from services.errors import OngeldigeRegistratie, RegistratieConflict
 
     async def _flow(s):
         ids, mids = [], []
+        fouten = {}
         try:
             mid = await _maak_model(s)
             mids.append(mid)
-            verv = await _maak_modelfunctie(s, svc, "WT-BF Vervallen", "wt_vervallen", mid)
+            a = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P A"))
+            ids.append(a["id"])
+            b = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P B", ouder_id=a["id"]))
+            ids.append(b["id"])
+            # Typeborging: een bestaand NIET-functie-element als ouder ⇒ 422.
+            comp_id = (await s.execute(_text(
+                "SELECT id FROM component LIMIT 1"))).scalar()
+            if comp_id is not None:
+                try:
+                    await svc.plaats(s, _TID, b["id"], comp_id)
+                except OngeldigeRegistratie as e:
+                    fouten["type"] = e.code
+            # Modelinhoud: plaatsing muteren op een model-functie ⇒ 422 (gebruikers-pad)…
+            mf = await _maak_modelfunctie(s, svc, "WT-P Model", "wt_p_model", mid)
+            ids.append(mf["id"])
+            try:
+                await svc.plaats(s, _TID, mf["id"], a["id"])
+            except OngeldigeRegistratie as e:
+                fouten["model"] = e.code
+            # …maar het import-pad passeert legitiem.
+            via_import = await svc.plaats(s, _TID, mf["id"], a["id"], via_import=True)
+            fouten["import_ok"] = len(via_import["ouder_ids"]) == 1
+            # Vervallen ouder ⇒ 422.
+            verv = await _maak_modelfunctie(s, svc, "WT-P Vervallen", "wt_p_verv", mid)
             ids.append(verv["id"])
-            kind = await _maak_modelfunctie(s, svc, "WT-BF Kind", "wt_kind", mid, verv["id"])
-            ids.append(kind["id"])
-            # Markeer vervallen (het gate-1b-herinlees-pad; hier direct, ORM → audit).
-            obj = await svc.haal_op(s, _TID, verv["id"])
-            obj.vervallen = True
+            rij = await svc.haal_op(s, _TID, verv["id"])
+            rij.vervallen = True
             await s.commit()
-            fouten = {}
             try:
-                await svc.maak_aan(
-                    s, _TID, BedrijfsfunctieCreate(naam="WT-BF Nieuw", ouder_id=verv["id"])
-                )
+                await svc.plaats(s, _TID, b["id"], verv["id"])
             except OngeldigeRegistratie as e:
-                fouten["aanmaken"] = e.code
-            eigen = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-BF Los"))
-            ids.append(eigen["id"])
+                fouten["vervallen"] = e.code
+            # Dubbel ⇒ 409.
             try:
-                await svc.werk_bij(s, _TID, eigen["id"], BedrijfsfunctieUpdate(ouder_id=verv["id"]))
+                await svc.plaats(s, _TID, b["id"], a["id"])
+            except RegistratieConflict as e:
+                fouten["dubbel"] = e.code
+            # Zelf + kring (via de meervoudige-ouders-graaf) ⇒ 422.
+            try:
+                await svc.plaats(s, _TID, a["id"], a["id"])
             except OngeldigeRegistratie as e:
-                fouten["verplaatsen"] = e.code
-            # Zichtbaar + bestaand kind intact (het signaal is de werklijst, geen opruimactie).
-            kind_ouder = (await s.execute(_text(
-                "SELECT ouder_id FROM bedrijfsfunctie WHERE id=:i"), {"i": str(kind["id"])})).scalar()
-            zichtbaar = await svc.lees_detail(s, _TID, verv["id"])
-            return fouten, str(kind_ouder), zichtbaar
+                fouten["zelf"] = e.code
+            try:
+                await svc.plaats(s, _TID, a["id"], b["id"])  # a onder zijn eigen kind
+            except OngeldigeRegistratie as e:
+                fouten["kring"] = e.code
+            return fouten
         finally:
             await _ruim(s, ids, mids)
 
-    fouten, kind_ouder, zichtbaar = asyncio.run(_run_rls(_TID, "test:bert", _flow))
-    assert fouten == {
-        "aanmaken": "VERVALLEN_NIET_KOPPELBAAR", "verplaatsen": "VERVALLEN_NIET_KOPPELBAAR",
-    }
-    assert zichtbaar["vervallen"] is True and kind_ouder == str(zichtbaar["id"])
+    fouten = asyncio.run(_run_rls(_TID, "test:bert", _flow))
+    assert fouten.get("type") == "ONGELDIGE_PLAATSING"
+    assert fouten["model"] == "MODELINHOUD_BESCHERMD"
+    assert fouten["import_ok"] is True
+    assert fouten["vervallen"] == "VERVALLEN_NIET_KOPPELBAAR"
+    assert fouten["dubbel"] == "PLAATSING_BESTAAT"
+    assert fouten["zelf"] == "CYCLISCHE_HIERARCHIE"
+    assert fouten["kring"] == "CYCLISCHE_HIERARCHIE"
 
 
 @integratie
-def test_bedrijfsfunctie_cyclus_en_verwijdergedrag_live():
+def test_bedrijfsfunctie_modelinhoud_en_verwijdergedrag_live():
+    """Modelinhoud niet bewerkbaar/verwijderbaar (422); eigen functie mét kind ⇒ 409;
+    plaatsing weghalen maakt het kind een wortel (legitiem), daarna kan verwijderen."""
     from schemas.bedrijfsfunctie import BedrijfsfunctieCreate, BedrijfsfunctieUpdate
     from services import bedrijfsfunctie_service as svc
     from services.errors import OngeldigeRegistratie, RegistratieConflict
 
     async def _flow(s):
-        ids = []
+        ids, mids = [], []
+        fouten = {}
         try:
-            a = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-BF Cyc A"))
+            mid = await _maak_model(s)
+            mids.append(mid)
+            mf = await _maak_modelfunctie(s, svc, "WT-D Model", "wt_d_model", mid)
+            ids.append(mf["id"])
+            try:
+                await svc.werk_bij(s, _TID, mf["id"], BedrijfsfunctieUpdate(naam="Hernoemd"))
+            except OngeldigeRegistratie as e:
+                fouten["bewerk"] = e.code
+            try:
+                await svc.verwijder(s, _TID, mf["id"])
+            except OngeldigeRegistratie as e:
+                fouten["verwijder_model"] = e.code
+            a = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-D Eigen"))
             ids.append(a["id"])
-            b = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-BF Cyc B", ouder_id=a["id"]))
-            ids.append(b["id"])
-            fouten = {}
-            try:
-                await svc.werk_bij(s, _TID, a["id"], BedrijfsfunctieUpdate(ouder_id=a["id"]))
-            except OngeldigeRegistratie as e:
-                fouten["self"] = e.code
-            try:
-                await svc.werk_bij(s, _TID, a["id"], BedrijfsfunctieUpdate(ouder_id=b["id"]))
-            except OngeldigeRegistratie as e:
-                fouten["kring"] = e.code
+            k = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-D Kind", ouder_id=a["id"]))
+            ids.append(k["id"])
             try:
                 await svc.verwijder(s, _TID, a["id"])
             except RegistratieConflict as e:
-                fouten["ouder_delete"] = e.code
-            # Kind eerst weg, dan ouder → mag (eigen functies).
-            await svc.verwijder(s, _TID, b["id"])
-            ids.remove(b["id"])
+                fouten["heeft_kind"] = e.code
+            # Plaatsing weghalen → kind wordt wortel → ouder is kinderloos → mag weg.
+            los = await svc.verwijder_plaatsing(s, _TID, k["id"], a["id"])
+            fouten["wortel_geworden"] = los["ouder_ids"] == []
             await svc.verwijder(s, _TID, a["id"])
             ids.remove(a["id"])
+            await svc.verwijder(s, _TID, k["id"])
+            ids.remove(k["id"])
             return fouten
         finally:
-            await _ruim(s, ids)
+            await _ruim(s, ids, mids)
 
     fouten = asyncio.run(_run_rls(_TID, "test:bert", _flow))
-    assert fouten == {
-        "self": "CYCLISCHE_HIERARCHIE", "kring": "CYCLISCHE_HIERARCHIE",
-        "ouder_delete": "HEEFT_DEELFUNCTIES",
-    }
+    assert fouten["bewerk"] == "MODELINHOUD_BESCHERMD"
+    assert fouten["verwijder_model"] == "MODELINHOUD_BESCHERMD"
+    assert fouten["heeft_kind"] == "HEEFT_DEELFUNCTIES"
+    assert fouten["wortel_geworden"] is True
 
 
 @integratie
@@ -452,7 +451,7 @@ def test_bedrijfsfunctie_rls_isolatie_live():
     from services import bedrijfsfunctie_service as svc
 
     async def _maak(s):
-        return (await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-BF RLS")))["id"]
+        return (await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P RLS")))["id"]
 
     async def _zicht(s, fid):
         return (await s.execute(_text(
@@ -469,11 +468,11 @@ def test_bedrijfsfunctie_rls_isolatie_live():
 
 @integratie
 def test_bedrijfsfunctie_audit_en_geen_engine_live():
-    """Dubbele engine-borging (live helft): aanmaken/wijzigen muteert geen
-    component_profiel/lifecycle — een bedrijfsfunctie krijgt geen profiel en de
-    profiel-telling blijft byte-gelijk. Audit-capture dekt de nieuwe entiteit."""
+    """Dubbele engine-borging (live helft) + ADR-044 1.2: de PLAATSING wordt als
+    relatie-rij geaudit (het relatie-spoor); functie-mutaties in de eigen trail; en
+    niets muteert component_profiel/lifecycle."""
     from sqlalchemy import text as _text
-    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate, BedrijfsfunctieUpdate
+    from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
     from services import bedrijfsfunctie_service as svc
 
     async def _flow(s):
@@ -481,22 +480,27 @@ def test_bedrijfsfunctie_audit_en_geen_engine_live():
         try:
             profielen_voor = (await s.execute(_text(
                 "SELECT count(*) FROM component_profiel"))).scalar()
-            f = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-BF Audit"))
-            ids.append(f["id"])
-            await svc.werk_bij(s, _TID, f["id"], BedrijfsfunctieUpdate(definitie="tekst"))
-            audit = (await s.execute(_text(
-                "SELECT count(*) FROM audit_log "
-                "WHERE entiteit_type='bedrijfsfunctie' AND entiteit_id=:i"),
-                {"i": str(f["id"])})).scalar()
-            eigen_profiel = (await s.execute(_text(
-                "SELECT count(*) FROM component_profiel WHERE id=:i"), {"i": str(f["id"])})).scalar()
+            a = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P Audit A"))
+            ids.append(a["id"])
+            b = await svc.maak_aan(s, _TID, BedrijfsfunctieCreate(naam="WT-P Audit B"))
+            ids.append(b["id"])
+            na = await svc.plaats(s, _TID, b["id"], a["id"])
+            # De plaatsing = relatie-rij → geaudit via het relatie-spoor.
+            rel_audit = (await s.execute(_text(
+                "SELECT count(*) FROM audit_log WHERE entiteit_type='relatie' "
+                "AND actie='create' AND wijziging::text LIKE :d"),
+                {"d": f'%{b["id"]}%'})).scalar()
+            f_audit = (await s.execute(_text(
+                "SELECT count(*) FROM audit_log WHERE entiteit_type='bedrijfsfunctie' "
+                "AND entiteit_id=:i"), {"i": str(a["id"])})).scalar()
             profielen_na = (await s.execute(_text(
                 "SELECT count(*) FROM component_profiel"))).scalar()
-            return audit, eigen_profiel, profielen_voor, profielen_na
+            return na, rel_audit, f_audit, profielen_voor, profielen_na
         finally:
             await _ruim(s, ids)
 
-    audit, eigen_profiel, voor, na = asyncio.run(_run_rls(_TID, "test:bert", _flow))
-    assert audit >= 2          # create + update in de trail
-    assert eigen_profiel == 0  # geen engine-state op de functie
-    assert voor == na          # de totale profiel-stand is onaangeroerd
+    na, rel_audit, f_audit, voor, na_p = asyncio.run(_run_rls(_TID, "test:bert", _flow))
+    assert [str(x) for x in na["ouder_ids"]] != []
+    assert rel_audit >= 1   # plaatsing naspeurbaar in de trail (relatie-spoor)
+    assert f_audit >= 1     # functie-create in de eigen trail
+    assert voor == na_p     # engine onaangeroerd

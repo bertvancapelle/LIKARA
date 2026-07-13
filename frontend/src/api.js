@@ -413,12 +413,17 @@ export const api = {
   // maakt uitsluitend EIGEN functies; modelinhoud is server-side read-only (422
   // MODELINHOUD_BESCHERMD — de UI toont die affordance dan ook niet).
   bedrijfsfuncties: {
-    lijst: (params = {}) => request(`/bedrijfsfuncties${_filterQuery('bedrijfsfuncties.lijst', params, ['limit', 'after', 'sort', 'order', 'zoek', 'ouder_id'])}`),
+    // ADR-044: het `ouder_id`-lijstfilter is vervallen (de boom leeft in plaatsingen;
+    // "directe deelfuncties van X" beantwoordt GET /{id}/subboom).
+    lijst: (params = {}) => request(`/bedrijfsfuncties${_filterQuery('bedrijfsfuncties.lijst', params, ['limit', 'after', 'sort', 'order', 'zoek'])}`),
     haal: (id) => request(`/bedrijfsfuncties/${id}`),
     maak: (data) => request('/bedrijfsfuncties', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/bedrijfsfuncties/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/bedrijfsfuncties/${id}`, { method: 'DELETE' }),
     subboom: (id) => request(`/bedrijfsfuncties/${id}/subboom`),
+    // ADR-044 — plaatsingen: hang een functie (óók) onder een ouder / haal één plek weg.
+    plaats: (id, data) => request(`/bedrijfsfuncties/${id}/plaatsingen`, { method: 'POST', body: JSON.stringify(data) }),
+    verwijderPlaatsing: (id, ouderId) => request(`/bedrijfsfuncties/${id}/plaatsingen/${ouderId}`, { method: 'DELETE' }),
   },
   deliverables: {
     lijst: (params = {}) => request(`/deliverables${_filterQuery('deliverables.lijst', params, ['limit', 'after'])}`),

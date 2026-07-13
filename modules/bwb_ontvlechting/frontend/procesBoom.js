@@ -42,6 +42,46 @@ export function procesBoomStructuur(ids, hierEdges, naamVan = (id) => String(id)
 }
 
 /**
+ * meervoudBoomStructuur — de MEERVOUDIGE-OUDERS-variant (ADR-044: de bedrijfsfunctieboom
+ * leeft in plaatsingen; één functie kan onder meerdere ouders staan, alle gelijkwaardig).
+ *
+ * Zelfde module, zelfde sorteer-/determinisme-semantiek als `procesBoomStructuur` — maar
+ * ZONDER de dubbele-ouder-guard: élke (kind, ouder)-plaatsing telt (dubbele identieke
+ * paren worden ontdubbeld). `procesBoomStructuur` blijft ongewijzigd de bron voor de
+ * één-ouder-werelden (processen, kaart-proceszone) waar één ouder de waarheid ís.
+ *
+ * Let op voor lopers over deze structuur: het is een DAG — een kind kan onder meerdere
+ * ouders (en dus meermaals in een render) verschijnen. Elke traversal draagt zijn eigen
+ * pad-guard zodat een (niet zou mogen bestaan) datakring nooit hangt.
+ *
+ * @param {Set<string>} ids
+ * @param {Array<{bron: string, doel: string}>} hierEdges  plaatsings-paren kind→ouder
+ * @param {(id: string) => string} naamVan
+ * @returns {{ wortels: string[], oudersVan: Map<string, string[]>, kinderenVan: Map<string, string[]> }}
+ */
+export function meervoudBoomStructuur(ids, hierEdges, naamVan = (id) => String(id)) {
+  const oudersVan = new Map()
+  const kinderenVan = new Map()
+  if (!ids || !ids.size) return { wortels: [], oudersVan, kinderenVan }
+  const gezien = new Set()
+  for (const e of hierEdges || []) {
+    if (!ids.has(e.bron) || !ids.has(e.doel) || e.bron === e.doel) continue
+    const paar = `${e.bron}\u0000${e.doel}`
+    if (gezien.has(paar)) continue
+    gezien.add(paar)
+    if (!oudersVan.has(e.bron)) oudersVan.set(e.bron, [])
+    oudersVan.get(e.bron).push(e.doel)
+    if (!kinderenVan.has(e.doel)) kinderenVan.set(e.doel, [])
+    kinderenVan.get(e.doel).push(e.bron)
+  }
+  const sorteer = (a, b) => (naamVan(a) || '').localeCompare(naamVan(b) || '', 'nl') || String(a).localeCompare(String(b))
+  for (const lijst of kinderenVan.values()) lijst.sort(sorteer)
+  for (const lijst of oudersVan.values()) lijst.sort(sorteer)
+  const wortels = [...ids].filter((id) => !oudersVan.has(id)).sort(sorteer)
+  return { wortels, oudersVan, kinderenVan }
+}
+
+/**
  * Boom-layout van de kaart-proceszone: per knoop een (rij, kolom)-plek.
  * @returns {{ rij: Map<string, number>, kolom: Map<string, number>, rijen: number, kolommen: number }}
  */

@@ -745,40 +745,38 @@ class Referentiemodel(Base, TenantMixin, TimestampMixin):
 
 
 class Bedrijfsfunctie(Base, TenantMixin, TimestampMixin):
-    """ADR-043 gate 1a — bedrijfsfunctie-element: de logische ruggengraat van de kaart
-    (wat de organisatie hóórt te doen — GEMMA Basisarchitectuur), nestbaar van grof naar
-    fijn (de plek in de boom ís het niveau; topgroeperingen zijn gewone wortelknopen).
-    Element-subtype (shared-PK via composiet-FK `(tenant_id, id)` → `element`, FORCE RLS
-    via de migratie) — het proces-recept (0057) 1-op-1, plus drie ADR-043-eigen velden:
+    """ADR-043 gate 1a / ADR-044 gate 1a-bis — bedrijfsfunctie-element: de logische
+    ruggengraat van de kaart (wat de organisatie hóórt te doen — GEMMA
+    Basisarchitectuur). Element-subtype (shared-PK via composiet-FK `(tenant_id, id)` →
+    `element`, FORCE RLS via de migratie), plus de ADR-043-eigen velden:
 
     - **Herkomst** (`bron_model_id` + `bron_sleutel`): beide gezet = modelinhoud (naam/
-      definitie/ouder read-only, bijgewerkt door een herinlees op de bronsleutel — nooit
-      op naam); beide leeg = eigen functie van de gemeente (een import raakt haar nooit
-      aan). Samen-gezet-of-samen-leeg is een CHECK (harde invariant → schema);
+      definitie/plaatsing read-only, bijgewerkt door een herinlees op de bronsleutel —
+      nooit op naam); beide leeg = eigen functie van de gemeente (een import raakt haar
+      nooit aan). Samen-gezet-of-samen-leeg is een CHECK (harde invariant → schema);
       `UNIQUE(tenant_id, bron_model_id, bron_sleutel)` dwingt uniciteit alléén op
       niet-NULL af (NULL is distinct — het `checklistvraag.betekenis`-precedent).
     - **`vervallen`** (besluit LI039-6): "bestaat niet meer in het ingelezen model" —
-      zichtbaar blijven mét markering, NIET meer koppelbaar (nieuwe kinderen/koppelingen
-      geweigerd in de service); nooit hard verwijderen (CASCADE zou eigen registratie
-      meesleuren). Eerste soft-deactivate op een element i.p.v. een catalogus.
+      zichtbaar blijven mét markering, NIET meer koppelbaar; nooit hard verwijderen.
 
-    `ouder_id` = composiet self-FK met **ON DELETE RESTRICT** (subboom nooit stilzwijgend
-    wegvagen); cycluspreventie in de servicelaag, de DB-CHECK weert de directe
-    self-parent. Puur registratief — geen engine-koppeling (score blijft de enige
+    **ADR-044 — de boom is GEEN kolom meer.** De vroegere `ouder_id`-self-FK is
+    verwijderd (migratie 0063): de plaatsing ("functie hoort onder functie") is een
+    eerste-klas feit, gedragen door **`aggregation`-relaties** (bron = ouder/geheel,
+    doel = kind/deel) in het unified relatiemodel, via de dunne facade in
+    `bedrijfsfunctie_service` (plateau-spiegel). Eén functie kan daardoor op MEERDERE
+    plekken staan (GEMMA: 7 functies met 2–4 ouders); `UNIQUE(tenant, bron, doel, type)`
+    borgt precies één plaatsing per (ouder, functie)-paar. Cycluspreventie blijft
+    servicelaag. Puur registratief — geen engine-koppeling (score blijft de enige
     lifecycle-driver)."""
 
     __tablename__ = "bedrijfsfunctie"
     __table_args__ = (
-        # Composiet-FK-target voor de self-FK (tenant-consistent).
+        # Composiet-FK-target (tenant-consistent; o.a. voor toekomstige verfijnings-ankers).
         UniqueConstraint("tenant_id", "id", name="uq_bedrijfsfunctie_tenant_id"),
         # Bronsleutel = identiteit binnen één ingelezen model; NULL distinct ⇒ onbeperkt
         # veel eigen functies (geen partial index nodig — betekenis-precedent).
         UniqueConstraint(
             "tenant_id", "bron_model_id", "bron_sleutel", name="uq_bedrijfsfunctie_bron"
-        ),
-        CheckConstraint(
-            "ouder_id IS NULL OR ouder_id <> id",
-            name="ck_bedrijfsfunctie_geen_self_parent",
         ),
         # Herkomst is een paar: model + sleutel samen gezet, of samen leeg (eigen functie).
         CheckConstraint(
@@ -788,10 +786,6 @@ class Bedrijfsfunctie(Base, TenantMixin, TimestampMixin):
         ForeignKeyConstraint(
             ["tenant_id", "id"], ["element.tenant_id", "element.id"],
             name="fk_bedrijfsfunctie_element", ondelete="CASCADE",
-        ),
-        ForeignKeyConstraint(
-            ["tenant_id", "ouder_id"], ["bedrijfsfunctie.tenant_id", "bedrijfsfunctie.id"],
-            name="fk_bedrijfsfunctie_ouder", ondelete="RESTRICT",
         ),
         # Een ingelezen model met functies verdwijnt niet stil (geen delete-endpoint;
         # RESTRICT is de backstop — een vervallen model blijft resolvebaar).
@@ -805,7 +799,6 @@ class Bedrijfsfunctie(Base, TenantMixin, TimestampMixin):
     id: Mapped[uuid.UUID] = _pk()
     naam: Mapped[str] = mapped_column(String(255), nullable=False)
     definitie: Mapped[str | None] = mapped_column(Text, nullable=True)
-    ouder_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     bron_model_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     bron_sleutel: Mapped[str | None] = mapped_column(String(120), nullable=True)
     vervallen: Mapped[bool] = mapped_column(

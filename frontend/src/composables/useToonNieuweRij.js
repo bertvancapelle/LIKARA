@@ -43,7 +43,12 @@ export function scrolNaarRij(el) {
 export function useAanstip(duurMs = _AANSTIP_MS) {
   const aangestiptId = ref(null)
   let timer = null
-  function aanstip(id) {
+  // `doelSelector` (optioneel, ADR-044): scroll naar déze specifieke rij i.p.v. de eerste
+  // `.lk-aangestipt`. Nodig zodra één functie op meerdere plekken staat: álle
+  // verschijningen lichten op (functie-brede aanstip), maar de scroll moet naar de
+  // plek waar de handeling om vroeg — anders "wint" een al-zichtbare verschijning en
+  // beweegt er niets.
+  function aanstip(id, doelSelector = null) {
     if (timer) clearTimeout(timer)
     aangestiptId.value = id == null ? null : String(id)
     if (id != null) {
@@ -53,14 +58,15 @@ export function useAanstip(duurMs = _AANSTIP_MS) {
       // aanstip zegt WELKE rij, de scroll brengt je erheen — samen zijn ze het antwoord.
       nextTick(() => {
         if (typeof document === 'undefined') return
-        scrolNaarRij(document.querySelector('.lk-aangestipt'))
+        const doel = doelSelector ? document.querySelector(doelSelector) : null
+        scrolNaarRij(doel || document.querySelector('.lk-aangestipt'))
       })
     }
   }
   return { aangestiptId, aanstip }
 }
 
-export function useToonInBoom({ openTakken, zoekterm, matcht, ouderVan, wijkTekst }) {
+export function useToonInBoom({ openTakken, zoekterm, matcht, ouderVan, wijkTekst, padVan = null }) {
   const { aangestiptId, aanstip } = useAanstip()
   const wijkMelding = ref(null)
 
@@ -76,17 +82,27 @@ export function useToonInBoom({ openTakken, zoekterm, matcht, ouderVan, wijkTeks
     wijkMelding.value = null
   })
 
-  function toonRij(id) {
+  // ADR-044 — `padVan(id, doelPlek)` (optioneel): in een boom waar één rij op MEERDERE
+  // plekken kan staan (plaatsingen) zijn de open-sleutels plék-sleutels, geen rij-ids.
+  // De consument levert dan zelf de te openen sleutels; `doelPlek` (optioneel op
+  // toonRij) mikt op één specifieke verschijning — de aanstip blijft rij-breed (álle
+  // verschijningen lichten op), de scroll gaat naar de gevraagde plek.
+  function toonRij(id, doelPlek = null) {
     if (id == null) return
     const rijId = String(id)
-    // 1. Pad openklappen — ouderketen omhoog, cyclus-veilig (visited-set).
+    // 1. Pad openklappen — via de consument-eigen plek-sleutels (padVan), of de
+    //    klassieke ouderketen omhoog (cyclus-veilig, visited-set).
     const open = new Set(openTakken.value)
-    const bezocht = new Set([rijId])
-    let cur = ouderVan(rijId)
-    while (cur != null && !bezocht.has(String(cur))) {
-      bezocht.add(String(cur))
-      open.add(String(cur))
-      cur = ouderVan(String(cur))
+    if (padVan) {
+      for (const sleutel of padVan(rijId, doelPlek) || []) open.add(String(sleutel))
+    } else {
+      const bezocht = new Set([rijId])
+      let cur = ouderVan(rijId)
+      while (cur != null && !bezocht.has(String(cur))) {
+        bezocht.add(String(cur))
+        open.add(String(cur))
+        cur = ouderVan(String(cur))
+      }
     }
     openTakken.value = [...open]
     // 2. Zoekterm wijkt zichtbaar als hij de rij zou verbergen — nooit stil.
@@ -95,8 +111,9 @@ export function useToonInBoom({ openTakken, zoekterm, matcht, ouderVan, wijkTeks
       zoekterm.value = ''
       wijkMelding.value = wijkTekst
     }
-    // 3. Korte aanstip in de bestaande "kijk hier"-taal.
-    aanstip(rijId)
+    // 3. Korte aanstip in de bestaande "kijk hier"-taal; bij een expliciete doel-plek
+    //    scrolt de aanstip naar díé verschijning.
+    aanstip(rijId, doelPlek ? `[data-plek="${String(doelPlek).replace(/"/g, '\\"')}"]` : null)
   }
 
   return { aangestiptId, wijkMelding, toonRij }

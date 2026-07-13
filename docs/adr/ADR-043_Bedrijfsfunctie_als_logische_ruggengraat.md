@@ -1,6 +1,10 @@
 # ADR-043 — Bedrijfsfunctie als logische ruggengraat (herijking ADR-042)
 
-**Status:** Besloten (LI038; subknopen beslist LI039)
+**Status:** Besloten (LI038; subknopen beslist LI039) — **deels herijkt door ADR-044**
+(plaatsing als eerste-klas feit: de boom = aggregation-plaatsingen met mogelijk meerdere
+ouders; de koppeling wordt *(component, plaatsing)*; het grof-signaal en het gap-signaal
+hangen aan de plaatsing. Onaangeroerd: bronsleutel, vervallen ≠ verwijderen,
+modelinhoud-read-only, aanbod gesloten, procesregister verborgen, engine-invariant.)
 **Datum:** 2026-07-12
 **Herijkt:** ADR-042 (procesregister als "waarvoor"-as; bedrijfsfunctie-as bewust geparkeerd)
 **Grond:** `docs/Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md` +

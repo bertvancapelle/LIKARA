@@ -1,10 +1,10 @@
-"""HTTP-routes — Bedrijfsfunctie (ADR-043 gate 1a).
+"""HTTP-routes — Bedrijfsfunctie (ADR-043 gate 1a; ADR-044 gate 1a-bis).
 
 Dunne handlers; RBAC via `vereist_permissie(Entiteit.BEDRIJFSFUNCTIE, …)`. CRUD +
-verplaatsen (ouder wijzigen, met server-side cycluspreventie + vervallen-guard) + een
-subboom-lees-traversal. De ADR-043-regels (modelinhoud read-only, vervallen niet
-koppelbaar) handhaaft de service — de route voegt daar niets aan toe. Statische
-subpaden vóór de dynamische `/{functie_id}` (route-volgorde-norm).
+plaatsings-endpoints (ADR-044: de boom leeft in aggregation-plaatsingen; meerdere
+ouders mogelijk) + een subboom-lees-traversal. De regels (modelinhoud read-only,
+vervallen niet koppelbaar, cycluspreventie) handhaaft de service — de route voegt daar
+niets aan toe. Statische subpaden vóór de dynamische `/{functie_id}` (route-volgorde-norm).
 """
 import uuid
 
@@ -23,6 +23,7 @@ from schemas.bedrijfsfunctie import (
     BedrijfsfunctieRead,
     BedrijfsfunctieSorteerveld,
     BedrijfsfunctieUpdate,
+    PlaatsingCreate,
 )
 from services import bedrijfsfunctie_service as svc
 from services.pagination import Sorteerrichting
@@ -44,14 +45,15 @@ async def lijst_bedrijfsfuncties(
     sort: BedrijfsfunctieSorteerveld = Query(BedrijfsfunctieSorteerveld.created_at),
     order: Sorteerrichting = Query(Sorteerrichting.asc),
     zoek: str | None = Query(None, max_length=255),
-    ouder_id: uuid.UUID | None = Query(None),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.BEDRIJFSFUNCTIE, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
+    # ADR-044: het vroegere `ouder_id`-filter is vervallen — "directe deelfuncties van X"
+    # is een plaatsings-vraag en wordt beantwoord door GET /{id}/subboom (niveau 1).
     try:
         items, volgende = await svc.lijst(
             session, user.tenant_id, limit=limit, after=after,
-            sort=sort.value, order=order.value, zoek=zoek, ouder_id=ouder_id,
+            sort=sort.value, order=order.value, zoek=zoek,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De opgegeven paginacursor is ongeldig.")
@@ -86,6 +88,33 @@ async def subboom(
 ):
     """Read-only subboom (deelfuncties op alle niveaus, met niveau + pad + vervallen)."""
     return await svc.subboom(session, user.tenant_id, functie_id)
+
+
+@router.post("/{functie_id}/plaatsingen", response_model=BedrijfsfunctieRead, status_code=201)
+async def plaats_bedrijfsfunctie(
+    functie_id: uuid.UUID,
+    body: PlaatsingCreate,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.BEDRIJFSFUNCTIE, Actie.WIJZIGEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-044 — plaatsing toevoegen: hang deze functie (óók) onder `ouder_id`. Meerdere
+    ouders = meerdere plaatsingen, alle gelijkwaardig. Alleen op eigen functies (de
+    plaatsingen van modelinhoud komen uit de bron — 422 MODELINHOUD_BESCHERMD)."""
+    return await svc.plaats(session, user.tenant_id, functie_id, body.ouder_id)
+
+
+@router.delete("/{functie_id}/plaatsingen/{ouder_id}", response_model=BedrijfsfunctieRead)
+async def verwijder_plaatsing(
+    functie_id: uuid.UUID,
+    ouder_id: uuid.UUID,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.BEDRIJFSFUNCTIE, Actie.WIJZIGEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-044 — één plaatsing weghalen (de functie blijft bestaan; zonder plaatsingen
+    wordt ze een wortel). Guard op WIJZIGEN: een plaatsing weghalen is een
+    structuurwijziging van de functie, geen destructie (het roltoewijzing-/
+    procesvervulling-precedent)."""
+    return await svc.verwijder_plaatsing(session, user.tenant_id, functie_id, ouder_id)
 
 
 @router.patch("/{functie_id}", response_model=BedrijfsfunctieRead)

@@ -99,12 +99,22 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('ouder_id=p-1')
   })
 
-  it('ADR-043: bedrijfsfuncties.lijst zet zoek/sort/order/ouder_id in de URL', async () => {
-    await api.bedrijfsfuncties.lijst({ zoek: 'dienst', sort: 'naam', order: 'asc', ouder_id: 'f-1' })
+  it('ADR-043/044: bedrijfsfuncties.lijst zet zoek/sort/order in de URL', async () => {
+    await api.bedrijfsfuncties.lijst({ zoek: 'dienst', sort: 'naam', order: 'asc' })
     expect(laatsteUrl).toContain('/bedrijfsfuncties')
     expect(laatsteUrl).toContain('zoek=dienst')
     expect(laatsteUrl).toContain('sort=naam')
-    expect(laatsteUrl).toContain('ouder_id=f-1')
+    expect(laatsteUrl).toContain('order=asc')
+  })
+
+  it('ADR-044: bedrijfsfuncties.plaats/verwijderPlaatsing raken de plaatsings-endpoints', async () => {
+    await api.bedrijfsfuncties.plaats('f-1', { ouder_id: 'f-2' })
+    expect(laatsteUrl).toContain('/bedrijfsfuncties/f-1/plaatsingen')
+    expect(laatsteOpties.method).toBe('POST')
+    expect(JSON.parse(laatsteOpties.body)).toEqual({ ouder_id: 'f-2' })
+    await api.bedrijfsfuncties.verwijderPlaatsing('f-1', 'f-2')
+    expect(laatsteUrl).toContain('/bedrijfsfuncties/f-1/plaatsingen/f-2')
+    expect(laatsteOpties.method).toBe('DELETE')
   })
 })
 
@@ -137,7 +147,13 @@ describe('api-client — onbekende filter-key faalt LUID (geen stille drop)', ()
     )
   })
 
-  it('ADR-043: bedrijfsfuncties.lijst met camelCase ouderId gooit LUID', () => {
+  it('ADR-044: bedrijfsfuncties.lijst met het VERVALLEN ouder_id-filter gooit LUID', () => {
+    // Het lijst-filter is met ADR-044 vervallen (plaatsingen dragen de boom; "directe
+    // deelfuncties" beantwoordt GET /{id}/subboom) — een achtergebleven aanroep faalt
+    // luid i.p.v. stil ongefilterd op te halen.
+    expect(() => api.bedrijfsfuncties.lijst({ ouder_id: 'f-1' })).toThrow(
+      /onbekende filter-parameter 'ouder_id' voor bedrijfsfuncties\.lijst/,
+    )
     expect(() => api.bedrijfsfuncties.lijst({ ouderId: 'f-1' })).toThrow(
       /onbekende filter-parameter 'ouderId' voor bedrijfsfuncties\.lijst/,
     )

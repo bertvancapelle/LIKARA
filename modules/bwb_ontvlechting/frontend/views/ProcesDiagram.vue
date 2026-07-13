@@ -21,6 +21,8 @@
  * platte `{id, naam, ouder_id}`-rijen; de proces-huid is de DEFAULT zodat het processen-
  * scherm ongewijzigd blijft (geen tweede kopie — de bouwsteen-kernles LI038):
  * - `items` = de generieke rijen-prop (valt terug op de historische `processen`-prop);
+ *   rijen met `ouder_ids` (ADR-044, meervoudige plaatsingen) tekenen een lijn per ouder
+ *   en de popup benoemt het meervoud; rijen met enkelvoudig `ouder_id` blijven identiek;
  * - `teksten` = de schermtaal (zoektitel/placeholder/leeg/wortel/landschap/detail/cue);
  * - `gapIds` = generieke RUSTIGE-CUE-set (dashed rand + popup-badge; het label komt uit
  *   `teksten.gap` — processen: "geen ondersteunend systeem", functies: vervallen-markering);
@@ -107,8 +109,13 @@ const centrumId = ref(null)
 const _byId = computed(() => new Map(_rijen.value.map((p) => [p.id, p])))
 const naamVan = (id) => _byId.value.get(id)?.naam || String(id)
 const alleIds = computed(() => new Set(_rijen.value.map((p) => p.id)))
+// ADR-044 — meervoudige ouders: rijen met `ouder_ids` (bedrijfsfuncties: álle plaatsingen)
+// leveren een edge per ouder; rijen met enkelvoudig `ouder_id` (processen) blijven exact
+// zoals ze waren. De layout hangt de knoop onder zijn eerste ouder (de structuur-guard),
+// maar ÁLLE plaatsings-lijnen worden getekend — het meervoud is zichtbaar in het beeld.
+const _oudersLijst = (p) => (Array.isArray(p.ouder_ids) ? p.ouder_ids : (p.ouder_id ? [p.ouder_id] : []))
 const hierEdges = computed(() =>
-  _rijen.value.filter((p) => p.ouder_id).map((p) => ({ bron: p.id, doel: p.ouder_id })))
+  _rijen.value.flatMap((p) => _oudersLijst(p).map((o) => ({ bron: p.id, doel: o }))))
 
 // LI038 gate 2 — "Toon hele processenlandschap": de uitzoom-tegenhanger BINNEN dit beeld
 // (alle bomen naast elkaar, nog steeds strikt proces-only). Een nieuwe proces-keuze zet het
@@ -160,10 +167,23 @@ const geselecteerdId = ref(null) // draagt de oranje selectie (knoop + aanliggen
 const popupId = ref(null) // de popup hoort bij een klik; null = dicht
 const popupProces = computed(() => (popupId.value ? _byId.value.get(popupId.value) || null : null))
 // Ouder-map over de volledige set (voor de plek-in-woorden; onafhankelijk van de focus-zeef).
+// Bij meervoudige ouders (ADR-044) draagt de keten de EERSTE ouder — dezelfde die de
+// structuur/layout gebruikt; het meervoud zelf wordt apart benoemd (popupOuders hieronder).
 const _ouderVan = computed(() => {
   const m = new Map()
-  for (const p of _rijen.value) if (p.ouder_id) m.set(p.id, p.ouder_id)
+  for (const p of _rijen.value) {
+    const ouders = _oudersLijst(p)
+    if (ouders.length) m.set(p.id, ouders[0])
+  }
   return m
+})
+// ADR-044 — álle directe ouders van de popup-knoop (gelijkwaardig, geen rangorde). Bij
+// meervoud benoemt de popup dat expliciet ("staat onder X en Y") i.p.v. één keten.
+const popupOuders = computed(() => {
+  if (!popupId.value) return []
+  const p = _byId.value.get(popupId.value)
+  if (!p) return []
+  return _oudersLijst(p).map((id) => _byId.value.get(id)).filter(Boolean)
 })
 // De ouderketen van de popup, van de wortel naar de directe ouder (visited-guard: nooit hangen).
 const popupPad = computed(() => {
@@ -494,9 +514,23 @@ defineExpose({
             @click="sluitPopup"
           >×</button>
         </div>
-        <!-- Plek in woorden: de ouderketen van wortel naar directe ouder, elk klikbaar
-             (klik = die knoop inspecteren — dezelfde enkelklik-semantiek als op de kaartknoop). -->
-        <p v-if="popupPad.length" data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+        <!-- Plek in woorden. ADR-044 — bij MEERDERE plekken benoemt de popup het meervoud
+             expliciet ("staat onder X en Y", alle gelijkwaardig, elk klikbaar); bij één
+             plek de vertrouwde ouderketen van wortel naar directe ouder (elk klikbaar —
+             dezelfde enkelklik-semantiek als op de kaartknoop). -->
+        <p v-if="popupOuders.length > 1" data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+          staat onder
+          <template v-for="(v, i) in popupOuders" :key="v.id">
+            <span v-if="i">{{ i === popupOuders.length - 1 ? ' en ' : ', ' }}</span>
+            <button
+              type="button"
+              class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+              :data-testid="`diagram-popup-pad-${v.id}`"
+              @click="selecteer(v.id)"
+            >{{ v.naam }}</button>
+          </template>
+        </p>
+        <p v-else-if="popupPad.length" data-testid="diagram-popup-plek" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
           onder
           <template v-for="(v, i) in popupPad" :key="v.id">
             <span v-if="i"> › </span>

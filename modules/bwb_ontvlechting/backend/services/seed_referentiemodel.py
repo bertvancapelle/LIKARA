@@ -11,12 +11,15 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from models.models import ReferentiemodelOptie
 
+# Bekrachtigd (LI039): navolgbare herkomst — bron-repository + bestand + licentie; het
+# versielabel is de release-datum van de export (het bestand zelf draagt geen nummer).
 _MODELLEN: list[tuple[str, str, str, str]] = [
     (
         "gemma_bedrijfsfuncties",
         "GEMMA Bedrijfsfuncties",
-        "VNG Realisatie — GEMMA Basisarchitectuur (gemmaonline.nl)",
-        "GEMMA 2 (2025)",
+        "VNG-Realisatie/GEMMA-Archi-repository (github.com/VNG-Realisatie/"
+        "GEMMA-Archi-repository, export/GEMMA release.xml) — licentie EUPL",
+        "release 1 juli 2026",
     ),
 ]
 

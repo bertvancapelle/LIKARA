@@ -1660,30 +1660,39 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         except RegistratieConflict:
             pass  # idempotent: het tripel bestaat al
 
-    # ── 16. Bedrijfsfunctie-as (ADR-043 gate 1a) ──
-    # Eén ingelezen referentiemodel-instantie (GEMMA) + een kleine GEMMA-achtige
-    # functieboom: de drie topgroeperingen als gewone wortels (besluit LI039-4), per
-    # wortel een paar functies en één niveau daaronder. Model-functies dragen een
-    # bronsleutel (identiteit — idempotent get-or-create op sleutel, LI037-les: vaste
-    # identiteit, nooit "de eerstvolgende rij"); één functie is bewust VERVALLEN
-    # (markering zichtbaar, niet koppelbaar) en één functie is EIGEN (geen bronsleutel
-    # → in de browser bewerkbaar, het verschil met read-only modelinhoud).
+    # ── 16. Bedrijfsfunctie-as (ADR-043 gate 1a; ADR-044 gate 1a-bis) ──
+    # Eén ingelezen referentiemodel-instantie (GEMMA, bekrachtigde herkomst) + een
+    # kleine, REALISTISCHE GEMMA-boom (echte functienamen; de verzonnen driedeling
+    # Besturend/Primair/Ondersteunend bestaat in de bron niet en is verdwenen). De boom
+    # leeft in PLAATSINGEN (aggregation-relaties, ADR-044): mét het "Toezicht"-geval —
+    # één functie onder TWEE ouders — plus één vervallen en één eigen functie.
+    # Idempotent: functies get-or-create op bronsleutel (vaste identiteit, LI037-les);
+    # plaatsingen get-or-create op het (ouder, kind)-paar.
     from models.models import Bedrijfsfunctie as _Bfunc
     from models.models import Referentiemodel as _Refmodel
     from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
+    from services.errors import RegistratieConflict as _RegConflict
 
+    _RM_NAAM = "GEMMA Bedrijfsfuncties"
+    _RM_VERSIE = "release 1 juli 2026"  # bekrachtigd label (LI039)
     refmodel = (await session.execute(
         select(_Refmodel).where(_Refmodel.model_sleutel == "gemma_bedrijfsfuncties")
     )).scalar_one_or_none()
     if refmodel is None:
         refmodel = _Refmodel(
             tenant_id=tid, model_sleutel="gemma_bedrijfsfuncties",
-            naam="GEMMA Bedrijfsfuncties", versie="GEMMA 2 (2025)",
+            naam=_RM_NAAM, versie=_RM_VERSIE,
         )
         session.add(refmodel)
         await session.commit()
         await session.refresh(refmodel)
         telling["referentiemodellen"] += 1
+    elif refmodel.naam != _RM_NAAM or refmodel.versie != _RM_VERSIE:
+        # Label-bijwerking (het verzonnen "GEMMA 2 (2025)" → bekrachtigde herkomst).
+        refmodel.naam = _RM_NAAM
+        refmodel.versie = _RM_VERSIE
+        await session.commit()
+        await session.refresh(refmodel)
 
     bf_per_sleutel = {
         r.bron_sleutel: r
@@ -1692,14 +1701,13 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         )).scalars().all()
     }
 
-    async def _modelfunctie(sleutel, naam, definitie, ouder_sleutel=None, vervallen=False):
+    async def _modelfunctie(sleutel, naam, definitie, vervallen=False):
         """Get-or-create op de bronsleutel (de identiteit — nooit op naam)."""
         bestaand = bf_per_sleutel.get(sleutel)
         if bestaand is not None:
             return bestaand.id
-        ouder_id = bf_per_sleutel[ouder_sleutel].id if ouder_sleutel else None
         obj = await bedrijfsfunctie_service.maak_aan(
-            session, tid, BedrijfsfunctieCreate(naam=naam, definitie=definitie, ouder_id=ouder_id),
+            session, tid, BedrijfsfunctieCreate(naam=naam, definitie=definitie),
             bron_model_id=refmodel.id, bron_sleutel=sleutel,
         )
         rij = await bedrijfsfunctie_service.haal_op(session, tid, obj["id"])
@@ -1713,45 +1721,79 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         telling["bedrijfsfuncties"] += 1
         return rij.id
 
-    # Wortels = de drie topgroeperingen (gewone wortelknopen, geen apart begrip).
-    await _modelfunctie("besturend", "Besturend",
-                        "Richting geven aan de organisatie: strategie, beleid en verantwoording.")
-    await _modelfunctie("primair", "Primair",
-                        "De kernactiviteiten waarvoor de gemeente bestaat: dienstverlening aan burgers en bedrijven.")
-    await _modelfunctie("ondersteunend", "Ondersteunend",
-                        "Alles wat de primaire functies mogelijk maakt: bedrijfsvoering en informatievoorziening.")
-    # Besturend — twee functies + één verdieping.
-    await _modelfunctie("strategie_beleid", "Strategie en beleid",
-                        "Ontwikkelen en vaststellen van strategie en beleid.", "besturend")
-    await _modelfunctie("sturing_verantwoording", "Sturing en verantwoording",
-                        "Sturen op resultaat en verantwoorden over de uitvoering.", "besturend")
-    await _modelfunctie("beleidsontwikkeling", "Beleidsontwikkeling",
-                        "Vertalen van maatschappelijke opgaven naar concreet beleid.", "strategie_beleid")
-    # Primair — twee functies + verdieping.
-    await _modelfunctie("dienstverlening", "Dienstverlening",
-                        "Leveren van producten en diensten aan burgers en bedrijven.", "primair")
-    await _modelfunctie("vergunning_handhaving", "Vergunningverlening en handhaving",
-                        "Beoordelen van aanvragen, verlenen van vergunningen en toezien op naleving.", "primair")
-    await _modelfunctie("klantcontact", "Klantcontact",
-                        "Afhandelen van vragen en contacten via alle kanalen.", "dienstverlening")
-    await _modelfunctie("burgerzaken_f", "Burgerzaken",
-                        "Registreren van en informeren over persoonsgegevens en levensgebeurtenissen.", "dienstverlening")
-    # Ondersteunend — twee functies + verdieping.
-    await _modelfunctie("informatievoorziening", "Informatievoorziening",
-                        "Beschikbaar stellen en beheren van informatie en informatiesystemen.", "ondersteunend")
-    await _modelfunctie("bedrijfsvoering", "Bedrijfsvoering",
-                        "Ondersteunende processen: financiën, personeel, facilitair.", "ondersteunend")
-    await _modelfunctie("financien", "Financiën",
-                        "Begroten, betalen, innen en verantwoorden van geldstromen.", "bedrijfsvoering")
-    await _modelfunctie("hrm", "HRM",
-                        "Werven, ontwikkelen en beheren van personeel.", "bedrijfsvoering")
+    async def _plaatsing(kind_id, ouder_id):
+        """Get-or-create op het (ouder, kind)-paar — via het import-pad (modelinhoud)."""
+        try:
+            await bedrijfsfunctie_service.plaats(session, tid, kind_id, ouder_id, via_import=True)
+        except _RegConflict:
+            pass  # idempotent: de plaatsing bestaat al
+
+    # Functies (echte GEMMA-namen; subset). Wortels = échte GEMMA-wortels.
+    f = {}
+    f["uitvoering"] = await _modelfunctie(
+        "uitvoering", "Uitvoering",
+        "Het uitvoeren van gemeentelijke taken en het leveren van producten en diensten.")
+    f["kki"] = await _modelfunctie(
+        "klant_keteninteractie", "Klant- en keteninteractie",
+        "Het interacteren met klanten en ketenpartners over aanvragen, leveringen en informatie.")
+    f["sturing"] = await _modelfunctie(
+        "sturing", "Sturing",
+        "Het richting geven aan de organisatie: strategie, kaders en verantwoording.")
+    f["ondersteuning"] = await _modelfunctie(
+        "ondersteuning", "Ondersteuning",
+        "Het ondersteunen van de organisatie met mensen, middelen en informatie.")
+    f["thfl"] = await _modelfunctie(
+        "toezicht_handhaving_fysieke_leefomgeving", "Toezicht en handhaving fysieke leefomgeving",
+        "Het toezien op en handhaven van regels in de fysieke leefomgeving.")
+    f["thpd"] = await _modelfunctie(
+        "toezicht_handhaving_publieksdiensten", "Toezicht en handhaving Publieksdiensten",
+        "Het toezien op en handhaven van regels binnen de publieksdienstverlening.")
+    # HET MEERVOUD-GEVAL (ADR-044): "Toezicht" hangt onder BEIDE domein-varianten —
+    # één functie, twee plekken, gelijkwaardig (in de echte GEMMA zelfs vier).
+    f["toezicht"] = await _modelfunctie(
+        "toezicht", "Toezicht",
+        "Het controleren of regels en afspraken worden nageleefd.")
+    f["handhaving"] = await _modelfunctie(
+        "handhaving", "Handhaving",
+        "Het optreden bij geconstateerde overtredingen om naleving af te dwingen.")
+    f["ontvangst"] = await _modelfunctie(
+        "ontvangst", "Ontvangst",
+        "Het in ontvangst nemen van aanvragen, meldingen en gegevens van klanten en ketenpartners.")
+    f["verstrekking"] = await _modelfunctie(
+        "verstrekking", "Verstrekking",
+        "Het verstrekken van producten, diensten en informatie aan klanten en ketenpartners.")
+    f["afrekening"] = await _modelfunctie(
+        "afrekening", "Afrekening",
+        "Het afrekenen van geleverde producten en diensten.")
+    f["besturing"] = await _modelfunctie(
+        "besturing", "Besturing",
+        "Het besturen van de organisatie op basis van beleid en kaders.")
+    f["adm_ondersteuning"] = await _modelfunctie(
+        "administratieve_ondersteuning", "Administratieve ondersteuning",
+        "Het administratief ondersteunen van de organisatie.")
     # LI039-6-demo — vervallen model-functie: zichtbaar mét markering, niet koppelbaar.
-    await _modelfunctie("regionale_samenwerking", "Regionale samenwerking",
-                        "Vervallen in de nieuwe modelversie — bestaande registratie blijft zichtbaar.",
-                        "besturend", vervallen=True)
+    f["reg_samenwerking"] = await _modelfunctie(
+        "regionale_samenwerking", "Regionale samenwerking",
+        "Vervallen in de nieuwe modelversie — bestaande registratie blijft zichtbaar.",
+        vervallen=True)
+
+    # Plaatsingen (de boom; ouder ← kind). "Toezicht" en "Afrekening" staan op TWEE plekken.
+    for kind, ouder in (
+        ("thfl", "uitvoering"),
+        ("thpd", "uitvoering"),
+        ("toezicht", "thfl"), ("toezicht", "thpd"),          # ← meervoudige ouders
+        ("handhaving", "thfl"),
+        ("ontvangst", "kki"),
+        ("verstrekking", "kki"),
+        ("afrekening", "verstrekking"), ("afrekening", "ontvangst"),  # ← tweede geval (echte GEMMA)
+        ("besturing", "sturing"),
+        ("adm_ondersteuning", "ondersteuning"),
+        ("reg_samenwerking", "sturing"),
+    ):
+        await _plaatsing(f[kind], f[ouder])
 
     # EIGEN functie (geen bronsleutel — een herinlees raakt haar nooit aan); idempotent
-    # skip-op-naam binnen de eigen (bronloze) functies.
+    # skip-op-naam binnen de eigen (bronloze) functies. Onder Ondersteuning geplaatst.
     eigen_bestaat = (await session.execute(
         select(_Bfunc).where(
             _Bfunc.bron_sleutel.is_(None), _Bfunc.naam == "Datagedreven werken"
@@ -1762,7 +1804,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             session, tid, BedrijfsfunctieCreate(
                 naam="Datagedreven werken",
                 definitie="Eigen functie van de gemeente (staat niet in het referentiemodel).",
-                ouder_id=bf_per_sleutel["informatievoorziening"].id,
+                ouder_id=f["ondersteuning"],
             ),
         )
         telling["bedrijfsfuncties"] += 1

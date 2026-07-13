@@ -1,10 +1,17 @@
-/** Tests — BedrijfsfunctieLijst (functieboom, ADR-043 gate 1a blok 2).
+/** Tests — BedrijfsfunctieLijst (functieboom, ADR-043 gate 1a blok 2 + ADR-044 blok 2).
  *
- * Kern: de affordances spiegelen de backend-regels (LI032 picker-regel 1) —
- * modelinhoud kent géén bewerk-/verplaats-/verwijder-knop (422 MODELINHOUD_BESCHERMD),
- * een vervallen functie géén "+ Deelfunctie" (VERVALLEN_NIET_KOPPELBAAR) en tóónt de
- * rustige markering; eigen functies zijn wél volledig bewerkbaar. Het Diagram is de
- * gegeneraliseerde ProcesDiagram-bouwsteen met functie-taal (geen kaart-/detail-uitgang).
+ * Kern-gedrag (ADR-044 — plaatsingen, meervoudige plekken):
+ * - een functie VERSCHIJNT op elke plek waar ze hoort (één rij per plaatsing/pad);
+ * - "staat ook onder: …" op elke verschijning, klikbaar naar de andere plek;
+ * - selectie/aanstip is FUNCTIE-breed (alle verschijningen lichten samen op);
+ * - de uitklap-staat is PLEK-gebonden (openklappen hier laat de andere plek dicht);
+ * - "Plaats ook onder…" / "Haal hier weg" via de plaatsings-endpoints; de laatste
+ *   plaatsing weghalen maakt de functie een wortel (de zin zegt dat vooraf);
+ * - modelinhoud kent GEEN plaatsings-affordances (422 MODELINHOUD_BESCHERMD vóóraf
+ *   geweerd — LI032 picker-regel 1), en verder geen bewerk-/verwijder-knop;
+ * - vervallen functies: rustige markering, geen "+ Deelfunctie".
+ * Rij-testids zijn plek-gebonden (`functie-rij-<pad>` met '>' als scheider); voor een
+ * wortel is de plek gelijk aan het functie-id.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -15,7 +22,10 @@ import ToastService from 'primevue/toastservice'
 
 vi.mock('@/api', () => ({
   api: {
-    bedrijfsfuncties: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
+    bedrijfsfuncties: {
+      lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn(),
+      plaats: vi.fn(), verwijderPlaatsing: vi.fn(),
+    },
   },
 }))
 
@@ -47,25 +57,30 @@ function maakRouter() {
   })
 }
 
-const _f = (id, naam, ouder_id = null, extra = {}) => ({
-  id, naam, ouder_id,
+// ADR-044 — rijen dragen `ouder_ids` (alle plaatsingen; leeg = wortel).
+const _f = (id, naam, ouder_ids = [], extra = {}) => ({
+  id, naam, ouder_ids,
   definitie: null, bron_model_id: null, bron_sleutel: null,
   bron_model_naam: null, bron_model_versie: null, vervallen: false,
   created_at: '2026-07-12T10:00:00Z', updated_at: '2026-07-12T10:00:00Z',
   ...extra,
 })
 
-// Geseede boom (gate-1a-vorm): Primair (model) → Dienstverlening (model) → Klantcontact
-// (model); Besturend (model) → Regionale samenwerking (model, VERVALLEN); Datagedreven
-// werken (EIGEN, onder Dienstverlening).
-const _MODEL = { bron_model_id: 'rm1', bron_sleutel: 'x', bron_model_naam: 'GEMMA Bedrijfsfuncties', bron_model_versie: 'GEMMA 2 (2025)' }
+// Geseede boom (ADR-044-vorm) mét het meervoud-geval:
+//   Primair (model) → Dienstverlening → { Datagedreven werken (EIGEN), Klantcontact,
+//                                          Toezicht (model, óók onder Besturend) → Handhaving }
+//   Besturend (model) → { Regionale samenwerking (model, VERVALLEN), Toezicht (zelfde functie) }
+const _MODEL = { bron_model_id: 'rm1', bron_sleutel: 'x', bron_model_naam: 'GEMMA Bedrijfsfuncties', bron_model_versie: 'release 1 juli 2026' }
 const _boom = () => [
-  _f('pr', 'Primair', null, { ..._MODEL, bron_sleutel: 'primair', definitie: 'Kernactiviteiten.' }),
-  _f('dv', 'Dienstverlening', 'pr', { ..._MODEL, bron_sleutel: 'dienstverlening' }),
-  _f('kc', 'Klantcontact', 'dv', { ..._MODEL, bron_sleutel: 'klantcontact' }),
-  _f('bs', 'Besturend', null, { ..._MODEL, bron_sleutel: 'besturend' }),
-  _f('rs', 'Regionale samenwerking', 'bs', { ..._MODEL, bron_sleutel: 'regionale_samenwerking', vervallen: true }),
-  _f('ddw', 'Datagedreven werken', 'dv', { definitie: 'Eigen functie van de gemeente.' }),
+  _f('pr', 'Primair', [], { ..._MODEL, bron_sleutel: 'primair', definitie: 'Kernactiviteiten.' }),
+  _f('dv', 'Dienstverlening', ['pr'], { ..._MODEL, bron_sleutel: 'dienstverlening' }),
+  _f('kc', 'Klantcontact', ['dv'], { ..._MODEL, bron_sleutel: 'klantcontact' }),
+  _f('bs', 'Besturend', [], { ..._MODEL, bron_sleutel: 'besturend' }),
+  _f('rs', 'Regionale samenwerking', ['bs'], { ..._MODEL, bron_sleutel: 'regionale_samenwerking', vervallen: true }),
+  // HET MEERVOUD-GEVAL — één functie, twee plekken (gelijkwaardig, geen kopie).
+  _f('tz', 'Toezicht', ['dv', 'bs'], { ..._MODEL, bron_sleutel: 'toezicht' }),
+  _f('hh', 'Handhaving', ['tz'], { ..._MODEL, bron_sleutel: 'handhaving' }),
+  _f('ddw', 'Datagedreven werken', ['dv'], { definitie: 'Eigen functie van de gemeente.' }),
 ]
 
 async function mountLijst({ rollen = ['medewerker'] } = {}) {
@@ -119,33 +134,148 @@ describe('BedrijfsfunctieLijst — boomweergave', () => {
   })
 })
 
+describe('BedrijfsfunctieLijst — ADR-044 meervoudige plekken', () => {
+  // Beide ouders van Toezicht openklappen (dv-pad + bs-wortel).
+  async function openBeidePlekken(w) {
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-bs"]').trigger('click')
+  }
+
+  it('een functie met twee plaatsingen verschijnt op BEIDE plekken — als dezelfde functie', async () => {
+    const w = await mountLijst()
+    await openBeidePlekken(w)
+    expect(w.find('[data-testid="functie-rij-pr>dv>tz"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-rij-bs>tz"]').exists()).toBe(true)
+    // Beide verschijningen vertellen dat ze óók elders staan (geen kopie-illusie).
+    expect(w.find('[data-testid="functie-ookonder-pr>dv>tz"]').text()).toContain('Besturend')
+    expect(w.find('[data-testid="functie-ookonder-bs>tz"]').text()).toContain('Dienstverlening')
+    // Een functie met één plek draagt de regel niet (alleen wat afwijkt staat op de rij).
+    expect(w.find('[data-testid="functie-ookonder-pr>dv>kc"]').exists()).toBe(false)
+  })
+
+  it('"staat ook onder"-klik toont de andere verschijning; de aanstip licht ALLE plekken op (functie-breed)', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    // Besturend is nog dicht; de andere verschijning is dus niet zichtbaar.
+    expect(w.find('[data-testid="functie-rij-bs>tz"]').exists()).toBe(false)
+    await w.find('[data-testid="functie-ookonder-link-pr>dv>tz--bs"]').trigger('click')
+    await flushPromises()
+    // Pad opengeklapt → de andere plek is er, en BEIDE verschijningen zijn aangestipt.
+    expect(w.find('[data-testid="functie-rij-bs>tz"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-rij-bs>tz"]').attributes('class')).toContain('lk-aangestipt')
+    expect(w.find('[data-testid="functie-rij-pr>dv>tz"]').attributes('class')).toContain('lk-aangestipt')
+  })
+
+  it('uitklappen is PLEK-gebonden: Toezicht open onder de ene ouder laat de andere plek dicht', async () => {
+    const w = await mountLijst()
+    await openBeidePlekken(w)
+    await w.find('[data-testid="functie-toggle-pr>dv>tz"]').trigger('click')
+    // Handhaving verschijnt alléén onder het geopende pad.
+    expect(w.find('[data-testid="functie-rij-pr>dv>tz>hh"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-rij-bs>tz>hh"]').exists()).toBe(false)
+    expect(w.find('[data-testid="functie-toggle-bs>tz"]').attributes('aria-expanded')).toBe('false')
+  })
+
+  it('modelinhoud kent GEEN plaatsings-affordances (plekken komen uit de bron)', async () => {
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await openBeidePlekken(w)
+    expect(w.find('[data-testid="functie-plaats-pr>dv>tz"]').exists()).toBe(false)
+    expect(w.find('[data-testid="functie-haalweg-pr>dv>tz"]').exists()).toBe(false)
+    expect(w.find('[data-testid="functie-plaats-pr"]').exists()).toBe(false)
+  })
+
+  it('"Plaats ook onder…": doelen spiegelen de backend; plaatsen roept het plaatsings-endpoint en toont de nieuwe plek', async () => {
+    api.bedrijfsfuncties.plaats.mockResolvedValue(
+      _f('ddw', 'Datagedreven werken', ['bs', 'dv'], { definitie: 'Eigen functie van de gemeente.' }),
+    )
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-plaats-pr>dv>ddw"]').trigger('click')
+    await flushPromises()
+    // Picker-scope spiegelt de backend: geen huidige ouder (PLAATSING_BESTAAT), geen
+    // zichzelf/subboom (kring), geen vervallen functie (VERVALLEN_NIET_KOPPELBAAR).
+    const zs = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-plaats-doel')
+    const { items } = await zs.props('zoekFunctie')({})
+    const ids = items.map((x) => x.id)
+    expect(ids).not.toContain('dv') // al een ouder
+    expect(ids).not.toContain('ddw') // zichzelf
+    expect(ids).not.toContain('rs') // vervallen
+    expect(ids).toContain('bs')
+    // Kiezen + bevestigen → POST /plaatsingen; de zin zegt "één en dezelfde functie".
+    zs.vm.$emit('keuze', items.find((x) => x.id === 'bs'))
+    await flushPromises()
+    expect(w.find('[data-testid="functie-plaats-zin"]').text()).toContain('één en dezelfde functie')
+    await w.find('[data-testid="functie-plaats-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.bedrijfsfuncties.plaats).toHaveBeenCalledWith('ddw', { ouder_id: 'bs' })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Geplaatst')
+    // De nieuwe verschijning is zichtbaar gemaakt (pad open) en de rij vertelt het meervoud.
+    expect(w.find('[data-testid="functie-rij-bs>ddw"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-ookonder-pr>dv>ddw"]').text()).toContain('Besturend')
+  })
+
+  it('"Haal hier weg" (laatste plaatsing): de zin kondigt de wortel-landing aan; DELETE op de plaatsing', async () => {
+    api.bedrijfsfuncties.verwijderPlaatsing.mockResolvedValue(
+      _f('ddw', 'Datagedreven werken', [], { definitie: 'Eigen functie van de gemeente.' }),
+    )
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-haalweg-pr>dv>ddw"]').trigger('click')
+    // De regel leesbaar + het gevolg vooraf (geen verrassing: functie blijft, wordt wortel).
+    const zin = w.find('[data-testid="functie-haalweg-zin"]').text()
+    expect(zin).toContain('Datagedreven werken')
+    expect(zin).toContain('Dienstverlening')
+    expect(zin).toContain('hoogste niveau')
+    await w.find('[data-testid="functie-haalweg-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.bedrijfsfuncties.verwijderPlaatsing).toHaveBeenCalledWith('ddw', 'dv')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Hier weggehaald')
+    // Zonder plaatsingen is de functie een wortel (plek = functie-id).
+    expect(w.find('[data-testid="functie-rij-ddw"]').exists()).toBe(true)
+  })
+
+  it('"Haal hier weg" bij MEERDERE plekken: de zin benoemt waar de functie blijft staan', async () => {
+    // Eigen functie met twee plekken (het gevolg-verschil met de wortel-variant).
+    api.bedrijfsfuncties.lijst.mockResolvedValue({
+      items: [..._boom(), _f('ee', 'Eigen dubbel', ['pr', 'bs'], {})], volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-haalweg-pr>ee"]').trigger('click')
+    const zin = w.find('[data-testid="functie-haalweg-zin"]').text()
+    expect(zin).toContain('blijft ook staan onder: Besturend')
+    expect(zin).not.toContain('hoogste niveau')
+  })
+})
+
 describe('BedrijfsfunctieLijst — modelinhoud vs. eigen (affordance spiegelt de backend)', () => {
   it('model-functie: herkomst ÉÉN keer boven de boom (uit de data), niet per rij; geen bewerk-affordance', async () => {
     const w = await mountLijst({ rollen: ['beheerder'] })
-    // Punt 3 — informatie die overal hetzelfde is, is geen informatie: de herkomst
-    // staat éénmaal boven de boom (data-gedreven, incl. de eigen-functies-zin) en
-    // NIET meer op de rij.
     expect(w.find('[data-testid="functie-model-herkomst"]').text())
-      .toBe('Uit GEMMA Bedrijfsfuncties, GEMMA 2 (2025). Eigen functies zijn gemarkeerd.')
+      .toBe('Uit GEMMA Bedrijfsfuncties, release 1 juli 2026. Eigen functies zijn gemarkeerd.')
     expect(w.find('[data-testid="functie-herkomst-pr"]').exists()).toBe(false)
     expect(w.find('[data-testid="functie-bewerk-pr"]').exists()).toBe(false)
-    expect(w.find('[data-testid="functie-verplaats-pr"]').exists()).toBe(false)
     expect(w.find('[data-testid="functie-verwijder-pr"]').exists()).toBe(false)
     expect(w.find('[data-testid="functie-deelfunctie-pr"]').exists()).toBe(true)
   })
 
-  it('eigen functie: "eigen"-badge + bewerk-/verplaats-knop (medewerker); verwijderen alléén beheerder', async () => {
+  it('eigen functie: "eigen"-badge + bewerk-/plaatsings-knoppen (medewerker); verwijderen alléén beheerder', async () => {
     const w = await mountLijst({ rollen: ['medewerker'] })
     await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    expect(w.find('[data-testid="functie-eigen-ddw"]').exists()).toBe(true)
-    expect(w.find('[data-testid="functie-bewerk-ddw"]').exists()).toBe(true)
-    expect(w.find('[data-testid="functie-verplaats-ddw"]').exists()).toBe(true)
-    expect(w.find('[data-testid="functie-verwijder-ddw"]').exists()).toBe(false) // LI037-regel
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    expect(w.find('[data-testid="functie-eigen-pr>dv>ddw"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-bewerk-pr>dv>ddw"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-plaats-pr>dv>ddw"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-haalweg-pr>dv>ddw"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-verwijder-pr>dv>ddw"]').exists()).toBe(false) // LI037-regel
     const w2 = await mountLijst({ rollen: ['beheerder'] })
     await w2.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w2.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    expect(w2.find('[data-testid="functie-verwijder-ddw"]').exists()).toBe(true)
+    await w2.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    expect(w2.find('[data-testid="functie-verwijder-pr>dv>ddw"]').exists()).toBe(true)
   })
 
   it('viewer: alleen kijken — geen enkele mutatie-affordance', async () => {
@@ -158,15 +288,15 @@ describe('BedrijfsfunctieLijst — modelinhoud vs. eigen (affordance spiegelt de
   it('vervallen functie: warning-tint + ⚠-icoon + tekst (nooit alléén kleur), geen "+ Deelfunctie"', async () => {
     const w = await mountLijst()
     await w.find('[data-testid="functie-toggle-bs"]').trigger('click')
-    const badge = w.find('[data-testid="functie-vervallen-rs"]')
+    const badge = w.find('[data-testid="functie-vervallen-bs>rs"]')
     expect(badge.text()).toContain('vervallen in het referentiemodel') // tekst
     expect(badge.text()).toContain('⚠') // icoon
     expect(badge.attributes('class')).toContain('--lk-color-warning') // warning-taal…
     expect(badge.attributes('class')).not.toContain('border-dashed') // …niet de gap-taal
     // De hele rij draagt de rustige waarschuwingstint (LI039 blok C).
-    expect(w.find('[data-testid="functie-rij-rs"]').attributes('class')).toContain('--lk-color-warning')
-    expect(w.find('[data-testid="functie-deelfunctie-rs"]').exists()).toBe(false)
-    expect(w.find('[data-testid="functie-bewerk-rs"]').exists()).toBe(false)
+    expect(w.find('[data-testid="functie-rij-bs>rs"]').attributes('class')).toContain('--lk-color-warning')
+    expect(w.find('[data-testid="functie-deelfunctie-bs>rs"]').exists()).toBe(false)
+    expect(w.find('[data-testid="functie-bewerk-bs>rs"]').exists()).toBe(false)
   })
 
   it('C0 — rij-acties zijn rustig: rij draagt lk-rij, acties in de gedeelde RijActies-container', async () => {
@@ -178,8 +308,8 @@ describe('BedrijfsfunctieLijst — modelinhoud vs. eigen (affordance spiegelt de
     expect(rij.find('.lk-rij-acties [data-testid="functie-diagram-pr"]').exists()).toBe(true)
     // Het "eigen"-label is een eigenschap, geen actie: geen accent-knop-achtergrond.
     await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    expect(w.find('[data-testid="functie-eigen-ddw"]').attributes('class')).not.toContain('--lk-color-accent')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    expect(w.find('[data-testid="functie-eigen-pr>dv>ddw"]').attributes('class')).not.toContain('--lk-color-accent')
   })
 
   it('UI-afronding v2 — drievorm + tweelaags rij: scan-laag (naam + afwijking) en lees-laag (volledige definitie)', async () => {
@@ -190,26 +320,28 @@ describe('BedrijfsfunctieLijst — modelinhoud vs. eigen (affordance spiegelt de
     expect(doorklik.props('label')).toContain('→')
     expect(w.findComponent('[data-testid="functie-deelfunctie-pr"]').props('outlined')).toBe(true)
     await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    expect(w.findComponent('[data-testid="functie-bewerk-ddw"]').props('outlined')).toBe(true)
-    expect(w.findComponent('[data-testid="functie-verwijder-ddw"]').props('severity')).toBe('danger')
-    // Punt 1 (v2) — tweelaags: naam in de scan-laag, de VOLLEDIGE definitie in de
-    // lees-laag (twee-regel-clamp via de gedeelde klasse — géén één-regel-truncate,
-    // geen tooltip, geen uitklap).
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    expect(w.findComponent('[data-testid="functie-bewerk-pr>dv>ddw"]').props('outlined')).toBe(true)
+    expect(w.findComponent('[data-testid="functie-plaats-pr>dv>ddw"]').props('outlined')).toBe(true)
+    // Destructief draagt danger (LI037): de functie-verwijdering én het weghalen van
+    // een plaatsing (dat verwijdert een registratie-feit).
+    expect(w.findComponent('[data-testid="functie-haalweg-pr>dv>ddw"]').props('severity')).toBe('danger')
+    expect(w.findComponent('[data-testid="functie-verwijder-pr>dv>ddw"]').props('severity')).toBe('danger')
+    // Punt 1 (v2) — tweelaags: naam in de scan-laag, de VOLLEDIGE definitie in de lees-laag.
     const rij = w.find('[data-testid="functie-rij-pr"]')
     expect(rij.find('.lk-rij-kop [data-testid="functie-naam"]').exists()).toBe(true)
     const definitie = rij.find('[data-testid="functie-definitie-pr"]')
     expect(definitie.text()).toBe('Kernactiviteiten.') // volledige tekst in de DOM
     expect(definitie.attributes('class')).toContain('lk-rij-definitie')
     expect(definitie.attributes('class')).not.toContain('truncate')
-    // Punt 2 (v2) — gereserveerde actiekolom: álle vijf beheerder-acties op een eigen
-    // functie staan bínnen de RijActies-container (nooit een knop buiten beeld).
-    const eigenRij = w.find('[data-testid="functie-rij-ddw"]')
-    expect(eigenRij.findAll('.lk-rij-acties button').length).toBe(5)
+    // Punt 2 (v2) — gereserveerde actiekolom: álle zes beheerder-acties op een eigen
+    // functie-met-ouder staan bínnen de RijActies-container (nooit een knop buiten beeld).
+    const eigenRij = w.find('[data-testid="functie-rij-pr>dv>ddw"]')
+    expect(eigenRij.findAll('.lk-rij-acties button').length).toBe(6)
     // De vervallen-badge hoort bij de naam (scan-laag).
     await w.find('[data-testid="functie-toggle-bs"]').trigger('click')
-    const vervallenRij = w.find('[data-testid="functie-rij-rs"]')
-    expect(vervallenRij.find('.lk-rij-kop [data-testid="functie-vervallen-rs"]').exists()).toBe(true)
+    const vervallenRij = w.find('[data-testid="functie-rij-bs>rs"]')
+    expect(vervallenRij.find('.lk-rij-kop [data-testid="functie-vervallen-bs>rs"]').exists()).toBe(true)
   })
 })
 
@@ -232,12 +364,12 @@ describe('BedrijfsfunctieLijst — toevoegen/bewerken (eigen functies)', () => {
     expect(api.bedrijfsfuncties.maak).toHaveBeenLastCalledWith({ naam: 'Subsidieverlening', definitie: null, ouder_id: 'pr' })
   })
 
-  it('bewerken van een eigen functie stuurt naam + definitie', async () => {
+  it('bewerken van een eigen functie stuurt naam + definitie (GEEN plaatsings-velden)', async () => {
     api.bedrijfsfuncties.werkBij.mockResolvedValue({ id: 'ddw' })
     const w = await mountLijst()
     await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    await w.find('[data-testid="functie-bewerk-ddw"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-bewerk-pr>dv>ddw"]').trigger('click')
     await w.find('[data-testid="functie-form-naam"]').setValue('Datagedreven sturing')
     await w.find('[data-testid="functie-dialog"] form').trigger('submit')
     await flushPromises()
@@ -249,8 +381,8 @@ describe('BedrijfsfunctieLijst — toevoegen/bewerken (eigen functies)', () => {
     api.bedrijfsfuncties.verwijder.mockRejectedValueOnce({ status: 409 })
     const w = await mountLijst({ rollen: ['beheerder'] })
     await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    await w.find('[data-testid="functie-verwijder-ddw"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-verwijder-pr>dv>ddw"]').trigger('click')
     await w.find('[data-testid="functie-verwijder-bevestig"]').trigger('click')
     await flushPromises()
     expect(api.bedrijfsfuncties.verwijder).toHaveBeenCalledWith('ddw')
@@ -277,12 +409,9 @@ describe('BedrijfsfunctieLijst — Diagram (gegeneraliseerde bouwsteen, functie-
   })
 
   it('v3-regressie (bouwsteen) — de popup bestaat op INHOUD, óók zonder énige uitgang', async () => {
-    // De popup-regressie ontstond doordat niemand hem in een test opende; dit mag
-    // nooit meer stil wegvallen. Kale mount: geen detail-route, geen kaart, geen
-    // open-label — en tóch een popup met de naam.
     const w = mount(ProcesDiagram, {
       props: {
-        items: [_f('x1', 'Solo', null, { definitie: 'Definitie van Solo.' })],
+        items: [_f('x1', 'Solo', [], { definitie: 'Definitie van Solo.' })],
         detailRoute: null,
         metKaartUitgang: false,
       },
@@ -310,6 +439,13 @@ describe('BedrijfsfunctieLijst — Diagram (gegeneraliseerde bouwsteen, functie-
     diagram.vm.selecteer('pr')
     await flushPromises()
     expect(w.find('[data-testid="functie-popup-definitie"]').text()).toBe('Kernactiviteiten.')
+    // ADR-044 — een functie op twee plekken: de popup benoemt het meervoud expliciet.
+    diagram.vm.selecteer('tz')
+    await flushPromises()
+    const plek = w.find('[data-testid="diagram-popup-plek"]').text()
+    expect(plek).toContain('staat onder')
+    expect(plek).toContain('Dienstverlening')
+    expect(plek).toContain('Besturend')
     // Vervallen functie: de bouwsteen-popup draagt de ⚠-markering (eigen kanaal).
     diagram.vm.selecteer('rs')
     await flushPromises()
@@ -323,8 +459,8 @@ describe('BedrijfsfunctieLijst — Diagram (gegeneraliseerde bouwsteen, functie-
     await flushPromises()
     // Landing: terug in de Boom, pad open (Besturend), rij aangestipt en in beeld.
     expect(w.find('[data-testid="functies-boom"]').exists()).toBe(true)
-    expect(w.find('[data-testid="functie-rij-rs"]').exists()).toBe(true)
-    expect(w.find('[data-testid="functie-rij-rs"]').attributes('class')).toContain('lk-aangestipt')
+    expect(w.find('[data-testid="functie-rij-bs>rs"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-rij-bs>rs"]').attributes('class')).toContain('lk-aangestipt')
   })
 
   it('"Toon in functiebeeld" opent het Diagram met die functie als centrum', async () => {
@@ -360,27 +496,13 @@ describe('BedrijfsfunctieLijst — Diagram (gegeneraliseerde bouwsteen, functie-
     api.bedrijfsfuncties.maak.mockResolvedValue({ id: 'n2' })
     const w = await mountLijst()
     // Primair is dicht; de herlaad levert het nieuwe kind onder Primair.
-    api.bedrijfsfuncties.lijst.mockResolvedValue({ items: [..._boom(), _f('n2', 'Subsidieverlening', 'pr')], volgende_cursor: null })
+    api.bedrijfsfuncties.lijst.mockResolvedValue({ items: [..._boom(), _f('n2', 'Subsidieverlening', ['pr'])], volgende_cursor: null })
     await w.find('[data-testid="functie-deelfunctie-pr"]').trigger('click')
     await w.find('[data-testid="functie-form-naam"]').setValue('Subsidieverlening')
     await w.find('[data-testid="functie-dialog"] form').trigger('submit')
     await flushPromises()
     expect(w.find('[data-testid="functie-toggle-pr"]').attributes('aria-expanded')).toBe('true')
-    expect(w.find('[data-testid="functie-rij-n2"]').exists()).toBe(true)
-    expect(w.find('[data-testid="functie-rij-n2"]').attributes('class')).toContain('lk-aangestipt')
-  })
-
-  it('verplaats-doelen: vervallen functies en de eigen subboom zijn geen doel (picker spiegelt de backend)', async () => {
-    const w = await mountLijst()
-    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
-    await w.find('[data-testid="functie-toggle-dv"]').trigger('click')
-    await w.find('[data-testid="functie-verplaats-ddw"]').trigger('click')
-    await flushPromises()
-    const zs = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-verplaats-doel')
-    const { items } = await zs.props('zoekFunctie')({})
-    const ids = items.map((x) => x.id)
-    expect(ids).not.toContain('rs') // vervallen — VERVALLEN_NIET_KOPPELBAAR vóóraf geweerd
-    expect(ids).not.toContain('ddw') // zichzelf (subboom) — kring-preventie vóóraf
-    expect(ids).toContain('bs')
+    expect(w.find('[data-testid="functie-rij-pr>n2"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-rij-pr>n2"]').attributes('class')).toContain('lk-aangestipt')
   })
 })
