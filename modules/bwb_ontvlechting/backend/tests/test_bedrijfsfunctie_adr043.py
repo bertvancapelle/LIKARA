@@ -155,11 +155,25 @@ def test_bedrijfsfunctie_in_audit_allowlists():
 def test_bedrijfsfunctie_in_rbac_inhoud_patroon():
     from app.core.rbac import Actie, Entiteit, heeft_permissie
 
-    for ent in (Entiteit.BEDRIJFSFUNCTIE, Entiteit.REFERENTIEMODEL):
-        assert heeft_permissie(["medewerker"], ent, Actie.AANMAKEN)
-        assert heeft_permissie(["beheerder"], ent, Actie.VERWIJDEREN)
-        assert not heeft_permissie(["viewer"], ent, Actie.AANMAKEN)
-        assert heeft_permissie(["auditor"], ent, Actie.LEZEN)
+    assert heeft_permissie(["medewerker"], Entiteit.BEDRIJFSFUNCTIE, Actie.AANMAKEN)
+    assert heeft_permissie(["beheerder"], Entiteit.BEDRIJFSFUNCTIE, Actie.VERWIJDEREN)
+    assert not heeft_permissie(["viewer"], Entiteit.BEDRIJFSFUNCTIE, Actie.AANMAKEN)
+    assert heeft_permissie(["auditor"], Entiteit.BEDRIJFSFUNCTIE, Actie.LEZEN)
+
+
+def test_referentiemodel_inlezen_is_beheerder():
+    """Gate 1b (besloten kader): inlezen = beheerder — het inhoud-patroon is
+    gecorrigeerd (een medewerker mocht aanmaken; te ruim voor een import die het
+    functie-landschap herschrijft). Lezen mag iedereen (precedent GEBRUIKERSBEHEER
+    voor de mutatie-kant)."""
+    from app.core.rbac import Actie, Entiteit, heeft_permissie
+
+    for rol in ("viewer", "medewerker", "beheerder", "auditor"):
+        assert heeft_permissie([rol], Entiteit.REFERENTIEMODEL, Actie.LEZEN)
+    for actie in (Actie.AANMAKEN, Actie.WIJZIGEN, Actie.VERWIJDEREN):
+        assert heeft_permissie(["beheerder"], Entiteit.REFERENTIEMODEL, actie)
+        for rol in ("viewer", "medewerker", "auditor"):
+            assert not heeft_permissie([rol], Entiteit.REFERENTIEMODEL, actie)
 
 
 def test_referentiemodelconfig_platform_law_zonder_v():

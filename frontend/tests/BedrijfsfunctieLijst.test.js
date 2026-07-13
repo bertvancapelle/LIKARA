@@ -26,6 +26,8 @@ vi.mock('@/api', () => ({
       lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn(),
       plaats: vi.fn(), verwijderPlaatsing: vi.fn(),
     },
+    // Gate 1b — referentiemodel inlezen (voorbeeld vóór bevestigen).
+    referentiemodellen: { overzicht: vi.fn(), voorbeeld: vi.fn(), inlezen: vi.fn() },
   },
 }))
 
@@ -99,6 +101,8 @@ beforeEach(() => {
   vi.clearAllMocks()
   sessionStorage.clear() // lijststaat (useLijstStaat) mag niet tussen tests lekken
   api.bedrijfsfuncties.lijst.mockResolvedValue({ items: _boom(), volgende_cursor: null })
+  // Het scherm haalt bij mount de model-status op (onvoltooid-signaal, best-effort).
+  api.referentiemodellen.overzicht.mockResolvedValue([])
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -504,5 +508,200 @@ describe('BedrijfsfunctieLijst — Diagram (gegeneraliseerde bouwsteen, functie-
     expect(w.find('[data-testid="functie-toggle-pr"]').attributes('aria-expanded')).toBe('true')
     expect(w.find('[data-testid="functie-rij-pr>n2"]').exists()).toBe(true)
     expect(w.find('[data-testid="functie-rij-pr>n2"]').attributes('class')).toContain('lk-aangestipt')
+  })
+})
+
+// ── Gate 1b — referentiemodel inlezen: voorbeeld vóór bevestigen ─────────────────
+
+const _AANBOD = (extra = {}) => [{
+  model_sleutel: 'gemma_bedrijfsfuncties',
+  label: 'GEMMA Bedrijfsfuncties',
+  herkomst: 'VNG-Realisatie/GEMMA-Archi-repository — licentie EUPL',
+  versie: 'release 1 juli 2026',
+  beschikbaar: true,
+  ingelezen: null,
+  aantal_functies: 0,
+  aantal_vervallen: 0,
+  ...extra,
+}]
+
+const _PLAN = (extra = {}) => ({
+  nieuw: Array.from({ length: 297 }, (_, i) => `Functie ${i + 1}`),
+  bijgewerkt: [],
+  vervallen: [],
+  ongewijzigd: 0,
+  plaatsingen_totaal: 302,
+  plaatsingen_nieuw: 302,
+  plaatsingen_vervallen: 0,
+  overgeslagen: { BusinessObject: 507 },
+  overgeslagen_totaal: 2455,
+  ...extra,
+})
+
+describe('BedrijfsfunctieLijst — gate 1b: referentiemodel inlezen', () => {
+  it('de inlees-affordance is beheerder-only (medewerker ziet geen knop)', async () => {
+    const w1 = await mountLijst({ rollen: ['medewerker'] })
+    expect(w1.find('[data-testid="model-inlezen"]').exists()).toBe(false)
+    const w2 = await mountLijst({ rollen: ['beheerder'] })
+    expect(w2.find('[data-testid="model-inlezen"]').exists()).toBe(true)
+  })
+
+  it('eerste inlees: openen → voorbeeld (dry-run, gebruikerstaal) → pas ná bevestigen landt het + boom herlaadt', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue(_AANBOD())
+    api.referentiemodellen.voorbeeld.mockResolvedValue(_PLAN())
+    api.referentiemodellen.inlezen.mockResolvedValue({
+      ..._PLAN(), model: { model_sleutel: 'gemma_bedrijfsfuncties', naam: 'GEMMA Bedrijfsfuncties', versie: 'release 1 juli 2026' },
+    })
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    const lijstCallsVoor = api.bedrijfsfuncties.lijst.mock.calls.length
+
+    await w.find('[data-testid="model-inlezen"]').trigger('click')
+    await flushPromises()
+    // Eén model in het aanbod → direct het voorbeeld (dry-run) — niets geschreven.
+    expect(api.referentiemodellen.voorbeeld).toHaveBeenCalledWith('gemma_bedrijfsfuncties')
+    expect(api.referentiemodellen.inlezen).not.toHaveBeenCalled()
+    const voorbeeld = w.find('[data-testid="inlees-voorbeeld"]').text()
+    expect(voorbeeld).toContain('297 functies worden toegevoegd')
+    expect(voorbeeld).toContain('302 plaatsingen')
+    expect(voorbeeld).toContain('2455 elementen van andere typen worden overgeslagen')
+
+    await w.find('[data-testid="inlees-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.referentiemodellen.inlezen).toHaveBeenCalledWith('gemma_bedrijfsfuncties')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Ingelezen')
+    // De boom herlaadt (de gebruiker ziet direct de nieuwe stand) + resultaat-staat.
+    expect(api.bedrijfsfuncties.lijst.mock.calls.length).toBeGreaterThan(lijstCallsVoor)
+    expect(w.find('[data-testid="inlees-resultaat"]').text()).toContain('GEMMA Bedrijfsfuncties')
+  })
+
+  it('herinlees: voorbeeld toont nieuw · bijgewerkt · vervallen — mét de vervallen functies bij naam (de werklijst)', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue(
+      _AANBOD({ ingelezen: { id: 'rm1', naam: 'GEMMA Bedrijfsfuncties', versie: 'v1', ingelezen_op: '2026-07-13T09:00:00Z' } }),
+    )
+    api.referentiemodellen.voorbeeld.mockResolvedValue(_PLAN({
+      nieuw: ['A', 'B', 'C', 'D'],
+      bijgewerkt: Array.from({ length: 12 }, (_, i) => `B${i}`),
+      vervallen: [
+        { naam: 'Regionale samenwerking', in_gebruik: true },
+        { naam: 'Oude functie', in_gebruik: false },
+        { naam: 'Derde functie', in_gebruik: false },
+      ],
+      ongewijzigd: 280,
+      overgeslagen_totaal: 0,
+      overgeslagen: {},
+    }))
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await w.find('[data-testid="model-inlezen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="inlees-eerder"]').exists()).toBe(true) // herinlees benoemd
+    expect(w.find('[data-testid="inlees-voorbeeld"]').text()).toContain('4 nieuw · 12 bijgewerkt · 3 vervallen — waarvan 1 nog in gebruik')
+    const lijst = w.find('[data-testid="inlees-vervallen-lijst"]').text()
+    expect(lijst).toContain('Regionale samenwerking')
+    expect(lijst).toContain('nog in gebruik')
+  })
+
+  it('geen wijzigingen: de bevestig-knop is uitgeschakeld ("al actueel")', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue(_AANBOD())
+    api.referentiemodellen.voorbeeld.mockResolvedValue(_PLAN({
+      nieuw: [], plaatsingen_nieuw: 0, ongewijzigd: 297, overgeslagen: {}, overgeslagen_totaal: 0,
+    }))
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await w.find('[data-testid="model-inlezen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="inlees-voorbeeld"]').text()).toContain('al actueel')
+    expect(w.find('[data-testid="inlees-bevestig"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('lege staat: de beheerder krijgt de inlees-route; een medewerker een verwijzing (geen dode knop)', async () => {
+    api.bedrijfsfuncties.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w1 = await mountLijst({ rollen: ['beheerder'] })
+    expect(w1.find('[data-testid="lijst-leeg-inlezen"]').exists()).toBe(true)
+    const w2 = await mountLijst({ rollen: ['medewerker'] })
+    expect(w2.find('[data-testid="lijst-leeg-inlezen"]').exists()).toBe(false)
+    expect(w2.find('[data-testid="lijst-leeg"]').text()).toContain('beheerder')
+  })
+})
+
+// ── B2 (browsercheck-bevinding) — een lege uitkomst is geen fout ─────────────────
+
+describe('BedrijfsfunctieLijst — B2: aanbod-staten sluiten elkaar uit', () => {
+  it('leeg aanbod (200, lege lijst) → rustige lege staat, GÉÉN foutmelding', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue([])
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await w.find('[data-testid="model-inlezen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="inlees-geen-aanbod"]').text()).toContain('nog geen referentiemodellen beschikbaar')
+    expect(w.find('[data-testid="inlees-geen-aanbod"]').text()).toContain('platformbeheerder') // route naar de actie
+    expect(w.find('[data-testid="inlees-fout"]').exists()).toBe(false) // geen alarmrood
+    expect(w.find('[data-testid="inlees-sluiten"]').exists()).toBe(true)
+  })
+
+  it('gefaalde aanroep → foutmelding, GÉÉN "geen model beschikbaar" — nooit beide', async () => {
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    api.referentiemodellen.overzicht.mockRejectedValue({ status: 500, message: 'kapot' })
+    await w.find('[data-testid="model-inlezen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="inlees-fout"]').exists()).toBe(true)
+    expect(w.find('[data-testid="inlees-geen-aanbod"]').exists()).toBe(false)
+  })
+
+  it('een niet-beschikbaar model (geen bestand in de release) telt niet als aanbod', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue(_AANBOD({ beschikbaar: false }))
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await w.find('[data-testid="model-inlezen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="inlees-geen-aanbod"]').exists()).toBe(true)
+    expect(w.find('[data-testid="inlees-fout"]').exists()).toBe(false)
+  })
+})
+
+// ── Gate 1b-afronding — onvoltooide inlees: nooit stil ───────────────────────────
+
+const _ONVOLTOOID = { id: 'rm1', naam: 'GEMMA Bedrijfsfuncties', versie: 'release 1 juli 2026', ingelezen_op: '2026-07-13T09:00:00Z', inlees_voltooid: false }
+const _VOLTOOID = { ..._ONVOLTOOID, inlees_voltooid: true }
+
+describe('BedrijfsfunctieLijst — onvoltooide inlees', () => {
+  it('afgebroken inlees → waarschuwing voor iedereen; alléén de beheerder krijgt de herstart-actie', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue(_AANBOD({ ingelezen: _ONVOLTOOID }))
+    const w1 = await mountLijst({ rollen: ['medewerker'] })
+    expect(w1.find('[data-testid="functie-inlees-onvoltooid"]').text()).toContain('niet afgerond')
+    expect(w1.find('[data-testid="onvoltooid-hervat"]').exists()).toBe(false) // signaal zonder actie
+    const w2 = await mountLijst({ rollen: ['beheerder'] })
+    expect(w2.find('[data-testid="functie-inlees-onvoltooid"]').exists()).toBe(true)
+    expect(w2.find('[data-testid="onvoltooid-hervat"]').exists()).toBe(true)
+  })
+
+  it('voltooide inlees → géén vals signaal', async () => {
+    api.referentiemodellen.overzicht.mockResolvedValue(_AANBOD({ ingelezen: _VOLTOOID }))
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    expect(w.find('[data-testid="functie-inlees-onvoltooid"]').exists()).toBe(false)
+  })
+
+  it('hervatten: afronden mag óók zonder wijzigingen; na afloop verdwijnt het signaal', async () => {
+    // mount + openen zien de onvoltooide stand; ná het inlezen is hij voltooid.
+    api.referentiemodellen.overzicht
+      .mockResolvedValueOnce(_AANBOD({ ingelezen: _ONVOLTOOID }))  // mount
+      .mockResolvedValueOnce(_AANBOD({ ingelezen: _ONVOLTOOID }))  // openInlezen
+      .mockResolvedValueOnce(_AANBOD({ ingelezen: _VOLTOOID }))    // na inlezen
+    // Het kritieke randgeval: alles staat er al (plan leeg) — alleen de afronding ontbreekt.
+    api.referentiemodellen.voorbeeld.mockResolvedValue(_PLAN({
+      nieuw: [], plaatsingen_nieuw: 0, ongewijzigd: 297, overgeslagen: {}, overgeslagen_totaal: 0,
+    }))
+    api.referentiemodellen.inlezen.mockResolvedValue({
+      ..._PLAN({ nieuw: [], ongewijzigd: 297 }),
+      model: { model_sleutel: 'gemma_bedrijfsfuncties', naam: 'GEMMA Bedrijfsfuncties', versie: 'release 1 juli 2026' },
+    })
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await w.find('[data-testid="onvoltooid-hervat"]').trigger('click')
+    await flushPromises()
+    // In de dialog: onvoltooid benoemd; de voorbeeldzin zegt "afronding ontbreekt";
+    // bevestigen is NIET uitgeschakeld ondanks 0 wijzigingen.
+    expect(w.find('[data-testid="inlees-onvoltooid-melding"]').exists()).toBe(true)
+    expect(w.find('[data-testid="inlees-voorbeeld"]').text()).toContain('afronding van de vorige inlees ontbreekt')
+    expect(w.find('[data-testid="inlees-bevestig"]').attributes('disabled')).toBeUndefined()
+    await w.find('[data-testid="inlees-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.referentiemodellen.inlezen).toHaveBeenCalledWith('gemma_bedrijfsfuncties')
+    expect(w.find('[data-testid="functie-inlees-onvoltooid"]').exists()).toBe(false) // signaal weg
   })
 })

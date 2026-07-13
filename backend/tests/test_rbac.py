@@ -54,7 +54,10 @@ VERWACHT = {
     Entiteit.PROCES: _INHOUD,               # ADR-042 slice 1 — procesregister
     Entiteit.PROCESVERVULLING: _INHOUD,     # ADR-042 slice 3 — koppelregel component→proces
     Entiteit.BEDRIJFSFUNCTIE: _INHOUD,      # ADR-043 gate 1a — bedrijfsfunctie-as
-    Entiteit.REFERENTIEMODEL: _INHOUD,      # ADR-043 gate 1a — ingelezen referentiemodel
+    # ADR-043 gate 1b — inlezen = beheerder (correctie op het inhoud-patroon); lezen mag iedereen.
+    Entiteit.REFERENTIEMODEL: {
+        Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _L,
+    },
     # ADR-023 Fase F / F-2: read-only laagprojectie — élke rol alleen LEZEN.
     Entiteit.ARCHITECTUUR: {
         Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,

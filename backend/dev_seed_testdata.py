@@ -1660,151 +1660,104 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         except RegistratieConflict:
             pass  # idempotent: het tripel bestaat al
 
-    # ── 16. Bedrijfsfunctie-as (ADR-043 gate 1a; ADR-044 gate 1a-bis) ──
-    # Eén ingelezen referentiemodel-instantie (GEMMA, bekrachtigde herkomst) + een
-    # kleine, REALISTISCHE GEMMA-boom (echte functienamen; de verzonnen driedeling
-    # Besturend/Primair/Ondersteunend bestaat in de bron niet en is verdwenen). De boom
-    # leeft in PLAATSINGEN (aggregation-relaties, ADR-044): mét het "Toezicht"-geval —
-    # één functie onder TWEE ouders — plus één vervallen en één eigen functie.
-    # Idempotent: functies get-or-create op bronsleutel (vaste identiteit, LI037-les);
-    # plaatsingen get-or-create op het (ouder, kind)-paar.
+    # ── 16. Bedrijfsfunctie-as — het ÉCHTE GEMMA-model via de échte import (gate 1b) ──
+    # Besloten (LI039 gate 1b): de dev-seed leest het echte GEMMA-bestand in — 297
+    # functies, 5 lagen, de 7 meervoudige plaatsingen. De verzonnen demoboom is weg.
+    # De seed gebruikt exact de import-logica van het scherm (`voer_uit` — zelfde
+    # parser, zelfde plan als de dry-run); daarnaast blijven twee demo-toestanden
+    # zichtbaar in de browser:
+    #   - één VERVALLEN functie — gezaaid als model-functie met een sleutel die NIET
+    #     in het bestand voorkomt, VÓÓR de import: de echte herinlees-logica
+    #     (set-verschil op bronsleutel) markeert haar vervallen — geen handmatig vlaggetje;
+    #   - één EIGEN functie (geen bronsleutel — een herinlees raakt haar nooit aan).
+    # Idempotent: tweede run = 0 nieuw (de import matcht op bronsleutel).
     from models.models import Bedrijfsfunctie as _Bfunc
     from models.models import Referentiemodel as _Refmodel
     from schemas.bedrijfsfunctie import BedrijfsfunctieCreate
+    from services import referentiemodel_import_service as _rm_import
     from services.errors import RegistratieConflict as _RegConflict
 
-    _RM_NAAM = "GEMMA Bedrijfsfuncties"
-    _RM_VERSIE = "release 1 juli 2026"  # bekrachtigd label (LI039)
+    _RM_SLEUTEL = "gemma_bedrijfsfuncties"
+    _VERVALLEN_SLEUTEL = "id-dev-demo-vervallen"  # bewust NIET in het bestand
+
+    # (a) Refmodel-rij als herkomst-anker voor de demo-vervallen-functie (de import
+    # werkt label/versie/inleesmoment daarna zelf bij uit het aanbod).
     refmodel = (await session.execute(
-        select(_Refmodel).where(_Refmodel.model_sleutel == "gemma_bedrijfsfuncties")
+        select(_Refmodel).where(_Refmodel.model_sleutel == _RM_SLEUTEL)
     )).scalar_one_or_none()
     if refmodel is None:
         refmodel = _Refmodel(
-            tenant_id=tid, model_sleutel="gemma_bedrijfsfuncties",
-            naam=_RM_NAAM, versie=_RM_VERSIE,
+            tenant_id=tid, model_sleutel=_RM_SLEUTEL,
+            naam="GEMMA Bedrijfsfuncties", versie="release 1 juli 2026",
         )
         session.add(refmodel)
         await session.commit()
         await session.refresh(refmodel)
         telling["referentiemodellen"] += 1
-    elif refmodel.naam != _RM_NAAM or refmodel.versie != _RM_VERSIE:
-        # Label-bijwerking (het verzonnen "GEMMA 2 (2025)" → bekrachtigde herkomst).
-        refmodel.naam = _RM_NAAM
-        refmodel.versie = _RM_VERSIE
-        await session.commit()
-        await session.refresh(refmodel)
 
-    bf_per_sleutel = {
-        r.bron_sleutel: r
-        for r in (await session.execute(
-            select(_Bfunc).where(_Bfunc.bron_model_id == refmodel.id)
-        )).scalars().all()
-    }
-
-    async def _modelfunctie(sleutel, naam, definitie, vervallen=False):
-        """Get-or-create op de bronsleutel (de identiteit — nooit op naam)."""
-        bestaand = bf_per_sleutel.get(sleutel)
-        if bestaand is not None:
-            return bestaand.id
-        obj = await bedrijfsfunctie_service.maak_aan(
-            session, tid, BedrijfsfunctieCreate(naam=naam, definitie=definitie),
-            bron_model_id=refmodel.id, bron_sleutel=sleutel,
+    # (b) Demo-vervallen-functie — vóór de import, zodat de échte herinlees-logica de
+    # vlag zet (LI039-6: zichtbaar mét markering, niet koppelbaar, nooit hard weg).
+    demo_vervallen = (await session.execute(
+        select(_Bfunc).where(
+            _Bfunc.tenant_id == tid, _Bfunc.bron_sleutel == _VERVALLEN_SLEUTEL
         )
-        rij = await bedrijfsfunctie_service.haal_op(session, tid, obj["id"])
-        if vervallen:
-            # Het gate-1b-herinlees-pad markeert vervallen; de seed zet de vlag direct
-            # (ORM-update → audit-gedekt) zodat de markering in de browser te zien is.
-            rij.vervallen = True
-            await session.commit()
-            await session.refresh(rij)
-        bf_per_sleutel[sleutel] = rij
+    )).scalar_one_or_none()
+    if demo_vervallen is None:
+        aangemaakt = await bedrijfsfunctie_service.maak_aan(
+            session, tid, BedrijfsfunctieCreate(
+                naam="Regionale samenwerking",
+                definitie="Demo: stond in een eerdere modelversie en is uit het model "
+                          "verdwenen — blijft zichtbaar mét vervallen-markering.",
+            ),
+            bron_model_id=refmodel.id, bron_sleutel=_VERVALLEN_SLEUTEL,
+        )
+        demo_vervallen = await bedrijfsfunctie_service.haal_op(session, tid, aangemaakt["id"])
         telling["bedrijfsfuncties"] += 1
-        return rij.id
 
-    async def _plaatsing(kind_id, ouder_id):
-        """Get-or-create op het (ouder, kind)-paar — via het import-pad (modelinhoud)."""
-        try:
-            await bedrijfsfunctie_service.plaats(session, tid, kind_id, ouder_id, via_import=True)
-        except _RegConflict:
-            pass  # idempotent: de plaatsing bestaat al
+    # (c) De échte import (gate 1b): parser (defusedxml) + plan + ORM-schrijfpad —
+    # dezelfde code als het voorbeeld-/bevestigscherm. Markeert (b) vervallen.
+    resultaat = await _rm_import.voer_uit(session, tid, _RM_SLEUTEL)
+    telling["bedrijfsfuncties"] += len(resultaat["nieuw"])
 
-    # Functies (echte GEMMA-namen; subset). Wortels = échte GEMMA-wortels.
-    f = {}
-    f["uitvoering"] = await _modelfunctie(
-        "uitvoering", "Uitvoering",
-        "Het uitvoeren van gemeentelijke taken en het leveren van producten en diensten.")
-    f["kki"] = await _modelfunctie(
-        "klant_keteninteractie", "Klant- en keteninteractie",
-        "Het interacteren met klanten en ketenpartners over aanvragen, leveringen en informatie.")
-    f["sturing"] = await _modelfunctie(
-        "sturing", "Sturing",
-        "Het richting geven aan de organisatie: strategie, kaders en verantwoording.")
-    f["ondersteuning"] = await _modelfunctie(
-        "ondersteuning", "Ondersteuning",
-        "Het ondersteunen van de organisatie met mensen, middelen en informatie.")
-    f["thfl"] = await _modelfunctie(
-        "toezicht_handhaving_fysieke_leefomgeving", "Toezicht en handhaving fysieke leefomgeving",
-        "Het toezien op en handhaven van regels in de fysieke leefomgeving.")
-    f["thpd"] = await _modelfunctie(
-        "toezicht_handhaving_publieksdiensten", "Toezicht en handhaving Publieksdiensten",
-        "Het toezien op en handhaven van regels binnen de publieksdienstverlening.")
-    # HET MEERVOUD-GEVAL (ADR-044): "Toezicht" hangt onder BEIDE domein-varianten —
-    # één functie, twee plekken, gelijkwaardig (in de echte GEMMA zelfs vier).
-    f["toezicht"] = await _modelfunctie(
-        "toezicht", "Toezicht",
-        "Het controleren of regels en afspraken worden nageleefd.")
-    f["handhaving"] = await _modelfunctie(
-        "handhaving", "Handhaving",
-        "Het optreden bij geconstateerde overtredingen om naleving af te dwingen.")
-    f["ontvangst"] = await _modelfunctie(
-        "ontvangst", "Ontvangst",
-        "Het in ontvangst nemen van aanvragen, meldingen en gegevens van klanten en ketenpartners.")
-    f["verstrekking"] = await _modelfunctie(
-        "verstrekking", "Verstrekking",
-        "Het verstrekken van producten, diensten en informatie aan klanten en ketenpartners.")
-    f["afrekening"] = await _modelfunctie(
-        "afrekening", "Afrekening",
-        "Het afrekenen van geleverde producten en diensten.")
-    f["besturing"] = await _modelfunctie(
-        "besturing", "Besturing",
-        "Het besturen van de organisatie op basis van beleid en kaders.")
-    f["adm_ondersteuning"] = await _modelfunctie(
-        "administratieve_ondersteuning", "Administratieve ondersteuning",
-        "Het administratief ondersteunen van de organisatie.")
-    # LI039-6-demo — vervallen model-functie: zichtbaar mét markering, niet koppelbaar.
-    f["reg_samenwerking"] = await _modelfunctie(
-        "regionale_samenwerking", "Regionale samenwerking",
-        "Vervallen in de nieuwe modelversie — bestaande registratie blijft zichtbaar.",
-        vervallen=True)
+    async def _model_functie_op_naam(naam):
+        rij = (await session.execute(
+            select(_Bfunc).where(
+                _Bfunc.tenant_id == tid,
+                _Bfunc.bron_model_id == refmodel.id,
+                _Bfunc.naam == naam,
+                _Bfunc.vervallen.is_(False),
+            )
+        )).scalars().first()
+        if rij is None:
+            raise RuntimeError(f"GEMMA-functie '{naam}' niet gevonden na import")
+        return rij
 
-    # Plaatsingen (de boom; ouder ← kind). "Toezicht" en "Afrekening" staan op TWEE plekken.
-    for kind, ouder in (
-        ("thfl", "uitvoering"),
-        ("thpd", "uitvoering"),
-        ("toezicht", "thfl"), ("toezicht", "thpd"),          # ← meervoudige ouders
-        ("handhaving", "thfl"),
-        ("ontvangst", "kki"),
-        ("verstrekking", "kki"),
-        ("afrekening", "verstrekking"), ("afrekening", "ontvangst"),  # ← tweede geval (echte GEMMA)
-        ("besturing", "sturing"),
-        ("adm_ondersteuning", "ondersteuning"),
-        ("reg_samenwerking", "sturing"),
-    ):
-        await _plaatsing(f[kind], f[ouder])
+    # (d) De vervallen functie een plek in de boom geven (onder de echte GEMMA-wortel
+    # "Sturing") — via het import-pad (haar plek kwam ooit uit de oude modelversie);
+    # bevroren bij elke herinlees (endpoint niet meer in de bron).
+    sturing = await _model_functie_op_naam("Sturing")
+    try:
+        await bedrijfsfunctie_service.plaats(
+            session, tid, demo_vervallen.id, sturing.id, via_import=True,
+        )
+    except _RegConflict:
+        pass  # idempotent: de plaatsing bestaat al
 
-    # EIGEN functie (geen bronsleutel — een herinlees raakt haar nooit aan); idempotent
-    # skip-op-naam binnen de eigen (bronloze) functies. Onder Ondersteuning geplaatst.
+    # (e) EIGEN functie (geen bronsleutel); idempotent skip-op-naam binnen de eigen
+    # (bronloze) functies. Onder de echte GEMMA-wortel "Ondersteuning".
     eigen_bestaat = (await session.execute(
         select(_Bfunc).where(
-            _Bfunc.bron_sleutel.is_(None), _Bfunc.naam == "Datagedreven werken"
+            _Bfunc.tenant_id == tid,
+            _Bfunc.bron_sleutel.is_(None), _Bfunc.naam == "Datagedreven werken",
         )
     )).scalar_one_or_none()
     if eigen_bestaat is None:
+        ondersteuning = await _model_functie_op_naam("Ondersteuning")
         await bedrijfsfunctie_service.maak_aan(
             session, tid, BedrijfsfunctieCreate(
                 naam="Datagedreven werken",
                 definitie="Eigen functie van de gemeente (staat niet in het referentiemodel).",
-                ouder_id=f["ondersteuning"],
+                ouder_id=ondersteuning.id,
             ),
         )
         telling["bedrijfsfuncties"] += 1

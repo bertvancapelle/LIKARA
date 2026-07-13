@@ -37,6 +37,8 @@ describe('BeheerLayout', () => {
     // ADR-028 — componentclassificatie-beheer.
     expect(wrapper.find('[data-testid="nav-componentrolconfig"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="nav-bivschaalconfig"]').exists()).toBe(true)
+    // Gate 1b — referentiemodel-aanbod (gecureerd, gesloten).
+    expect(wrapper.find('[data-testid="nav-referentiemodelconfig"]').exists()).toBe(true)
   })
 
   it('uitloggen roept auth.logout aan', async () => {

@@ -160,9 +160,19 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.PROCES: dict(_INHOUD),
     # ADR-042 slice 3 — koppelregel: inhoud-patroon (verbreken guardt op WIJZIGEN, zie routes).
     Entiteit.PROCESVERVULLING: dict(_INHOUD),
-    # ADR-043 gate 1a — bedrijfsfunctie-as + ingelezen referentiemodel: inhoud-patroon.
+    # ADR-043 gate 1a — bedrijfsfunctie-as: inhoud-patroon.
     Entiteit.BEDRIJFSFUNCTIE: dict(_INHOUD),
-    Entiteit.REFERENTIEMODEL: dict(_INHOUD),
+    # ADR-043 gate 1b — het referentiemodel INLEZEN is een beheerdershandeling (besloten
+    # kader LI039; precedent GEBRUIKERSBEHEER voor beheerder-only-mutaties), maar wélk
+    # model is ingelezen mag iedereen zien. Corrigeert het eerdere inhoud-patroon
+    # (een medewerker mocht aanmaken — dat was te ruim voor een import die het hele
+    # functie-landschap herschrijft).
+    Entiteit.REFERENTIEMODEL: {
+        Rol.VIEWER: _L,
+        Rol.MEDEWERKER: _L,
+        Rol.BEHEERDER: _LAWV,
+        Rol.AUDITOR: _L,
+    },
     # ADR-023 Fase F / F-2: cross-element laagprojectie — read-only overzicht; élke
     # tenant-rol mag lezen (consistent met het feit dat alle rollen al elk element-type lezen).
     Entiteit.ARCHITECTUUR: dict(_ALLEEN_LEZEN),

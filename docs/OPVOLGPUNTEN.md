@@ -7,6 +7,15 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI039 gate 1b (2026-07-13) — referentiemodel inlezen
+
+1. **GEMMA "Toelichting"-property (169/297 functies) blijft in de MVP liggen.** Het
+   AMEFF-bestand draagt naast de `<documentation>`-definitie een vrije-tekst-property
+   "Toelichting" (voorbeelden, uitleg). De parser (`services/ameff.py`) leest hem bewust
+   niet — bewuste MVP-keuze, geen stille beslissing (opdracht gate 1b §1.1). Bij
+   oppakken: meenemen als tweede leesveld op de functie (weergavevraag: waar toont de
+   UI hem). Status: **open**.
+
 ### Nieuw uit LI038 (2026-07-12) — ADR-043 herijkt ADR-042
 
 1. **ADR-042 is herijkt door ADR-043** (`docs/adr/ADR-043_Bedrijfsfunctie_als_logische_ruggengraat.md`):

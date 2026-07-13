@@ -115,6 +115,14 @@ async function uitloggen() {
           >
             Applicatiefuncties
           </router-link>
+          <!-- Gate 1b — referentiemodel-aanbod (gecureerd; nieuw model komt mee met een release). -->
+          <router-link
+            :to="{ name: 'beheer-referentiemodelconfig' }"
+            data-testid="nav-referentiemodelconfig"
+            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Referentiemodellen
+          </router-link>
         </nav>
       </aside>
 

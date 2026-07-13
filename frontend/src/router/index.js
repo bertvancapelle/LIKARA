@@ -57,6 +57,8 @@ const RolConfigBeheer = () => import('../views/RolConfigBeheer.vue')
 const BivConfigBeheer = () => import('../views/BivConfigBeheer.vue')
 // ADR-042 — platform-beheer applicatiefunctie-catalogus, lazy.
 const ApplicatiefunctieConfigBeheer = () => import('../views/ApplicatiefunctieConfigBeheer.vue')
+// Gate 1b — platform-beheer referentiemodel-aanbod (gesloten aanbod), lazy.
+const ReferentiemodelConfigBeheer = () => import('../views/ReferentiemodelConfigBeheer.vue')
 // ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only), lazy.
 const PlateauLijstView = () => import('../views/migratie/PlateauLijstView.vue')
 const PlateauDetailView = () => import('../views/migratie/PlateauDetailView.vue')
@@ -182,6 +184,7 @@ const routes = [
       { path: 'componentrolconfig', name: 'beheer-componentrolconfig', component: RolConfigBeheer },
       { path: 'bivschaalconfig', name: 'beheer-bivschaalconfig', component: BivConfigBeheer },
       { path: 'applicatiefunctieconfig', name: 'beheer-applicatiefunctieconfig', component: ApplicatiefunctieConfigBeheer },
+      { path: 'referentiemodelconfig', name: 'beheer-referentiemodelconfig', component: ReferentiemodelConfigBeheer },
     ],
   },
 

@@ -425,6 +425,16 @@ export const api = {
     plaats: (id, data) => request(`/bedrijfsfuncties/${id}/plaatsingen`, { method: 'POST', body: JSON.stringify(data) }),
     verwijderPlaatsing: (id, ouderId) => request(`/bedrijfsfuncties/${id}/plaatsingen/${ouderId}`, { method: 'DELETE' }),
   },
+  // Gate 1b — referentiemodel inlezen: eerst het VOORBEELD (dry-run, schrijft niets),
+  // dan pas bevestigen (inlezen). POST zonder body: het model komt uit het gecureerde
+  // aanbod. Inlezen = beheerder (backend handhaaft via REFERENTIEMODEL.AANMAKEN).
+  referentiemodellen: {
+    overzicht: () => request('/referentiemodellen'),
+    voorbeeld: (modelSleutel) =>
+      request(`/referentiemodellen/${encodeURIComponent(modelSleutel)}/voorbeeld`, { method: 'POST' }),
+    inlezen: (modelSleutel) =>
+      request(`/referentiemodellen/${encodeURIComponent(modelSleutel)}/inlezen`, { method: 'POST' }),
+  },
   deliverables: {
     lijst: (params = {}) => request(`/deliverables${_filterQuery('deliverables.lijst', params, ['limit', 'after'])}`),
     haal: (id) => request(`/deliverables/${id}`),
@@ -591,5 +601,13 @@ export const api = {
     maak: (data) => request('/platform/applicatiefunctieconfig', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) =>
       request(`/platform/applicatiefunctieconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  },
+  // Gate 1b — platform-beheer referentiemodel-aanbod. GESLOTEN aanbod: geen `maak`
+  // (nieuw model = release-curatie: bestand + HERKOMST.md + seed); wel label/volgorde/
+  // actief (soft-deactivate).
+  platformReferentiemodelconfig: {
+    lijst: () => request('/platform/referentiemodelconfig'),
+    werkBij: (id, data) =>
+      request(`/platform/referentiemodelconfig/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   },
 }

@@ -47,6 +47,9 @@ const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 // LI037-regel — verwijderen = het VERWIJDEREN-recht (beheerder-only; het endpoint eist
 // BEDRIJFSFUNCTIE.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog.
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// Gate 1b — inlezen = beheerder (REFERENTIEMODEL.AANMAKEN is beheerder-only sinds de
+// gate-1b-RBAC-correctie). Affordance vooraf weren; de backend blijft de handhaver.
+const magInlezen = computed(() => auth.hasRole('beheerder'))
 
 const alle = ref([]) // platte set (alle pagina's); de boom is een client-side afgeleide
 const laden = ref(false)
@@ -487,9 +490,144 @@ const DIAGRAM_TEKSTEN = {
   vervallen: 'vervallen in het referentiemodel',
 }
 
+// ── Gate 1b-afronding — onvoltooide inlees: nooit stil ───────────────────────────
+// De import zet server-side een begin- (False) en eindmarkering (True) op het
+// ingelezen model (`inlees_voltooid`). False bij het openen van het scherm = de
+// vorige inlees is afgebroken: het model staat er mogelijk half en vervallen
+// functies kunnen nog als geldig getoond worden. Iedereen ZIET dat signaal (je
+// kijkt naar een boom die mogelijk niet klopt); alleen de beheerder krijgt de
+// herstart-actie. Best-effort: faalt deze status-call, dan geen signaal — de
+// dialog-flow heeft zijn eigen foutafhandeling (geen dubbele rode ruis).
+const modelStatus = ref([])
+async function laadModelStatus() {
+  try {
+    modelStatus.value = (await api.referentiemodellen.overzicht()) ?? []
+  } catch {
+    modelStatus.value = []
+  }
+}
+const onvoltooidModel = computed(() =>
+  modelStatus.value.find((m) => m.ingelezen && m.ingelezen.inlees_voltooid === false) ?? null,
+)
+
+// ── Gate 1b — referentiemodel inlezen: voorbeeld vóór bevestigen ─────────────────
+// Vorm = een Dialog-overlay met expliciete bevestig-knop (het bestaande
+// bevestigingsdialoog-patroon — KOPPELING_DUBBEL / BevestigVerwijderDialog; het
+// resultaat als tweede dialog-staat is het GebruikersbeheerView-recept). Geen nieuw
+// mechanisme. Niets landt stil: kiezen → voorbeeld (dry-run) → bevestigen → resultaat.
+const inleesOpen = ref(false)
+const inleesModellen = ref([])     // het aanbod (met ingelezen-status per model)
+const inleesModel = ref(null)      // het gekozen model
+const inleesVoorbeeld = ref(null)  // de dry-run-telling (het voorbeeld)
+const inleesResultaat = ref(null)  // ná bevestigen (tweede dialog-staat)
+const inleesLaden = ref(false)     // het VOORBEELD berekenen (dry-run)
+const inleesBezig = ref(false)     // het inlezen zelf (kan tientallen seconden duren)
+const inleesFout = ref(null)       // fout BINNEN de model-context (voorbeeld/inlezen)
+
+// B2 (browsercheck-bevinding): een lege uitkomst is geen fout. De aanbod-staat is ÉÉN
+// enum-ref die op precies één plek per pad wordt gezet — 'fout' (aanroep faalde, rood)
+// en 'leeg' (aanroep slaagde, niets in het aanbod, rustig) kunnen daardoor structureel
+// niet tegelijk bestaan (één variabele draagt één waarde; de template vertakt er
+// exclusief op). De eerdere overlap (catch zette de fout, de leeg-tak keek alleen naar
+// de lege lijst) is daarmee onmogelijk gemaakt — niet alleen verholpen.
+const aanbodStaat = ref('laden')   // 'laden' | 'fout' | 'leeg' | 'ok'
+
+async function openInlezen() {
+  inleesOpen.value = true
+  inleesModellen.value = []
+  inleesModel.value = null
+  inleesVoorbeeld.value = null
+  inleesResultaat.value = null
+  inleesFout.value = null
+  aanbodStaat.value = 'laden'
+  try {
+    const alles = await api.referentiemodellen.overzicht()
+    modelStatus.value = alles // het onvoltooid-signaal boven de boom beweegt mee
+    const aanbod = alles.filter((m) => m.beschikbaar)
+    inleesModellen.value = aanbod
+    aanbodStaat.value = aanbod.length ? 'ok' : 'leeg'
+    // Eén model in het aanbod (de MVP-realiteit): direct het voorbeeld tonen.
+    if (aanbod.length === 1) await kiesInleesModel(aanbod[0])
+  } catch (e) {
+    if (e?.status === 401) {
+      inleesOpen.value = false // de centrale sessie-vangrail redirect; geen rode ruis
+      return
+    }
+    aanbodStaat.value = 'fout'
+  }
+}
+
+async function kiesInleesModel(model) {
+  inleesModel.value = model
+  inleesVoorbeeld.value = null
+  inleesFout.value = null
+  inleesLaden.value = true
+  try {
+    inleesVoorbeeld.value = await api.referentiemodellen.voorbeeld(model.model_sleutel)
+  } catch (e) {
+    inleesFout.value =
+      e?.status === 401 ? null : e?.message || 'Het voorbeeld kon niet berekend worden.'
+  } finally {
+    inleesLaden.value = false
+  }
+}
+
+// Het voorbeeld in gebruikerstaal — geen jargon, de eerlijke telling.
+const inleesIsEerste = computed(() => {
+  const v = inleesVoorbeeld.value
+  return !!v && v.ongewijzigd === 0 && !v.bijgewerkt.length && !v.vervallen.length
+})
+const inleesGeenWijzigingen = computed(() => {
+  const v = inleesVoorbeeld.value
+  return !!v && !v.nieuw.length && !v.bijgewerkt.length && !v.vervallen.length
+})
+// Onvoltooid geldt óók binnen de dialog: de afronding moet mogelijk zijn zelfs als
+// het plan leeg is (alle functies staan er al, alleen de eindmarkering ontbreekt) —
+// anders is de melding nooit weg te werken.
+const inleesOnvoltooid = computed(
+  () => inleesModel.value?.ingelezen?.inlees_voltooid === false,
+)
+const inleesVoorbeeldZin = computed(() => {
+  const v = inleesVoorbeeld.value
+  if (!v) return null
+  if (inleesGeenWijzigingen.value) {
+    return inleesOnvoltooid.value
+      ? 'Alle functies staan er al — alleen de afronding van de vorige inlees ontbreekt nog.'
+      : 'Het model is al actueel — er verandert niets.'
+  }
+  const overgeslagen = v.overgeslagen_totaal
+    ? ` ${v.overgeslagen_totaal} elementen van andere typen worden overgeslagen.`
+    : ''
+  if (inleesIsEerste.value) {
+    return `${v.nieuw.length} functies worden toegevoegd. ${v.plaatsingen_totaal} plaatsingen.${overgeslagen}`
+  }
+  const vervallenDeel = v.vervallen.length
+    ? ` · ${v.vervallen.length} vervallen — waarvan ${v.vervallen.filter((f) => f.in_gebruik).length} nog in gebruik`
+    : ''
+  return `${v.nieuw.length} nieuw · ${v.bijgewerkt.length} bijgewerkt${vervallenDeel}.${overgeslagen}`
+})
+
+async function bevestigInlezen() {
+  if (!inleesModel.value || inleesBezig.value) return
+  inleesBezig.value = true
+  inleesFout.value = null
+  try {
+    inleesResultaat.value = await api.referentiemodellen.inlezen(inleesModel.value.model_sleutel)
+    toastSucces(toast, 'Ingelezen')
+    await laad() // de boom toont direct de nieuwe stand
+    await laadModelStatus() // het onvoltooid-signaal verdwijnt (of verschijnt eerlijk)
+  } catch (e) {
+    inleesFout.value =
+      e?.status === 401 ? null : e?.message || 'Het inlezen is mislukt. Probeer het opnieuw.'
+  } finally {
+    inleesBezig.value = false
+  }
+}
+
 onMounted(() => {
   herstelLijstStaat()
   laad()
+  laadModelStatus() // onvoltooid-signaal (best-effort, parallel aan de boom-laad)
 })
 </script>
 
@@ -519,6 +657,7 @@ onMounted(() => {
           @click="weergave = 'diagram'"
         >Diagram</button>
       </div>
+      <Button v-if="magInlezen" label="Model inlezen" severity="secondary" data-testid="model-inlezen" @click="openInlezen" />
       <Button v-if="magBewerken" label="Nieuwe functie" data-testid="nieuwe-functie" @click="openNieuw(null)" />
     </div>
 
@@ -578,6 +717,27 @@ onMounted(() => {
       testid="functie-wijk-melding"
       class="mb-[var(--lk-space-md)]"
     />
+
+    <!-- Gate 1b-afronding — onvoltooide inlees: rustig maar onmiskenbaar (kleur +
+         icoon + tekst, de bestaande waarschuwingstaal). Iedereen ziet het signaal
+         (de boom klopt mogelijk niet); alleen de beheerder krijgt de herstart-actie.
+         Geen automatische herstart — opnieuw inlezen blijft een bewuste handeling. -->
+    <MeldingBanner
+      v-if="onvoltooidModel"
+      soort="warn"
+      testid="functie-inlees-onvoltooid"
+      class="mb-[var(--lk-space-md)]"
+    >
+      De vorige inlees van "{{ onvoltooidModel.label }}" is niet afgerond — het model is
+      mogelijk onvolledig.<template v-if="magInlezen"> Start opnieuw om hem af te maken.
+        <Button
+          label="Inlezen afronden"
+          outlined
+          data-testid="onvoltooid-hervat"
+          class="ml-[var(--lk-space-sm)]"
+          @click="openInlezen"
+        /></template>
+    </MeldingBanner>
 
     <!-- LI039 UI-afronding v2 (punt 3) — de herkomst van het ingelezen model, één keer,
          uit de data (geen herhaling per rij; op de rij staat alleen wat afwijkt). -->
@@ -761,10 +921,16 @@ onMounted(() => {
       <p v-else-if="!laden && zoekterm.trim()" data-testid="lijst-geen-match" class="p-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">
         Geen bedrijfsfuncties komen overeen met de zoekterm.
       </p>
+      <!-- Lege staat mét route naar de actie (gate 1b §2.2): de beheerder kan hier
+           direct inlezen; anderen zien waar de actie wél ligt. -->
       <p v-else-if="!laden" data-testid="lijst-leeg" class="p-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">
         Er is nog geen functieboom.
-        <template v-if="magBewerken">Lees een referentiemodel in (volgt in een volgende stap) of begin met "Nieuwe functie".</template>
-        <template v-else>Een beheerder of medewerker leest het referentiemodel in of voegt functies toe.</template>
+        <template v-if="magInlezen">
+          Lees het referentiemodel in of begin met "Nieuwe functie".
+          <Button label="Referentiemodel inlezen" class="ml-[var(--lk-space-sm)]" data-testid="lijst-leeg-inlezen" @click="openInlezen" />
+        </template>
+        <template v-else-if="magBewerken">Begin met "Nieuwe functie", of vraag een beheerder het referentiemodel in te lezen.</template>
+        <template v-else>Een beheerder leest het referentiemodel in; een medewerker kan functies toevoegen.</template>
       </p>
       <p v-else data-testid="lijst-laden" class="p-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">Laden…</p>
     </div>
@@ -841,5 +1007,125 @@ onMounted(() => {
       <span v-if="haalWegFout" data-testid="functie-haalweg-fout" class="text-[var(--lk-color-warning)]">{{ haalWegFout }}</span>
       <span v-else data-testid="functie-haalweg-zin">{{ haalWegZin }}</span>
     </BevestigVerwijderDialog>
+
+    <!-- Gate 1b — referentiemodel inlezen: VOORBEELD vóór bevestigen (dialog-overlay
+         met expliciete bevestig-knop; het resultaat als tweede dialog-staat). -->
+    <Dialog
+      v-model:visible="inleesOpen"
+      modal
+      :closable="false"
+      header="Referentiemodel inlezen"
+      data-testid="inlees-dialog"
+    >
+      <div class="flex min-w-[26rem] max-w-xl flex-col gap-[var(--lk-space-md)]" :aria-busy="inleesBezig">
+
+        <!-- Staat 3 — resultaat (na bevestigen): wat er is gebeurd, leesbaar. -->
+        <template v-if="inleesResultaat">
+          <p data-testid="inlees-resultaat" class="max-w-prose font-medium">
+            Het model "{{ inleesResultaat.model.naam }}" ({{ inleesResultaat.model.versie }}) is ingelezen.
+          </p>
+          <ul class="list-disc pl-[var(--lk-space-lg)] text-[length:var(--lk-text-sm)]">
+            <li v-if="inleesResultaat.nieuw.length">{{ inleesResultaat.nieuw.length }} functies toegevoegd</li>
+            <li v-if="inleesResultaat.bijgewerkt.length">{{ inleesResultaat.bijgewerkt.length }} functies bijgewerkt</li>
+            <li v-if="inleesResultaat.vervallen.length">{{ inleesResultaat.vervallen.length }} functies vervallen gemarkeerd</li>
+            <li v-if="!inleesResultaat.nieuw.length && !inleesResultaat.bijgewerkt.length && !inleesResultaat.vervallen.length">geen wijzigingen — het model was al actueel</li>
+          </ul>
+          <div class="flex gap-[var(--lk-space-md)]">
+            <Button type="button" label="Klaar" data-testid="inlees-klaar" @click="inleesOpen = false" />
+          </div>
+        </template>
+
+        <!-- Staat 2 — bezig: expliciete indicatie (het inlezen kan tientallen seconden duren). -->
+        <template v-else-if="inleesBezig">
+          <p data-testid="inlees-bezig" role="status" class="max-w-prose">
+            Het model wordt ingelezen — dit kan een halve minuut duren. Sluit dit venster niet.
+          </p>
+        </template>
+
+        <!-- Staat 1 — kiezen + voorbeeld (dry-run) vóór bevestigen. De aanbod-staat
+             vertakt EXCLUSIEF op het ene `aanbodStaat`-enum (B2): 'fout' (aanroep
+             faalde → rood) en 'leeg' (aanroep slaagde, niets beschikbaar → rustig)
+             kunnen elkaar structureel niet overlappen. -->
+        <template v-else>
+          <p v-if="aanbodStaat === 'laden'" data-testid="inlees-aanbod-laden" class="text-[var(--lk-color-text-muted)]">Aanbod laden…</p>
+
+          <!-- Aanroep FAALDE — er is echt iets kapot: rood. -->
+          <template v-else-if="aanbodStaat === 'fout'">
+            <MeldingBanner soort="danger" tekst="Het aanbod kon niet geladen worden. Probeer het later opnieuw." testid="inlees-fout" />
+            <div class="flex gap-[var(--lk-space-md)]">
+              <Button type="button" label="Sluiten" severity="secondary" data-testid="inlees-sluiten" @click="inleesOpen = false" />
+            </div>
+          </template>
+
+          <!-- Aanroep SLAAGDE, aanbod leeg — een toestand, geen fout: rustig. -->
+          <template v-else-if="aanbodStaat === 'leeg'">
+            <p data-testid="inlees-geen-aanbod" class="max-w-prose text-[var(--lk-color-text-muted)]">
+              Er zijn nog geen referentiemodellen beschikbaar. Modellen worden door de
+              platformbeheerder aangeboden en komen mee met een release van LIKARA.
+            </p>
+            <div class="flex gap-[var(--lk-space-md)]">
+              <Button type="button" label="Sluiten" severity="secondary" data-testid="inlees-sluiten" @click="inleesOpen = false" />
+            </div>
+          </template>
+
+          <!-- Aanbod gevuld ('ok'): kiezen → voorbeeld → bevestigen. -->
+          <template v-else>
+            <MeldingBanner v-if="inleesFout" soort="danger" :tekst="inleesFout" testid="inlees-fout" />
+            <MeldingBanner
+              v-if="inleesOnvoltooid"
+              soort="warn"
+              tekst="De vorige inlees is niet afgerond — het model is mogelijk onvolledig. Inlezen maakt hem af."
+              testid="inlees-onvoltooid-melding"
+            />
+            <p v-if="inleesLaden" data-testid="inlees-laden" class="text-[var(--lk-color-text-muted)]">Voorbeeld berekenen…</p>
+
+            <!-- Meerdere modellen in het aanbod: eerst kiezen (MVP-aanbod = één → auto). -->
+            <ul v-if="!inleesModel && inleesModellen.length > 1" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="inlees-modellen">
+              <li v-for="m in inleesModellen" :key="m.model_sleutel">
+                <Button :label="`${m.label} — ${m.versie}`" severity="secondary" :data-testid="`inlees-kies-${m.model_sleutel}`" @click="kiesInleesModel(m)" />
+              </li>
+            </ul>
+            <div v-if="!inleesModel" class="flex gap-[var(--lk-space-md)]">
+              <Button type="button" label="Sluiten" severity="secondary" data-testid="inlees-sluiten" @click="inleesOpen = false" />
+            </div>
+
+            <template v-if="inleesModel">
+            <div class="text-[length:var(--lk-text-sm)]">
+              <p class="font-semibold">{{ inleesModel.label }} — {{ inleesModel.versie }}</p>
+              <p class="mt-1 max-w-prose text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]" data-testid="inlees-herkomst">{{ inleesModel.herkomst }}</p>
+              <p v-if="inleesModel.ingelezen" class="mt-1 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]" data-testid="inlees-eerder">
+                Eerder ingelezen; dit is een herinlees — bestaande registratie blijft staan.
+              </p>
+            </div>
+
+            <template v-if="inleesVoorbeeld">
+              <p data-testid="inlees-voorbeeld" class="max-w-prose font-medium">{{ inleesVoorbeeldZin }}</p>
+              <!-- De werklijst: vervallen functies bij naam (alleen bij een herinlees). -->
+              <ul v-if="inleesVoorbeeld.vervallen.length" data-testid="inlees-vervallen-lijst" class="list-disc pl-[var(--lk-space-lg)] text-[length:var(--lk-text-sm)]">
+                <li v-for="f in inleesVoorbeeld.vervallen" :key="f.naam">
+                  {{ f.naam }}<span v-if="f.in_gebruik" class="text-[var(--lk-color-warning)]"> — nog in gebruik</span>
+                </li>
+              </ul>
+              <p class="max-w-prose text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
+                Er verandert pas iets na je bevestiging.
+              </p>
+            </template>
+
+            <div class="flex gap-[var(--lk-space-md)]">
+              <Button
+                type="button"
+                label="Inlezen"
+                data-testid="inlees-bevestig"
+                :disabled="!inleesVoorbeeld || (inleesGeenWijzigingen && !inleesOnvoltooid) || inleesLaden"
+                :title="inleesGeenWijzigingen && !inleesOnvoltooid ? 'Het model is al actueel.' : undefined"
+                @click="bevestigInlezen"
+              />
+              <Button type="button" label="Annuleren" severity="secondary" data-testid="inlees-annuleer" @click="inleesOpen = false" />
+            </div>
+            </template>
+          </template>
+        </template>
+      </div>
+    </Dialog>
   </section>
 </template>

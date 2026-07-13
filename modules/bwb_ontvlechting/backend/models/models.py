@@ -742,6 +742,16 @@ class Referentiemodel(Base, TenantMixin, TimestampMixin):
     ingelezen_op: Mapped[datetime] = mapped_column(
         sa.DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+    # Gate 1b-afronding — de inlees heeft een BEGIN en een EIND, en het verschil is
+    # zichtbaar: `voer_uit` zet de vlag op False vóór de eerste schrijfactie en pas op
+    # True ná de laatste (incl. de vervallen-markering). False = een afgebroken inlees:
+    # het model staat er mogelijk half en vervallen functies kunnen nog als geldig
+    # getoond worden — het scherm meldt dat eerlijk ("niets landt stil"). Een ECHTE
+    # kolom (geen jsonb/afgeleide) zodat de audit de omslag per import naspeurbaar
+    # capture't (het `dubbel_waarschuwing_genegeerd`-precedent, DC016). Migratie 0064.
+    inlees_voltooid: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("true")
+    )
 
 
 class Bedrijfsfunctie(Base, TenantMixin, TimestampMixin):

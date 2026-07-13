@@ -11,6 +11,7 @@ httpx>=0.27,<1
 PyJWT[crypto]>=2.8,<3
 aio-pika>=9.4,<10
 bleach>=6.1,<7
+defusedxml>=0.7,<1   # veilige XML-parsing (AMEFF-referentiemodel, gate 1b — XXE/entity-expansion-veilig)
 slowapi>=0.1.9,<1
 redis>=5.0,<6
 boto3>=1.34.0
