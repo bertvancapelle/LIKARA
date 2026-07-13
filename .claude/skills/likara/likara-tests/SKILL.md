@@ -2,7 +2,7 @@
 name: likara-tests
 description: Test-patronen voor LIKARA (pytest unit-tests + TST-validatiecyclus). Beschrijft de werkelijke V001-staat.
 stack: pytest, asyncio, unittest.mock, SQLAlchemy models, vitest, @vue/test-utils
-bijgewerkt: V023
+bijgewerkt: V040
 ---
 
 # LIKARA Tests Skill
@@ -408,3 +408,24 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   Duiding: belastinggevoeligheid van de timer-tests, niet de gewijzigde code. Keert het in
   een rustige omgeving terug → dan wél de gerichte `git stash`-vergelijking (ADR-028-
   diagnose-recept in likara-backend) draaien vóór er iets "gefixt" wordt.
+
+## LI039-patronen (test-tenant-grens, UI-pad-dekking, vorm-asserts)
+
+- **Eigen test-tenant zodra de teardown breder veegt dan de eigen fixtures (besluit Bert,
+  LI039).** De bestaande norm blijft: live-tests self-contained (WT-fixtures, opruimen in
+  `finally`) — in de dev-tenant is dat prima. Maar zodra een teardown NIET tot eigen rijen
+  te beperken is (bv. de import-tests: "ruim álle functies van het model op"), is een
+  **eigen test-tenant verplicht** (referentie: `test_referentiemodel_import_gate1b.py:30-33`,
+  tenant `9999…`). Reden (les LI039): de import-teardown draaide eerst in de dev-tenant en
+  at de geseede GEMMA-boom op. Bewust NIET als absolute "nooit dev-tenant"-regel vastgelegd —
+  die zou de gezonde bestaande praktijk tot overtreding verklaren en daarmee genegeerd worden.
+- **Elk UI-pad dat de gebruiker opent (popup/dialoog/overlay) heeft minstens één test die
+  hem ÉCHT opent.** Payload-groen zegt niets over een pad dat nooit gemount wordt.
+  Referenties: de diagram-popup-tests ("popup bestaat op inhoud, óók zonder uitgang") en de
+  inleesdialoog-tests (openen → voorbeeld → bevestigen). ⚠ Tekst-regel — geen bouwsteen;
+  discipline per slice.
+- **Vorm-asserts (aanscherping op de LI030-regel "toets de interactie-staat"):** assert ook
+  de KNOPVORM waar die betekenis draagt — doorklik vs. mutatie:
+  `expect(w.findComponent('[data-testid=…]').props('outlined')).toBe(true)` (referentie:
+  BedrijfsfunctieLijst.test.js:325-329). Een payload-assert ziet niet dat een mutatie-knop
+  per ongeluk als doorklik oogt. ⚠ Tekst-regel — per test een keuze.

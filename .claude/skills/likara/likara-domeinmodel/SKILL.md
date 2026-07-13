@@ -9,7 +9,7 @@ description: >
   ankerpunten, en harde architectuurregels. De HOE (implementatiepatronen) staat
   in likara-db en likara-backend; dit bestand beschrijft het WAT.
 stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026/043
-bijgewerkt: V038
+bijgewerkt: V040
 ---
 
 # LIKARA Domeinmodel — Kaart
@@ -776,3 +776,49 @@ Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzi
   besluit.
 - De "eigen laag bij een referentie-object" (hierboven) **is een instantie hiervan** — samen
   ontwerpen, niet twee keer bouwen.
+
+## LI039/ADR-044 — plaatsing als eerste-klas feit (gebouwd) + gate-2/3-besluiten
+
+*(Gevalideerd fase A: `docs/Validatie-patronen-LI039.md`. Herijkt de gate-1a-vorm.)*
+
+- **De functieboom is GEEN kolom — plaatsing = eerste-klas feit (GEBOUWD, migratie 0063).**
+  `bedrijfsfunctie.ouder_id` bestaat niet meer; de boom leeft in `aggregation`-relaties
+  (bron = ouder, doel = kind) via de dunne facade in `bedrijfsfunctie_service` (plateau-
+  spiegel). Eén functie kan op MEERDERE plekken staan (GEMMA: 7 functies met 2–4 ouders);
+  `UNIQUE(tenant, bron, doel, type)` borgt één plaatsing per (ouder, functie)-paar.
+  **Meervoud wordt GETOOND, nooit stil opgelost**: elke plaatsing is een rij ("staat ook
+  onder: …", klikbaar), het diagram benoemt het meervoud. Reden: "Toezicht wordt in vier
+  domeinen uitgeoefend" is een uitspraak over de werkelijkheid — het impact-inzicht waarvoor
+  de kaart bestaat. Bouwsteen: schema (partial UNIQUE) + facade + `meervoudBoomStructuur`.
+- **Endpoint-typeborging: nieuw voorbeeld bij de bestaande V030-regel.** De generieke
+  relatie-facade valideert geen elementtypen; `bedrijfsfunctie_service._vereis_bedrijfsfunctie`
+  (:101-111) borgt dat bron én doel van een plaatsing bedrijfsfuncties zijn (404 no-leak /
+  422 `ONGELDIGE_PLAATSING`) — in de SPECIFIEKE facade, exact zoals §"Type-validatie bron/
+  doel" voorschrijft.
+- **Referentiemodel-regels — GEBOUWD (gate 1b; was 'besloten' in §LI038 hierboven):**
+  - *Bronsleutel = identiteit* (nooit naam): `uq_bedrijfsfunctie_bron` + het import-plan
+    matcht op `(bron_model, bron_sleutel)`; empirisch 296/296 identifiers stabiel over 9
+    maanden (Verkenning-V040).
+  - *Modelinhoud read-only*: 422 `MODELINHOUD_BESCHERMD` op naam/definitie/plaatsing van
+    bron-dragende functies; het import-pad passeert via de keyword-only `via_import`.
+  - *Vervallen ≠ verwijderen*: set-verschil markeert (`vervallen=true`); rij + historische
+    plaatsingen blijven (bevroren); terugkeer in de bron = herleven. Verwijderen van
+    modelinhoud is geweigerd.
+  - *Aanbod gesloten, motor generiek*: de parser (`services/ameff.py`) is modelonafhankelijk;
+    het aanbod is de repo-route (`referentiemodellen/HERKOMST.md` — bestand gepind op
+    bron-commit, mét licentie/SHA-256; platform-beheerscherm zonder POST). Nieuw model =
+    release-curatie, geen upload.
+  - *Dry-run = uitvoering*: één `_bepaal_plan` voedt voorbeeld én schrijfpad — er bestaat
+    geen tweede vergelijking die uit de pas kan lopen (bronscan-test).
+- **BESLOTEN, NOG NIET GEBOUWD (ADR-044, expliciet zo gemarkeerd):**
+  - *Besluit 2 (gate 2)* — koppelen grof en fijn: verfijnen VERVÁNGT het grove antwoord op
+    die plek (grof = onvoltooid, niet universeel); "erbij" = meerdere componenten op één
+    plaatsing.
+  - *Besluit 3* — "hier gebruiken we niets" is een BEVINDING (vastgestelde uitkomst), strikt
+    onderscheiden van "nooit naar gekeken".
+  - *Besluit 4 (gate 3)* — het gap-signaal hangt aan de PLAATSING, niet aan de functie: de
+    plek is de teleenheid.
+  - *"Alleen wat werk ondersteunt mag aan een bedrijfsfunctie hangen"* — sessie-besluit
+    LI039, **ADR nog te schrijven**; "ondersteunt werk" wordt een EIGENSCHAP van het
+    componenttype (precedent: `checklist_dragend` op `componentconfig_optie`), geen lijst in
+    code.

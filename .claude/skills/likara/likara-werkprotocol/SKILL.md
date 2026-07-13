@@ -1,7 +1,7 @@
 ---
 name: likara-werkprotocol
 description: Werkprotocol voor PNA-interacties (claude.ai) en CC-uitvoering. Niet-onderhandelbaar. Lees bij elke sessiestart.
-bijgewerkt: V038
+bijgewerkt: V040
 ---
 
 # LIKARA Werkprotocol
@@ -263,3 +263,32 @@ verschijnen dáár). Hercentreren/weergave-wissel hoort bij dubbelklik en de exp
 weergave-schakelaar. De vroegere ADR-040-regel "een set opbouwen via een ingang = brede
 plaat → overzicht" (`toonOverzicht()` in het gedeelde set-pad) is hiermee HERZIEN en uit
 de code verwijderd. (Hoort óók terug in ADR-040 — staat op de ADR-onderhoudslijst.)
+
+## LI039 — werkprotocol-aanscherpingen (gevalideerd fase A: `docs/Validatie-patronen-LI039.md`)
+
+*(Alle regels hieronder zijn procesdiscipline: tekst-regels zonder bouwsteen — ze rusten op
+naleving, niet op structuur. De bestaande regels waar ze op aanhaken staan erbij.)*
+
+- **Read-only-eerst, tweemaal herbewezen (aanvulling op §Read-only-eerst).** Een hypothese
+  van de PNA is richting, geen bouwopdracht — LI039 leverde er twee die bij validatie
+  ANDERS bleken: de dubbele-melding-oorzaak (geen leeg aanbod maar een 500 door een
+  model↔schema-mismatch) en "de dev-seed vult het aanbod" (het is `platform_init` +
+  migratie 0061). Beide keren was de fix een andere dan de hypothese suggereerde.
+- **Telling vóór besluit — "denkbaar is niet geteld" (aanscherping op §Reikwijdte-scan).**
+  Een ontwerpbesluit over een verschijnsel begint met de meting ervan: ADR-044 (meervoudige
+  ouders) is genomen op de GETELDE 7 gevallen uit de bron (Verkenning §B1), niet op "dat kan
+  voorkomen". Wie niet telt, dimensioneert op fantasie.
+- **Convergentie-vorm bij twee waarheden (aanvulling op de KERNLES):** nooit een tweede
+  implementatie — een **tweede export in dezelfde module**, met de bestaande consument
+  byte-compatibel. Referentie: `procesBoom.js` (`procesBoomStructuur` ongewijzigd voor
+  ProcesLijst; `meervoudBoomStructuur` ernaast voor ADR-044).
+- **Nieuwe dependency ⇒ image herbouwen — deploy-consequentie in het gate-rapport.** Een
+  dependency in `requirements.txt` bestaat pas in de container ná `docker compose build`;
+  tot die tijd draait de api de oude omgeving (LI039: defusedxml — de api viel om tot de
+  rebuild). Het gate-rapport benoemt de rebuild expliciet.
+- **Migratie: bouw ÉN toepassing horen bij de slice.** Een model↔schema-mismatch legt élk
+  endpoint op die tabel plat (LI039-incident: `inlees_voltooid` in het ORM, migratie 0064
+  nog niet toegepast → 500 op het aanbod-endpoint). De migratie wordt gebouwd én toegepast
+  binnen dezelfde slice, vóór de code actief wordt; een onderbroken slice laat dit als
+  EERSTE herstelpunt na. (De lk-migrate-keten past bij een stackstart automatisch toe — het
+  gat ontstaat lokaal, bij bind-mounted code zonder upgrade.)

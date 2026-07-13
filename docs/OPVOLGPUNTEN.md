@@ -15,6 +15,22 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    niet — bewuste MVP-keuze, geen stille beslissing (opdracht gate 1b §1.1). Bij
    oppakken: meenemen als tweede leesveld op de functie (weergavevraag: waar toont de
    UI hem). Status: **open**.
+2. **Toestandsbouwsteen "lege uitkomst ≠ fout" (fase-A patroon 8) — converge bij n≥2.**
+   De `aanbodStaat`-enum die 'fout' (rood) en 'leeg' (rustig) structureel uitsluit is
+   PER SCHERM gebouwd (inleesdialoog, BedrijfsfunctieLijst). Het volgende scherm met een
+   lijst + foutpad kan dezelfde overlap-bug opnieuw maken — de fout van de LI039-
+   browsercheck, wachtend op herhaling. Zodra een tweede scherm dit nodig heeft: één
+   gedeelde bouwsteen (composable) i.p.v. een tweede inline enum. Status: **open (n=1)**.
+3. **Picker-uitleg "waarom ontbreekt een optie" (fase-A patroon 11, besloten Bert) — te
+   bouwen, eerst nodig bij gate 2.** Pickers weren ongeldige doelen al vooraf (gebouwd),
+   maar leggen niet uit wáárom iets ontbreekt. Zonder uitleg is een ontbrekende optie in
+   de ogen van de gebruiker een bug: in gate 2 zoekt de consultant zijn database in de
+   koppel-picker, vindt hem niet, en denkt dat er iets stuk is — terwijl het een regel is
+   (een database ondersteunt geen werk). Status: **besloten, te bouwen bij gate 2**.
+4. **Afkappen definitie-leeslaag op zinsgrens i.p.v. regelgrens — te wegen.** De
+   tweelaags rij kapt de definitie op twee regels (`line-clamp`, woordgrens); een
+   zinsgrens-garantie bestaat niet. In de praktijk zelden relevant (mediaan
+   GEMMA-definitie ≈ 90 tekens). Status: **open, laag**.
 
 ### Nieuw uit LI038 (2026-07-12) — ADR-043 herijkt ADR-042
 

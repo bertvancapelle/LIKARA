@@ -2,7 +2,7 @@
 name: likara-frontend
 description: Frontend-patronen voor LIKARA (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V038
+bijgewerkt: V040
 ---
 
 # LIKARA Frontend Skill
@@ -1341,3 +1341,49 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   (inzoom: alleen proces + subboom) in `procesBoom.js`; snapshot+cursor-history op de
   beeld-velden (kaart-patroon); ingang-prop `initieelCentrumId` + emit `centrumGewijzigd`
   (plek behouden over Boom↔Diagram-wissels).
+
+## LI039-patronen (functieboom + inleesflow — gevalideerd fase A, `docs/Validatie-patronen-LI039.md`)
+
+- **Convergentie bij twee waarheden = een TWEEDE EXPORT in dezelfde module (ADR-044).**
+  Processen zijn één-ouder, functies meervoud: `procesBoom.js` draagt nu `procesBoomStructuur`
+  (:26, ongewijzigd — `ProcesLijst` byte-compatibel) én `meervoudBoomStructuur` (:62, plek-paden
+  voor plaatsingen). Nooit een kopie-module; de tweede waarheid woont naast de eerste in
+  dezelfde bouwsteen. Reden: een kopie loopt stil uit de pas (LI038-kernles).
+- **Tweelaags rij-contract (`.lk-rij-*` in main.css:96-130, gedeeld met het processen-scherm).**
+  SCAN-laag (`.lk-rij-kop`: naam + alléén wat afwijkt) boven LEES-laag (`.lk-rij-definitie`:
+  de definitie volledig zichtbaar, `line-clamp: 2` op woordgrens met ellipsis — géén tooltip,
+  géén uitklap; de volledige tekst leeft op popup/detail). NB: het kappen is op REGELgrens,
+  niet zinsgrens (zinsgrens = gewogen opvolgpunt). Reden: de definitie is het product — wie
+  moet hoveren om te lezen, leest niet.
+- **Vaste actiekolom rechts (`.lk-rij { flex-wrap }` + `.lk-rij-acties { flex:0 0 auto; wrap }`).**
+  De actiekolom claimt eigen breedte; knoppen stapelen binnen de kolom — er valt er nooit één
+  buiten beeld, óók de rode niet. Bouwsteen: het main.css-rij-contract.
+- **`useToonNieuweRij` — "wat je zojuist hebt vastgelegd, zie je altijd" (bouwsteen, 4/5).**
+  `useAanstip()` (aanstip + scroll-alleen-als-nodig, mét omgeving via `block:'center'`, zacht;
+  `scrolNaarRij` beweegt NIETS als de rij al in beeld is) + `useToonInBoom()` (pad open —
+  plek-paden via `padVan` voor meervoud-bomen —, zoekterm wijkt ZICHTBAAR via `wijkMelding`,
+  aanstip functie-breed met scroll naar de gevraagde plek). **Consument-grens:** het
+  vooraan-invoegen bij gepagineerde secties doet de consument zelf (Datatype-/Gebruikersgroep-/
+  KoppelingSectie); de composable levert daar alleen de aanstip. Elke nieuwe lijst haakt aan —
+  geen inline kopieën.
+- **Signaal-kanalen gescheiden (ProcesDiagram:45-55).** `gapIds` (gestippeld, gedempt) en
+  `vervallenIds` (solid warning + ⚠) zijn EIGEN props — nooit twee betekenissen door één
+  kanaal; combinatie = gestippeld in warning-kleur. Altijd kleur + icoon + tekst. Reden: beide
+  toestanden kunnen tegelijk waar zijn; een gedeeld kanaal kan er maar één vertellen.
+- **Lege uitkomst ≠ fout — de aanbodStaat-vorm (BedrijfsfunctieLijst, inleesdialoog).** Eén
+  enum-ref (`'laden'|'fout'|'leeg'|'ok'`), op precies één plek per pad gezet; de template
+  vertakt er exclusief op. 'Fout' (aanroep faalde → rood) en 'leeg' (aanroep slaagde, niets →
+  rustige tekst mét route) kunnen structureel niet samen renderen — de vanochtend-bug (beide
+  meldingen tegelijk) is onmogelijk gemaakt, niet alleen verholpen.
+  ⚠ **Tekst-regel — geen gedeelde bouwsteen; converge bij het tweede geval (n≥2).** Het
+  patroon is per scherm gebouwd; een volgend scherm met lijst + foutpad kan de overlap-bug
+  opnieuw maken (OPVOLGPUNT: toestandsbouwsteen).
+- **Boom-diagram links→rechts + haakse lijnen — BESLOTEN, NOG NIET GEBOUWD (vervangt huidige
+  gedraging).** De huidige `procesBoomLayout` is top-down en het diagram tekent bij meervoud
+  ÁLLE plaatsings-lijnen (ProcesDiagram:112-115). Het besloten ontwerp: links→rechts, haakse
+  lijnen, meervoud als VERWIJZING (niet als doorkruisende lijn). Bij bouw vervangt dit de
+  huidige weergave — de skill beschrijft tot die tijd bewust niet de code.
+- **Knopvormen + rij-acties (LI039):** al vastgelegd in §Knopstandaard hierboven (drievorm +
+  `RijActies`-bouwsteen) — daar niets aan toegevoegd; de bestaande formulering is vollediger
+  (kent ook `secondary`). ⚠ "Max één primary per scherm" + pijl-op-doorklik blijven
+  **tekst-regels zonder bouwsteen** (het preset dwingt vormen af, niet het aantal of het label).

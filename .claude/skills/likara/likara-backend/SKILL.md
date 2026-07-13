@@ -2,7 +2,7 @@
 name: likara-backend
 description: Backend-patronen voor LIKARA (FastAPI + SQLAlchemy + Alembic). Beschrijft de werkelijke V001-staat.
 stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy asyncio, Alembic, PostgreSQL 16
-bijgewerkt: V023
+bijgewerkt: V040
 ---
 
 # LIKARA Backend Skill
@@ -587,3 +587,16 @@ Service + route voor de per-gebruiker voorkeur-laag (`gebruiker_voorkeur`, zie l
   de allowlists staan (`AUDIT_TENANT_ENTITEITEN`/platform). **Bekend systemisch gat**: een
   delete via het element-supertype (core-delete) audit de subtype-rij niet — gedocumenteerd
   risico, opvolgpunt.
+
+## LI039 — gate 1b: het import-pad als voorbeeld bij bestaande regels
+
+- **Bulk-schrijven ORM-matig (voorbeeld bij §LI035 "Audit-dekking is ORM-dekking"):** de
+  referentiemodel-import (`referentiemodel_import_service.voer_uit`) schrijft 297 functies +
+  302 plaatsingen via de bestaande facade (`maak_aan`/`plaats` met `via_import=True`) — géén
+  SQL-upsert, want die zou de audit-flush-hooks omzeilen. Prijs: per-call-commits (13–25 s
+  voor de volle GEMMA-import; bezig-indicatie in de UI, markering bij afbreken — zie
+  likara-resilience). Dry-run en uitvoering delen één plan (`_bepaal_plan`, puur; bronscan-
+  test bewaakt dat het droge pad geen schrijf-primitief bevat).
+- **`via_import`-slotpatroon:** een gebruikers-slot (`MODELINHOUD_BESCHERMD`) met één
+  legitiem service-pad eromheen via een keyword-only parameter — het slot zelf blijft
+  onverzwakt; de route-laag kan er nooit bij.

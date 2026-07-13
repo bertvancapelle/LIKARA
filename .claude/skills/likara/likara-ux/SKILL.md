@@ -1,7 +1,7 @@
 ---
 name: likara-ux
 description: Interaction-design-denkmethode voor LIKARA. Verplicht te raadplegen bij ELKE frontend-rakende slice (nieuw scherm, nieuwe sectie, nieuwe actie) — door zowel CC als claude.ai. Borgt dat een functie de UI logisch en compleet houdt voor de gebruiker: geen lege lijsten zonder route naar de actie, actie op de plek waar de gebruiker hem verwacht, terminologie vanuit de gebruiker. Dit is GEEN stijl-/visuele skill (dat is likara-frontend); dit gaat over of het scherm doet wat de gebruiker verwacht.
-bijgewerkt: V038
+bijgewerkt: V040
 ---
 
 # LIKARA UX / Interaction-Design Skill
@@ -562,3 +562,37 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
     handoff-bouwer + consume-once store, **niet** de `?center=`-component-deeplink).
 
   Samen op één knop zou "meer processen zien" laten lezen als "componenten erbij halen".
+
+## LI039 — gevalideerde UX-patronen (fase A: `docs/Validatie-patronen-LI039.md`)
+
+- **"Informatie die overal hetzelfde is, is geen informatie."** Herkomst/context die voor
+  élke rij gelijk is staat ÉÉN keer boven de lijst (data-gedreven, bv. `modelHerkomst` in de
+  functieboom); op de rij staat alléén wat afwijkt ("eigen", "vervallen"). Reden: herhaling
+  per rij maakt de échte afwijking onzichtbaar. ⚠ Tekst-regel — geen bouwsteen; converge bij
+  het tweede scherm (n≥2).
+- **Kern-inhoud staat nooit in een tooltip.** Een tooltip is onvindbaar, bedient één persoon
+  tegelijk en breekt op touch/toetsenbord/schermlezer. De definitie in de functieboom is
+  daarom een zichtbare lees-laag (max twee regels) + volledig in de popup — "zichtbaar zonder
+  muisbeweging" (main.css-comment bij `.lk-rij-definitie`). ⚠ Tekst-regel — geen bouwsteen.
+- **Geen doodlopend pad.** Wat om actie of aandacht vraagt, biedt minstens één uitgang:
+  een vervallen rij houdt "Toon in functiebeeld" (alleen de mutaties zijn geweerd); een
+  onvoltooide inlees is afrondbaar óók als er niets meer bij hoeft (anders is de melding
+  nooit weg te werken); een popup bestaat op inhoud, óók zonder uitgangen. ⚠ Tekst-regel —
+  per-scherm-ontwerp, geen bouwsteen.
+- **Lege uitkomst ≠ fout (aanvulling op P8).** "Aanroep slaagde, niets gevonden" is een
+  TOESTAND (rustige lege staat mét route naar de actie); "aanroep faalde" is een FOUT (rood).
+  Nooit beide tegelijk — dwing dat structureel af met één toestandsvariabele (de
+  aanbodStaat-vorm, zie likara-frontend). Reden: een gebruiker die alarmrood ziet gaat
+  bellen terwijl er niets kapot is; twee tegenstrijdige meldingen maken het scherm
+  ongeloofwaardig (browsercheck-bevinding LI039).
+- **Picker-regel 1-aanvulling (LI039): weren vooraf ÉN uitleggen waarom.** Weren vooraf is
+  gebouwd (de plaats-picker spiegelt PLAATSING_BESTAAT/kring/vervallen; `plaatsZin` zegt wat
+  er gáát gebeuren). **BESLOTEN, NOG TE BOUWEN:** de picker legt óók uit waaróm een optie
+  ontbreekt — zonder die uitleg is een ontbrekende optie in de ogen van de gebruiker een BUG.
+  Eerst nodig bij de componenttype-filtering in gate 2 (de consultant zoekt zijn database,
+  vindt hem niet, en denkt dat er iets stuk is — terwijl het een regel is: een database
+  ondersteunt geen werk). Zie OPVOLGPUNTEN.
+- **Koppel-UX bij meervoudige plaatsingen — BESLOTEN, NOG NIET GEBOUWD (gate 2, ADR-044
+  besluit 2):** één zoekresultaat per functie (niet vier), *"geldt overal"* voorop, verfijnen
+  mag meerdere plekken tegelijk, het scherm benoemt wat het doet, en pas als ÁLLE plekken
+  verfijnd zijn is de functie volledig verfijnd.

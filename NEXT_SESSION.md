@@ -1,84 +1,81 @@
-# NEXT_SESSION.md — LIKARA V039
+# NEXT_SESSION.md — LIKARA V040
 
-**Gegenereerd**: 2026-07-12
-**Vorige build**: V039
+**Gegenereerd**: 2026-07-13
+**Vorige build**: V040
 **Branch**: master
+**Laatste commit**: (afsluitcommit V040; daarvóór `cf0f046` gate 1b · `85b9cf5` gate 1a-bis)
 
-> **Sessie LI038 — Proces-only structuurbeeld geland + ADR-043: bedrijfsfunctie als logische
-> ruggengraat (V039).**
+> **Sessie LI039 — De bedrijfsfunctie-as staat op het échte GEMMA-model (V040).**
 >
-> Afgerond in LI038:
-> - **Proces-only structuurbeeld (3 gates, volledig geland):** Boom|Diagram-schakelaar in het
->   processen-scherm + api-vrij `ProcesDiagram` op `procesFocusSet` (keten boven / subboom
->   beneden / zusjes opzij) (`82806ff`) · klik-popup met drie gescheiden uitgangen (hele
->   landschap binnen het beeld / Bekijk op de kaart via de handoff / Open proces) +
->   geconvergeerde `useSleepbaar`-overlay-sleep (kaart-legenda en -popup draaien er nu ook op)
->   (`e91f2a2`) · dubbelklik-inzoom op **proces-ids** (`procesSubboomSet`, werkt bij 0
->   kinderen/0 vervullers) + snapshot+cursor-history met "← Terug" + "Toon in procesbeeld"
->   vanuit de Boom (`f1d3270`).
-> - **ZoekSelect-bouwsteen-fix (picker-regel 4):** gekozen waarde = label, nooit filter —
->   klik-op-gefocust-veld opent de volle lijst + ×-wis-gebaar, platform-breed geërfd.
-> - **ADR-043 (herijkt ADR-042):** de "waarvoor"-as verschuift van proces naar
->   **bedrijfsfunctie**; referentiemodel als eerste-klas begrip (GEMMA = instantie 1);
->   procesregister wordt in de MVP **verborgen, niet verwijderd** (`6c49ed3`, grond:
->   `Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md`).
-> - **Skill-review** (4 skills, `d7df7e3`) — kernles: *een regel in de skills is geen borging;
->   een gedeelde bouwsteen dwingt af.*
+> Afgerond in LI039:
+> - **Gate 1a-bis (ADR-044, `85b9cf5`):** plaatsing als eerste-klas feit — `ouder_id`
+>   vervalt, de functieboom leeft in aggregation-plaatsingen; één functie op meerdere
+>   plekken (de 7 GEMMA-gevallen), getoond als "staat ook onder", nooit stil opgelost.
+> - **Gate 1b (`cf0f046`):** referentiemodel inlezen — veilige AMEFF-lezer (defusedxml,
+>   XXE-weigering), dry-run en uitvoering op ÉÉN plan (bronsleutel = identiteit; vervallen =
+>   markeren; eigen functies ongemoeid), gecureerd GEMMA-bestand in de repo (release
+>   1 juli 2026, commit-gepind, EUPL — `referentiemodellen/HERKOMST.md`), dev-seed leest het
+>   echte model (297 functies · 302 plaatsingen), "Model inlezen" met voorbeeld-vóór-
+>   bevestigen + platform-aanbodscherm, RBAC inlezen = beheerder.
+> - **Browsercheck-fixes (zelfde commit):** aanbod-staten gevuld/leeg/fout sluiten elkaar
+>   structureel uit (leeg = toestand, geen fout) · onvoltooide inlees nooit stil
+>   (begin-/eindmarkering `inlees_voltooid`, migratie 0064, waarschuwing + hervat-route).
+> - **Patronen-validatie fase A+B:** 32 sessie-patronen tegen de code getoetst
+>   (`docs/Validatie-patronen-LI039.md` — 0 botsingen; 3 deel-correcties door Bert
+>   besloten) en vastgelegd in 7 skills, mét status-markering en de 12-tekst-regels-lijst.
 >
-> Tests: backend **1001 (2 skipped)** / frontend **84 files, 1089** groen; TST:
-> `TST-V039-Validatierapport.md` (0 kritieken). Migratie-head **0059** (geen schema deze sessie).
+> Tests: backend **1040 (2 skipped)** / frontend **88 files, 1146** groen; TST:
+> `TST-V040-Validatierapport.md` (0 kritieken). Migratie-head **0064**.
 
 ---
 
-## Volgende stappen — HERZIENE TOP-5 (in deze volgorde)
+## Volgende stappen — TOP-5 (in deze volgorde)
 
-**De oude TOP-5 is vervallen.** Die was gerangschikt toen het procesregister de "waarvoor"-as
-was; ADR-043 heeft die grond verplaatst.
+### 1. ADR-026-afronding: "ondersteunt werk" als eigenschap van het componenttype *(voorwaarde voor gate 2)*
+De opdracht ligt klaar. Besloten LI039: alleen wat werk ondersteunt mag aan een
+bedrijfsfunctie hangen; dat wordt een **eigenschap van het componenttype** (precedent:
+`checklist_dragend` op `componentconfig_optie`), geen lijst in code. ADR schrijven + de
+eigenschap landen. Neem hierin mee: de **picker-uitleg** ("waarom ontbreekt mijn database")
+— besloten opvolgpunt, precies hier voor het eerst nodig.
 
-### 1. Bedrijfsfunctie-as + gevalideerde GEMMA-import *(= de MVP)*
-Zonder dit is LIKARA geen logische kaart. Start: de **8 ADR-043-subknopen beslissen** +
-read-only bouw-validatie (AMEFF-parse-route, subtype-recept-kosten, soft-vervallen op
-elementen). Dwarsdoorsnede: het ADR-spoor "generieke registratie-feiten op objecten" **samen
-ontwerpen** (de eigen-laag-bij-een-referentie-object is er een instantie van).
+### 2. Gate 2 — koppelen: grof en fijn (ADR-044 besluit 2)
+Component ↔ bedrijfsfunctie op de PLAATSING: verfijnen vervángt het grove antwoord op die
+plek; "erbij" = meerdere componenten op één plaatsing; koppel-UX bij meervoud (één
+zoekresultaat, "geldt overal" voorop, meerdere plekken tegelijk verfijnen). Vult ook de
+in-gebruik-telling van het inlees-voorbeeld ("3 vervallen — waarvan N nog in gebruik").
 
-### 2. Kaart op functies + procesregister verbergen
-Koppelregel component↔functie, gap-signalering ("functie zonder ondersteunend systeem"), kaart
-rust op functies; procesmenu/-ingangen eruit (model blijft intact — hergebruik van de
-LI038-bouw: boom/diagram/inzoom/history/gap-cue, n≥2-abstractie).
+### 3. Diagram-layout: links→rechts, haakse lijnen, meervoud als verwijzing *(besloten, opdracht ligt klaar)*
+Vervangt de huidige top-down-weergave met alle-lijnen-getekend (expliciet zo gemarkeerd in
+likara-frontend). Combineer met de **leesbaarheids-ontwerpronde van de boom bij 297
+functies** (eigen ronde, nog te doen — Berts browseroordeel is de maat).
 
-### 3. Beginscherm als enige vertrekpunt
-Eerste indruk van de MVP: rustige lege start, filterkolom pas bij selectie; "Begin opnieuw" →
-terug naar alleen het beginscherm.
+### 4. Gate 3 — het gap-signaal per plaatsing (ADR-044 besluit 4)
+"Geen ondersteunend systeem" hangt aan de PLEK, niet aan de functie; "hier gebruiken we
+niets" = vastgestelde bevinding ≠ "nooit naar gekeken" (besluit 3).
 
-### 4. Plaatstaat-herstel na onbedoelde onderbreking
-Kwaliteitspunt, geen bestaanspunt — kan wachten tot de kaart klopt. lk-state overleeft
-timeout/herlaad/browser-dicht zonder tijdslimiet; eerst read-only feitencheck
-(Keycloak-sessieduur, waar lk-state leeft, privacy-randje).
+### 5. Gate 4 — kaart op functies + procesregister uit beeld
+De kaart rust op bedrijfsfuncties; procesmenu/-ingangen eruit (model en LI038-bouw blijven
+intact — hergebruik, n≥2). Daarna is de logische kaart de MVP.
 
-### 5. Architectuur-scherm compleet verwijderen
-Klein en goedkoop; kan tussendoor. Eerst read-only inventarisatie.
-**KRITISCH: `ARCHITECTUUR.LEZEN` NIET verwijderen — de kaart gebruikt het.**
-
-**Gezakt (blijven op de backlog):** rapportage & export; bredere ruggengraat. Je exporteert
-pas iets als de kaart het juiste verhaal vertelt.
+**Positionering (naast de bouw):** de **ketting functie → systeem → partij → contract** als
+verhaal van LIKARA — zie de drie V040-marktverkenningsrapporten
+(`Marktverkenning-concurrenten-V040.md`, `Marktverkenning-ketting-V040.md`,
+`Verkenning-GEMMA-context-V040.md`, meegecommit in `cf0f046`).
 
 ### Openstaand (detail + status in `docs/OPVOLGPUNTEN.md`)
-ADR-043-subknopen (8) · ADR-spoor registratie-feiten op objecten (twee ankers) · spoor 2
-proces→proces-flow (urgentie gedaald; facade vergt type-borging) · rollenmodel generiek vs.
-functioneel · history-grens hele-landschap-herstel · detailscherm-procesbeheer ·
-proces-ingang-weergave (productie-evaluatie).
+Toestandsbouwsteen "leeg ≠ fout" (converge bij n≥2 — de gevaarlijkste tekst-regel) ·
+picker-uitleg (→ TOP-1) · GEMMA "Toelichting"-property · zinsgrens-afkapping leeslaag (laag) ·
+ADR-spoor registratie-feiten op objecten · beginscherm als vertrekpunt · plaatstaat-herstel ·
+architectuur-scherm verwijderen (`ARCHITECTUUR.LEZEN` behouden — de kaart gebruikt het).
 
-### Staande werkafspraken (ongewijzigd)
-- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` is de exclusieve commit-trigger
-  (uitsluitend door Bert, rechtstreeks in CC — nooit in een opdracht-`.md`).
-- UX-first: gebruikerservaring is het uitgangspunt, techniek is vangrail; browsercheck-bevindingen
-  → patroon-onderzoek vóór punt-fixes; rol-gating browserchecken met béíde rollen.
-- Gate-discipline: schema-/UX-slices stoppen met gate-rapport + browsercheck-draaiboek vóór commit;
-  reikwijdte-scan vóór een klasse-fix; vitest altijd vanuit `frontend/`; backend-suite vanaf de
-  repo-root.
-- **Kernles LI038:** bij elke slice die een bestaande skill-regel raakt → read-only verifiëren dat
-  de code de regel nakomt; regels borgen in gedeelde bouwstenen; fix in de bouwsteen, niet in de
-  consument.
+### Staande werkafspraken (ongewijzigd + LI039-aanscherpingen)
+- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC.
+- UX-first; browsercheck-bevindingen → patroon-onderzoek vóór punt-fixes; groene tests ≠
+  sign-off; elk UI-pad heeft een test die hem opent.
+- Gate-discipline; hypothese van de PNA ≠ bouwopdracht (2× herbewezen LI039); telling vóór
+  besluit; nieuwe dependency ⇒ image herbouwen; migratie bouwen ÉN toepassen binnen de slice.
+- Eigen test-tenant zodra een teardown breder veegt dan de eigen fixtures.
+- Kernles LI038 blijft: regels borgen in gedeelde bouwstenen; fix in de bouwsteen.
 
 ---
 
@@ -86,10 +83,11 @@ proces-ingang-weergave (productie-evaluatie).
 
 | Veld | Waarde |
 |------|--------|
-| Build | V039 |
-| Datum | 2026-07-12 |
-| Tests | backend 1001 (2 skipped) / frontend 84 files, 1089 groen |
-| Migratie-head | 0059_adr042_procesvervulling |
-| TST-rapport | TST-V039-Validatierapport.md |
+| Build | V040 |
+| Datum | 2026-07-13 |
+| Tests | backend 1040 (2 skipped) / frontend 88 files, 1146 groen |
+| Migratie-head | 0064_gate1b_inlees_voltooid |
+| TST-rapport | TST-V040-Validatierapport.md |
 | Kritieke bevindingen | 0 |
-| Skills | vier likara-skills bijgewerkt (LI038: kernles regel-vs-bouwsteen, useSleepbaar, proces-only-beeld, ADR-043-terrein) |
+| Skills | zeven likara-skills bijgewerkt (LI039 fase B — gevalideerde patronen, status-markeringen, tekst-regels-lijst) |
+| Dev-DB | 299 functies (echt GEMMA-model) · `inlees_voltooid = true` · restdata 0 |

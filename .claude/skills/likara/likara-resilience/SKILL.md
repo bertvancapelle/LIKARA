@@ -2,7 +2,7 @@
 name: likara-resilience
 description: Resilience-patronen voor LIKARA (health, startup-validatie, rate-limiting, healthcheck-gating). Beschrijft de werkelijke V001-staat.
 stack: FastAPI, SlowAPI, Redis, Docker Compose healthchecks
-bijgewerkt: V001
+bijgewerkt: V040
 ---
 
 # LIKARA Resilience Skill
@@ -126,3 +126,26 @@ samenval-oorzaak aan, waar de payload + offline-cytoscape schoon leken.)
 RabbitMQ (ADR-007) is als framework geconfigureerd (`core/messaging.py`),
 maar er zijn in V001 nog geen consumers/producers — dus geen outbox- of
 DLQ-patroon geïmplementeerd.
+
+## LI039 — langlopende actie met deel-commits: zichtbaar begin en eind (gate 1b)
+
+Een actie die in vele kleine transacties schrijft (de referentiemodel-import: ~600
+commits, 13–25 s) kan halverwege afbreken — browser dicht, container-herstart. Zonder
+markering staat er dan een HALVE dataset die zich voordoet als het geheel, en (venijniger)
+kan de laatste stap (vervallen-markering) ontbreken: functies die weg horen te zijn ogen
+geldig. Dat is de stille onwaarheid die "niets landt stil" verbiedt. Het patroon:
+
+- **Begin- en eindmarkering in de data** — een echte kolom op het registratie-feit
+  (`referentiemodel.inlees_voltooid`, migratie 0064): `False` vóór de eerste schrijfactie,
+  `True` pas ná de laatste, in dezelfde commit als het eind-snapshot. Echte kolom → de
+  audit capture't de omslag (DC016-precedent). **Bouwsteen: kolom + service-markering
+  (server-side afgedwongen in `voer_uit`).**
+- **Eerlijke melding**: `False` bij het openen van het scherm = waarschuwing (kleur + icoon
+  + tekst): "de vorige inlees is niet afgerond — het model is mogelijk onvolledig". Iedereen
+  ZIET het signaal (je kijkt naar data die mogelijk niet klopt); alleen de rol met de
+  bevoegdheid krijgt de actie. ⚠ De melding zelf is per consument (tekst-regel).
+- **Hervat-route, geen automatische herstart**: hervatten is dezelfde bewuste handeling als
+  de actie zelf (idempotent — de herstart maakt de deelstand af); afronden kan óók als er
+  inhoudelijk niets meer bij hoeft (anders is de melding nooit weg te werken).
+- Gedragstest verplicht, incl. het randgeval "afgebroken vóór de laatste stap":
+  `test_afgebroken_inlees_herkend_en_hervat_live`.
