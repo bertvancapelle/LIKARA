@@ -23,6 +23,18 @@ export function gebruikersgroepIdentiteit(afdeling, organisatieNaam) {
   return a || o || 'Gebruikersgroep'
 }
 
+// LI040 (besluit Bert) — DE identiteitsvorm voor afdelingen en personen, platform-breed:
+// `afdeling — organisatie` en `persoon — afdeling — organisatie`. Identiteit wordt nooit
+// ingekort — ook niet als de organisatie elders op het scherm al staat. "Studenten" is
+// geen identiteit; "Studenten — Culemborg" wel. (Verplaatst uit ChecklistscoreSectie,
+// ADR-037; de gedempte weergave-variant is IdentiteitLabel.vue — zelfde tekst, het deel
+// ná het eerste streepje visueel secundair.)
+export function partijIdentiteit(naam, afdelingNaam, organisatieNaam) {
+  if (!naam) return ''
+  if (afdelingNaam) return `${naam} — ${gebruikersgroepIdentiteit(afdelingNaam, organisatieNaam)}`
+  return gebruikersgroepIdentiteit(naam, organisatieNaam)
+}
+
 // ADR-029 — toewijsbare gebruikersrollen bij aanmaak (gesloten lijst; beheerder buiten LIKARA).
 export const GEBRUIKER_ROL = {
   medewerker: 'Medewerker',

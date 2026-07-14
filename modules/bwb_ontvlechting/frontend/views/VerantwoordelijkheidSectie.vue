@@ -12,7 +12,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Dialog, Tag, useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { PARTIJ_AARD, label } from '../labels'
+import { PARTIJ_AARD, label, partijIdentiteit } from '../labels'
+import IdentiteitLabel from './IdentiteitLabel.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
@@ -36,7 +37,9 @@ const fouten = reactive({})
 const aardLabel = (a) => label(PARTIJ_AARD, a)
 // Partij-keuze: server-side zoeken over álle aarden (geen aard-filter).
 const zoekPartijen = (params) => api.partijen.lijst(params)
-const partijWeergave = (p) => `${p.naam} — ${aardLabel(p.aard)}`
+// LI040 — volledige identiteit (afdeling/persoon mét organisatie); de aard staat als
+// gedempte hint in de optie-regel (IdentiteitLabel + suffix), niet meer in de naam.
+const partijWeergave = (p) => partijIdentiteit(p.naam, p.afdeling_naam, p.organisatie_naam)
 
 function _toastFout(e) {
   if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
@@ -183,7 +186,16 @@ defineExpose({ items, laad })
             :weergave="partijWeergave"
             :invalid="!!fouten.partij_id"
             placeholder="Zoek een partij…"
-          />
+          >
+            <!-- LI040: identiteit met gedempte leeslaag + aard-hint; de geselecteerde
+                 input-waarde is dezelfde volledige tekst (partijWeergave). -->
+            <template #optie="{ item }">
+              <span class="flex items-start justify-between gap-[var(--lk-space-sm)]">
+                <IdentiteitLabel :naam="item.naam" :afdeling="item.afdeling_naam" :organisatie="item.organisatie_naam" />
+                <span class="shrink-0 text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-xs)]">{{ aardLabel(item.aard).toLowerCase() }}</span>
+              </span>
+            </template>
+          </ZoekSelect>
           <span v-if="fouten.partij_id" role="alert" data-testid="vw-fout-partij" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.partij_id }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">

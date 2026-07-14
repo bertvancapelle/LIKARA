@@ -7,6 +7,32 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
+
+1. **Dev-seed moet het ADR-046-verhaal vertellen.** 0 plateaus en `migratiepad` 19/19
+   *onbekend* — zonder seed (Tiel stapt uit in tranches, standen per gebruiksrelatie,
+   levensfasen gevuld) is geen enkele browsercheck van dit spoor mogelijk. Hoort bij de
+   bouw. Status: **open — bouwvoorwaarde**.
+2. **Kaart-eerste-wint bij meerdere plateaus** (`landschapskaart_service.py:203-207`,
+   `setdefault` zonder ORDER BY — niet-deterministisch): verdwijnt met ADR-046 besluit 2
+   (de `plateau_dispositie`-badge-bron vervalt); bij de bouw bevestigen. Status: **open,
+   lost mee op in de bouw**.
+3. **Stale docstring `Organisatiegebruik`** (`models.py:442-443` claimt
+   applicatie-only): het slot is sinds ADR-041 component-breed
+   (`valideer_component`). Corrigeren bij de ADR-046-bouw. Status: **open, klein**.
+4. **Spook-gebruik**: een org-wissel of groep-delete laat het oude grove
+   organisatiegebruik-feit staan; opruimen kan alleen via de kale DELETE-API. De
+   ADR-046-invoerroute geeft een verwijder-affordance; het achterblijf-gedrag zelf is
+   een eigen weging (grof-only is immers geldig — maar spook telt mee in de
+   uitstap-teller). Status: **open**.
+5. **Contract-datums ongebruikt** (`begindatum`/`einddatum`/`vernieuwingsdatum` bestaan;
+   geen afleiding leest ze): een aflopend contract is een impliciet uitstap-signaal.
+   Eigen spoor, na ADR-046. Status: **open**.
+6. **Bedrijfsfunctie-doorwerking** — *"N bedrijfsfuncties raken zonder ondersteunend
+   systeem als organisatie X vertrekt"*: **harde ontwerpeis voor gate 2/3** (zelfde
+   signaal-familie als ADR-044 besluit 4 en ADR-045 besluit 2-keerzijde). Status:
+   **besloten — ontwerpeis gate 2/3**.
+
 ### Nieuw uit LI040 (2026-07-13) — ADR-045 "ondersteunt werk"
 
 1. **"Geweerd tonen mét reden" — evaluatiepunt in echt gebruik.** ADR-045 besluit 3

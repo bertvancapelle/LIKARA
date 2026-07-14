@@ -13,7 +13,7 @@ Engine-invariant (machine-geborgd via de offline import-afwezigheidstest): bewus
 """
 import uuid
 
-from sqlalchemy import and_, exists, select
+from sqlalchemy import and_, exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -118,12 +118,38 @@ async def haal_op(session: AsyncSession, tenant_id, gebruik_id) -> Organisatiege
 
 
 async def verwijder(session: AsyncSession, tenant_id, gebruik_id) -> None:
-    """Verwijder een grof feit. De verfijning-FK (`gebruikersgroep.gebruik_id`) is ON DELETE
-    SET NULL → onderliggende groepen worden organisatie-loos (blijven bestaan)."""
+    """Verwijder een grof feit — alléén als er geen verfijning onder hangt.
+
+    ADR-038/046: de verfijning-FK (`gebruikersgroep.gebruik_id`) is NOT NULL + ON DELETE
+    **RESTRICT** (de oude SET NULL-docstring was stale) — een feit met gebruikersgroepen
+    kan dus structureel niet stil verdwijnen, en cascaden over veldwerk is verboden.
+    Pre-check → 409 `GEBRUIK_HEEFT_VERFIJNING` met de telling (de gebruiker verwijdert of
+    verplaatst eerst bewust de groepen); de DB-RESTRICT is de backstop."""
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, gebruik_id)
-    await session.delete(obj)
-    await session.commit()
+    aantal_groepen = (
+        await session.execute(
+            select(func.count()).select_from(Gebruikersgroep).where(
+                Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id == obj.id
+            )
+        )
+    ).scalar_one()
+    if aantal_groepen:
+        raise RegistratieConflict(
+            "GEBRUIK_HEEFT_VERFIJNING",
+            f"Deze organisatie heeft {aantal_groepen} gebruikersgroep(en) op dit component; "
+            "verwijder of verplaats die eerst — een verfijnde registratie verdwijnt nooit stil.",
+        )
+    try:
+        await session.delete(obj)
+        await session.commit()
+    except IntegrityError as exc:  # RESTRICT-backstop (race met een gelijktijdige verfijning)
+        await session.rollback()
+        raise RegistratieConflict(
+            "GEBRUIK_HEEFT_VERFIJNING",
+            "Deze organisatie heeft gebruikersgroepen op dit component; "
+            "verwijder of verplaats die eerst — een verfijnde registratie verdwijnt nooit stil.",
+        ) from exc
 
 
 async def _lees_een(session: AsyncSession, tid: uuid.UUID, obj: Organisatiegebruik) -> dict:
@@ -152,10 +178,38 @@ async def _lees_een(session: AsyncSession, tid: uuid.UUID, obj: Organisatiegebru
     }
 
 
+async def _afdelingen_per_gebruik(
+    session: AsyncSession, tid: uuid.UUID, gebruik_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, list[str]]:
+    """ADR-046 stuk 2 — per grof feit de bekende afdelingsnamen uit de verfijnende
+    gebruikersgroepen (distinct, gesorteerd). Groepen zonder afdeling leveren niets: de
+    UI toont dan rustig "afdeling onbekend" (het normale geval na een eerste workshop —
+    geen fout). Eén batch-query (N+1-vrij), read-only."""
+    if not gebruik_ids:
+        return {}
+    afd = aliased(Partij)
+    rijen = (
+        await session.execute(
+            select(Gebruikersgroep.gebruik_id, afd.naam)
+            .join(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
+            .where(Gebruikersgroep.tenant_id == tid, Gebruikersgroep.gebruik_id.in_(gebruik_ids))
+            .order_by(afd.naam.asc())
+        )
+    ).all()
+    uit: dict[uuid.UUID, list[str]] = {}
+    for gebruik_id, naam in rijen:
+        lijst = uit.setdefault(gebruik_id, [])
+        if naam not in lijst:
+            lijst.append(naam)
+    return uit
+
+
 async def lijst_voor_applicatie(session: AsyncSession, tenant_id, applicatie_id) -> list[dict]:
-    """De grove feiten van één applicatie: welke organisaties gebruiken haar, mét org-naam en of
-    er een verfijning (afdeling) onder hangt. Begrensde afgeleide lijst (aantal organisaties is
-    klein/begrensd) → bewust ongepagineerd, consistent met de context-sub-endpoints. Read-only."""
+    """De grove feiten van één applicatie: welke organisaties gebruiken haar, mét org-naam, of
+    er een verfijning (afdeling) onder hangt én de bekende afdelingsnamen (ADR-046 stuk 2 —
+    "één regel per organisatie, afdeling(en) indien bekend"). Begrensde afgeleide lijst (aantal
+    organisaties is klein/begrensd) → bewust ongepagineerd, consistent met de
+    context-sub-endpoints. Read-only."""
     tid = _tenant_uuid(tenant_id)
     org = aliased(Partij)
     heeft = exists(
@@ -179,10 +233,12 @@ async def lijst_voor_applicatie(session: AsyncSession, tenant_id, applicatie_id)
             .order_by(org.naam.asc(), Organisatiegebruik.id.asc())
         )
     ).all()
+    afdelingen = await _afdelingen_per_gebruik(session, tid, [r.id for r in rijen])
     return [
         {
             "id": r.id, "organisatie_id": r.organisatie_id, "organisatie_naam": r.organisatie_naam,
             "applicatie_id": r.applicatie_id, "heeft_verfijning": r.heeft_verfijning,
+            "afdelingen": afdelingen.get(r.id, []),
             "created_at": r.created_at, "updated_at": r.updated_at,
         }
         for r in rijen

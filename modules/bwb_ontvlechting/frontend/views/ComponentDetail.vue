@@ -41,6 +41,7 @@ import SignaleringBadge from './SignaleringBadge.vue'
 // LI059 Slice 4 — applicatie-eigen kind-secties, conditioneel gemount (bij subtype).
 import DatatypeSectie from './DatatypeSectie.vue'
 import GebruikersgroepSectie from './GebruikersgroepSectie.vue'
+import OrganisatiegebruikSectie from './OrganisatiegebruikSectie.vue'
 import KoppelingSectie from './KoppelingSectie.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -198,6 +199,9 @@ const topTabs = computed(() => {
       { key: 'koppelingen', label: 'Koppelingen' },
     )
   t.push(
+    // ADR-046 stuk 2 — "Wie gebruikt dit" (grof organisatiegebruik) is component-breed
+    // (ADR-041): élk type kan gebruikers hebben, dus geen subtype-conditie.
+    { key: 'gebruik', label: 'Gebruik' },
     { key: 'opbouw', label: 'Opbouw' },
     { key: 'impact', label: 'Impact' },
     { key: 'contracten', label: 'Contracten' },
@@ -516,6 +520,10 @@ watch(() => props.id, async () => {
           <KoppelingSectie :applicatie-id="props.id" />
         </div>
       </template>
+
+      <div v-show="activeTop === 'gebruik'" id="detailtabs-panel-gebruik" role="tabpanel" aria-labelledby="detailtabs-tab-gebruik">
+        <OrganisatiegebruikSectie :component-id="props.id" :component-naam="component?.naam ?? ''" />
+      </div>
 
       <div v-show="activeTop === 'opbouw'" id="detailtabs-panel-opbouw" role="tabpanel" aria-labelledby="detailtabs-tab-opbouw">
         <StructuurSectie :component-id="props.id" />

@@ -26,6 +26,9 @@ class OrganisatiegebruikRead(BaseModel):
     applicatie_id: uuid.UUID
     # Read-only afgeleid: hangt er minstens één gebruikersgroep (verfijning) onder dit feit?
     heeft_verfijning: bool = False
+    # ADR-046 stuk 2 — de bekende afdelingsnamen uit de verfijnende groepen (leeg =
+    # "afdeling onbekend": de normale stand na een eerste workshop, geen fout).
+    afdelingen: list[str] = []
     created_at: datetime
     updated_at: datetime
 

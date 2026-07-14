@@ -76,6 +76,15 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('biv_vertrouwelijkheid_min=hoog')
   })
 
+  it('ADR-046: organisatiegebruik.lijstVoorApplicatie zet applicatie_id in de URL; onbekende key faalt luid', async () => {
+    await api.organisatiegebruik.lijstVoorApplicatie({ applicatie_id: 'c-1' })
+    expect(laatsteUrl).toContain('/organisatiegebruik')
+    expect(laatsteUrl).toContain('applicatie_id=c-1')
+    expect(() => api.organisatiegebruik.lijstVoorApplicatie({ component_id: 'c-1' })).toThrow(
+      /onbekende filter-parameter 'component_id'/,
+    )
+  })
+
   it('ADR-045: componenten.lijst zet ondersteunt_werk (boolean) in de URL', async () => {
     await api.componenten.lijst({ ondersteunt_werk: false })
     expect(laatsteUrl).toContain('ondersteunt_werk=false')

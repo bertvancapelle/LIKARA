@@ -909,16 +909,27 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         "referentiemodellen", "bedrijfsfuncties",
     )}
 
-    partij_id = {r.naam: r.id for r in (await session.execute(select(Partij))).scalars().all()}
+    _partijen = (await session.execute(select(Partij))).scalars().all()
+    partij_id = {r.naam: r.id for r in _partijen}
+    # LI040 — een afdeling-partij draagt een KALE naam ("Studenten"); segmentnamen mogen
+    # over organisaties heen gelijk zijn. De unieke seed-sleutel is daarom "org — naam";
+    # deze preload maakt een reseed op een bestaande DB idempotent (geen duplicaten).
+    _naam_per_id = {r.id: r.naam for r in _partijen}
+    for r in _partijen:
+        if r.aard == PartijAard.organisatie_eenheid and r.organisatie_id:
+            partij_id[f"{_naam_per_id.get(r.organisatie_id)} — {r.naam}"] = r.id
     app_id = {r.naam: r.id for r in (await session.execute(
         select(Component).where(Component.componenttype == "applicatie"))).scalars().all()}
     contract_id = {r.contractnaam: r.id for r in (await session.execute(select(Contract))).scalars().all()}
 
-    async def _partij(aard, naam, cat, **velden):
-        if naam in partij_id:
-            return partij_id[naam]
+    async def _partij(aard, naam, cat, sleutel=None, **velden):
+        # `sleutel` (default = naam): unieke idempotentie-sleutel, voor afdelingen met
+        # een kale (niet-unieke) naam — "org — naam" (LI040).
+        key = sleutel or naam
+        if key in partij_id:
+            return partij_id[key]
         obj = await partij_service.maak_aan(session, tid, PartijCreate(aard=aard, naam=naam, **velden))
-        partij_id[naam] = obj.id
+        partij_id[key] = obj.id
         telling[cat] += 1
         return obj.id
 
@@ -1384,9 +1395,13 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         ("Burgers West Betuwe", "Agrariërs"), ("Burgers West Betuwe", "Ondernemers"),
         ("Burgers Culemborg", "Woningbezitters"), ("Burgers Culemborg", "Studenten"),
     ]
+    # LI040 — de partijnaam is de KALE segmentnaam ("Studenten"); de identiteit
+    # ("Studenten — Burgers Culemborg") is wéérgave (partijIdentiteit/IdentiteitLabel),
+    # nooit in de naam gebakken — anders dubbelt elke identiteitsweergave hem. De
+    # idempotentie-sleutel blijft uniek per organisatie ("org — naam").
     for org_naam, seg in burger_afdelingen:
-        await _partij(PartijAard.organisatie_eenheid, f"{org_naam} — {seg}", "afdelingen",
-                      organisatie_id=partij_id[org_naam])
+        await _partij(PartijAard.organisatie_eenheid, seg, "afdelingen",
+                      sleutel=f"{org_naam} — {seg}", organisatie_id=partij_id[org_naam])
     # Koppel de burger-segmenten als gebruikersgroepen aan hun applicaties (grof feit via _gg/ensure).
     for app_naam, org_naam, seg, aantal in [
         ("Klantportaal", "Burgers Tiel", "Agrariërs", 12000),
@@ -1395,7 +1410,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         ("Klantportaal", "Burgers Culemborg", "Woningbezitters", 15000),
         ("Zaaksysteem", "Burgers Culemborg", "Studenten", 4000),
     ]:
-        await _gg(app_naam, org_naam, f"{org_naam} — {seg}", aantal)
+        await _gg(app_naam, org_naam, f"{org_naam} — {seg}", aantal)  # lookup-sleutel, niet de naam
 
     # ── 14. Infrastructuur (technology-laag) + component-samenstelling (LI021, context) ──
     # KALE componenten (Element + Component, géén subtype/scoring/profiel) → engine onaangeroerd.

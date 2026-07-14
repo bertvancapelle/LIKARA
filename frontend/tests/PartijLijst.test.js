@@ -46,6 +46,21 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('PartijLijst', () => {
+  it('LI040: een afdeling/persoon toont zijn volledige identiteit in de naamkolom (naam + gedempte org)', async () => {
+    api.partijen.lijst.mockResolvedValue({
+      items: [
+        { id: 'a1', naam: 'Burgerzaken', aard: 'organisatie_eenheid', organisatie_naam: 'Gemeente Tiel' },
+        { id: 'p1', naam: 'J. de Vries', aard: 'persoon', afdeling_naam: 'Burgerzaken', organisatie_naam: 'Gemeente Tiel' },
+      ],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    const links = w.findAll('[data-testid="rij-link"]').map((n) => n.text().replace(/\s+/g, ' '))
+    expect(links[0]).toBe('Burgerzaken — Gemeente Tiel')
+    expect(links[1]).toBe('J. de Vries — Burgerzaken — Gemeente Tiel')
+    expect(w.find('[data-testid="identiteit-naam-ontbreekt"]').exists()).toBe(false)
+  })
+
   it('rendert de geladen partijen met aard-label', async () => {
     api.partijen.lijst.mockResolvedValueOnce({
       items: [_partij('Acme BV', 'l1'), _partij('Afdeling I&A', 'a1', 'organisatie_eenheid')],

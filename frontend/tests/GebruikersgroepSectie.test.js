@@ -58,6 +58,16 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('GebruikersgroepSectie', () => {
+  it('LI040: de afdeling-kolom toont de volledige identiteit (afdeling + gedempte organisatie)', async () => {
+    api.gebruikersgroepen.lijst.mockResolvedValueOnce({
+      items: [{ id: 'g1', organisatie_id: 'org-1', organisatie_naam: 'Gemeente Tiel', afdeling: 'Burgerzaken', aantal_gebruikers: 12 }],
+      volgende_cursor: null,
+    })
+    const w = await mountSectie()
+    expect(w.text().replace(/\s+/g, ' ')).toContain('Burgerzaken — Gemeente Tiel')
+    expect(w.find('[data-testid="identiteit-naam-ontbreekt"]').exists()).toBe(false)
+  })
+
   it('rendert de gebruikersgroepen; de organisatie is doorklikbaar naar de partij', async () => {
     api.gebruikersgroepen.lijst.mockResolvedValueOnce({
       items: [{ id: 'g1', organisatie_id: 'org-1', organisatie_naam: 'Gemeente Tiel', afdeling: 'Burgerzaken', aantal_gebruikers: 12 }],

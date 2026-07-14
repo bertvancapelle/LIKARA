@@ -198,6 +198,14 @@ export const api = {
   organisatiegebruik: {
     lijstVoorOrganisatie: (params = {}) =>
       request(`/organisatiegebruik${_filterQuery('organisatiegebruik.lijstVoorOrganisatie', params, ['organisatie_id'])}`),
+    // ADR-046 stuk 2 — de invoerroute voor het grove feit (de endpoints bestonden al,
+    // de client miste ze): per component de organisaties (mét afdelingsnamen), losse
+    // aanmaak (409 GEBRUIK_BESTAAT bij duplicaat) en verwijderen (409
+    // GEBRUIK_HEEFT_VERFIJNING zolang er gebruikersgroepen onder hangen).
+    lijstVoorApplicatie: (params = {}) =>
+      request(`/organisatiegebruik${_filterQuery('organisatiegebruik.lijstVoorApplicatie', params, ['applicatie_id'])}`),
+    maak: (data) => request('/organisatiegebruik', { method: 'POST', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/organisatiegebruik/${id}`, { method: 'DELETE' }),
   },
 
   // ADR-024 slice 2a — partij-beheer (element-backed; alle aarden). `aard`-filter op de lijst.

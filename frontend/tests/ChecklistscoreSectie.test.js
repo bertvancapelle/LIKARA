@@ -220,6 +220,10 @@ describe('ChecklistscoreSectie', () => {
     await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
     await w.find('[data-testid="cs-verantw-1.2-input"]').trigger('focus')
     await flushPromises()
+    // LI040-regressie: de optie toont de NAAM als scanlaag (niet alleen een aard-hint).
+    expect(w.find('[data-testid="cs-verantw-1.2-optie-afd-1"]').text())
+      .toContain('Informatievoorziening — Tiel')
+    expect(w.find('[data-testid="identiteit-naam-ontbreekt"]').exists()).toBe(false)
     await w.find('[data-testid="cs-verantw-1.2-optie-afd-1"]').trigger('mousedown')
     await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
     await flushPromises()

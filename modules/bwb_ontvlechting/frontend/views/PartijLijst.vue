@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import IdentiteitLabel from '@modules/bwb_ontvlechting/frontend/views/IdentiteitLabel.vue'
 
 const auth = useAuthStore()
 const magAanmaken = computed(() => auth.hasRole('medewerker', 'beheerder'))
@@ -194,7 +195,9 @@ onMounted(() => {
             data-testid="rij-link"
             class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
           >
-            {{ data.naam }}
+            <!-- LI040: afdeling/persoon toont zijn volledige identiteit (cross-org lijst);
+                 het deel na de naam gedempt — nooit ingekort. -->
+            <IdentiteitLabel :naam="data.naam" :afdeling="data.afdeling_naam" :organisatie="data.organisatie_naam" />
           </router-link>
         </template>
       </Column>

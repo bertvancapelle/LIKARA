@@ -439,10 +439,12 @@ class Organisatiegebruik(Base, TenantMixin, TimestampMixin):
     `UNIQUE(tenant_id, id)` als composiet-FK-doel.
 
     `organisatie_id` → een partij met aard=organisatie (app-side geborgd via
-    `partij_service.valideer_organisatie`); `applicatie_id` → een component met
-    componenttype='applicatie' (app-side geborgd). Beide composiet-FK's naar `element`
-    (ON DELETE CASCADE: het feit verdwijnt met de organisatie of de applicatie). Puur
-    registratief — geen engine-koppeling. Tenant-scoped (FORCE RLS)."""
+    `partij_service.valideer_organisatie`); `applicatie_id` → een bestaand **component,
+    élk componenttype** (ADR-041-herziening: het gebruik-slot is component-breed —
+    app-side geborgd via `organisatiegebruik_service.valideer_component`; de kolomnaam
+    is historisch). Beide composiet-FK's naar `element` (ON DELETE CASCADE: het feit
+    verdwijnt met de organisatie of het component). Puur registratief — geen
+    engine-koppeling. Tenant-scoped (FORCE RLS)."""
 
     __tablename__ = "organisatiegebruik"
     __table_args__ = (

@@ -77,6 +77,8 @@ async def verwijder_organisatiegebruik(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.ORGANISATIEGEBRUIK, Actie.VERWIJDEREN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Verwijder een grof feit. Onderliggende groepen worden organisatie-loos (ON DELETE SET NULL)."""
+    """Verwijder een grof feit — alléén zonder verfijning eronder (ADR-038/046: de
+    verfijning-FK is RESTRICT; mét gebruikersgroepen ⇒ 409 `GEBRUIK_HEEFT_VERFIJNING`,
+    nooit een stille cascade over veldwerk)."""
     await svc.verwijder(session, user.tenant_id, gebruik_id)
     return Response(status_code=204)

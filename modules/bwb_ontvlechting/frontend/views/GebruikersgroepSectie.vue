@@ -12,6 +12,7 @@ import { api } from '@/api'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 import AfdelingSelect from './AfdelingSelect.vue'
+import IdentiteitLabel from './IdentiteitLabel.vue'
 
 // Organisatie-keuze: server-side zoeken, beperkt tot organisaties (ADR-038 — burger-doelgroepen
 // zijn gewone externe organisaties; de aparte `burger`-aard bestaat niet meer).
@@ -283,7 +284,13 @@ laad({ reset: true })
           <span v-else class="text-[var(--lk-color-text-muted)]">—</span>
         </template>
       </Column>
-      <Column field="afdeling" header="Afdeling" sortable />
+      <Column field="afdeling" header="Afdeling" sortable>
+        <template #body="{ data }">
+          <!-- LI040: identiteit nooit ingekort — óók niet met de organisatie-kolom ernaast. -->
+          <IdentiteitLabel v-if="data.afdeling" :naam="data.afdeling" :organisatie="data.organisatie_naam" />
+          <span v-else class="text-[var(--lk-color-text-muted)]">—</span>
+        </template>
+      </Column>
       <Column field="aantal_gebruikers" header="Aantal gebruikers" sortable />
       <Column header="">
         <template #body="{ data }">

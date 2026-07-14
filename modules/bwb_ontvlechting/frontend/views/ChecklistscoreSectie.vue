@@ -22,7 +22,8 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
-import { PARTIJ_AARD, SCORE, SIGNAAL_LABEL, gebruikersgroepIdentiteit, label, scoreKleur } from '../labels'
+import { PARTIJ_AARD, SCORE, SIGNAAL_LABEL, label, partijIdentiteit, scoreKleur } from '../labels'
+import IdentiteitLabel from './IdentiteitLabel.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
@@ -31,15 +32,8 @@ const zoekVerantwoordelijken = (params) =>
   api.partijen.lijst({ ...params, aard_in: ['organisatie_eenheid', 'persoon'] })
 // Gedempte aard-hint rechts in de lijst-regel ("afdeling"/"persoon").
 const aardSuffix = (p) => (p?.aard ? label(PARTIJ_AARD, p.aard).toLowerCase() : '')
-// ADR-037 — identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie", zodat
-// gelijknamige afdelingen van verschillende organisaties onderscheidbaar zijn. Sleutelt op
-// afdeling-aanwezigheid (een afdeling-partij draagt zelf geen afdeling → 2-delig; een persoon draagt
-// z'n afdeling → 3-delig) en hergebruikt de gebruikersgroep-string-helper (ADR-036a).
-function verantwIdentiteit(naam, afdeling, organisatie) {
-  if (!naam) return ''
-  if (afdeling) return `${naam} — ${gebruikersgroepIdentiteit(afdeling, organisatie)}`
-  return gebruikersgroepIdentiteit(naam, organisatie)
-}
+// LI040 — identiteitsvorm geconvergeerd naar de gedeelde `partijIdentiteit` (labels.js);
+// de vroegere inline `verantwIdentiteit` was een tweede implementatie van dezelfde regel.
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
@@ -303,7 +297,7 @@ function toggleDetail(code) {
       // ADR-037: verantwoordelijke-id (bewerkbaar) + de VOLLEDIGE identiteit als voorvul-weergave
       // (gelijk aan de lijst), zodat het veld bij bewerken "persoon — afdeling — organisatie" toont.
       verantwoordelijke_id: s?.verantwoordelijke_id ?? null,
-      verantwoordelijke_weergave: verantwIdentiteit(
+      verantwoordelijke_weergave: partijIdentiteit(
         s?.verantwoordelijke_naam, s?.verantwoordelijke_afdeling, s?.verantwoordelijke_organisatie,
       ),
       antwoord_optie: aw.optie ?? '',
@@ -539,14 +533,15 @@ laad()
                     :model-value="bewerk[v.code].verantwoordelijke_id"
                     :zoek-functie="zoekVerantwoordelijken"
                     :initieel-weergave="bewerk[v.code].verantwoordelijke_weergave"
-                    :weergave="(p) => verantwIdentiteit(p.naam, p.afdeling_naam, p.organisatie_naam)"
+                    :weergave="(p) => partijIdentiteit(p.naam, p.afdeling_naam, p.organisatie_naam)"
                     :disabled="!mag"
                     placeholder="Zoek een afdeling of persoon (optioneel)…"
                     @update:model-value="(id) => (bewerk[v.code].verantwoordelijke_id = id)"
                   >
                     <template #optie="{ item }">
-                      <span class="flex items-center justify-between gap-[var(--lk-space-sm)]">
-                        <span class="truncate">{{ verantwIdentiteit(item.naam, item.afdeling_naam, item.organisatie_naam) }}</span>
+                      <!-- LI040: identiteit nooit afgekapt (truncate weg) + gedempte leeslaag. -->
+                      <span class="flex items-start justify-between gap-[var(--lk-space-sm)]">
+                        <IdentiteitLabel :naam="item.naam" :afdeling="item.afdeling_naam" :organisatie="item.organisatie_naam" />
                         <span class="shrink-0 text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-xs)]">{{ aardSuffix(item) }}</span>
                       </span>
                     </template>
@@ -555,7 +550,7 @@ laad()
                     <!-- Afgeleide identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie"
                          (uit de read; verschijnt ná opslaan). Ontdubbelt gelijknamige afdelingen. -->
                     <span v-if="scoreMap[v.code]?.verantwoordelijke_naam" :data-testid="`cs-verantw-identiteit-${v.code}`" class="text-[var(--lk-color-text-muted)]">
-                      {{ verantwIdentiteit(scoreMap[v.code].verantwoordelijke_naam, scoreMap[v.code].verantwoordelijke_afdeling, scoreMap[v.code].verantwoordelijke_organisatie) }}
+                      {{ partijIdentiteit(scoreMap[v.code].verantwoordelijke_naam, scoreMap[v.code].verantwoordelijke_afdeling, scoreMap[v.code].verantwoordelijke_organisatie) }}
                     </span>
                     <button
                       v-if="mag && bewerk[v.code].verantwoordelijke_id"

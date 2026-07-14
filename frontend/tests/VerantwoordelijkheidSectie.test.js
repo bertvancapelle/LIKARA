@@ -63,8 +63,8 @@ beforeEach(() => {
   ])
   api.partijen.lijst.mockResolvedValue({
     items: [
-      { id: 'p1', naam: 'Jan de Vries', aard: 'persoon' },
-      { id: 'p2', naam: 'Afdeling Inkoop', aard: 'organisatie_eenheid' },
+      { id: 'p1', naam: 'Jan de Vries', aard: 'persoon', afdeling_naam: 'Burgerzaken', organisatie_naam: 'Gemeente Tiel' },
+      { id: 'p2', naam: 'Afdeling Inkoop', aard: 'organisatie_eenheid', organisatie_naam: 'Gemeente Tiel' },
     ],
     volgende_cursor: null,
   })
@@ -84,6 +84,23 @@ describe('VerantwoordelijkheidSectie', () => {
     const w = await mountSectie({ rollen: ['viewer'] })
     expect(w.find('[data-testid="vw-toevoegen"]').exists()).toBe(false)
     expect(w.find('[data-testid="vw-verwijder-t1"]').exists()).toBe(false)
+  })
+
+  it('LI040-regressie: elke picker-optie toont de NAAM als scanlaag + gedempte identiteit', async () => {
+    // De lat van deze test is bewust "zichtbare tekst", niet "component rendert":
+    // de partijpicker-bug (ontbrekende IdentiteitLabel-import → lege regels met alleen
+    // een aard-hint) bleef onder de oude asserts volledig groen.
+    const w = await mountSectie()
+    await w.find('[data-testid="vw-toevoegen"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="vw-veld-partij-input"]').trigger('focus')
+    await flushPromises()
+    expect(w.find('[data-testid="vw-veld-partij-optie-p1"]').text())
+      .toContain('Jan de Vries — Burgerzaken — Gemeente Tiel')
+    expect(w.find('[data-testid="vw-veld-partij-optie-p2"]').text())
+      .toContain('Afdeling Inkoop — Gemeente Tiel')
+    // En nergens de faal-marker van de bouwsteen.
+    expect(w.find('[data-testid="identiteit-naam-ontbreekt"]').exists()).toBe(false)
   })
 
   it('toewijzen vereist partij én rol (geen API-call zonder rol)', async () => {
