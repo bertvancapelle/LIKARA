@@ -11,7 +11,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from models.models import HostingModel, LifecycleStatus, Migratiepad, NiveauEnum
+from models.models import HostingModel, Levensfase, LifecycleStatus, Migratiepad, NiveauEnum
 from schemas._validators import _optionele_tekst, _verplichte_tekst
 
 # ADR-028 — de beschermde default-componentrol (systeem-sleutel in `componentrol_optie`).
@@ -30,6 +30,7 @@ class ComponentSorteerveld(str, Enum):
     hostingmodel = "hostingmodel"   # enum-volgorde (PostgreSQL enum-definitievolgorde)
     complexiteit = "complexiteit"
     prioriteit = "prioriteit"
+    levensfase = "levensfase"       # ADR-046 — nullable (NULLS-LAST via v2n)
     lifecycle_status = "lifecycle_status"
 
 
@@ -56,6 +57,9 @@ class ComponentCreate(BaseModel):
     beschrijving: str | None = None
     # LI057 (Slice 1) — component-brede transitie-attributen, met defaults (verplicht in de DB).
     migratiepad: Migratiepad = Migratiepad.onbekend
+    # ADR-046 besluit 1 — levensfase (vormkeuze B): optioneel ZONDER default; weggelaten =
+    # "nog niet vastgelegd" (LIKARA doet die uitspraak nooit zelf).
+    levensfase: Levensfase | None = None
     complexiteit: NiveauEnum = NiveauEnum.midden
     prioriteit: NiveauEnum = NiveauEnum.midden
     # ADR-028 — componentclassificatie (app-side gevalideerd tegen de actieve catalogi in de
@@ -96,6 +100,9 @@ class ComponentUpdate(BaseModel):
     beschrijving: str | None = None
     # LI057 (Slice 1) — component-brede transitie-attributen (PATCH: optioneel, niet expliciet null).
     migratiepad: Migratiepad | None = None
+    # ADR-046 — levensfase mag wél expliciet op null (terug naar "nog niet vastgelegd":
+    # een registratie moet corrigeerbaar zijn; exclude_unset onderscheidt weggelaten/null).
+    levensfase: Levensfase | None = None
     complexiteit: NiveauEnum | None = None
     prioriteit: NiveauEnum | None = None
     # ADR-028 — componentclassificatie (PATCH). `componentrol` blijft NOT NULL: None = "niet
@@ -138,6 +145,8 @@ class ComponentRead(BaseModel):
     beschrijving: str | None
     # LI057 (Slice 1) — component-brede transitie-attributen (nu op élk component, NOT NULL).
     migratiepad: Migratiepad
+    # ADR-046 — levensfase: null = "nog niet vastgelegd" (leeg ≠ fout, UI toont gedempt).
+    levensfase: Levensfase | None = None
     complexiteit: NiveauEnum
     prioriteit: NiveauEnum
     # ADR-028 — componentclassificatie (registratief): rol (+ label) en de drie BIV-velden
@@ -193,6 +202,8 @@ class ComponentLijstItem(BaseModel):
     eigenaar_organisatie_naam: str | None = None
     # LI057 (Slice 1) — nu op élk component (was nullable via applicatie-LEFT-JOIN).
     migratiepad: Migratiepad
+    # ADR-046 — levensfase (null = "nog niet vastgelegd"); lijstkolom + filter.
+    levensfase: Levensfase | None = None
     complexiteit: NiveauEnum
     prioriteit: NiveauEnum
     # ADR-028 — componentclassificatie (registratief): rol + BIV (+ labels).

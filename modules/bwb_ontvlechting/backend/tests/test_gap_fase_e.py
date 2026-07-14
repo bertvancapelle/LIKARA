@@ -447,9 +447,9 @@ def test_gap_readiness_contractueel_live():
 
             # Doel-plateau-lidmaatschap (de ENIGE bron van het bevestigd-signaal).
             await psvc.maak_lid(s, _TID, doel["id"],
-                                PlateauLidCreate(lid_id=con_ja, dispositie="behouden", contractueel_bevestigd=True))
+                                PlateauLidCreate(lid_id=con_ja, contractueel_bevestigd=True))
             await psvc.maak_lid(s, _TID, doel["id"],
-                                PlateauLidCreate(lid_id=con_nee, dispositie="behouden", contractueel_bevestigd=False))
+                                PlateauLidCreate(lid_id=con_nee, contractueel_bevestigd=False))
 
             gap = await gsvc.maak_aan(s, _TID, GapCreate(
                 naam="WT-Gap-Con", baseline_plateau_id=base["id"], doel_plateau_id=doel["id"]))

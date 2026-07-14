@@ -18,6 +18,7 @@ import { api } from '@/api'
 import {
   CONTRACTTYPE,
   HOSTINGMODEL,
+  LEVENSFASE,
   LIFECYCLE,
   LIFECYCLE_SEVERITY,
   MIGRATIEPAD,
@@ -345,8 +346,16 @@ watch(() => props.id, async () => {
                   <span data-testid="comp-biv-v">{{ component.biv_vertrouwelijkheid_label || 'Niet geclassificeerd' }}</span>
                 </div>
               </dd>
-              <dt class="font-semibold">Migratiepad</dt>
-              <dd>{{ label(MIGRATIEPAD, component.migratiepad) }}</dd>
+              <!-- ADR-046 — twee vragen, twee velden, in dezelfde groep: Levensfase
+                   ("draait het?") boven Bedoeling ("waar gaat het heen?"). Ontbrekende
+                   levensfase = gedempt "nog niet vastgelegd" — leeg ≠ fout, nooit rood. -->
+              <dt class="font-semibold">Levensfase</dt>
+              <dd data-testid="comp-levensfase">
+                <span v-if="component.levensfase">{{ label(LEVENSFASE, component.levensfase) }}</span>
+                <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="levensfase-leeg">nog niet vastgelegd</span>
+              </dd>
+              <dt class="font-semibold">Bedoeling</dt>
+              <dd data-testid="comp-bedoeling">{{ label(MIGRATIEPAD, component.migratiepad) }}</dd>
               <dt class="font-semibold">Complexiteit</dt>
               <dd>{{ label(NIVEAU, component.complexiteit) }}</dd>
               <dt class="font-semibold">Prioriteit</dt>

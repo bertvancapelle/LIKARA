@@ -6,7 +6,8 @@
  * Aanmaken en bewerken zijn identiek (bewerken voorgevuld, incl. `initieel-weergave` op de
  * eigenaar-picker). Twee kolommen (smal scherm → stapelen): links *Basis* + *Inzet en
  * eigenaarschap* (eigenaar + procesregels); rechts *Classificatie* (rol + BIV naast
- * elkaar) + *Plaatsing en migratie* (2×2). Vaste voetbalk (Opslaan primary + Annuleren)
+ * elkaar) + *Plaatsing en migratie* (ADR-046: rij 1 = Levensfase naast Bedoeling, dan
+ * hosting/complexiteit/prioriteit). Vaste voetbalk (Opslaan primary + Annuleren)
  * in het #footer-slot — scroll-gedrag en scroll-schaduw komen uit de Dialog-primitive
  * (preset-content is hét scroll-gebied); deze view bouwt géén eigen scroll-wrapper.
  *
@@ -24,7 +25,7 @@ import { Button, Dialog, InputText, Textarea, useToast } from '@/primevue'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import MeldingBanner from '@/components/MeldingBanner.vue'
-import { HOSTINGMODEL, MIGRATIEPAD, NIVEAU, REGISTER_FOUT, label } from '../labels'
+import { HOSTINGMODEL, LEVENSFASE, MIGRATIEPAD, NIVEAU, REGISTER_FOUT, label } from '../labels'
 import { maakProcesZoeker } from '../procesZoek'
 import ComponentProcessenSectie from './ComponentProcessenSectie.vue'
 import VeldUitleg from './VeldUitleg.vue'
@@ -59,6 +60,7 @@ const form = reactive({
   eigenaar_organisatie_naam: '',
   beschrijving: '',
   migratiepad: 'onbekend',
+  levensfase: '', // ADR-046 — '' = "nog niet vastgelegd" (payload null); bewust GEEN default-fase
   complexiteit: 'midden',
   prioriteit: 'midden',
   componentrol: 'interne_applicatie',
@@ -73,15 +75,17 @@ const BIV_VELDEN = [
   { veld: 'biv_integriteit', label: 'Integriteit' },
   { veld: 'biv_vertrouwelijkheid', label: 'Vertrouwelijkheid' },
 ]
+// ADR-046 — Levensfase en Bedoeling zijn twee aparte vragen ("draait het?" / "waar gaat
+// het heen?") en staan NAAST ELKAAR op de eerste rij van het 2-koloms grid. Levensfase
+// heeft een expliciete leeg-optie ("nog niet vastgelegd") en géén default-fase.
 const TRANSITIE_VELDEN = [
-  { veld: 'migratiepad', label: 'Migratiepad', opties: MIGRATIEPAD },
+  { veld: 'levensfase', label: 'Levensfase', opties: LEVENSFASE, leegLabel: '— nog niet vastgelegd —' },
+  { veld: 'migratiepad', label: 'Bedoeling', opties: MIGRATIEPAD },
+  { veld: 'hostingmodel', label: 'Hostingmodel', opties: HOSTINGMODEL },
   { veld: 'complexiteit', label: 'Complexiteit', opties: NIVEAU },
   { veld: 'prioriteit', label: 'Prioriteit', opties: NIVEAU },
 ]
-const PLAATSING_VELDEN = computed(() => [
-  { veld: 'hostingmodel', label: 'Hostingmodel', opties: HOSTINGMODEL, uitleg: 'hostingmodel' },
-  ...TRANSITIE_VELDEN.map((t) => ({ ...t, uitleg: t.veld })),
-])
+const PLAATSING_VELDEN = computed(() => TRANSITIE_VELDEN.map((t) => ({ ...t, uitleg: t.veld })))
 const hosting = (c) => label(HOSTINGMODEL, c)
 const optieLabel = (map, code) => label(map, code)
 
@@ -153,7 +157,7 @@ async function init() {
   Object.assign(form, {
     naam: '', componenttype: '', hostingmodel: 'onbekend',
     eigenaar_organisatie_id: null, eigenaar_organisatie_naam: '', beschrijving: '',
-    migratiepad: 'onbekend', complexiteit: 'midden', prioriteit: 'midden',
+    migratiepad: 'onbekend', levensfase: '', complexiteit: 'midden', prioriteit: 'midden',
     componentrol: 'interne_applicatie',
     biv_beschikbaarheid: '', biv_integriteit: '', biv_vertrouwelijkheid: '',
   })
@@ -178,6 +182,7 @@ async function init() {
         eigenaar_organisatie_naam: c.eigenaar_organisatie_naam || '',
         beschrijving: c.beschrijving || '',
         migratiepad: c.migratiepad ?? 'onbekend',
+        levensfase: c.levensfase ?? '',
         complexiteit: c.complexiteit ?? 'midden',
         prioriteit: c.prioriteit ?? 'midden',
         componentrol: c.componentrol ?? 'interne_applicatie',
@@ -211,6 +216,8 @@ function _payload() {
     eigenaar_organisatie_id: form.eigenaar_organisatie_id || null,
     beschrijving: form.beschrijving.trim() || null,
     migratiepad: form.migratiepad,
+    // ADR-046 — '' = "nog niet vastgelegd" → expliciet null (wist ook een eerdere fase).
+    levensfase: form.levensfase || null,
     complexiteit: form.complexiteit,
     prioriteit: form.prioriteit,
     componentrol: form.componentrol,
@@ -498,7 +505,8 @@ function bevestigAnnuleren() {
           </fieldset>
 
           <h3 class="mt-[var(--lk-space-sm)] font-semibold text-[var(--lk-color-primary)]">Plaatsing en migratie</h3>
-          <!-- 2×2 (smal scherm → stapelen). -->
+          <!-- ADR-046 — rij 1: Levensfase ("draait het?") NAAST Bedoeling ("waar gaat het
+               heen?"); daarna hosting/complexiteit/prioriteit. Smal scherm → stapelen. -->
           <div class="grid grid-cols-1 gap-[var(--lk-space-sm)] sm:grid-cols-2" data-testid="plaatsing-blok">
             <div v-for="p in PLAATSING_VELDEN" :key="p.veld" class="flex flex-col gap-[var(--lk-space-xs)]">
               <div class="flex items-center gap-[var(--lk-space-xs)]">
@@ -511,6 +519,9 @@ function bevestigAnnuleren() {
                 :data-testid="`veld-${p.veld}`"
                 class="lk-veld w-full min-w-0"
               >
+                <!-- Leeg-optie (alleen levensfase): "nog niet vastgelegd" is een geldige,
+                     opslagbare stand — leeg ≠ fout (ADR-046 vormkeuze B). -->
+                <option v-if="p.leegLabel" value="">{{ p.leegLabel }}</option>
                 <option v-for="code in Object.keys(p.opties)" :key="code" :value="code">{{ optieLabel(p.opties, code) }}</option>
               </select>
             </div>

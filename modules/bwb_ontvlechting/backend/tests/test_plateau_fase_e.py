@@ -2,9 +2,11 @@
 
 Offline: model/schema/seed/audit-allowlist + de regressie-borging dat de plateau-laag
 de engine NIET raakt (score blijft de enige lifecycle-driver). Live (skip-if-no-DB):
-plateau-CRUD, lidmaatschap (component + contract) met dispositie + contractuele
-bevestiging (server-side wie/wanneer), RLS-isolatie, audit-capture. Live-tests ruimen
-hun eigen element-rijen structureel op (V009-follow-up a).
+plateau-CRUD, lidmaatschap (component + contract) met contractuele bevestiging
+(server-side wie/wanneer), RLS-isolatie, audit-capture. ADR-046 besluit 2: de dispositie
+is als bestemmingsveld afgebouwd — geen invoer meer; de catalogus is soft-gedeactiveerd
+(historisch resolvebaar). Live-tests ruimen hun eigen element-rijen structureel op
+(V009-follow-up a).
 """
 import asyncio
 import uuid
@@ -45,20 +47,24 @@ def test_plateau_lid_schema_validatie():
     from pydantic import ValidationError
     from schemas.plateau import PlateauLidCreate
 
-    ok = PlateauLidCreate(lid_id=uuid.uuid4(), dispositie="migreren")
+    ok = PlateauLidCreate(lid_id=uuid.uuid4())
     assert ok.contractueel_bevestigd is False  # default
 
     with pytest.raises(ValidationError):  # negatief aantal geweigerd
-        PlateauLidCreate(lid_id=uuid.uuid4(), dispositie="migreren", bevestigd_aantal_gebruikers=-1)
+        PlateauLidCreate(lid_id=uuid.uuid4(), bevestigd_aantal_gebruikers=-1)
     with pytest.raises(ValidationError):  # extra veld verboden
-        PlateauLidCreate(lid_id=uuid.uuid4(), dispositie="migreren", onbekend="x")
+        PlateauLidCreate(lid_id=uuid.uuid4(), onbekend="x")
+    with pytest.raises(ValidationError):  # ADR-046: dispositie is géén invoerveld meer
+        PlateauLidCreate(lid_id=uuid.uuid4(), dispositie="migreren")
 
 
-# ── Offline: dispositie-catalogus + aggregation-kenmerken ────────────────────────
+# ── Offline: dispositie-afbouw (ADR-046) + aggregation-kenmerken ─────────────────
 
-def test_dispositie_in_relatiekenmerk_catalogus_niet_in_contractconfig():
-    """Correctie v2: dispositie hoort in de algemene relatie-kenmerk-catalogus, NIET in
-    de contract-configuratie. De contract-keuzelijsten blijven ongemoeid."""
+def test_dispositie_soft_gedeactiveerd_niet_in_contractconfig():
+    """ADR-046 besluit 2: de dispositie-dimensie blijft geseed (historische waarden op
+    bestaande relaties blijven label-resolvebaar — nooit hard weg) maar is SOFT-
+    gedeactiveerd (actief=False, geen actieve optie meer). De contract-keuzelijsten
+    blijven ongemoeid (dekking + kostenmodel)."""
     from models.models import ContractConfigDimensie
     from services.seed_contractconfig import bouw_contractconfig
     from services.seed_relatiekenmerk import bouw_relatiekenmerk
@@ -66,11 +72,15 @@ def test_dispositie_in_relatiekenmerk_catalogus_niet_in_contractconfig():
     from models.models import RelatieKenmerkDimensie
 
     rk = bouw_relatiekenmerk()
-    # In de relatie-kenmerk-catalogus: dispositie én (sinds de consistentie-opruim) relatie_rol.
-    disp = [r["optie_sleutel"] for r in rk if r["dimensie"] == RelatieKenmerkDimensie.dispositie]
-    rol = [r["optie_sleutel"] for r in rk if r["dimensie"] == RelatieKenmerkDimensie.relatie_rol]
-    assert disp == ["behouden", "migreren", "vervangen", "uitfaseren"]
-    assert rol == ["valt_onder", "onderhoud", "hosting"]
+    disp = [r for r in rk if r["dimensie"] == RelatieKenmerkDimensie.dispositie]
+    rol = [r for r in rk if r["dimensie"] == RelatieKenmerkDimensie.relatie_rol]
+    # Historisch resolvebaar: de vier sleutels blijven bestaan…
+    assert [r["optie_sleutel"] for r in disp] == ["behouden", "migreren", "vervangen", "uitfaseren"]
+    # …maar géén enkele is nog actief (soft-deactivate; geen nieuwe registratie).
+    assert all(r["actief"] is False for r in disp)
+    # De overige dimensies blijven gewoon actief.
+    assert [r["optie_sleutel"] for r in rol] == ["valt_onder", "onderhoud", "hosting"]
+    assert all(r["actief"] is True for r in rol)
     # NIET (meer) in de contractconfig — die draagt uitsluitend dekking + kostenmodel.
     assert {d.value for d in ContractConfigDimensie} == {"dekking", "kostenmodel"}
     assert all(
@@ -79,7 +89,9 @@ def test_dispositie_in_relatiekenmerk_catalogus_niet_in_contractconfig():
     )
 
 
-def test_aggregation_dispositie_verwijst_naar_relatiekenmerk_catalogus():
+def test_aggregation_kenmerken_zonder_dispositie():
+    """ADR-046: de aggregation-kenmerkdefinitie draagt GEEN dispositie meer (het plateau
+    heeft geen eigen bedoeling); de contractuele bevestiging blijft registratie."""
     from services.seed_componentconfig import bouw_componentconfig
 
     aggr = next(
@@ -87,49 +99,24 @@ def test_aggregation_dispositie_verwijst_naar_relatiekenmerk_catalogus():
         if r["dimensie"].value == "archimate_relatie" and r["optie_sleutel"] == "aggregation"
     )
     kd = aggr["kenmerk_definitie"]
-    # dispositie = catalogus, gerouteerd naar de relatiekenmerk-catalogus (niet ContractConfig).
-    assert kd["dispositie"] == {
-        "type": "catalogus", "catalogus": "relatiekenmerk", "dimensie": "dispositie",
-    }
+    assert "dispositie" not in kd
     # Contractuele bevestiging = registratie (niet gevalideerd/vergeleken).
     for sleutel in ("contractueel_bevestigd", "bevestigd_aantal_gebruikers", "bevestigd_door", "bevestigd_op"):
         assert kd[sleutel]["type"] == "registratie"
 
 
-def test_relatiekenmerk_catalog_valideert_dispositie():
-    """De nieuwe relatie-kenmerk-catalogus valideert dispositie-sleutels (geldig ok,
-    onbekend ⇒ 422 ONGELDIGE_OPTIE)."""
-    from types import SimpleNamespace
-    from unittest.mock import AsyncMock
-
-    from models.models import RelatieKenmerkDimensie
-    from services import relatiekenmerk_catalog as rk
-    from services.errors import OngeldigeRegistratie
-
-    rows = [SimpleNamespace(optie_sleutel="migreren", label="Migreren", actief=True)]
-    session = AsyncMock()
-    session.execute.return_value = SimpleNamespace(all=lambda: rows)
-
-    asyncio.run(rk.valideer_sleutels(session, RelatieKenmerkDimensie.dispositie, ["migreren"]))
-    with pytest.raises(OngeldigeRegistratie):
-        asyncio.run(rk.valideer_sleutels(session, RelatieKenmerkDimensie.dispositie, ["onbekend"]))
-
-
-def test_actieve_disposities_uit_catalogus():
-    """De UI-dropdown-bron leest de actieve dispositie-opties uit de relatie-kenmerk-catalogus."""
-    from unittest.mock import AsyncMock
+def test_plateau_service_kent_geen_dispositie_invoer_meer():
+    """ADR-046: het invoer-oppervlak is dicht — geen `actieve_disposities`-dropdownbron
+    meer, en `maak_lid`/`werk_lid_bij` schrijven het kenmerk niet (bronscan op het
+    schrijfpad; de read-side resolutie van historische waarden blijft wél bestaan)."""
+    import inspect
 
     from services import plateau_service as svc
 
-    payload = {"dispositie": [{"optie_sleutel": "migreren", "label": "Migreren", "volgorde": 1}], "relatie_rol": []}
-    session = AsyncMock()
-    orig = svc.catalog.actieve_opties_per_dimensie
-    svc.catalog.actieve_opties_per_dimensie = AsyncMock(return_value=payload)
-    try:
-        uit = asyncio.run(svc.actieve_disposities(session))
-    finally:
-        svc.catalog.actieve_opties_per_dimensie = orig
-    assert uit == [{"optie_sleutel": "migreren", "label": "Migreren", "volgorde": 1}]
+    assert not hasattr(svc, "actieve_disposities")
+    for fn in (svc.maak_lid, svc.werk_lid_bij):
+        bron = inspect.getsource(fn)
+        assert 'k["dispositie"]' not in bron and '"dispositie":' not in bron
 
 
 def test_plateau_lid_read_heeft_lid_naam_veld():
@@ -282,15 +269,15 @@ def test_plateau_lidmaatschap_component_en_contract_live():
             await s.commit()
             opgeruimd_ids += [comp_id, con_id]
 
-            # Component-lid met dispositie 'migreren', niet contractueel bevestigd.
+            # Component-lid (ADR-046: zonder dispositie), niet contractueel bevestigd.
             lid_comp = await svc.maak_lid(
                 s, _TID, plateau["id"],
-                PlateauLidCreate(lid_id=comp_id, dispositie="migreren"),
+                PlateauLidCreate(lid_id=comp_id),
             )
-            # Contract-lid met dispositie 'behouden' + contractuele bevestiging (250 gebruikers).
+            # Contract-lid met contractuele bevestiging (250 gebruikers).
             lid_con = await svc.maak_lid(
                 s, _TID, plateau["id"],
-                PlateauLidCreate(lid_id=con_id, dispositie="behouden",
+                PlateauLidCreate(lid_id=con_id,
                                  contractueel_bevestigd=True, bevestigd_aantal_gebruikers=250),
             )
             leden = await svc.lijst_leden(s, _TID, plateau["id"])
@@ -325,8 +312,10 @@ def test_plateau_lidmaatschap_component_en_contract_live():
             await s.commit()
 
     r = asyncio.run(_run_rls(_TID, "test:bert", _flow))
-    assert r["comp"]["dispositie"] == "migreren" and r["comp"]["lid_element_type"] == "component"
-    assert r["comp"]["dispositie_label"] == "Migreren"
+    # ADR-046: nieuwe leden dragen géén dispositie (null); de read blijft het veld
+    # exposeren voor historische rijen.
+    assert r["comp"]["dispositie"] is None and r["comp"]["lid_element_type"] == "component"
+    assert r["comp"]["dispositie_label"] is None
     assert r["comp"]["lid_naam"] == "WT-Plateau-comp"      # naam in de read (UI-A4-1)
     assert r["con"]["lid_naam"] == "WT-Plateau-contract"
     assert {l["lid_naam"] for l in r["leden"]} == {"WT-Plateau-comp", "WT-Plateau-contract"}
@@ -416,7 +405,7 @@ def test_plateau_lid_raakt_lifecycle_niet_live():
                 "SELECT count(*) FROM component_profiel WHERE id=:i"), {"i": str(comp_id)})).scalar()
             p = await svc.maak_aan(s, _TID, PlateauCreate(naam="WT-Plateau-lc-p"))
             ids.append(p["id"])
-            await svc.maak_lid(s, _TID, p["id"], PlateauLidCreate(lid_id=comp_id, dispositie="behouden"))
+            await svc.maak_lid(s, _TID, p["id"], PlateauLidCreate(lid_id=comp_id))
             na = (await s.execute(_text(
                 "SELECT count(*) FROM component_profiel WHERE id=:i"), {"i": str(comp_id)})).scalar()
             return voor, na

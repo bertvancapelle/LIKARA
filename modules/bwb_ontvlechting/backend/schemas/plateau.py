@@ -2,9 +2,11 @@
 
 Een plateau is een momentopname van het landschap (naam + toelichting). Lidmaatschap
 loopt via het unified relatiemodel als aggregation-relatie (bron=plateau, doel=lid) met
-de dispositie + contractuele bevestiging als kenmerken. De bevestigingsgegevens zijn
-registratie (geen validatie/vergelijking); `bevestigd_door`/`bevestigd_op` worden
-server-side gevuld (niet via invoer).
+de contractuele bevestiging als kenmerken. ADR-046 besluit 2: de dispositie is als
+bestemmingsveld AFGEBOUWD — het plateau draagt geen eigen bedoeling meer (die leeft op
+het component: `migratiepad`); historische dispositie-waarden blijven read-only
+resolvebaar. De bevestigingsgegevens zijn registratie (geen validatie/vergelijking);
+`bevestigd_door`/`bevestigd_op` worden server-side gevuld (niet via invoer).
 """
 import uuid
 from datetime import datetime
@@ -62,20 +64,15 @@ class PlateauPagina(BaseModel):
 
 
 class PlateauLidCreate(BaseModel):
-    """Een lid (component of contract) in een plateau hangen, met dispositie + optionele
-    contractuele bevestiging. `bevestigd_door`/`bevestigd_op` worden server-side gevuld."""
+    """Een lid (component of contract) in een plateau hangen, met optionele contractuele
+    bevestiging. ADR-046: géén dispositie meer (`extra='forbid'` weert het veld) — de
+    bedoeling leeft op het component. `bevestigd_door`/`bevestigd_op` server-side."""
 
     model_config = ConfigDict(extra="forbid")
 
     lid_id: uuid.UUID
-    dispositie: str
     contractueel_bevestigd: bool = False
     bevestigd_aantal_gebruikers: int | None = None
-
-    @field_validator("dispositie")
-    @classmethod
-    def _v_dispositie(cls, v: str) -> str:
-        return _verplichte_tekst(v, "dispositie", 60)
 
     @field_validator("bevestigd_aantal_gebruikers")
     @classmethod
@@ -86,18 +83,12 @@ class PlateauLidCreate(BaseModel):
 
 
 class PlateauLidUpdate(BaseModel):
-    """Partieel: dispositie en/of de contractuele bevestiging bijwerken."""
+    """Partieel: de contractuele bevestiging bijwerken (dispositie vervallen, ADR-046)."""
 
     model_config = ConfigDict(extra="forbid")
 
-    dispositie: str | None = None
     contractueel_bevestigd: bool | None = None
     bevestigd_aantal_gebruikers: int | None = None
-
-    @field_validator("dispositie")
-    @classmethod
-    def _v_dispositie(cls, v: str | None) -> str | None:
-        return v if v is None else _verplichte_tekst(v, "dispositie", 60)
 
     @field_validator("bevestigd_aantal_gebruikers")
     @classmethod
@@ -113,8 +104,10 @@ class PlateauLidRead(BaseModel):
     lid_id: uuid.UUID
     lid_element_type: str         # 'component' | 'contract'
     lid_naam: str | None          # naam van het lid (component.naam / contract.contractnaam)
-    dispositie: str
-    dispositie_label: str
+    # ADR-046 — read-only HISTORIE: rijen van vóór de afbouw dragen nog een dispositie
+    # (soft-gedeactiveerde catalogus blijft label-resolvebaar); nieuwe rijen niet (null).
+    dispositie: str | None = None
+    dispositie_label: str | None = None
     contractueel_bevestigd: bool
     bevestigd_aantal_gebruikers: int | None
     bevestigd_door: str | None    # ADR-029: e-mail-fallback van de actor (historisch: kale string)

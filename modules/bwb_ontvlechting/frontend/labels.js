@@ -119,11 +119,14 @@ export const VELD_LABELS = {
   naam: 'Naam',
   omschrijving: 'Omschrijving',
   beschrijving: 'Beschrijving',
-  lifecycle_status: 'Levensfase',
+  // ADR-046 — 'Levensfase' is nu het echte `levensfase`-veld; de engine-status heet in
+  // de UI overal 'Status' (registratiestatus) — hier niet langer 'Levensfase' noemen.
+  lifecycle_status: 'Registratiestatus',
+  levensfase: 'Levensfase',
   status: 'Status',
   reden: 'Reden',
   hostingmodel: 'Hostingmodel',
-  migratiepad: 'Migratiepad',
+  migratiepad: 'Bedoeling',
   complexiteit: 'Complexiteit',
   prioriteit: 'Prioriteit',
   rol: 'Rol',
@@ -158,13 +161,23 @@ export const HOSTINGMODEL = {
   onbekend: 'Onbekend',
 }
 
+// ADR-046 besluit 2 — de BEDOELING ("waar gaat het heen"): uitsluitend bestemmingen.
+// `uitfaseren` is verwijderd (fase-taal — leeft nu in LEVENSFASE). UI-label = "Bedoeling";
+// de API-veldnaam blijft `migratiepad`.
 export const MIGRATIEPAD = {
   lift_and_shift: 'Lift-and-shift',
   herbouw: 'Herbouw',
   vervangen: 'Vervangen',
-  uitfaseren: 'Uitfaseren',
   gedeeld: 'Gedeeld',
   onbekend: 'Onbekend',
+}
+
+// ADR-046 besluit 1 — de LEVENSFASE (feit over het component; vaste set van drie).
+// Ontbrekend (null) toont overal als gedempt "nog niet vastgelegd" — leeg ≠ fout.
+export const LEVENSFASE = {
+  in_ontwikkeling: 'In ontwikkeling',
+  in_productie: 'In productie',
+  uitfaseren: 'Uitfaseren',
 }
 
 export const NIVEAU = {

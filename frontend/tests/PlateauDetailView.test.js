@@ -1,4 +1,6 @@
-/** Tests — PlateauDetailView (migratielaag: wijzigen/verwijderen + ledenbeheer; UX-A4-1). */
+/** Tests — PlateauDetailView (migratielaag: wijzigen/verwijderen + ledenbeheer; UX-A4-1).
+ * ADR-046 besluit 2: de dispositie is als bestemmingsveld afgebouwd — het koppel-formulier
+ * vraagt géén dispositie meer; een historische waarde blijft read-only zichtbaar. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -10,7 +12,7 @@ vi.mock('@/api', () => ({
   api: {
     plateaus: {
       haal: vi.fn(), leden: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn(),
-      disposities: vi.fn(), voegLid: vi.fn(), werkLid: vi.fn(), verwijderLid: vi.fn(),
+      voegLid: vi.fn(), werkLid: vi.fn(), verwijderLid: vi.fn(),
     },
     componenten: { lijst: vi.fn() },
     contracten: { lijst: vi.fn() },
@@ -56,9 +58,11 @@ async function kiesZoek(w, prefix, id) {
   await flushPromises()
 }
 
+// ADR-046 — nieuwe leden dragen géén dispositie meer (null); de read exposeert het veld
+// nog voor historische rijen (zie de historisch-test onderaan).
 const _lidComp = () => ({
   id: 'rel1', plateau_id: ID, lid_id: 'c1', lid_element_type: 'component', lid_naam: 'Oracle FIN-DB',
-  dispositie: 'migreren', dispositie_label: 'Migreren', contractueel_bevestigd: false,
+  dispositie: null, dispositie_label: null, contractueel_bevestigd: false,
   bevestigd_aantal_gebruikers: null, bevestigd_door: null, bevestigd_op: null,
 })
 
@@ -66,11 +70,6 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.plateaus.haal.mockResolvedValue({ id: ID, naam: 'Huidig', toelichting: 'startbeeld' })
   api.plateaus.leden.mockResolvedValue([_lidComp()])
-  api.plateaus.disposities.mockResolvedValue([
-    { optie_sleutel: 'behouden', label: 'Behouden' },
-    { optie_sleutel: 'migreren', label: 'Migreren' },
-    { optie_sleutel: 'vervangen', label: 'Vervangen' },
-  ])
   api.componenten.lijst.mockResolvedValue({ items: [{ id: 'c2', naam: 'Belastingsysteem' }], volgende_cursor: null })
   api.contracten.lijst.mockResolvedValue({
     items: [{ id: 'k2', contractnaam: 'Oracle licentie', leverancier_naam: 'Oracle BV' }], volgende_cursor: null,
@@ -79,11 +78,13 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks())
 
 describe('PlateauDetailView — render + rol-gating', () => {
-  it('toont leden met naam, type en dispositie', async () => {
+  it('toont leden met naam en type; geen dispositie-kolom zonder historische waarden', async () => {
     const { w } = await mountDetail()
     const t = w.find('[data-testid="plateau-leden-tabel"]').text()
     expect(t).toContain('Oracle FIN-DB')
     expect(t).toContain('Component')
+    // ADR-046 — geen dispositie-invoer of -kolom meer voor dispositieloze leden.
+    expect(t).not.toContain('Dispositie')
     expect(w.find('[data-testid="plateau-bewerken"]').exists()).toBe(true)
     expect(w.find('[data-testid="lid-koppelen"]').exists()).toBe(true)
   })
@@ -94,16 +95,27 @@ describe('PlateauDetailView — render + rol-gating', () => {
     expect(w.find('[data-testid="plateau-verwijderen"]').exists()).toBe(false)
     expect(w.find('[data-testid="lid-koppelen"]').exists()).toBe(false)
     expect(w.find('[data-testid="lid-ontkoppel-rel1"]').exists()).toBe(false)
-    // medewerker/beheerder zien de inline dispositie-select; viewer niet
-    expect(w.find('[data-testid="lid-dispositie-rel1"]').exists()).toBe(false)
   })
 
-  it('medewerker mag koppelen/wijzigen maar niet ontkoppelen (alleen beheerder)', async () => {
+  it('medewerker mag koppelen maar niet ontkoppelen (alleen beheerder)', async () => {
     const { w } = await mountDetail({ rollen: ['medewerker'] })
     expect(w.find('[data-testid="lid-koppelen"]').exists()).toBe(true)
-    expect(w.find('[data-testid="lid-dispositie-rel1"]').exists()).toBe(true)
     expect(w.find('[data-testid="plateau-verwijderen"]').exists()).toBe(false)
     expect(w.find('[data-testid="lid-ontkoppel-rel1"]').exists()).toBe(false)
+  })
+
+  it('een HISTORISCHE dispositie blijft read-only leesbaar (kolom verschijnt)', async () => {
+    api.plateaus.leden.mockResolvedValue([
+      { ..._lidComp(), dispositie: 'migreren', dispositie_label: 'Migreren' },
+    ])
+    const { w } = await mountDetail()
+    const t = w.find('[data-testid="plateau-leden-tabel"]').text()
+    expect(t).toContain('Dispositie (historisch)')
+    const tag = w.find('[data-testid="lid-dispositie-rel1"]')
+    expect(tag.exists()).toBe(true)
+    expect(tag.text()).toContain('Migreren')
+    // Read-only: geen select/inline-wijziging meer.
+    expect(tag.element.tagName).not.toBe('SELECT')
   })
 })
 
@@ -130,20 +142,20 @@ describe('PlateauDetailView — plateau wijzigen/verwijderen', () => {
 })
 
 describe('PlateauDetailView — leden koppelen/ontkoppelen', () => {
-  it('koppelt een component-lid met dispositie (geen bevestigingsvelden)', async () => {
+  it('koppelt een component-lid ZONDER dispositie (ADR-046; geen bevestigingsvelden)', async () => {
     api.plateaus.voegLid.mockResolvedValueOnce({ id: 'rel2' })
     const { w } = await mountDetail()
     await w.find('[data-testid="lid-koppelen"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-testid="lk-bevestiging"]').exists()).toBe(false) // component → geen bevestiging
+    expect(w.find('[data-testid="lk-dispositie"]').exists()).toBe(false) // ADR-046 — veld bestaat niet meer
     await kiesZoek(w, 'lk-veld-lid', 'c2')
-    await w.find('[data-testid="lk-dispositie"]').setValue('behouden')
     await w.find('[data-testid="lid-koppel-form"]').trigger('submit')
     await flushPromises()
-    expect(api.plateaus.voegLid).toHaveBeenCalledWith(ID, { lid_id: 'c2', dispositie: 'behouden' })
+    expect(api.plateaus.voegLid).toHaveBeenCalledWith(ID, { lid_id: 'c2' })
   })
 
-  it('contract-lid toont de contractuele bevestiging en stuurt die mee', async () => {
+  it('contract-lid toont de contractuele bevestiging en stuurt die mee (onveranderd)', async () => {
     api.plateaus.voegLid.mockResolvedValueOnce({ id: 'rel3' })
     const { w } = await mountDetail()
     await w.find('[data-testid="lid-koppelen"]').trigger('click')
@@ -152,33 +164,23 @@ describe('PlateauDetailView — leden koppelen/ontkoppelen', () => {
     await flushPromises()
     expect(w.find('[data-testid="lk-bevestiging"]').exists()).toBe(true)
     await kiesZoek(w, 'lk-veld-lid', 'k2')
-    await w.find('[data-testid="lk-dispositie"]').setValue('behouden')
     await w.find('[data-testid="lk-bevestigd"]').setValue(true)
     await w.find('[data-testid="lk-aantal"]').setValue('250')
     await w.find('[data-testid="lid-koppel-form"]').trigger('submit')
     await flushPromises()
     expect(api.plateaus.voegLid).toHaveBeenCalledWith(ID, {
-      lid_id: 'k2', dispositie: 'behouden', contractueel_bevestigd: true, bevestigd_aantal_gebruikers: 250,
+      lid_id: 'k2', contractueel_bevestigd: true, bevestigd_aantal_gebruikers: 250,
     })
   })
 
-  it('koppelen vereist een lid én dispositie (geen API-call zonder lid)', async () => {
+  it('koppelen vereist een lid (geen API-call zonder lid)', async () => {
     const { w } = await mountDetail()
     await w.find('[data-testid="lid-koppelen"]').trigger('click')
     await flushPromises()
     await w.find('[data-testid="lid-koppel-form"]').trigger('submit')
     await flushPromises()
     expect(w.find('[data-testid="lk-fout-lid"]').exists()).toBe(true)
-    expect(w.find('[data-testid="lk-fout-dispositie"]').exists()).toBe(true)
     expect(api.plateaus.voegLid).not.toHaveBeenCalled()
-  })
-
-  it('inline dispositie wijzigen stuurt werkLid', async () => {
-    api.plateaus.werkLid.mockResolvedValueOnce({})
-    const { w } = await mountDetail()
-    await w.find('[data-testid="lid-dispositie-rel1"]').setValue('vervangen')
-    await flushPromises()
-    expect(api.plateaus.werkLid).toHaveBeenCalledWith(ID, 'rel1', { dispositie: 'vervangen' })
   })
 
   it('ontkoppelen via bevestiging stuurt verwijderLid + refetch', async () => {

@@ -226,6 +226,39 @@ describe('ComponentLijst', () => {
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ eigenaar_organisatie_id: 'org-1' }))
   })
 
+  it('ADR-046: het levensfase-filter belandt END-TO-END in de api-call en wist mee (V012-les)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-levensfase"]').setValue('uitfaseren')
+    await flushPromises()
+    // De client zet de filter écht in de call (snake_case, exact de backend-param).
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ levensfase: 'uitfaseren', after: undefined }),
+    )
+    // Filters wissen → de param verdwijnt uit de volgende call (wisbaar).
+    await w.find('[data-testid="filters-wissen"]').trigger('click')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ levensfase: expect.anything() }),
+    )
+  })
+
+  it('ADR-046: de levensfase-kolom toont het label en het gat gedempt ("nog niet vastgelegd")', async () => {
+    api.componenten.lijst.mockResolvedValue({
+      items: [
+        { ..._comp('Zaaksysteem', 'c1', { subtype: true }), levensfase: 'uitfaseren' },
+        { ..._comp('Archiefbeheer', 'c2'), levensfase: null },
+      ],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    // Zichtbare TEKST (niet alleen "rendert") — de LI040-les: assert op inhoud.
+    expect(w.find('[data-testid="rij-levensfase"]').text()).toBe('Uitfaseren')
+    const leeg = w.find('[data-testid="levensfase-leeg"]')
+    expect(leeg.exists()).toBe(true)
+    expect(leeg.text()).toBe('nog niet vastgelegd')
+  })
+
   it('ADR-028: rol-multiselect + BIV-drempel belanden in de api-call en resetten de cursor', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
@@ -367,7 +400,7 @@ describe('ComponentLijst', () => {
     )
   })
 
-  it('de 7 kolommen zijn sorteerbaar en Laag bewust niet', async () => {
+  it('de 8 kolommen zijn sorteerbaar en Laag bewust niet', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
     const sortFields = w.findAllComponents(Column).map((c) => ({
@@ -376,9 +409,10 @@ describe('ComponentLijst', () => {
     }))
     const sorteerbaar = sortFields.filter((c) => c.sortable).map((c) => c.header)
     expect(sorteerbaar).toEqual(
-      expect.arrayContaining(['Naam', 'Type', 'Eigenaar', 'Hosting', 'Complexiteit', 'Prioriteit', 'Status']),
+      // ADR-046 — Levensfase is een echte, server-side sorteerbare kolom (v2n NULLS-LAST).
+      expect.arrayContaining(['Naam', 'Type', 'Eigenaar', 'Hosting', 'Complexiteit', 'Prioriteit', 'Levensfase', 'Status']),
     )
-    expect(sorteerbaar).toHaveLength(7)
+    expect(sorteerbaar).toHaveLength(8)
     expect(sorteerbaar).not.toContain('Laag')
   })
 

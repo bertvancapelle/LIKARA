@@ -282,7 +282,7 @@ export const api = {
     // (read-only catalogus-typing) bovenop het type-filter.
     lijst: (params = {}) =>
       request(
-        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'eigenaar_organisatie_id', 'leverancier_id', 'zoek', 'componentrol', 'biv_beschikbaarheid_min', 'biv_integriteit_min', 'biv_vertrouwelijkheid_min', 'klaarverklaring', 'afwijking', 'ondersteunt_werk'])}`,
+        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'levensfase', 'eigenaar_organisatie_id', 'leverancier_id', 'zoek', 'componentrol', 'biv_beschikbaarheid_min', 'biv_integriteit_min', 'biv_vertrouwelijkheid_min', 'klaarverklaring', 'afwijking', 'ondersteunt_werk'])}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),
@@ -368,8 +368,8 @@ export const api = {
     maak: (data) => request('/plateaus', { method: 'POST', body: JSON.stringify(data) }),
     werkBij: (id, data) => request(`/plateaus/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/plateaus/${id}`, { method: 'DELETE' }),
-    // UX-A4-1 — beheer van leden + dispositie-opties voor het koppel-dropdown.
-    disposities: () => request('/plateaus/disposities'),
+    // UX-A4-1 — beheer van leden. ADR-046: `disposities()` is met het dispositie-
+    // invoerveld vervallen (het plateau draagt geen eigen bedoeling meer).
     leden: (id) => request(`/plateaus/${id}/leden`),
     voegLid: (id, data) => request(`/plateaus/${id}/leden`, { method: 'POST', body: JSON.stringify(data) }),
     werkLid: (id, lidId, data) =>

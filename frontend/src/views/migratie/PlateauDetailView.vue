@@ -2,12 +2,15 @@
 /**
  * PlateauDetailView — migratielaag (ADR-023 Fase E/F): plateau-detail + ledenbeheer.
  * UX-A4-1: wijzigen/verwijderen van het plateau en koppelen/ontkoppelen van leden
- * (component én contract) met dispositie; bij een contract-lid de contractuele bevestiging.
- * Leunt op de bestaande plateau-CRUD + leden-endpoints. Registratie/migratielaag — raakt de
- * engine (lifecycle/score/blokkade) niet.
+ * (component én contract); bij een contract-lid de contractuele bevestiging.
+ * ADR-046 besluit 2: de dispositie is als bestemmingsveld AFGEBOUWD — het plateau is een
+ * momentopname en draagt geen eigen bedoeling meer (die leeft op het component). Het
+ * koppel-formulier vraagt géén dispositie; een historische waarde op bestaande leden
+ * blijft read-only zichtbaar. Leunt op de bestaande plateau-CRUD + leden-endpoints.
+ * Registratie/migratielaag — raakt de engine (lifecycle/score/blokkade) niet.
  *
- * Rol-gating (affordance; backend handhaaft): wijzigen/koppelen/dispositie = medewerker/
- * beheerder (PLATEAU·AANMAKEN/WIJZIGEN); verwijderen plateau + ontkoppelen lid = beheerder
+ * Rol-gating (affordance; backend handhaaft): wijzigen/koppelen = medewerker/beheerder
+ * (PLATEAU·AANMAKEN/WIJZIGEN); verwijderen plateau + ontkoppelen lid = beheerder
  * (PLATEAU·VERWIJDEREN).
  */
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -28,9 +31,11 @@ const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 
 const plateau = ref(null)
 const leden = ref([])
-const dispositieOpties = ref([])
 const laden = ref(true)
 const fout = ref(null)
+// ADR-046 — toon de historie-kolom alleen als er nog leden mét een (historische)
+// dispositie zijn; na een reseed/schone start verdwijnt de kolom vanzelf.
+const heeftHistorischeDispositie = computed(() => leden.value.some((l) => l.dispositie))
 
 const TYPE_LABEL = { component: 'Component', contract: 'Contract' }
 
@@ -66,15 +71,6 @@ async function laad() {
     fout.value = e?.status === 401 ? null : e?.message || 'Het plateau kon niet worden geladen.'
   } finally {
     laden.value = false
-  }
-}
-
-async function _zorgDisposities() {
-  if (dispositieOpties.value.length) return
-  try {
-    dispositieOpties.value = await api.plateaus.disposities()
-  } catch (e) {
-    _toastFout(e)
   }
 }
 
@@ -133,7 +129,6 @@ let laatsteTrigger = null
 const lidForm = reactive({
   lidType: 'component',
   lid_id: '',
-  dispositie: '',
   contractueel_bevestigd: false,
   bevestigd_aantal_gebruikers: '',
 })
@@ -152,9 +147,8 @@ function onLidTypeChange() {
 
 async function openKoppelen(e) {
   laatsteTrigger = e?.currentTarget ?? null
-  await _zorgDisposities()
   Object.assign(lidForm, {
-    lidType: 'component', lid_id: '', dispositie: '',
+    lidType: 'component', lid_id: '',
     contractueel_bevestigd: false, bevestigd_aantal_gebruikers: '',
   })
   Object.keys(lidFouten).forEach((k) => delete lidFouten[k])
@@ -169,14 +163,14 @@ function onHide() {
 function valideerLid() {
   Object.keys(lidFouten).forEach((k) => delete lidFouten[k])
   if (!lidForm.lid_id) lidFouten.lid_id = `Kies een ${isContractLid.value ? 'contract' : 'component'}.`
-  if (!lidForm.dispositie) lidFouten.dispositie = 'Kies een dispositie.'
   return Object.keys(lidFouten).length === 0
 }
 async function bevestigKoppel() {
   if (!valideerLid()) return
   bezig.value = true
   try {
-    const data = { lid_id: lidForm.lid_id, dispositie: lidForm.dispositie }
+    // ADR-046 — géén dispositie meer: het plateau vraagt alleen wíé erin zit (+ bevestiging).
+    const data = { lid_id: lidForm.lid_id }
     if (isContractLid.value) {
       data.contractueel_bevestigd = lidForm.contractueel_bevestigd
       const n = Number.parseInt(lidForm.bevestigd_aantal_gebruikers, 10)
@@ -193,19 +187,7 @@ async function bevestigKoppel() {
   }
 }
 
-// ── Lid: dispositie wijzigen (inline) + ontkoppelen ──────────────────────────
-async function wijzigDispositie(lid, event) {
-  const nieuw = event.target.value
-  try {
-    await api.plateaus.werkLid(props.id, lid.id, { dispositie: nieuw })
-    toast.add({ severity: 'success', summary: 'Dispositie gewijzigd', life: 2500 })
-    await laadLeden()
-  } catch (e) {
-    _toastFout(e)
-    await laadLeden() // herstel de getoonde waarde bij fout
-  }
-}
-
+// ── Lid ontkoppelen ──────────────────────────────────────────────────────────
 const ontkoppelOpen = ref(false)
 const teOntkoppelen = ref(null)
 function vraagOntkoppel(e, lid) {
@@ -229,7 +211,6 @@ async function bevestigOntkoppel() {
 
 onMounted(() => {
   laad()
-  if (auth.hasRole('medewerker', 'beheerder')) _zorgDisposities() // voor de inline dispositie-select
 })
 </script>
 
@@ -261,20 +242,12 @@ onMounted(() => {
       <DataTable :value="leden" data-testid="plateau-leden-tabel" class="bg-[var(--lk-color-surface)] rounded-[var(--lk-radius-card)] shadow-[var(--lk-shadow-sm)]">
         <Column header="Naam"><template #body="{ data }">{{ data.lid_naam || '—' }}</template></Column>
         <Column header="Type"><template #body="{ data }">{{ TYPE_LABEL[data.lid_element_type] || data.lid_element_type }}</template></Column>
-        <Column header="Dispositie">
+        <!-- ADR-046 — dispositie is afgebouwd; een HISTORISCHE waarde blijft read-only
+             leesbaar. De kolom toont alleen als er nog zo'n waarde bestaat. -->
+        <Column v-if="heeftHistorischeDispositie" header="Dispositie (historisch)">
           <template #body="{ data }">
-            <select
-              v-if="magBeheren"
-              :value="data.dispositie"
-              :data-testid="`lid-dispositie-${data.id}`"
-              :aria-label="`Dispositie van ${data.lid_naam || data.lid_id}`"
-              class="lk-veld"
-              @change="(e) => wijzigDispositie(data, e)"
-            >
-              <option v-for="o in dispositieOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
-              <option v-if="!dispositieOpties.some((o) => o.optie_sleutel === data.dispositie)" :value="data.dispositie">{{ data.dispositie_label || data.dispositie }}</option>
-            </select>
-            <Tag v-else :value="data.dispositie_label || data.dispositie" severity="info" />
+            <Tag v-if="data.dispositie" :value="data.dispositie_label || data.dispositie" severity="secondary" :data-testid="`lid-dispositie-${data.id}`" />
+            <span v-else class="text-[var(--lk-color-text-muted)]">—</span>
           </template>
         </Column>
         <Column header="Contractueel bevestigd">
@@ -356,17 +329,8 @@ onMounted(() => {
           />
           <span v-if="lidFouten.lid_id" role="alert" data-testid="lk-fout-lid" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ lidFouten.lid_id }}</span>
         </div>
-        <div class="flex flex-col gap-[var(--lk-space-xs)]">
-          <div class="flex items-center gap-[var(--lk-space-xs)]">
-            <label for="lk-dispositie" class="font-semibold">Dispositie *</label>
-            <VeldUitleg veld="dispositie" opties="dispositie" />
-          </div>
-          <select id="lk-dispositie" v-model="lidForm.dispositie" data-testid="lk-dispositie" :aria-invalid="!!lidFouten.dispositie" class="lk-veld">
-            <option value="" disabled>— kies een dispositie —</option>
-            <option v-for="o in dispositieOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
-          </select>
-          <span v-if="lidFouten.dispositie" role="alert" data-testid="lk-fout-dispositie" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ lidFouten.dispositie }}</span>
-        </div>
+        <!-- ADR-046: géén dispositie-veld meer — het plateau is een momentopname; de
+             bedoeling van een component leeft op het component zelf. -->
 
         <!-- Contractuele bevestiging — alleen voor een contract-lid -->
         <fieldset v-if="isContractLid" class="flex flex-col gap-[var(--lk-space-sm)] border border-[var(--lk-color-border)] rounded-[var(--lk-radius-input)] p-[var(--lk-space-md)]" data-testid="lk-bevestiging">

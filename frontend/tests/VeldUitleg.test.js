@@ -41,18 +41,20 @@ describe('velduitleg-accessors', () => {
 // ── Content-borging (slice 2 uitrol) ────────────────────────────────────────────
 describe('velduitleg-content', () => {
   it('kernvelden hebben veld-uitleg', () => {
-    for (const k of ['rol', 'score', 'componenttype', 'aard', 'beheerrol', 'dispositie',
-      'archimate_element', 'archimate_laag', 'archimate_aspect', 'sleutel', 'volgorde',
+    // ADR-046 — `dispositie` is met het invoerveld vervallen; `levensfase` kwam erbij.
+    for (const k of ['rol', 'score', 'componenttype', 'aard', 'beheerrol', 'levensfase',
+      'migratiepad', 'archimate_element', 'archimate_laag', 'archimate_aspect', 'sleutel', 'volgorde',
       'eigenaar_organisatie_id', 'leverancier', 'gg_organisatie', 'draait_op', 'blokkade_status']) {
       expect(veldUitleg(k), k).not.toBeNull()
     }
+    expect(veldUitleg('dispositie')).toBeNull() // afgebouwd — geen invoerveld meer
   })
   it('optie-sets dekken de verwachte keys', () => {
     expect(optieUitlegLijst('componentrol')).toHaveLength(4)
     expect(optieUitlegLijst('componenttype')).toHaveLength(8)
     expect(optieUitlegLijst('score')).toHaveLength(4)
     expect(optieUitlegLijst('beheerrol')).toHaveLength(9)
-    expect(optieUitlegLijst('dispositie')).toHaveLength(4)
+    expect(optieUitlegLijst('levensfase')).toHaveLength(3) // ADR-046 — vaste set van drie
     expect(optieUitlegLijst('archimate_element')).toHaveLength(18) // volledig (18/18)
     expect(optieUitlegLijst('archimate_laag')).toHaveLength(4)
     expect(optieUitlegLijst('archimate_aspect')).toHaveLength(3)

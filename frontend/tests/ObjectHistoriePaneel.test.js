@@ -82,7 +82,9 @@ describe('ObjectHistoriePaneel', () => {
     const w = mountPaneel({ entiteitType: 'component', entiteitId: 'comp-1' })
     await w.find('[data-testid="oh-knop"]').trigger('click')
     await flushPromises()
-    expect(w.find('[data-testid="oh-diff"]').text()).toContain('Levensfase') // VELD_LABELS, niet 'Lifecycle status'
+    // ADR-046 — 'Levensfase' is nu het echte `levensfase`-veld; de engine-status heet
+    // in de diff 'Registratiestatus' (VELD_LABELS), niet de ruwe veldnaam.
+    expect(w.find('[data-testid="oh-diff"]').text()).toContain('Registratiestatus')
   })
 
   it('"Meer laden" haalt de volgende pagina op en voegt toe', async () => {

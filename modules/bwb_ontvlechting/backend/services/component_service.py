@@ -29,6 +29,7 @@ from models.models import (
     Gebruikersgroep,
     HostingModel,
     KlaarverklaringStatus,
+    Levensfase,
     LifecycleStatus,
     Migratiepad,
     NiveauEnum,
@@ -79,6 +80,8 @@ _SORTEERBARE_KOLOMMEN = {
     # LI057 (Slice 1) — nu op het basis-component (was applicatie-subtabel).
     "complexiteit": Component.complexiteit,
     "prioriteit": Component.prioriteit,
+    # ADR-046 — levensfase (nullable → NULLS-LAST via de v2n-cursor, zoals de rest).
+    "levensfase": Component.levensfase,
     # ADR-022 Fase A: lifecycle_status leeft op het generieke profiel (shared-PK).
     "lifecycle_status": ComponentProfiel.lifecycle_status,
 }
@@ -90,6 +93,7 @@ _WAARDE_PARSERS = {
     "hostingmodel": HostingModel,  # enum (cursor round-trip via .value)
     "complexiteit": NiveauEnum,
     "prioriteit": NiveauEnum,
+    "levensfase": Levensfase,
     "lifecycle_status": LifecycleStatus,
 }
 
@@ -242,6 +246,8 @@ async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
         "beschrijving": obj.beschrijving,
         # LI057 (Slice 1) — component-brede transitie-attributen (op élk component).
         "migratiepad": obj.migratiepad,
+        # ADR-046 — levensfase (null = "nog niet vastgelegd").
+        "levensfase": obj.levensfase,
         "complexiteit": obj.complexiteit,
         "prioriteit": obj.prioriteit,
         # ADR-028 — componentclassificatie (registratief): rol (+ label) en de drie BIV-velden
@@ -310,6 +316,7 @@ async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
+    levensfase: str | None = None,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
     zoek: str | None = None,
     componentrol: list[str] | None = None,
@@ -361,6 +368,10 @@ async def lijst(
         stmt = stmt.where(ComponentProfiel.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
     if hostingmodel:
         stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
+    # ADR-046 — levensfase-gelijkheid ("welke systemen faseren uit?" = één klik). Alleen
+    # achter de guard (default-pad byte-identiek — ADR-028-guard-les).
+    if levensfase:
+        stmt = stmt.where(Component.levensfase == Levensfase(levensfase))
     if eigenaar_organisatie_id:
         stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
     if leverancier_id:
@@ -470,6 +481,7 @@ async def lijst(
             "eigenaar_organisatie_naam": eig_naam,
             # LI057 (Slice 1) — nu op het basis-component (was applicatie-LEFT-JOIN → null voor infra).
             "migratiepad": c.migratiepad,
+            "levensfase": c.levensfase,
             "complexiteit": c.complexiteit,
             "prioriteit": c.prioriteit,
             # ADR-028 — componentclassificatie (registratief): rol + BIV (+ labels).
@@ -508,6 +520,7 @@ async def maak_applicatie_component(
     migratiepad: Migratiepad,
     complexiteit: NiveauEnum,
     prioriteit: NiveauEnum,
+    levensfase: Levensfase | None = None,
     componentrol: str = _DEFAULT_ROL,
     biv_beschikbaarheid: str | None = None,
     biv_integriteit: str | None = None,
@@ -528,7 +541,8 @@ async def maak_applicatie_component(
         id=elem.id, tenant_id=tid, naam=naam, componenttype=_APPLICATIE_TYPE,
         hostingmodel=hostingmodel, eigenaar_organisatie_id=eigenaar_organisatie_id,
         beschrijving=beschrijving,
-        migratiepad=migratiepad, complexiteit=complexiteit, prioriteit=prioriteit,
+        migratiepad=migratiepad, levensfase=levensfase,
+        complexiteit=complexiteit, prioriteit=prioriteit,
         componentrol=componentrol, biv_beschikbaarheid=biv_beschikbaarheid,
         biv_integriteit=biv_integriteit, biv_vertrouwelijkheid=biv_vertrouwelijkheid,
     )
@@ -558,7 +572,8 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
             naam=data.naam, beschrijving=data.beschrijving, hostingmodel=data.hostingmodel,
             eigenaar_organisatie_id=data.eigenaar_organisatie_id,
             # LI057 (Slice 1) — component-brede velden (defaults uit ComponentCreate) honoreren.
-            migratiepad=data.migratiepad, complexiteit=data.complexiteit, prioriteit=data.prioriteit,
+            migratiepad=data.migratiepad, levensfase=data.levensfase,
+            complexiteit=data.complexiteit, prioriteit=data.prioriteit,
             # ADR-028 — classificatie meegeven (rol default `interne_applicatie`, BIV optioneel).
             componentrol=data.componentrol,
             biv_beschikbaarheid=data.biv_beschikbaarheid,
@@ -577,7 +592,8 @@ async def maak_aan(session: AsyncSession, tenant_id, data: ComponentCreate) -> d
         eigenaar_organisatie_id=data.eigenaar_organisatie_id,
         beschrijving=data.beschrijving,
         # LI057 (Slice 1) — component-brede transitie-attributen (defaults uit ComponentCreate).
-        migratiepad=data.migratiepad, complexiteit=data.complexiteit, prioriteit=data.prioriteit,
+        migratiepad=data.migratiepad, levensfase=data.levensfase,
+        complexiteit=data.complexiteit, prioriteit=data.prioriteit,
         # ADR-028 — componentclassificatie (rol default `interne_applicatie`, BIV optioneel).
         componentrol=data.componentrol,
         biv_beschikbaarheid=data.biv_beschikbaarheid,

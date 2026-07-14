@@ -13,7 +13,7 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
-from models.models import HostingModel
+from models.models import HostingModel, Levensfase
 from schemas.component import (
     ComponentCreate,
     ComponentImpact,
@@ -51,6 +51,8 @@ async def lijst_componenten(
     laag: str | None = Query(None, max_length=40),
     status: list[ComponentStatusFilter] = Query(default=[]),
     hostingmodel: HostingModel | None = Query(None),
+    # ADR-046 — levensfase-filter (enum-allowlist; onbekende waarde ⇒ 422 aan de API-rand).
+    levensfase: Levensfase | None = Query(None),
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     leverancier_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
@@ -72,6 +74,7 @@ async def lijst_componenten(
             session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value,
             componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
             hostingmodel=hostingmodel.value if hostingmodel else None,
+            levensfase=levensfase.value if levensfase else None,
             eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id, zoek=zoek,
             componentrol=componentrol or None,
             biv_beschikbaarheid_min=biv_beschikbaarheid_min, biv_integriteit_min=biv_integriteit_min,

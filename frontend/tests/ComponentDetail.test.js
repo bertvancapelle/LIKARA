@@ -408,6 +408,27 @@ describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', 
     expect(wat.find('[data-testid="comp-biv"]').exists()).toBe(true)
   })
 
+  it('ADR-046: Levensfase en Bedoeling staan in dezelfde groep; het gat toont gedempt "nog niet vastgelegd"', async () => {
+    // Zonder levensfase (de normale beginstand — geen default, geen alarm).
+    const { w } = await mountDetail()
+    const wat = w.find('[data-testid="blok-wat-is-dit"]')
+    expect(wat.text()).toContain('Levensfase')
+    expect(wat.text()).toContain('Bedoeling')
+    expect(wat.text()).not.toContain('Migratiepad') // UI-label is 'Bedoeling' (ADR-046)
+    const leeg = wat.find('[data-testid="levensfase-leeg"]')
+    expect(leeg.exists()).toBe(true)
+    expect(leeg.text()).toBe('nog niet vastgelegd')
+    // Gedempt (muted token) — géén rood: leeg ≠ fout.
+    expect(leeg.classes().join(' ')).toContain('text-muted')
+  })
+
+  it('ADR-046: een gezette levensfase toont het label (zichtbare tekst, niet alleen "rendert")', async () => {
+    api.componenten.haal.mockResolvedValue(_component({ levensfase: 'uitfaseren', migratiepad: 'vervangen' }))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="comp-levensfase"]').text()).toBe('Uitfaseren')
+    expect(w.find('[data-testid="comp-bedoeling"]').text()).toBe('Vervangen')
+  })
+
   it('sleutelrollen: gevulde product owner/proceseigenaar tonen namen; gaten rustig "nog niet geregistreerd"', async () => {
     api.roltoewijzingen.lijst.mockResolvedValue([
       { toewijzing_id: 't1', rol: 'product_owner', rol_label: 'Product owner', partij_id: 'p1', partij_naam: 'J. de Vries' },

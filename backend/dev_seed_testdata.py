@@ -57,6 +57,7 @@ from models.models import (  # noqa: E402
     GebruikerPersoon,
     Gebruikersgroep,
     HostingModel,
+    Levensfase,
     Organisatiegebruik,
     Partij,
     PartijAard,
@@ -1113,6 +1114,27 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
                 await checklistscore_service.maak_aan(session, tid, ChecklistscoreCreate(
                     component_id=obj["id"], checklistvraag_id=_CODE_TO_ID[CODES[i]], score=score))
                 telling["scores"] += 1
+
+    # ── 9b. Levensfase (ADR-046 besluit 1) — de seed volgt de user story: één component
+    # `in ontwikkeling`, één `uitfaseren` (het Zaaksysteem — het ADR-046-verhaal), enkele
+    # `in productie`, en de REST bewust ZONDER levensfase ("nog niet vastgelegd" is de
+    # normale beginstand — vormkeuze B: LIKARA verzint geen fase). Idempotent (setattr op
+    # naam; ORM-update → audit-capture). Registratief — de engine leest dit niet.
+    levensfase_plan = {
+        "Zaaksysteem": "uitfaseren",
+        "Zaakafhandelcomponent": "in_ontwikkeling",
+        "BRP": "in_productie",
+        "DMS": "in_productie",
+        "Klantportaal": "in_productie",
+        "Financieel systeem": "in_productie",
+    }
+    for comp in (await session.execute(
+        select(Component).where(Component.tenant_id == tid, Component.naam.in_(levensfase_plan)))
+    ).scalars().all():
+        doel_fase = Levensfase(levensfase_plan[comp.naam])
+        if comp.levensfase != doel_fase:
+            comp.levensfase = doel_fase
+    await session.commit()
 
     # ── 10. Contracten (mantel vóór deelcontract) ── (naam, type, leverancier, van, tot, mantel, oms)
     contracten = [

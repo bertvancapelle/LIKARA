@@ -58,7 +58,7 @@ import KaartBeginscherm from '@modules/bwb_ontvlechting/frontend/views/KaartBegi
 const GRAF = () => ({
   nodes: [
     { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', domein: 'applicatie', hosting_model: 'saas', leverancier_naam: 'SaaS BV', leverancier_id: 'l1', blokkades_open: 0, eigenaar_organisatie_id: 'p1' },
-    { id: 'a2', naam: 'Documentbeheer', element_type: 'applicatie', laag: 'application', lifecycle_status: 'geblokkeerd', domein: 'applicatie', hosting_model: 'on_premise', leverancier_naam: null, leverancier_id: null, blokkades_open: 1, plateau_naam: 'Plateau 2026', plateau_dispositie: 'Migreren', eigenaar_organisatie_id: 'p1' },
+    { id: 'a2', naam: 'Documentbeheer', element_type: 'applicatie', laag: 'application', lifecycle_status: 'geblokkeerd', domein: 'applicatie', hosting_model: 'on_premise', leverancier_naam: null, leverancier_id: null, blokkades_open: 1, plateau_naam: 'Plateau 2026', levensfase: 'uitfaseren', eigenaar_organisatie_id: 'p1' },
     { id: 'd1', naam: 'Klantdatabank', element_type: 'database', laag: 'technology', lifecycle_status: 'concept', domein: 'Database', hosting_model: 'on_premise', blokkades_open: 0 },
     { id: 'p1', naam: 'Org', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
     { id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business', blokkades_open: 0 },
@@ -2123,22 +2123,27 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-diepte-2"]').attributes('aria-pressed')).toBe('true')
   })
 
-  it('v4: het detail-paneel toont de migratieplaatsing (plateau + dispositie) indien gevuld', async () => {
+  it('ADR-046: het detail-paneel toont de levensfase (uit het component) + plateau-context', async () => {
     const { w } = await mountView()
     await w.find('[data-testid="lk-zoek"]').setValue('doc') // LI029 — lijst gated; toon a2
     await flushPromises()
-    await w.find('[data-testid="lk-res-naam-a2"]').trigger('click') // a2 zit op een plateau
+    await w.find('[data-testid="lk-res-naam-a2"]').trigger('click') // a2 heeft fase + plateau
     await flushPromises()
+    // Levensfase komt van het COMPONENT (één waarheid) — niet meer van een plateau-dispositie.
+    const fase = w.find('[data-testid="lk-detail-levensfase"]')
+    expect(fase.exists()).toBe(true)
+    expect(fase.text()).toContain('Uitfaseren')
     const plateau = w.find('[data-testid="lk-detail-plateau"]')
     expect(plateau.exists()).toBe(true)
     expect(plateau.text()).toContain('Plateau 2026')
-    expect(plateau.text()).toContain('Migreren')
-    // a1 zit niet op een plateau → geen migratieplaatsing-regel.
+    // a1 zit niet op een plateau → geen plateau-regel; levensfase-regel toont het
+    // registratiegat gedempt ("nog niet vastgelegd" — leeg ≠ fout).
     await w.find('[data-testid="lk-zoek"]').setValue('zaak') // toon a1
     await flushPromises()
     await w.find('[data-testid="lk-res-naam-a1"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-testid="lk-detail-plateau"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-detail-levensfase"]').text()).toContain('nog niet vastgelegd')
   })
 
   it('toont het blokkade-icoon op een node met open blokkades', async () => {

@@ -24,6 +24,7 @@ import {
   ARCHIMATE_ELEMENT,
   ARCHIMATE_LAAG,
   HOSTINGMODEL,
+  LEVENSFASE,
   LIFECYCLE,
   LIFECYCLE_SEVERITY,
   NIVEAU,
@@ -44,11 +45,15 @@ const eersteGeladen = ref(false)
 // Filters — gespiegeld aan de Applicaties-lijst (CD017), AND-gecombineerd.
 const STATUS_OPTIES = ['concept', 'in_inventarisatie', 'geblokkeerd', 'migratieklaar']
 const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
+// ADR-046 — levensfase-filter ("welke systemen faseren uit?" = één klik).
+const LEVENSFASE_OPTIES = Object.keys(LEVENSFASE)
 const typeOpties = ref([]) // [{ optie_sleutel, label, laag, archimate_element }]
 const filterStatus = ref([])
 const filterType = ref('') // '' = alle; kan via ?type= worden voorgezet
 const filterLaag = ref('') // ADR-023 Fase C: '' = alle ArchiMate-lagen
 const filterHosting = ref('')
+// ADR-046 — levensfase ('' = alle).
+const filterLevensfase = ref('')
 // UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
 const filterEigenaarId = ref(null)
 // LI032-les: een hersteld eigenaar-id moet zijn label tonen (ZoekSelect kent alleen het
@@ -105,6 +110,7 @@ const heeftFilters = computed(
     !!filterType.value ||
     !!filterLaag.value ||
     !!filterHosting.value ||
+    !!filterLevensfase.value ||
     !!filterEigenaarId.value ||
     !!filterZoek.value.trim() ||
     filterRol.value.length > 0 ||
@@ -117,12 +123,12 @@ const heeftFilters = computed(
 // Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
 // Gevalideerd herstel: onbekende waarden vallen stil terug op de default; catalogus-
 // gedreven sleutels (type/laag/rol/BIV) worden ná het laden van de opties geprund.
-const SORTEERBARE_VELDEN = ['naam', 'componenttype', 'eigenaar', 'hostingmodel', 'complexiteit', 'prioriteit', 'lifecycle_status']
+const SORTEERBARE_VELDEN = ['naam', 'componenttype', 'eigenaar', 'hostingmodel', 'complexiteit', 'prioriteit', 'levensfase', 'lifecycle_status']
 const _tekst = (w) => typeof w === 'string'
 const { herstel: herstelLijstStaat } = useLijstStaat(
   'component-lijst',
   {
-    filterStatus, filterType, filterLaag, filterHosting, filterEigenaarId, filterEigenaarNaam,
+    filterStatus, filterType, filterLaag, filterHosting, filterLevensfase, filterEigenaarId, filterEigenaarNaam,
     filterZoek, filterRol, filterBivB, filterBivI, filterBivV, filterWerk,
     filterKlaarverklaring, filterAfwijking, sortVeld, sortRichting,
   },
@@ -132,6 +138,7 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
       filterType: _tekst,
       filterLaag: _tekst,
       filterHosting: (w) => w === '' || HOSTING_OPTIES.includes(w),
+      filterLevensfase: (w) => w === '' || LEVENSFASE_OPTIES.includes(w),
       filterEigenaarId: (w) => w === null || _tekst(w),
       filterEigenaarNaam: _tekst,
       filterZoek: _tekst,
@@ -176,6 +183,8 @@ async function laad({ reset = false } = {}) {
     if (filterType.value) params.componenttype = filterType.value
     if (filterLaag.value) params.laag = filterLaag.value
     if (filterHosting.value) params.hostingmodel = filterHosting.value
+    // ADR-046 — levensfase (leeg = geen clause).
+    if (filterLevensfase.value) params.levensfase = filterLevensfase.value
     if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
     // ADR-028 — rol (array → herhaalde param) + BIV-drempel per aspect (leeg = geen clause).
@@ -223,6 +232,7 @@ function wisFilters() {
   filterType.value = ''
   filterLaag.value = ''
   filterHosting.value = ''
+  filterLevensfase.value = ''
   filterEigenaarId.value = null
   filterEigenaarNaam.value = ''
   filterZoek.value = ''
@@ -248,6 +258,7 @@ function onAangemaakt(resultaat) {
 
 const hosting = (c) => label(HOSTINGMODEL, c)
 const niveau = (c) => (c ? label(NIVEAU, c) : '—')
+const levensfaseLabel = (c) => label(LEVENSFASE, c)
 const laagLabel = (c) => (c ? label(ARCHIMATE_LAAG, c) : '—')
 const elementLabel = (c) => (c ? label(ARCHIMATE_ELEMENT, c) : '')
 const lifecycleLabel = (c) => label(LIFECYCLE, c)
@@ -374,6 +385,21 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
+        </select>
+      </label>
+
+      <!-- ADR-046 — levensfase-filter: "welke systemen faseren uit?" is één klik. -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Levensfase</span>
+        <select
+          v-model="filterLevensfase"
+          data-testid="filter-levensfase"
+          aria-label="Filter op levensfase"
+          class="lk-veld"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="f in LEVENSFASE_OPTIES" :key="f" :value="f">{{ levensfaseLabel(f) }}</option>
         </select>
       </label>
 
@@ -537,6 +563,13 @@ onMounted(async () => {
       </Column>
       <Column header="Prioriteit" sort-field="prioriteit" sortable>
         <template #body="{ data }">{{ niveau(data.prioriteit) }}</template>
+      </Column>
+      <!-- ADR-046 — levensfase-kolom: ontbrekend = gedempt "nog niet vastgelegd" (nooit rood). -->
+      <Column header="Levensfase" sort-field="levensfase" sortable>
+        <template #body="{ data }">
+          <span v-if="data.levensfase" data-testid="rij-levensfase">{{ levensfaseLabel(data.levensfase) }}</span>
+          <span v-else data-testid="levensfase-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
+        </template>
       </Column>
       <Column header="Status" sort-field="lifecycle_status" sortable>
         <template #body="{ data }">

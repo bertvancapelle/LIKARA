@@ -153,14 +153,16 @@ def test_transitie_attribuut_edit_muteert_engine_niet():
             await svc.werk_bij(
                 s, _TID, cid,
                 ComponentUpdate(
-                    migratiepad=Migratiepad.uitfaseren,
+                    # ADR-046: `uitfaseren` bestaat niet meer als bedoeling — `vervangen`
+                    # dekt hetzelfde testdoel (transitie-edit raakt de engine niet).
+                    migratiepad=Migratiepad.vervangen,
                     complexiteit=NiveauEnum.hoog,
                     prioriteit=NiveauEnum.laag,
                 ),
             )
             # Component draagt de nieuwe waarden…
             gewijzigd = await svc.haal_op(s, _TID, cid)
-            assert gewijzigd.migratiepad == Migratiepad.uitfaseren
+            assert gewijzigd.migratiepad == Migratiepad.vervangen
             assert gewijzigd.complexiteit == NiveauEnum.hoog
             assert gewijzigd.prioriteit == NiveauEnum.laag
             # …maar de engine-state is onaangeroerd (score blijft de enige driver).

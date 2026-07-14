@@ -4,8 +4,11 @@ Plateau is een element-subtype (shared-PK); CRUD volgt het bestaande patroon
 (`Element(element_type='plateau')` → subtype-rij; delete via het element-supertype,
 cascade). Lidmaatschap is een **facade over het unified relatiemodel** (zoals
 `component_contract_service` over `Relatie`): een `aggregation`-relatie bron=plateau →
-doel=lid, met de dispositie (catalogus-kenmerk) + contractuele bevestiging (registratie-
-kenmerken) in `kenmerken`. Toegestane leden in deze slice: component en contract.
+doel=lid, met de contractuele bevestiging (registratie-kenmerken) in `kenmerken`.
+ADR-046 besluit 2: de dispositie is als bestemmingsveld AFGEBOUWD — het plateau draagt
+geen eigen bedoeling meer (die leeft op het component: `migratiepad`). Historische
+dispositie-kenmerken blijven read-only resolvebaar (soft-gedeactiveerde catalogus).
+Toegestane leden in deze slice: component en contract.
 
 Niets hier raakt lifecycle/score/blokkade — er is bewust géén import van de engine
 (score blijft de enige lifecycle-driver). `bevestigd_door`/`bevestigd_op` worden
@@ -179,13 +182,6 @@ async def _lid_naam(session: AsyncSession, tid: uuid.UUID, lid_id) -> str | None
     ).scalar_one_or_none()
 
 
-async def actieve_disposities(session: AsyncSession) -> list[dict]:
-    """Actieve `dispositie`-opties (voor het lid-koppel-dropdown), gesorteerd op volgorde."""
-    return (await catalog.actieve_opties_per_dimensie(session)).get(
-        RelatieKenmerkDimensie.dispositie.value, []
-    )
-
-
 def _bevestiging_kenmerken(contractueel_bevestigd: bool, aantal: int | None) -> dict:
     """Bouw de bevestigingskenmerken; bij `ja` worden wie/wanneer server-side gestempeld
     (registratie, geen afdwinging). Bij `nee` géén stempel (en bestaande wordt gewist)."""
@@ -249,11 +245,11 @@ async def maak_lid(session: AsyncSession, tenant_id, plateau_id, data: PlateauLi
             "ONGELDIG_LID",
             "Alleen componenten en contracten kunnen lid van een plateau zijn.",
         )
-    await catalog.valideer_sleutels(session, RelatieKenmerkDimensie.dispositie, [data.dispositie])
-
-    kenmerken = {"dispositie": data.dispositie, **_bevestiging_kenmerken(
+    # ADR-046 — géén dispositie meer op nieuwe leden: het plateau is een momentopname,
+    # de bedoeling leeft op het component.
+    kenmerken = _bevestiging_kenmerken(
         data.contractueel_bevestigd, data.bevestigd_aantal_gebruikers
-    )}
+    )
     obj = Relatie(
         tenant_id=tid, bron_id=plateau_id, doel_id=data.lid_id,
         relatietype=_AGGREGATION, kenmerken=kenmerken,
@@ -275,10 +271,8 @@ async def werk_lid_bij(
     obj = await _haal_lid(session, tid, plateau_id, lid_relatie_id)
     velden = data.model_dump(exclude_unset=True)
     k = dict(obj.kenmerken or {})
-
-    if "dispositie" in velden:
-        await catalog.valideer_sleutels(session, RelatieKenmerkDimensie.dispositie, [velden["dispositie"]])
-        k["dispositie"] = velden["dispositie"]
+    # ADR-046 — dispositie is niet langer wijzigbaar (schema weert het veld al via
+    # extra='forbid'); een historische waarde in `k` blijft ongemoeid staan.
 
     # Contractuele bevestiging is registratie: herbereken de stempels uit de eindtoestand.
     raakt_bevestiging = "contractueel_bevestigd" in velden or "bevestigd_aantal_gebruikers" in velden

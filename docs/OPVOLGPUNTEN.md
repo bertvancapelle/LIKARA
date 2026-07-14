@@ -9,17 +9,18 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
 
-1. **Dev-seed moet het ADR-046-verhaal vertellen.** 0 plateaus en `migratiepad` 19/19
-   *onbekend* — zonder seed (Tiel stapt uit in tranches, standen per gebruiksrelatie,
-   levensfasen gevuld) is geen enkele browsercheck van dit spoor mogelijk. Hoort bij de
-   bouw. Status: **open — bouwvoorwaarde**.
-2. **Kaart-eerste-wint bij meerdere plateaus** (`landschapskaart_service.py:203-207`,
-   `setdefault` zonder ORDER BY — niet-deterministisch): verdwijnt met ADR-046 besluit 2
-   (de `plateau_dispositie`-badge-bron vervalt); bij de bouw bevestigen. Status: **open,
-   lost mee op in de bouw**.
-3. **Stale docstring `Organisatiegebruik`** (`models.py:442-443` claimt
-   applicatie-only): het slot is sinds ADR-041 component-breed
-   (`valideer_component`). Corrigeren bij de ADR-046-bouw. Status: **open, klein**.
+1. **Dev-seed moet het ADR-046-verhaal vertellen.** Stuk 1 (LI040-bouw): de
+   levensfasen zijn gezaaid (Zaaksysteem=uitfaseren, ZAC=in ontwikkeling, 4× in
+   productie, 13× bewust leeg). De tranches/standen-seed volgt bij stuk 3/4.
+   Status: **deels AFGEROND (levensfase); rest open — bouwvoorwaarde stuk 3/4**.
+2. **Kaart-eerste-wint bij meerdere plateaus** — AFGEROND (LI040 stuk 1, migratie
+   0066): `plateau_dispositie` is vervangen door `Component.levensfase`; `plateau_naam`
+   toont nu álle plateaus alfabetisch (deterministisch; twee-plateaus-test in
+   `test_landschapskaart.py`). Status: **afgerond**.
+3. **Stale docstring `Organisatiegebruik`** — bij de LI040-bouw geverifieerd: de
+   docstring (nu `models.py:464-467`) benoemt het component-brede slot al correct
+   (eerder gecorrigeerd; verificatie-eerst — geen verzonnen fix op correcte code).
+   Status: **afgerond (bleek al gecorrigeerd)**.
 4. **Spook-gebruik**: een org-wissel of groep-delete laat het oude grove
    organisatiegebruik-feit staan; opruimen kan alleen via de kale DELETE-API. De
    ADR-046-invoerroute geeft een verwijder-affordance; het achterblijf-gedrag zelf is

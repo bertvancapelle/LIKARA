@@ -1,8 +1,10 @@
 """HTTP-routes — Plateau + plateau-lidmaatschap (ADR-023 Fase E, E1).
 
 Dunne handlers; RBAC via `vereist_permissie(Entiteit.PLATEAU, …)`. CRUD op het plateau
-zelf + leden toevoegen/wijzigen/verwijderen (dispositie + contractuele bevestiging).
-Lidmaatschap loopt onder water via het unified relatiemodel (aggregation).
+zelf + leden toevoegen/wijzigen/verwijderen (contractuele bevestiging). ADR-046: de
+dispositie is als bestemmingsveld afgebouwd — het vroegere `GET /plateaus/disposities`
+(dropdown-bron) is met het invoerveld vervallen. Lidmaatschap loopt onder water via het
+unified relatiemodel (aggregation).
 """
 import uuid
 
@@ -59,15 +61,6 @@ async def maak_plateau(
     return await svc.maak_aan(session, user.tenant_id, body)
 
 
-@router.get("/disposities")
-async def lijst_disposities(
-    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PLATEAU, Actie.LEZEN)),
-    session: AsyncSession = Depends(get_tenant_session),
-):
-    """Actieve `dispositie`-opties voor het lid-koppel-dropdown (statisch subpad vóór /{id})."""
-    return await svc.actieve_disposities(session)
-
-
 @router.get("/{plateau_id}", response_model=PlateauRead)
 async def haal_plateau(
     plateau_id: uuid.UUID,
@@ -97,7 +90,7 @@ async def verwijder_plateau(
     return Response(status_code=204)
 
 
-# ── Leden (dispositie + contractuele bevestiging) ────────────────────────────────
+# ── Leden (contractuele bevestiging; dispositie afgebouwd — ADR-046) ─────────────
 
 @router.get("/{plateau_id}/leden", response_model=list[PlateauLidRead])
 async def lijst_leden(

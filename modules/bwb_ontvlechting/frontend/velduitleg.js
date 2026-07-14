@@ -92,9 +92,19 @@ export const VELD_UITLEG = {
       'wie de techniek eronder beheert.',
   },
   migratiepad: {
+    // ADR-046 — de BEDOELING: uitsluitend bestemmingen ("waar gaat het heen"); de fase
+    // ("draait het?") is een eigen veld (levensfase). Geen fase-taal meer in dit veld.
     uitleg:
-      'Wat er met dit component in de transitie gaat gebeuren — blijft het, gaat het mee, wordt het ' +
-      'vervangen of uitgefaseerd. Legt de bedoeling vast, los van of het al gebeurd is.',
+      'De bedoeling met dit component — waar gaat het heen: gaat het mee (lift-and-shift), wordt het ' +
+      'herbouwd, vervangen of gedeeld. Los van de levensfase: een systeem dat gewoon draait kan al een ' +
+      'bestemming hebben.',
+  },
+  levensfase: {
+    // ADR-046 besluit 1 — feit over het component; nooit door LIKARA zelf afgeleid.
+    uitleg:
+      'Waar dit component in zijn leven staat: in ontwikkeling, in productie of uitfaseren. Dit is een ' +
+      'feit over het component zelf — los van de bedoeling. Nog niet vastgelegd is een normale ' +
+      'beginstand, geen fout.',
   },
   complexiteit: {
     uitleg: 'Hoe ingewikkeld de aanpak/migratie van dit component naar verwachting is.',
@@ -226,9 +236,8 @@ export const VELD_UITLEG = {
   },
 
   // ── Migratielaag ─────────────────────────────────────────────────────────────
-  dispositie: {
-    uitleg: 'Wat er met dit lid in de transitie gaat gebeuren, binnen dit plateau/deze gap.',
-  },
+  // ADR-046: de `dispositie`-velduitleg is met het invoerveld vervallen (het plateau
+  // draagt geen eigen bedoeling meer; die leeft op het component).
   contractueel_bevestigd: {
     uitleg:
       'Vink aan als de contractuele afspraken voor dit lid bevestigd zijn (met wie en wanneer). ' +
@@ -292,8 +301,8 @@ export const VELD_UITLEG = {
   },
   dimensie: {
     uitleg:
-      'De dimensie bepaalt waarvoor deze kenmerk-optie geldt (bv. dispositie voor plateau-leden, ' +
-      'beheerrol voor roltoewijzing).',
+      'De dimensie bepaalt waarvoor deze kenmerk-optie geldt (bv. beheerrol voor roltoewijzing, ' +
+      'relatie_rol voor contract-koppelingen; dispositie is historisch — ADR-046).',
   },
   antwoordtype: {
     uitleg: 'Hoe deze vraag beantwoord wordt.',
@@ -427,12 +436,11 @@ export const OPTIE_UITLEG = {
     in_behandeling: 'Er wordt aan gewerkt.',
   },
 
-  // Set 'dispositie' — relatiekenmerk[dispositie].
-  dispositie: {
-    behouden: 'Blijft ongewijzigd bestaan.',
-    migreren: 'Gaat mee naar de nieuwe situatie, mogelijk aangepast.',
-    vervangen: 'Wordt vervangen door iets anders.',
-    uitfaseren: 'Wordt afgebouwd en verdwijnt.',
+  // Set 'levensfase' — ADR-046 (vaste set van drie; leeg = "nog niet vastgelegd").
+  levensfase: {
+    in_ontwikkeling: 'Wordt gebouwd of ingericht; draait nog niet voor gebruikers.',
+    in_productie: 'Draait en wordt gebruikt.',
+    uitfaseren: 'Wordt afgebouwd; gebruikers stappen (stapsgewijs) uit.',
   },
 
   // Set 'archimate_element' — TOEGESTANE_ELEMENTEN (10 van 18 gedekt; rest degradeert).

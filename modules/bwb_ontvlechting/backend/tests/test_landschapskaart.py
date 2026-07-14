@@ -41,11 +41,13 @@ def test_landschapsnode_heeft_v3_velden():
 
 
 def test_landschaps_v4_velden_in_schema():
-    """ADR-025 v4 — edge-koppelingsdetails + node-migratieplaatsing in het schema."""
+    """ADR-025 v4 (herzien ADR-046) — edge-koppelingsdetails + node-plateaucontext en
+    levensfase in het schema; `plateau_dispositie` is afgebouwd (besluit 2)."""
     from schemas.landschapskaart import LandschapsEdge, LandschapsNode
 
     assert {"richting", "protocol"} <= set(LandschapsEdge.model_fields)
-    assert {"plateau_naam", "plateau_dispositie"} <= set(LandschapsNode.model_fields)
+    assert {"plateau_naam", "levensfase"} <= set(LandschapsNode.model_fields)
+    assert "plateau_dispositie" not in LandschapsNode.model_fields
 
 
 def test_landschaps_adr031_velden_in_schema():
@@ -222,8 +224,9 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
         try:
             # Applicatie (krijgt een profiel → lifecycle_status) + een database-component.
             app = await component_service.maak_aan(
-                s, tid, ComponentCreate(componenttype="applicatie", 
+                s, tid, ComponentCreate(componenttype="applicatie",
                     naam="WT-LK-App", hostingmodel="saas", migratiepad="onbekend",
+                    levensfase="uitfaseren",  # ADR-046 — het kaart-signaal komt van het component
                     complexiteit="midden", prioriteit="midden"))
             comp = await component_service.maak_aan(s, tid, ComponentCreate(naam="WT-LK-DB", componenttype="database"))
             app_id, comp_id = app["id"], comp["id"]
@@ -237,9 +240,14 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
                            contracttype=ContractType.los_contract, contractnaam="WT-LK-Contract"))
             await s.flush()
 
-            # Plateau + aggregation-lidmaatschap (bron=plateau → doel=app) met dispositie.
+            # TWEE plateaus + aggregation-lidmaatschappen (bron=plateau → doel=app). Eén rij
+            # draagt nog een HISTORISCH dispositie-kenmerk (mag de kaart niet breken) —
+            # ADR-046: de node leest de levensfase van het component, niet de dispositie,
+            # en de plateau-context is deterministisch (alle namen, alfabetisch).
             pe = Element(tenant_id=tid, element_type=ElementType.plateau); s.add(pe); await s.flush()
             s.add(Plateau(id=pe.id, tenant_id=tid, naam="WT-LK-Plateau")); await s.flush()
+            pe2 = Element(tenant_id=tid, element_type=ElementType.plateau); s.add(pe2); await s.flush()
+            s.add(Plateau(id=pe2.id, tenant_id=tid, naam="WT-LK-Plateau-B")); await s.flush()
 
             # Vier ringen: flow (app→db, met kenmerken), assignment (db host→app), association
             # (app→contract), roltoewijzing (org→app) + aggregation (plateau→app).
@@ -248,11 +256,12 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
             s.add(Relatie(tenant_id=tid, bron_id=comp_id, doel_id=app_id, relatietype="assignment"))
             s.add(Relatie(tenant_id=tid, bron_id=app_id, doel_id=ce.id, relatietype="association"))
             s.add(Relatie(tenant_id=tid, bron_id=pe.id, doel_id=app_id, relatietype="aggregation",
-                          kenmerken={"dispositie": "migreren"}))
+                          kenmerken={"dispositie": "migreren"}))  # historisch kenmerk — genegeerd
+            s.add(Relatie(tenant_id=tid, bron_id=pe2.id, doel_id=app_id, relatietype="aggregation"))
             rol = sorted(await rk.actieve_sleutels(s, RelatieKenmerkDimensie.beheerrol))[0]
             s.add(Roltoewijzing(tenant_id=tid, partij_id=oe.id, object_id=app_id, rol=rol))
             await s.commit()
-            ids += [ce.id, oe.id, pe.id]
+            ids += [ce.id, oe.id, pe.id, pe2.id]
 
             graf = await svc.haal_grafdata_op(s, _TID)
             # `diepte` is server-side een no-op (volledige graaf; stap-diepte is client-side) —
@@ -284,9 +293,12 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
     assert node_per_id[app_id].leverancier_naam == "WT-LK-Org"
     # LI019 (Taak 2) — componenten van de leverancier via contracten: de app via dit contract.
     assert any(c["component_id"] == app_id and c["contract_id"] == contract_id for c in lev_comp)
-    # v4 — migratieplaatsing op de applicatie-node (eerste plateau via aggregation + dispositie-label).
-    assert node_per_id[app_id].plateau_naam == "WT-LK-Plateau"
-    assert node_per_id[app_id].plateau_dispositie == "Migreren"
+    # ADR-046 — de node draagt de LEVENSFASE van het component (één waarheid; het
+    # historische dispositie-kenmerk op de eerste lidmaatschapsrelatie is genegeerd).
+    assert node_per_id[app_id].levensfase == "uitfaseren"
+    # ADR-046 — plateau-context: met TWEE plateaus zijn beide namen zichtbaar, alfabetisch
+    # (deterministisch — het vroegere niet-deterministische "eerste plateau wint" is weg).
+    assert node_per_id[app_id].plateau_naam == "WT-LK-Plateau · WT-LK-Plateau-B"
     # v4 — koppelingsdetails op de flow-edge (uit kenmerken).
     flow = [e for e in graf.edges if e.ring == "applicaties" and e.bron_id == app_id and e.doel_id == comp_id]
     assert flow and flow[0].richting == "eenrichting" and flow[0].protocol == "rest"

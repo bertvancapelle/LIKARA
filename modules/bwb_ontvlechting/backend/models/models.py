@@ -56,12 +56,29 @@ class NiveauEnum(str, Enum):
 
 
 class Migratiepad(str, Enum):
+    """ADR-046 besluit 2 — de BEDOELING van een component ("waar gaat het heen"):
+    uitsluitend bestemmingen. `uitfaseren` is met migratie 0066 verwijderd (enum-recreate,
+    precedent 0053): dat is fase-taal en leeft nu in `Levensfase`."""
+
     lift_and_shift = "lift_and_shift"
     herbouw = "herbouw"
     vervangen = "vervangen"
-    uitfaseren = "uitfaseren"
     gedeeld = "gedeeld"  # LI057 — hernoemd van `tijdelijk_gedeeld` (Slice 1); DB: ALTER TYPE RENAME VALUE
     onbekend = "onbekend"
+
+
+class Levensfase(str, Enum):
+    """ADR-046 besluit 1 — de LEVENSFASE van een component: een feit over het component
+    zelf ("het draait"), los van de bedoeling (`migratiepad`). Bewust een vaste set van
+    drie (GEEN beheerbare catalogus): elke waarde draagt betekenis op de kaart en in de
+    signalering — een vierde beheerder-waarde zou een woord zonder gedrag zijn. De kolom
+    is nullable ZONDER default: ontbrekend = "nog niet vastgelegd" (leeg ≠ fout); LIKARA
+    doet nooit zelf de uitspraak. Voedt de engine NIET (score blijft de enige
+    lifecycle-driver)."""
+
+    in_ontwikkeling = "in_ontwikkeling"
+    in_productie = "in_productie"
+    uitfaseren = "uitfaseren"
 
 
 class DatatypeCategorie(str, Enum):
@@ -230,6 +247,7 @@ hostingmodel_enum = sa.Enum(HostingModel, name="hostingmodel_enum")
 lifecycle_status_enum = sa.Enum(LifecycleStatus, name="lifecycle_status_enum")
 niveau_enum = sa.Enum(NiveauEnum, name="niveau_enum")
 migratiepad_enum = sa.Enum(Migratiepad, name="migratiepad_enum")
+levensfase_enum = sa.Enum(Levensfase, name="levensfase_enum")
 datatype_categorie_enum = sa.Enum(DatatypeCategorie, name="datatype_categorie_enum")
 koppelrichting_enum = sa.Enum(Koppelrichting, name="koppelrichting_enum")
 koppelprotocol_enum = sa.Enum(Koppelprotocol, name="koppelprotocol_enum")
@@ -362,6 +380,11 @@ class Component(Base, TenantMixin, TimestampMixin):
     migratiepad: Mapped[Migratiepad] = mapped_column(
         migratiepad_enum, nullable=False, server_default=text("'onbekend'")
     )
+    # ADR-046 besluit 1 — levensfase: geregistreerd feit ("het draait"), NULLABLE zonder
+    # default (vormkeuze B): een default zou LIKARA een uitspraak laten doen die niemand
+    # deed. Ontbrekend toont als "nog niet vastgelegd". Puur registratief; engine leest
+    # dit NIET (score blijft de enige lifecycle-driver).
+    levensfase: Mapped[Levensfase | None] = mapped_column(levensfase_enum, nullable=True)
     complexiteit: Mapped[NiveauEnum] = mapped_column(
         niveau_enum, nullable=False, server_default=text("'midden'")
     )

@@ -4,14 +4,18 @@ Platform-brede referentiedata (één tabel `relatiekenmerk_optie`). Idempotent v
 `ON CONFLICT (dimensie, optie_sleutel) DO NOTHING`. Draait UITSLUITEND via
 `platform_init` (init-container). `bouw_relatiekenmerk()` is puur (DB-vrij) en testbaar.
 
-Nu: de `dispositie`-waardenlijst van het plateau-lidmaatschap (behouden/migreren/
-vervangen/uitfaseren). Toekomstige relatie-kenmerken (gap/work_package/deliverable)
-landen hier eveneens.
+De `dispositie`-dimensie (plateau-lidmaatschap) is met ADR-046 besluit 2 SOFT-
+gedeactiveerd: het plateau draagt geen eigen bedoeling meer (die leeft op het component,
+`migratiepad`). De rijen blijven geseed mét `actief=False` — historische kenmerk-waarden
+op bestaande relaties blijven zo label-resolvebaar (nooit hard weg); nieuwe registratie
+kan niet (de aggregation-kenmerkdefinitie noemt `dispositie` niet meer). Toekomstige
+relatie-kenmerken (gap/work_package/deliverable) landen hier eveneens.
 """
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from models.models import RelatieKenmerkDimensie, RelatieKenmerkOptie
 
+# ADR-046 — soft-gedeactiveerd (actief=False in `bouw_relatiekenmerk`); zie de docstring.
 _DISPOSITIE: list[tuple[str, str]] = [
     ("behouden", "Behouden"),
     ("migreren", "Migreren"),
@@ -48,7 +52,9 @@ _CATALOGUS: list[tuple[RelatieKenmerkDimensie, list[tuple[str, str]]]] = [
 
 
 def bouw_relatiekenmerk() -> list[dict]:
-    """Puur (DB-vrij): geordende lijst optie-rijen. Deterministisch."""
+    """Puur (DB-vrij): geordende lijst optie-rijen. Deterministisch. De dispositie-
+    dimensie wordt vanaf ADR-046 soft-gedeactiveerd geseed (label-resolutie blijft;
+    geen actieve optie meer)."""
     rijen: list[dict] = []
     for dimensie, paren in _CATALOGUS:
         for volgorde, (sleutel, label) in enumerate(paren):
@@ -57,7 +63,7 @@ def bouw_relatiekenmerk() -> list[dict]:
                 "optie_sleutel": sleutel,
                 "label": label,
                 "volgorde": volgorde,
-                "actief": True,
+                "actief": dimensie is not RelatieKenmerkDimensie.dispositie,
             })
     return rijen
 

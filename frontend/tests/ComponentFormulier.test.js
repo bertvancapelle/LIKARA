@@ -144,14 +144,18 @@ describe('ComponentFormulier — overlay + layout (ADR-042 4b)', () => {
     const { w } = await mountForm()
     await w.find('[data-testid="veld-naam"]').setValue('Geo-fileshare')
     await w.find('[data-testid="veld-componenttype"]').setValue('fileshare')
-    await w.find('[data-testid="veld-migratiepad"]').setValue('uitfaseren')
+    // ADR-046 — `uitfaseren` is een LEVENSFASE, geen bedoeling meer; de bedoeling
+    // (migratiepad) kent alleen bestemmingen.
+    await w.find('[data-testid="veld-migratiepad"]').setValue('vervangen')
+    await w.find('[data-testid="veld-levensfase"]').setValue('uitfaseren')
     await w.find('[data-testid="veld-componentrol"]').setValue('externe_dataprovider')
     await w.find('[data-testid="veld-biv_vertrouwelijkheid"]').setValue('hoog')
     await w.find('[data-testid="component-form"]').trigger('submit')
     await flushPromises()
     expect(api.componenten.maak).toHaveBeenCalledWith(
       expect.objectContaining({
-        naam: 'Geo-fileshare', componenttype: 'fileshare', migratiepad: 'uitfaseren',
+        naam: 'Geo-fileshare', componenttype: 'fileshare', migratiepad: 'vervangen',
+        levensfase: 'uitfaseren',
         complexiteit: 'midden', prioriteit: 'midden',
         componentrol: 'externe_dataprovider',
         biv_beschikbaarheid: null, biv_integriteit: null, biv_vertrouwelijkheid: 'hoog',
@@ -159,6 +163,22 @@ describe('ComponentFormulier — overlay + layout (ADR-042 4b)', () => {
     )
     expect(w.emitted('opgeslagen')[0][0]).toEqual({ id: 'new-1' })
     expect(w.emitted('update:visible').at(-1)).toEqual([false])
+  })
+
+  it('levensfase mag LEEG blijven — opslaan slaagt met levensfase: null (ADR-046 vormkeuze B)', async () => {
+    api.componenten.maak.mockResolvedValueOnce({ id: 'new-2' })
+    const { w } = await mountForm()
+    // De keuzelijst biedt de leeg-optie expliciet aan als "nog niet vastgelegd".
+    const opties = w.find('[data-testid="veld-levensfase"]').findAll('option').map((o) => o.text())
+    expect(opties[0]).toContain('nog niet vastgelegd')
+    expect(opties).toEqual(expect.arrayContaining(['In ontwikkeling', 'In productie', 'Uitfaseren']))
+    await w.find('[data-testid="veld-naam"]').setValue('Zonder fase')
+    await w.find('[data-testid="veld-componenttype"]').setValue('fileshare')
+    await w.find('[data-testid="component-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.componenten.maak).toHaveBeenCalledWith(
+      expect.objectContaining({ naam: 'Zonder fase', levensfase: null }),
+    )
   })
 
   it('foutmapping: 422-veldfout van de backend landt op het veld; ONGELDIGE_ROL op rol', async () => {

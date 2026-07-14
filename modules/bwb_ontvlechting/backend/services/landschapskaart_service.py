@@ -188,22 +188,22 @@ async def haal_grafdata_op(
     ).all():
         lev_map.setdefault(r.bron_id, (r.partij_id, r.naam))
 
-    # Migratieplaatsing: eerste plateau per component via aggregation-lidmaatschap (bron=plateau →
-    # doel=component); dispositie uit de relatie-kenmerken. Read-only.
-    dispositie_labels = await rk_catalog.labels(session, RelatieKenmerkDimensie.dispositie)
-    plateau_map: dict[uuid.UUID, dict] = {}
+    # Plateau-lidmaatschap als context (ADR-046): ÁLLE plateaus per component, alfabetisch
+    # samengevoegd — deterministisch (meervoud wordt getoond, nooit stil opgelost). De
+    # vroegere "eerste plateau wint"-setdefault (geen ORDER BY → niet-deterministisch) en
+    # het dispositie-kenmerk zijn vervallen; het uitfaseer-signaal is nu `Component.levensfase`.
+    _plateau_namen: dict[uuid.UUID, set[str]] = {}
     for r in (
         await session.execute(
-            select(Relatie.doel_id, Plateau.naam, Relatie.kenmerken)
+            select(Relatie.doel_id, Plateau.naam)
             .join(Plateau, Plateau.id == Relatie.bron_id)
             .where(Relatie.tenant_id == tid, Relatie.relatietype == "aggregation", _sc(Relatie.doel_id))
         )
     ).all():
-        disp = (r.kenmerken or {}).get("dispositie")
-        plateau_map.setdefault(r.doel_id, {
-            "naam": r.naam,
-            "dispositie": rk_catalog.resolveer_een(disp, dispositie_labels) if disp else None,
-        })
+        _plateau_namen.setdefault(r.doel_id, set()).add(r.naam)
+    plateau_map: dict[uuid.UUID, str] = {
+        cid: " · ".join(sorted(namen)) for cid, namen in _plateau_namen.items()
+    }
 
     nodes: list[LandschapsNode] = []
     component_ids: set[uuid.UUID] = set()
@@ -218,6 +218,8 @@ async def haal_grafdata_op(
                 # ADR-028 — classificatie read-only mee (voor filter + randbehandeling).
                 Component.componentrol,
                 Component.biv_beschikbaarheid, Component.biv_integriteit, Component.biv_vertrouwelijkheid,
+                # ADR-046 — levensfase (vervangt de plateau-dispositie als kaart-signaal).
+                Component.levensfase,
                 _profiel.c.lifecycle_status.label("lifecycle_status"),
             )
             .outerjoin(_profiel, and_(_profiel.c.id == Component.id, _profiel.c.tenant_id == tid))
@@ -229,7 +231,6 @@ async def haal_grafdata_op(
     for r in comp_rijen:
         component_ids.add(r.id)
         t = typing.get(r.componenttype, {})
-        plaatsing = plateau_map.get(r.id, {})
         node = LandschapsNode(
             id=r.id, naam=r.naam, element_type=r.componenttype,
             laag=t.get("laag"), archimate_element=t.get("archimate_element"),
@@ -243,9 +244,10 @@ async def haal_grafdata_op(
             biv_beschikbaarheid=r.biv_beschikbaarheid,
             biv_integriteit=r.biv_integriteit,
             biv_vertrouwelijkheid=r.biv_vertrouwelijkheid,
+            # ADR-046 — levensfase op de node (None = nog niet vastgelegd).
+            levensfase=_val(r.levensfase),
             blokkades_open=blok_map.get(r.id, 0),
-            plateau_naam=plaatsing.get("naam"),
-            plateau_dispositie=plaatsing.get("dispositie"),
+            plateau_naam=plateau_map.get(r.id),
             # Bezit/aanbieden: het bestaande directe veld (None = component zonder eigenaar → buiten scope).
             eigenaar_organisatie_id=r.eigenaar_organisatie_id,
         )

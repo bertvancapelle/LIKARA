@@ -174,7 +174,7 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
     expect(api.componenten.haal).toHaveBeenCalledWith('a1')
     expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Zaaksysteem')
     expect(veld(w, 'Eigenaar-organisatie')).toBe('ICT')
-    expect(veld(w, 'Migratiepad')).toBeTruthy()
+    expect(veld(w, 'Bedoeling')).toBeTruthy() // ADR-046 — UI-label van `migratiepad`
     expect(veld(w, 'Beschrijving')).toBe('Kernsysteem')
     expect(w.find('[data-testid="lk-popup-actie"]').exists()).toBe(true) // Open applicatie →
   })

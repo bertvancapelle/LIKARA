@@ -29,10 +29,15 @@ class LandschapsNode(BaseModel):
     biv_beschikbaarheid: str | None = None
     biv_integriteit: str | None = None
     biv_vertrouwelijkheid: str | None = None
+    # ADR-046 — levensfase van het component (in_ontwikkeling/in_productie/uitfaseren;
+    # None = nog niet vastgelegd). Vervangt `plateau_dispositie` als kaart-signaal: één
+    # waarheid op het component i.p.v. een niet-deterministisch "eerste plateau wint".
+    levensfase: str | None = None
     blokkades_open: int = 0                 # aantal niet-opgeloste blokkades (read-only telling)
-    # ADR-025 v4 — migratieplaatsing (eerste plateau via aggregation-lidmaatschap, met dispositie).
+    # ADR-025 v4 (herzien ADR-046) — plateau-lidmaatschap als context: ALLE plateaus
+    # waarvan dit component lid is, alfabetisch samengevoegd (deterministisch; meervoud
+    # wordt getoond, nooit stil opgelost). De dispositie is afgebouwd (besluit 2).
     plateau_naam: str | None = None
-    plateau_dispositie: str | None = None
     # ADR-031 — gebruikersgroep-node (ring 'gebruikers'): organisatie voor de groepeer-toggle +
     # ledental-badge. Alleen gevuld voor element_type='gebruikersgroep'.
     organisatie_id: UUID | None = None

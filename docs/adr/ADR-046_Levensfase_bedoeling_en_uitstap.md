@@ -221,13 +221,13 @@ als "dit component wordt gebruikt"?* Repareren in deze slice.
 
 | De vraag van de gebruiker | Het antwoord staat op | Status |
 |---|---|---|
-| Draait het, gaat het eruit, of komt het nog? | **Levensfase** — component | **nieuw** (absorbeert `dispositie = uitfaseren`) |
-| Waar gaat het heen als het weggaat? | **Bedoeling** (`migratiepad`) — component | bestaat; *uitfaseren* verdwijnt eruit; **enige** bestemming |
+| Draait het, gaat het eruit, of komt het nog? | **Levensfase** — component | **gebouwd** (stuk 1, addendum A; absorbeert `dispositie = uitfaseren`) |
+| Waar gaat het heen als het weggaat? | **Bedoeling** (`migratiepad`) — component | **gebouwd** (stuk 1): *uitfaseren* is eruit (migratie 0066); **enige** bestemming |
 | Wie stopt met dit component, en waar staat dat? | **Stand** — gebruiksrelatie (organisatie × component) | **nieuw** |
 | In welke golf? | **Tranche** — bij de uitstappende organisatie | **nieuw** |
 | Hoe zwaar is dat? | **afgeleid** (nog N gebruikers / geen gebruikers meer) | **niet geregistreerd** |
 | Hoe ver ben ik met vastleggen? | **registratiestatus** — ongewijzigd | bestaat |
-| Hoe ziet het landschap er straks uit? | **plateau** — momentopname, zonder eigen bedoeling | bestaat, wordt **kleiner** |
+| Hoe ziet het landschap er straks uit? | **plateau** — momentopname, zonder eigen bedoeling | **gebouwd** (stuk 1): dispositie afgebouwd |
 
 ---
 
@@ -325,3 +325,55 @@ als "dit component wordt gebruikt"?* Repareren in deze slice.
    is. Zichtbaar zodra componenten aan functies hangen: **harde ontwerpeis voor
    gate 2/3** (dezelfde signaal-familie als "gedragen door een noodgreep", ADR-045
    besluit 2, en het gap-signaal per plaatsing, ADR-044 besluit 4).
+
+---
+
+## Addendum A — stuk 1 gebouwd (LI040): de gerealiseerde vormen
+
+*Dit addendum verankert de vormkeuzes die het ADR bewust bij de bouwopdracht liet
+(Gevolgen §5) en de gebouwde werkelijkheid van besluit 1 + 2 (migratie 0066). De
+overige besluiten (3 t/m 8) zijn onveranderd besloten-niet-gebouwd.*
+
+### Vormkeuze A — levensfase is een ENUM, geen beheerbare catalogus
+
+Vaste set van drie (`levensfase_enum`: *in_ontwikkeling · in_productie · uitfaseren*),
+langs het bestaande enum-precedent (`models.Levensfase`). **Rechtvaardiging:** elke
+waarde draagt betekenis op de kaart en in de signalering (stuk 3/5 bouwen daarop).
+Een beheerder die een vierde waarde toevoegt, voegt een woord toe zonder gedrag — een
+lege belofte. Dit is een **semantische** keuze, geen inrichtingskeuze (het
+`ondersteunt werk`-catalogusrecept van ADR-045 is hier dus bewust níét gevolgd).
+
+### Vormkeuze B — nullable ZONDER default, geen backfill
+
+`component.levensfase` is nullable, zonder `server_default` en zonder backfill: een
+default *in productie* zou LIKARA een uitspraak laten doen die niemand deed. Ontbrekend
+toont overal als gedempt **"nog niet vastgelegd"** — leeg ≠ fout, nooit rood. Expliciet
+`null` in de PATCH wist de fase (een registratie is corrigeerbaar). LIKARA leidt de
+fase **nooit** zelf af (geborgd: `test_levensfase_adr046.py`, engine- én
+afleidingsgrens).
+
+### Gebouwde werkelijkheid (migratie `0066_adr046_levensfase`)
+
+- **`uitfaseren` uit `migratiepad`** via **enum-recreate** (0053-precedent; de
+  alternatieve "waarde laten staan + app-side weren"-vorm is verworpen — een dode
+  enum-waarde is een slapende tweede waarheid). Extra t.o.v. het precedent: de
+  `server_default 'onbekend'` is aan het oude type gebonden → drop-default → swap →
+  default herzetten. Datakost gemeten **nul** (19/19 *onbekend*, vóór én ná).
+- **Dispositie-afbouw**: het veld is uit `PlateauLidCreate`/`-Update` (extra='forbid'
+  weert het), de aggregation-kenmerkdefinitie noemt het niet meer (seed = expand;
+  migratie = contract op de bestaande DB), de catalogus-dimensie is **soft**
+  gedeactiveerd (0/4 actief — historische kenmerken blijven label-resolvebaar), en
+  `GET /plateaus/disposities` + het dialoog-veld zijn vervallen. Een historische
+  dispositie op een bestaande lid-rij blijft read-only zichtbaar ("Dispositie
+  (historisch)").
+- **Kaart**: `LandschapsNode.plateau_dispositie` is vervangen door
+  `LandschapsNode.levensfase` (gelezen van het component — één waarheid). Het
+  niet-deterministische **eerste-plateau-wint-gedrag is weg**: `plateau_naam` toont nu
+  ÁLLE plateaus van een component, alfabetisch samengevoegd (meervoud wordt getoond,
+  nooit stil opgelost) — geborgd met een twee-plateaus-test.
+- **Terminologie**: het UI-label van `migratiepad` is **"Bedoeling"** (API-veldnaam
+  ongewijzigd); in de objecthistorie heet de engine-status voortaan
+  **"Registratiestatus"** (het oude VELD_LABELS-label 'Levensfase' voor
+  `lifecycle_status` zou met het echte levensfase-veld botsen).
+- **Opvolgpunt 3 (stale docstring `models.py`)** bleek bij de bouw al eerder
+  gecorrigeerd — geen actie nodig; opvolgpunten 4/5/6 blijven open.
