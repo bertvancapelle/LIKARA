@@ -248,7 +248,7 @@ const TEKSTVELDEN = [
           v-model="aard"
           data-testid="veld-aard"
           :aria-invalid="!!fouten.aard"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         >
           <option value="">— kies —</option>
           <option v-for="a in AARD_OPTIES" :key="a" :value="a">{{ aardLabel(a) }}</option>
@@ -343,7 +343,7 @@ const TEKSTVELDEN = [
           id="pf-soort"
           v-model="soort"
           data-testid="veld-soort"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         >
           <option value="">— geen —</option>
           <option v-for="o in soortOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>

@@ -230,7 +230,7 @@ watch(
       :placeholder="props.placeholder"
       :disabled="props.disabled"
       :data-testid="`${props.testid}-input`"
-      class="w-full rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] pr-7 bg-white disabled:opacity-60 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+      class="lk-veld w-full pr-7"
       @focus="openen"
       @click="onClick"
       @input="onInput"

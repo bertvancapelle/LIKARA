@@ -445,7 +445,7 @@ onMounted(laad)
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="gebr-rol" class="font-semibold">Rol *</label>
-          <select id="gebr-rol" v-model="form.rol" data-testid="gebr-rol" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select id="gebr-rol" v-model="form.rol" data-testid="gebr-rol" class="lk-veld">
             <option v-for="r in ['medewerker', 'viewer']" :key="r" :value="r">{{ label(GEBRUIKER_ROL, r) }}</option>
           </select>
         </div>
@@ -510,7 +510,7 @@ onMounted(laad)
           <template v-else>
             <div class="flex items-center gap-[var(--lk-space-sm)]">
               <label for="gebr-beheer-rol-select" class="sr-only">Rol</label>
-              <select id="gebr-beheer-rol-select" v-model="beheerRol" data-testid="gebr-beheer-rol-select" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+              <select id="gebr-beheer-rol-select" v-model="beheerRol" data-testid="gebr-beheer-rol-select" class="lk-veld">
                 <option v-for="r in ROL_OPTIES" :key="r" :value="r">{{ label(GEBRUIKER_ROL, r) }}</option>
               </select>
               <Button label="Rol wijzigen" severity="secondary" :disabled="beheerBezig || beheerRol === geselecteerd.rol" data-testid="gebr-rol-opslaan" @click="doeRolWijzigen" />

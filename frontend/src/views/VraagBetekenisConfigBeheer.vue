@@ -236,17 +236,17 @@ laad()
             <label for="vb-add-sleutel" class="font-semibold">Sleutel *</label>
             <VeldUitleg veld="sleutel" />
           </span>
-          <input id="vb-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="vb-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. risico" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white font-mono" />
+          <input id="vb-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="vb-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. risico" class="lk-veld font-mono" />
           <span v-if="addFouten.optie_sleutel" role="alert" data-testid="vb-add-fout-optie_sleutel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.optie_sleutel }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="vb-add-label" class="font-semibold">Label *</label>
-          <input id="vb-add-label" v-model="addForm.label" type="text" data-testid="vb-add-label" :aria-invalid="!!addFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="vb-add-label" v-model="addForm.label" type="text" data-testid="vb-add-label" :aria-invalid="!!addFouten.label" class="lk-veld" />
           <span v-if="addFouten.label" role="alert" data-testid="vb-add-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="vb-add-volgorde" class="font-semibold">Volgorde</label>
-          <input id="vb-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="vb-add-volgorde" placeholder="leeg = achteraan" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="vb-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="vb-add-volgorde" placeholder="leeg = achteraan" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="vb-add-opslaan" :disabled="bezig" />
@@ -265,12 +265,12 @@ laad()
         <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">De sleutel ligt vast (stabiele referentie) en is niet bewerkbaar.</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="vb-edit-label" class="font-semibold">Label *</label>
-          <input id="vb-edit-label" v-model="editForm.label" type="text" data-testid="vb-edit-label" :aria-invalid="!!editFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="vb-edit-label" v-model="editForm.label" type="text" data-testid="vb-edit-label" :aria-invalid="!!editFouten.label" class="lk-veld" />
           <span v-if="editFouten.label" role="alert" data-testid="vb-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="vb-edit-volgorde" class="font-semibold">Volgorde</label>
-          <input id="vb-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="vb-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="vb-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="vb-edit-volgorde" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Opslaan" data-testid="vb-edit-opslaan" :disabled="bezig" />

@@ -198,12 +198,12 @@ laad()
         </p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="rm-edit-label" class="font-semibold">Label *</label>
-          <input id="rm-edit-label" v-model="editForm.label" type="text" data-testid="rm-edit-label" :aria-invalid="!!editFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="rm-edit-label" v-model="editForm.label" type="text" data-testid="rm-edit-label" :aria-invalid="!!editFouten.label" class="lk-veld" />
           <span v-if="editFouten.label" role="alert" data-testid="rm-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="rm-edit-volgorde" class="font-semibold">Volgorde</label>
-          <input id="rm-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="rm-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="rm-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="rm-edit-volgorde" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Opslaan" data-testid="rm-edit-opslaan" :disabled="bezig" />

@@ -36,6 +36,41 @@
   .ok { color: var(--lk-color-success); font-weight: 600; }
   .error { color: var(--lk-color-danger); font-weight: 600; }
 
+  /* ── Veldbouwsteen (LI040) — HET recept voor elke formulierbesturing ─────────
+     Eén hoogte (--lk-veld-h = knophoogte), één rand, één radius, één focus-taal,
+     één achtergrond — voor input, select, ZoekSelect, MultiSelectDropdown-trigger
+     én de PrimeVue-presets. Views zetten NOOIT een eigen hoogte/padding/rand/
+     radius/achtergrond/focus op een veld (bron-scan in check-css-build.mjs dwingt
+     dit af); layout (w-full, min-w-0, pr-* voor icoon-ruimte) blijft per call-site.
+     Het tekstvlak (.lk-veld-tekstvlak) is de ENIGE uitzondering, en alleen waar
+     het functie heeft: meerregelig dus hoger — zelfde rand/radius/focus/achtergrond. */
+  .lk-veld,
+  .lk-veld-tekstvlak {
+    font-size: var(--lk-text-base);
+    color: var(--lk-color-text);
+    background: var(--lk-color-surface);
+    border: 1px solid var(--lk-color-border);
+    border-radius: var(--lk-radius-input);
+  }
+  .lk-veld {
+    height: var(--lk-veld-h);
+    padding: 0 12px;
+  }
+  .lk-veld-tekstvlak {
+    min-height: 5rem;
+    padding: 8px 12px;
+    resize: vertical;
+  }
+  .lk-veld:focus,
+  .lk-veld-tekstvlak:focus {
+    outline: 2px solid var(--lk-color-primary);
+    outline-offset: 2px;
+  }
+  .lk-veld::placeholder,
+  .lk-veld-tekstvlak::placeholder { color: var(--lk-color-text-muted); }
+  .lk-veld:disabled,
+  .lk-veld-tekstvlak:disabled { opacity: 0.6; cursor: not-allowed; }
+
   /* Tweezijdige scroll-schaduw — hét patroon voor scrollende (dialoog)inhoud (LI035).
      Puur CSS, geen JS/listeners: vier background-lagen op het scroll-element zelf.
      De twee dekkers (linear, background-attachment: local) scrollen MEE met de inhoud;

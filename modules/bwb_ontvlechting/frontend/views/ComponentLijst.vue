@@ -341,7 +341,7 @@ onMounted(async () => {
           v-model="filterType"
           data-testid="filter-type"
           aria-label="Filter op componenttype"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="herfilter"
         >
           <option value="">Alle</option>
@@ -355,7 +355,7 @@ onMounted(async () => {
           v-model="filterLaag"
           data-testid="filter-laag"
           aria-label="Filter op ArchiMate-laag"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="herfilter"
         >
           <option value="">Alle</option>
@@ -369,7 +369,7 @@ onMounted(async () => {
           v-model="filterHosting"
           data-testid="filter-hosting"
           aria-label="Filter op hostingmodel"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="herfilter"
         >
           <option value="">Alle</option>
@@ -383,7 +383,7 @@ onMounted(async () => {
           v-model="filterWerk"
           data-testid="filter-ondersteunt-werk"
           aria-label="Filter op ondersteunt werk"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="herfilter"
         >
           <option value="">Alle</option>
@@ -415,7 +415,7 @@ onMounted(async () => {
           v-model="a.ref.value"
           :data-testid="`filter-${a.veld}`"
           :aria-label="`Filter op minimaal ${a.label}`"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="herfilter"
         >
           <option value="">— Alle —</option>
@@ -445,7 +445,7 @@ onMounted(async () => {
           data-testid="filter-zoek"
           aria-label="Zoek op componentnaam"
           placeholder="zoeken…"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @input="herfilterDebounced"
         />
       </label>

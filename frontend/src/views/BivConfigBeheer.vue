@@ -241,12 +241,12 @@ laad()
             <label for="biv-add-sleutel" class="font-semibold">Sleutel *</label>
             <VeldUitleg veld="sleutel" />
           </span>
-          <input id="biv-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="biv-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. zeer_hoog" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white font-mono" />
+          <input id="biv-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="biv-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. zeer_hoog" class="lk-veld font-mono" />
           <span v-if="addFouten.optie_sleutel" role="alert" data-testid="biv-add-fout-optie_sleutel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.optie_sleutel }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="biv-add-label" class="font-semibold">Label *</label>
-          <input id="biv-add-label" v-model="addForm.label" type="text" data-testid="biv-add-label" :aria-invalid="!!addFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="biv-add-label" v-model="addForm.label" type="text" data-testid="biv-add-label" :aria-invalid="!!addFouten.label" class="lk-veld" />
           <span v-if="addFouten.label" role="alert" data-testid="biv-add-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
@@ -254,7 +254,7 @@ laad()
             <label for="biv-add-volgorde" class="font-semibold">Volgorde</label>
             <VeldUitleg veld="volgorde" />
           </div>
-          <input id="biv-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="biv-add-volgorde" placeholder="leeg = achteraan (hoogste)" class="w-40 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="biv-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="biv-add-volgorde" placeholder="leeg = achteraan (hoogste)" class="lk-veld w-40" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="biv-add-opslaan" :disabled="bezig" />
@@ -273,7 +273,7 @@ laad()
         <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">De sleutel ligt vast (stabiele referentie) en is niet bewerkbaar.</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="biv-edit-label" class="font-semibold">Label *</label>
-          <input id="biv-edit-label" v-model="editForm.label" type="text" data-testid="biv-edit-label" :aria-invalid="!!editFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="biv-edit-label" v-model="editForm.label" type="text" data-testid="biv-edit-label" :aria-invalid="!!editFouten.label" class="lk-veld" />
           <span v-if="editFouten.label" role="alert" data-testid="biv-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
@@ -281,7 +281,7 @@ laad()
             <label for="biv-edit-volgorde" class="font-semibold">Volgorde</label>
             <VeldUitleg veld="volgorde" />
           </span>
-          <input id="biv-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="biv-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="biv-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="biv-edit-volgorde" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Opslaan" data-testid="biv-edit-opslaan" :disabled="bezig" />

@@ -429,7 +429,7 @@ laadBeide()
             data-testid="kp-veld-naam"
             :aria-invalid="!!fouten.naam"
             aria-describedby="kp-fout-naam"
-            class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+            class="lk-veld"
           />
           <span v-if="fouten.naam" id="kp-fout-naam" role="alert" data-testid="kp-fout-naam" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.naam }}</span>
         </div>
@@ -467,7 +467,7 @@ laadBeide()
             <label :for="`kp-${veld}`" class="font-semibold">{{ VELD_LABEL[veld] }} *</label>
             <VeldUitleg :veld="UITLEG_KEY[veld]" :opties="UITLEG_OPTIES[veld] || null" />
           </div>
-          <select :id="`kp-${veld}`" v-model="form[veld]" :data-testid="`kp-veld-${veld}`" :aria-invalid="!!fouten[veld]" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select :id="`kp-${veld}`" v-model="form[veld]" :data-testid="`kp-veld-${veld}`" :aria-invalid="!!fouten[veld]" class="lk-veld">
             <option value="" disabled>— maak een keuze —</option>
             <option v-for="c in opties[veld]" :key="c" :value="c">{{ label(OPTIE_MAP[veld], c) }}</option>
           </select>

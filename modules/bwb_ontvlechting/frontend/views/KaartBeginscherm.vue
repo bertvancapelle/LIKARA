@@ -212,7 +212,7 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
             v-model="gekozenType"
             data-testid="kb-type"
             aria-label="Componenttype"
-            class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] bg-white px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)]"
+            class="lk-veld"
             @change="zoek"
           >
             <option v-for="o in componentOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label || humaniseer(o.optie_sleutel) }}</option>
@@ -223,7 +223,7 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
             data-testid="kb-zoek"
             placeholder="🔍 Zoek op naam…"
             aria-label="Zoek component"
-            class="grow rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+            class="lk-veld grow"
             @focus="zoekOpen = true"
             @input="zoekDebounced"
           />
@@ -273,14 +273,14 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
           <div v-if="toonFilters" data-testid="kb-filters" class="mt-[var(--lk-space-sm)] flex flex-wrap items-end gap-[var(--lk-space-md)]">
             <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
               <span class="font-semibold">Laag</span>
-              <select v-model="filterLaag" data-testid="kb-filter-laag" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] bg-white px-[var(--lk-space-sm)] py-1" @change="zoek">
+              <select v-model="filterLaag" data-testid="kb-filter-laag" class="lk-veld" @change="zoek">
                 <option value="">alle</option>
                 <option v-for="l in LAAG_OPTIES" :key="l" :value="l">{{ humaniseer(l) }}</option>
               </select>
             </label>
             <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
               <span class="font-semibold">Hosting</span>
-              <select v-model="filterHosting" data-testid="kb-filter-hosting" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] bg-white px-[var(--lk-space-sm)] py-1" @change="zoek">
+              <select v-model="filterHosting" data-testid="kb-filter-hosting" class="lk-veld" @change="zoek">
                 <option value="">alle</option>
                 <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ humaniseer(h) }}</option>
               </select>

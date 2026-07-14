@@ -236,17 +236,17 @@ laad()
             <label for="ps-add-sleutel" class="font-semibold">Sleutel *</label>
             <VeldUitleg veld="sleutel" />
           </span>
-          <input id="ps-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="ps-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. ketenpartner" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white font-mono" />
+          <input id="ps-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="ps-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. ketenpartner" class="lk-veld font-mono" />
           <span v-if="addFouten.optie_sleutel" role="alert" data-testid="ps-add-fout-optie_sleutel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.optie_sleutel }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="ps-add-label" class="font-semibold">Label *</label>
-          <input id="ps-add-label" v-model="addForm.label" type="text" data-testid="ps-add-label" :aria-invalid="!!addFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="ps-add-label" v-model="addForm.label" type="text" data-testid="ps-add-label" :aria-invalid="!!addFouten.label" class="lk-veld" />
           <span v-if="addFouten.label" role="alert" data-testid="ps-add-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="ps-add-volgorde" class="font-semibold">Volgorde</label>
-          <input id="ps-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="ps-add-volgorde" placeholder="leeg = achteraan" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="ps-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="ps-add-volgorde" placeholder="leeg = achteraan" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="ps-add-opslaan" :disabled="bezig" />
@@ -265,12 +265,12 @@ laad()
         <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">De sleutel ligt vast (stabiele referentie) en is niet bewerkbaar.</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="ps-edit-label" class="font-semibold">Label *</label>
-          <input id="ps-edit-label" v-model="editForm.label" type="text" data-testid="ps-edit-label" :aria-invalid="!!editFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="ps-edit-label" v-model="editForm.label" type="text" data-testid="ps-edit-label" :aria-invalid="!!editFouten.label" class="lk-veld" />
           <span v-if="editFouten.label" role="alert" data-testid="ps-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="ps-edit-volgorde" class="font-semibold">Volgorde</label>
-          <input id="ps-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="ps-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="ps-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="ps-edit-volgorde" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Opslaan" data-testid="ps-edit-opslaan" :disabled="bezig" />

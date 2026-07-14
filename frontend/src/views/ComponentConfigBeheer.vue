@@ -424,17 +424,17 @@ laadTyperingOpties()
             <label for="cat-add-sleutel" class="font-semibold">Sleutel *</label>
             <VeldUitleg veld="sleutel" />
           </span>
-          <input id="cat-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="cat-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" aria-describedby="cat-add-fout-sleutel" placeholder="bv. etl_tool" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white font-mono" />
+          <input id="cat-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="cat-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" aria-describedby="cat-add-fout-sleutel" placeholder="bv. etl_tool" class="lk-veld font-mono" />
           <span v-if="addFouten.optie_sleutel" id="cat-add-fout-sleutel" role="alert" data-testid="cat-add-fout-optie_sleutel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.optie_sleutel }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="cat-add-label" class="font-semibold">Label *</label>
-          <input id="cat-add-label" v-model="addForm.label" type="text" data-testid="cat-add-label" :aria-invalid="!!addFouten.label" aria-describedby="cat-add-fout-label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="cat-add-label" v-model="addForm.label" type="text" data-testid="cat-add-label" :aria-invalid="!!addFouten.label" aria-describedby="cat-add-fout-label" class="lk-veld" />
           <span v-if="addFouten.label" id="cat-add-fout-label" role="alert" data-testid="cat-add-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="cat-add-volgorde" class="font-semibold">Volgorde</label>
-          <input id="cat-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="cat-add-volgorde" placeholder="leeg = achteraan" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="cat-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="cat-add-volgorde" placeholder="leeg = achteraan" class="lk-veld w-32" />
         </div>
         <!-- ADR-026: ArchiMate-typering — alleen voor dimensie componenttype, verplicht. -->
         <template v-if="isComponenttype(addDim)">
@@ -443,7 +443,7 @@ laadTyperingOpties()
               <label for="cat-add-element" class="font-semibold">ArchiMate-element *</label>
               <VeldUitleg veld="archimate_element" opties="archimate_element" />
             </span>
-            <select id="cat-add-element" v-model="addForm.archimate_element" data-testid="cat-add-element" :aria-invalid="!!addFouten.archimate_element" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+            <select id="cat-add-element" v-model="addForm.archimate_element" data-testid="cat-add-element" :aria-invalid="!!addFouten.archimate_element" class="lk-veld">
               <option value="">— kies —</option>
               <option v-for="el in typeringOpties.elementen" :key="el" :value="el">{{ el }}</option>
             </select>
@@ -454,7 +454,7 @@ laadTyperingOpties()
               <label for="cat-add-laag" class="font-semibold">Laag *</label>
               <VeldUitleg veld="archimate_laag" opties="archimate_laag" />
             </span>
-            <select id="cat-add-laag" v-model="addForm.archimate_laag" data-testid="cat-add-laag" :aria-invalid="!!addFouten.archimate_laag" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+            <select id="cat-add-laag" v-model="addForm.archimate_laag" data-testid="cat-add-laag" :aria-invalid="!!addFouten.archimate_laag" class="lk-veld">
               <option value="">— kies —</option>
               <option v-for="l in typeringOpties.lagen" :key="l" :value="l">{{ l }}</option>
             </select>
@@ -465,7 +465,7 @@ laadTyperingOpties()
               <label for="cat-add-aspect" class="font-semibold">Aspect *</label>
               <VeldUitleg veld="archimate_aspect" opties="archimate_aspect" />
             </span>
-            <select id="cat-add-aspect" v-model="addForm.archimate_aspect" data-testid="cat-add-aspect" :aria-invalid="!!addFouten.archimate_aspect" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+            <select id="cat-add-aspect" v-model="addForm.archimate_aspect" data-testid="cat-add-aspect" :aria-invalid="!!addFouten.archimate_aspect" class="lk-veld">
               <option value="">— kies —</option>
               <option v-for="a in typeringOpties.aspecten" :key="a" :value="a">{{ a }}</option>
             </select>
@@ -501,12 +501,12 @@ laadTyperingOpties()
         <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">Dimensie en sleutel liggen vast (stabiele referentie) en zijn niet bewerkbaar.</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="cat-edit-label" class="font-semibold">Label *</label>
-          <input id="cat-edit-label" v-model="editForm.label" type="text" data-testid="cat-edit-label" :aria-invalid="!!editFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="cat-edit-label" v-model="editForm.label" type="text" data-testid="cat-edit-label" :aria-invalid="!!editFouten.label" class="lk-veld" />
           <span v-if="editFouten.label" role="alert" data-testid="cat-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="cat-edit-volgorde" class="font-semibold">Volgorde</label>
-          <input id="cat-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="cat-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="cat-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="cat-edit-volgorde" class="lk-veld w-32" />
         </div>
         <!-- ADR-026: typering bewerkbaar voor componenttype; leegmaken niet toegestaan. -->
         <template v-if="editIsComponenttype">
@@ -515,7 +515,7 @@ laadTyperingOpties()
               <label for="cat-edit-element" class="font-semibold">ArchiMate-element *</label>
               <VeldUitleg veld="archimate_element" opties="archimate_element" />
             </span>
-            <select id="cat-edit-element" v-model="editForm.archimate_element" data-testid="cat-edit-element" :aria-invalid="!!editFouten.archimate_element" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+            <select id="cat-edit-element" v-model="editForm.archimate_element" data-testid="cat-edit-element" :aria-invalid="!!editFouten.archimate_element" class="lk-veld">
               <option value="">— kies —</option>
               <option v-for="el in typeringOpties.elementen" :key="el" :value="el">{{ el }}</option>
             </select>
@@ -526,7 +526,7 @@ laadTyperingOpties()
               <label for="cat-edit-laag" class="font-semibold">Laag *</label>
               <VeldUitleg veld="archimate_laag" opties="archimate_laag" />
             </span>
-            <select id="cat-edit-laag" v-model="editForm.archimate_laag" data-testid="cat-edit-laag" :aria-invalid="!!editFouten.archimate_laag" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+            <select id="cat-edit-laag" v-model="editForm.archimate_laag" data-testid="cat-edit-laag" :aria-invalid="!!editFouten.archimate_laag" class="lk-veld">
               <option value="">— kies —</option>
               <option v-for="l in typeringOpties.lagen" :key="l" :value="l">{{ l }}</option>
             </select>
@@ -537,7 +537,7 @@ laadTyperingOpties()
               <label for="cat-edit-aspect" class="font-semibold">Aspect *</label>
               <VeldUitleg veld="archimate_aspect" opties="archimate_aspect" />
             </span>
-            <select id="cat-edit-aspect" v-model="editForm.archimate_aspect" data-testid="cat-edit-aspect" :aria-invalid="!!editFouten.archimate_aspect" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+            <select id="cat-edit-aspect" v-model="editForm.archimate_aspect" data-testid="cat-edit-aspect" :aria-invalid="!!editFouten.archimate_aspect" class="lk-veld">
               <option value="">— kies —</option>
               <option v-for="a in typeringOpties.aspecten" :key="a" :value="a">{{ a }}</option>
             </select>

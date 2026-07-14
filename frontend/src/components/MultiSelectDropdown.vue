@@ -100,7 +100,7 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocMousedown))
       :aria-expanded="open"
       :aria-controls="panelId"
       :disabled="disabled"
-      class="flex min-w-[10rem] items-center justify-between gap-[var(--lk-space-sm)] rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 text-left text-[length:var(--lk-text-sm)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)] disabled:opacity-60"
+      class="lk-veld flex min-w-[10rem] items-center justify-between gap-[var(--lk-space-sm)] text-left"
       @click="toggleOpen"
       @keydown="onTriggerKeydown"
     >

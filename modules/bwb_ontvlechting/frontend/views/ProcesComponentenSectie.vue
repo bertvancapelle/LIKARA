@@ -290,7 +290,7 @@ watch(() => props.procesId, () => laad(), { immediate: true })
           v-model="nieuwFunctie"
           data-testid="pcs-functie-select"
           :aria-invalid="!!veldFouten.functie"
-          class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+          class="lk-veld"
         >
           <option value="">— kies —</option>
           <option v-for="f in functies" :key="f.optie_sleutel" :value="f.optie_sleutel">{{ f.label }}</option>
@@ -304,7 +304,7 @@ watch(() => props.procesId, () => laad(), { immediate: true })
           type="text"
           maxlength="500"
           data-testid="pcs-toelichting"
-          class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+          class="lk-veld"
         />
       </label>
       <Button type="submit" label="Toevoegen" data-testid="pcs-opslaan" :disabled="bezig" />
@@ -337,7 +337,7 @@ watch(() => props.procesId, () => laad(), { immediate: true })
             v-model="bewerkForm.applicatiefunctie"
             data-testid="pcs-bewerk-functie"
             :aria-invalid="!!bewerkFouten.functie"
-            class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+            class="lk-veld"
           >
             <option v-for="f in bewerkFunctieOpties" :key="f.optie_sleutel" :value="f.optie_sleutel">{{ f.label }}</option>
           </select>
@@ -351,7 +351,7 @@ watch(() => props.procesId, () => laad(), { immediate: true })
             type="text"
             maxlength="500"
             data-testid="pcs-bewerk-toelichting"
-            class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+            class="lk-veld"
           />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">

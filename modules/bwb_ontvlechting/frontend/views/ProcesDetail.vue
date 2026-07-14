@@ -202,11 +202,11 @@ watch(() => props.id, () => laad(), { immediate: true })
         <p v-if="addFout" role="alert" data-testid="deelproces-fout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFout }}</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="deelproces-naam" class="font-semibold">Naam *</label>
-          <input id="deelproces-naam" v-model="addForm.naam" type="text" maxlength="255" data-testid="deelproces-naam" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]" />
+          <input id="deelproces-naam" v-model="addForm.naam" type="text" maxlength="255" data-testid="deelproces-naam" class="lk-veld" />
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="deelproces-toelichting" class="font-semibold">Toelichting</label>
-          <textarea id="deelproces-toelichting" v-model="addForm.toelichting" rows="3" data-testid="deelproces-toelichting" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]"></textarea>
+          <textarea id="deelproces-toelichting" v-model="addForm.toelichting" rows="3" data-testid="deelproces-toelichting" class="lk-veld-tekstvlak"></textarea>
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="deelproces-opslaan" :disabled="bezig" />

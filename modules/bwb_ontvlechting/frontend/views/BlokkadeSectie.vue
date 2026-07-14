@@ -246,7 +246,7 @@ laad({ reset: true })
             <Tag data-testid="bk-status-readonly" :value="label(BLOKKADE_STATUS, 'opgelost')" :severity="BLOKKADE_STATUS_SEVERITY.opgelost" />
             <span data-testid="bk-status-readonly-hint" class="text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]">Auto-opgelost — niet handmatig wijzigbaar.</span>
           </template>
-          <select v-else id="bk-status" autofocus v-model="form.status" data-testid="bk-veld-status" :aria-invalid="!!fouten.status" aria-describedby="bk-fout-status" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select v-else id="bk-status" autofocus v-model="form.status" data-testid="bk-veld-status" :aria-invalid="!!fouten.status" aria-describedby="bk-fout-status" class="lk-veld">
             <option v-for="s in handmatigeStatusOpties" :key="s" :value="s">{{ label(BLOKKADE_STATUS, s) }}</option>
           </select>
           <span v-if="fouten.status" id="bk-fout-status" role="alert" data-testid="bk-fout-status" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.status }}</span>

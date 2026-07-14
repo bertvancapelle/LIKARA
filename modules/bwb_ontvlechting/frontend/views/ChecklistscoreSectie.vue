@@ -429,7 +429,8 @@ laad()
                 :aria-label="`Afgehandeld voor vraag ${v.code}`"
                 :aria-invalid="!!rijFout[v.code]"
                 :data-testid="`cs-score-${v.code}`"
-                :class="['rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60 font-semibold', scoreKleur(huidigeScore(v.code))]"
+                class="lk-veld font-semibold"
+                :class="scoreKleur(huidigeScore(v.code))"
                 @change="onScoreChange(v.code, $event.target.value)"
               >
                 <option value="" disabled>— niet gescoord —</option>
@@ -479,7 +480,7 @@ laad()
                     :data-testid="`cs-antwoord-${v.code}`"
                     v-model="bewerk[v.code].antwoord_optie"
                     :disabled="!mag"
-                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
+                    class="lk-veld"
                   >
                     <option value="">— geen —</option>
                     <option v-for="o in actieveOpties(v.code)" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
@@ -511,7 +512,7 @@ laad()
                     :data-testid="`cs-antwoord-${v.code}`"
                     v-model="bewerk[v.code].antwoord_getal"
                     :disabled="!mag"
-                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60 w-32"
+                    class="lk-veld w-32"
                   />
                 </div>
 
@@ -523,7 +524,7 @@ laad()
                     v-model="bewerk[v.code].bevinding"
                     :disabled="!mag"
                     rows="2"
-                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
+                    class="lk-veld-tekstvlak"
                   ></textarea>
                 </div>
                 <!-- ADR-037: verantwoordelijke-picker (afdeling of persoon; leeg mag). -->
@@ -583,7 +584,7 @@ laad()
                     v-model="bewerk[v.code].actie"
                     :disabled="!mag"
                     rows="2"
-                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
+                    class="lk-veld-tekstvlak"
                   ></textarea>
                 </div>
                 <div v-if="mag" class="flex items-center gap-[var(--lk-space-sm)]">

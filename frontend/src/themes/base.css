@@ -61,6 +61,11 @@
   --lk-radius-btn:       8px 0  8px 0;
   --lk-radius-nav:       8px 0  8px 0;
   --lk-radius-input:     6px 0  6px 0;
+
+  /* Veldbouwsteen (LI040) — één hoogte voor élke eenregelige formulierbesturing,
+     gelijk aan de knopstandaard (h-10): veld en knop lijnen in één rij. De waarde
+     doet er minder toe dan dat het er één is; .lk-veld (main.css) draagt het recept. */
+  --lk-veld-h: 2.5rem;
   --lk-radius-badge:     6px 0  6px 0;
   --lk-radius-dialog:   16px 0 16px 0;
   --lk-radius-dropdown:   0 0   8px 8px;

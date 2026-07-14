@@ -317,7 +317,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
               :value="rij.relatie_rol"
               :data-testid="`ct-rol-${rij.koppeling_id}`"
               :aria-label="`Rol van ${rij.contractnaam}`"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
               @change="(e) => wijzigRol(rij, e)"
             >
               <option v-for="o in rolOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
@@ -351,7 +351,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="ct-rol" class="font-semibold">Rol *</label>
-          <select id="ct-rol" v-model="form.relatie_rol" data-testid="ct-veld-rol" :aria-invalid="!!fouten.relatie_rol" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select id="ct-rol" v-model="form.relatie_rol" data-testid="ct-veld-rol" :aria-invalid="!!fouten.relatie_rol" class="lk-veld">
             <option value="" disabled>— kies een rol —</option>
             <option v-for="o in rolOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
           </select>

@@ -139,7 +139,7 @@ onMounted(() => {
           v-model="filterAard"
           data-testid="filter-aard"
           aria-label="Filter op aard"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="herfilter"
         >
           <option v-for="o in AARD_OPTIES" :key="o.waarde" :value="o.waarde">{{ o.tekst }}</option>
@@ -154,7 +154,7 @@ onMounted(() => {
           data-testid="filter-zoek"
           aria-label="Zoek op partijnaam"
           placeholder="zoeken…"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @input="herfilterDebounced"
         />
       </label>

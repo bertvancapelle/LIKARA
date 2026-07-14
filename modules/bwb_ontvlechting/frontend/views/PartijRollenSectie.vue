@@ -168,7 +168,7 @@ defineExpose({ items, laad })
             <label for="pr-rol" class="font-semibold">Rol *</label>
             <VeldUitleg veld="beheerrol" opties="beheerrol" />
           </div>
-          <select id="pr-rol" v-model="form.rol" data-testid="pr-veld-rol" :aria-invalid="!!fouten.rol" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select id="pr-rol" v-model="form.rol" data-testid="pr-veld-rol" :aria-invalid="!!fouten.rol" class="lk-veld">
             <option value="" disabled>— kies een rol —</option>
             <option v-for="o in rolOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
           </select>

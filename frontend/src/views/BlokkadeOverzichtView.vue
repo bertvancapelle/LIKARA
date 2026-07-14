@@ -149,7 +149,7 @@ onMounted(() => {
           v-model="statusFilter"
           data-testid="status-filter"
           aria-label="Filter op blokkade-status"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
           @change="onFilterWijziging"
         >
           <option v-for="o in STATUS_OPTIES" :key="o.waarde" :value="o.waarde">{{ o.tekst }}</option>

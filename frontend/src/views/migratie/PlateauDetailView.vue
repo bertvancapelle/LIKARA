@@ -268,7 +268,7 @@ onMounted(() => {
               :value="data.dispositie"
               :data-testid="`lid-dispositie-${data.id}`"
               :aria-label="`Dispositie van ${data.lid_naam || data.lid_id}`"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
               @change="(e) => wijzigDispositie(data, e)"
             >
               <option v-for="o in dispositieOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
@@ -336,7 +336,7 @@ onMounted(() => {
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[24rem]" data-testid="lid-koppel-form" @submit.prevent="bevestigKoppel">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="lk-type" class="font-semibold">Type lid</label>
-          <select id="lk-type" v-model="lidForm.lidType" data-testid="lk-type" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" @change="onLidTypeChange">
+          <select id="lk-type" v-model="lidForm.lidType" data-testid="lk-type" class="lk-veld" @change="onLidTypeChange">
             <option value="component">Component</option>
             <option value="contract">Contract</option>
           </select>
@@ -361,7 +361,7 @@ onMounted(() => {
             <label for="lk-dispositie" class="font-semibold">Dispositie *</label>
             <VeldUitleg veld="dispositie" opties="dispositie" />
           </div>
-          <select id="lk-dispositie" v-model="lidForm.dispositie" data-testid="lk-dispositie" :aria-invalid="!!lidFouten.dispositie" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select id="lk-dispositie" v-model="lidForm.dispositie" data-testid="lk-dispositie" :aria-invalid="!!lidFouten.dispositie" class="lk-veld">
             <option value="" disabled>— kies een dispositie —</option>
             <option v-for="o in dispositieOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
           </select>
@@ -377,7 +377,7 @@ onMounted(() => {
           </label>
           <div class="flex flex-col gap-[var(--lk-space-xs)]">
             <label for="lk-aantal" class="font-semibold">Aantal gebruikers / licenties</label>
-            <input id="lk-aantal" v-model="lidForm.bevestigd_aantal_gebruikers" type="number" min="0" data-testid="lk-aantal" class="w-40 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+            <input id="lk-aantal" v-model="lidForm.bevestigd_aantal_gebruikers" type="number" min="0" data-testid="lk-aantal" class="lk-veld w-40" />
           </div>
         </fieldset>
 

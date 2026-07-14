@@ -239,17 +239,17 @@ laad()
             <label for="af-add-sleutel" class="font-semibold">Sleutel *</label>
             <VeldUitleg veld="sleutel" />
           </span>
-          <input id="af-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="af-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. gegevens_ontvangen" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white font-mono" />
+          <input id="af-add-sleutel" v-model="addForm.optie_sleutel" type="text" data-testid="af-add-sleutel" :aria-invalid="!!addFouten.optie_sleutel" placeholder="bv. gegevens_ontvangen" class="lk-veld font-mono" />
           <span v-if="addFouten.optie_sleutel" role="alert" data-testid="af-add-fout-optie_sleutel" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.optie_sleutel }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="af-add-label" class="font-semibold">Label *</label>
-          <input id="af-add-label" v-model="addForm.label" type="text" data-testid="af-add-label" :aria-invalid="!!addFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="af-add-label" v-model="addForm.label" type="text" data-testid="af-add-label" :aria-invalid="!!addFouten.label" class="lk-veld" />
           <span v-if="addFouten.label" role="alert" data-testid="af-add-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ addFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="af-add-volgorde" class="font-semibold">Volgorde</label>
-          <input id="af-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="af-add-volgorde" placeholder="leeg = achteraan" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="af-add-volgorde" v-model="addForm.volgorde" type="number" data-testid="af-add-volgorde" placeholder="leeg = achteraan" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="af-add-opslaan" :disabled="bezig" />
@@ -268,12 +268,12 @@ laad()
         <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">De sleutel ligt vast (stabiele referentie) en is niet bewerkbaar.</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="af-edit-label" class="font-semibold">Label *</label>
-          <input id="af-edit-label" v-model="editForm.label" type="text" data-testid="af-edit-label" :aria-invalid="!!editFouten.label" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="af-edit-label" v-model="editForm.label" type="text" data-testid="af-edit-label" :aria-invalid="!!editFouten.label" class="lk-veld" />
           <span v-if="editFouten.label" role="alert" data-testid="af-edit-fout-label" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ editFouten.label }}</span>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="af-edit-volgorde" class="font-semibold">Volgorde</label>
-          <input id="af-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="af-edit-volgorde" class="w-32 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+          <input id="af-edit-volgorde" v-model="editForm.volgorde" type="number" data-testid="af-edit-volgorde" class="lk-veld w-32" />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Opslaan" data-testid="af-edit-opslaan" :disabled="bezig" />

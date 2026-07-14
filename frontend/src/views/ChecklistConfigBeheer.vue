@@ -238,7 +238,7 @@ laad()
         <select
           v-model="categorieFilter"
           data-testid="cfg-categorie-filter"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         >
           <option value="">Alle</option>
           <option v-for="nr in categorieen" :key="nr" :value="String(nr)">Categorie {{ nr }}</option>
@@ -262,7 +262,7 @@ laad()
         <select
           v-model="nieuweVraag.componenttype"
           data-testid="cfg-nieuwe-vraag-type"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         >
           <option value="" disabled>— maak een keuze —</option>
           <option v-for="o in componenttypeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
@@ -275,7 +275,7 @@ laad()
           data-testid="cfg-nieuwe-vraag-code"
           type="text"
           placeholder="bv. 1.4"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         />
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] flex-1 min-w-[12rem]">
@@ -284,7 +284,7 @@ laad()
           v-model="nieuweVraag.vraag"
           data-testid="cfg-nieuwe-vraag-tekst"
           type="text"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         />
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
@@ -293,7 +293,7 @@ laad()
           v-model="nieuweVraag.categorie_nr"
           data-testid="cfg-nieuwe-vraag-catnr"
           type="number"
-          class="w-24 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld w-24"
         />
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
@@ -302,7 +302,7 @@ laad()
           v-model="nieuweVraag.categorie_naam"
           data-testid="cfg-nieuwe-vraag-catnaam"
           type="text"
-          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          class="lk-veld"
         />
       </label>
       <button
@@ -345,7 +345,7 @@ laad()
             <select
               :data-testid="`cfg-type-${vraag.code}`"
               :value="vraag.antwoordtype"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
               @change="zetType(vraag, $event.target.value)"
             >
               <option v-for="t in ANTWOORDTYPES" :key="t" :value="t">{{ TYPE_LABEL[t] }}</option>
@@ -359,7 +359,7 @@ laad()
             <select
               :data-testid="`cfg-betekenis-${vraag.code}`"
               :value="vraag.betekenis || ''"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
               @change="zetBetekenis(vraag, $event.target.value)"
             >
               <option value="">— geen —</option>
@@ -399,7 +399,7 @@ laad()
                     :data-testid="`cfg-optie-label-${optie.id}`"
                     v-model="optie.label"
                     type="text"
-                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                    class="lk-veld"
                   />
                 </td>
                 <td>
@@ -408,7 +408,7 @@ laad()
                     v-model="optie.volgorde"
                     type="number"
                     :disabled="!!optie.afgeleid_bron"
-                    class="w-20 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
+                    class="lk-veld w-20"
                   />
                 </td>
                 <td>
@@ -451,20 +451,20 @@ laad()
               v-model="buffer(vraag.id).optie_sleutel"
               type="text"
               placeholder="sleutel"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
             />
             <input
               :data-testid="`cfg-nieuw-label-${vraag.code}`"
               v-model="buffer(vraag.id).label"
               type="text"
               placeholder="label"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
             />
             <input
               :data-testid="`cfg-nieuw-volgorde-${vraag.code}`"
               v-model="buffer(vraag.id).volgorde"
               type="number"
-              class="w-20 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld w-20"
             />
             <button
               type="submit"

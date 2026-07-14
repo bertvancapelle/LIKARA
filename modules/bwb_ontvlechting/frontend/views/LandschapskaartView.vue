@@ -3061,7 +3061,7 @@ const typeLabel = (t) => humaniseer(t)
           </ul>
         </div>
 
-        <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)]" />
+        <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="lk-veld" />
 
         <!-- LI029 — zoekresultaten direct onder de zoekbalk. Alleen in kaart-modus (beginscherm dicht)
              én bij een actieve zoekopdracht óf filter (het beginscherm heeft zijn eigen zoek). -->
@@ -3079,7 +3079,7 @@ const typeLabel = (t) => humaniseer(t)
             placeholder="Zoek in resultaten…"
             data-testid="lk-zoek-resultaten"
             aria-label="Zoek in resultaten"
-            class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+            class="lk-veld"
           />
           <ul class="flex max-h-64 flex-col gap-1 overflow-y-auto" data-testid="lk-resultaten">
             <!-- Klikken op de naam = toevoegen/verwijderen uit de set + detail tonen (kiesComponent);
@@ -3177,7 +3177,7 @@ const typeLabel = (t) => humaniseer(t)
             v-model="a.ref.value"
             :data-testid="`lk-filter-${a.veld}`"
             :aria-label="`Filter op minimaal ${a.label}`"
-            class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1"
+            class="lk-veld"
           >
             <option value="">— Alle —</option>
             <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
@@ -3657,7 +3657,7 @@ const typeLabel = (t) => humaniseer(t)
             maxlength="150"
             :aria-invalid="!!viewNaamFout"
             aria-describedby="lk-view-naam-fout"
-            class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-1"
+            class="lk-veld"
             @keyup.enter="bewaarView"
           />
           <span v-if="viewNaamFout" id="lk-view-naam-fout" role="alert" data-testid="lk-view-naam-fout" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)]">{{ viewNaamFout }}</span>

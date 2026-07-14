@@ -273,7 +273,7 @@ watch(() => props.componentId, () => laad(), { immediate: true })
           v-model="nieuwFunctie"
           data-testid="cps-functie-select"
           :aria-invalid="!!veldFouten.functie"
-          class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+          class="lk-veld"
         >
           <option value="">— kies —</option>
           <option v-for="f in functies" :key="f.optie_sleutel" :value="f.optie_sleutel">{{ f.label }}</option>
@@ -287,7 +287,7 @@ watch(() => props.componentId, () => laad(), { immediate: true })
           type="text"
           maxlength="500"
           data-testid="cps-toelichting"
-          class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+          class="lk-veld"
         />
       </label>
       <Button type="submit" label="Toevoegen" data-testid="cps-opslaan" :disabled="bezig" />
@@ -317,7 +317,7 @@ watch(() => props.componentId, () => laad(), { immediate: true })
             v-model="bewerkForm.applicatiefunctie"
             data-testid="cps-bewerk-functie"
             :aria-invalid="!!bewerkFouten.functie"
-            class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+            class="lk-veld"
           >
             <option v-for="f in bewerkFunctieOpties" :key="f.optie_sleutel" :value="f.optie_sleutel">{{ f.label }}</option>
           </select>
@@ -331,7 +331,7 @@ watch(() => props.componentId, () => laad(), { immediate: true })
             type="text"
             maxlength="500"
             data-testid="cps-bewerk-toelichting"
-            class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]"
+            class="lk-veld"
           />
         </div>
         <div class="flex gap-[var(--lk-space-md)]">

@@ -256,7 +256,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
           <label for="cf-type" class="font-semibold">Contracttype *</label>
           <VeldUitleg veld="contracttype" opties="contracttype" />
         </div>
-        <select id="cf-type" v-model="form.contracttype" data-testid="veld-contracttype" :aria-invalid="!!fouten.contracttype" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+        <select id="cf-type" v-model="form.contracttype" data-testid="veld-contracttype" :aria-invalid="!!fouten.contracttype" class="lk-veld">
           <option value="" disabled>— maak een keuze —</option>
           <option v-for="t in TYPE_OPTIES" :key="t" :value="t">{{ typeLabel(t) }}</option>
         </select>
@@ -312,7 +312,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
 
       <div v-for="d in DATUMVELDEN" :key="d.veld" class="flex flex-col gap-[var(--lk-space-xs)]">
         <label :for="`cf-${d.veld}`" class="font-semibold">{{ d.label }}</label>
-        <input :id="`cf-${d.veld}`" v-model="form[d.veld]" type="date" :data-testid="`veld-${d.veld}`" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" />
+        <input :id="`cf-${d.veld}`" v-model="form[d.veld]" type="date" :data-testid="`veld-${d.veld}`" class="lk-veld" />
       </div>
 
       <div class="flex flex-col gap-[var(--lk-space-xs)]">

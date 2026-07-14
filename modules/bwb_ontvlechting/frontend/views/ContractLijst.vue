@@ -174,35 +174,35 @@ onMounted(async () => {
     >
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Leverancier</span>
-        <select v-model="filterLeverancier" data-testid="filter-leverancier" aria-label="Filter op leverancier" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1" @change="herfilter">
+        <select v-model="filterLeverancier" data-testid="filter-leverancier" aria-label="Filter op leverancier" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="l in leveranciers" :key="l.id" :value="l.id">{{ l.naam }}</option>
         </select>
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Type</span>
-        <select v-model="filterType" data-testid="filter-type" aria-label="Filter op contracttype" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1" @change="herfilter">
+        <select v-model="filterType" data-testid="filter-type" aria-label="Filter op contracttype" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="t in TYPE_OPTIES" :key="t" :value="t">{{ typeLabel(t) }}</option>
         </select>
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Dekking</span>
-        <select v-model="filterDekking" data-testid="filter-dekking" aria-label="Filter op dekking" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1" @change="herfilter">
+        <select v-model="filterDekking" data-testid="filter-dekking" aria-label="Filter op dekking" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="o in dekkingOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
         </select>
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Kostenmodel</span>
-        <select v-model="filterKostenmodel" data-testid="filter-kostenmodel" aria-label="Filter op kostenmodel" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1" @change="herfilter">
+        <select v-model="filterKostenmodel" data-testid="filter-kostenmodel" aria-label="Filter op kostenmodel" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="o in kostenmodelOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
         </select>
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Naam</span>
-        <input v-model="filterZoek" type="search" maxlength="255" data-testid="filter-zoek" aria-label="Zoek op contractnaam" placeholder="zoeken…" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1" @input="herfilterDebounced" />
+        <input v-model="filterZoek" type="search" maxlength="255" data-testid="filter-zoek" aria-label="Zoek op contractnaam" placeholder="zoeken…" class="lk-veld" @input="herfilterDebounced" />
       </label>
       <button v-if="heeftFilters" type="button" data-testid="filters-wissen" class="ml-auto rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]" @click="wisFilters">
         Filters wissen

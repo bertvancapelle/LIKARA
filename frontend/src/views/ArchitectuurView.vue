@@ -130,21 +130,21 @@ onMounted(() => { if (weergave.value === 'tabel') laad({ reset: true }) })
     >
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Laag</span>
-        <select v-model="filterLaag" data-testid="arch-filter-laag" aria-label="Filter op ArchiMate-laag" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]" @change="herfilter">
+        <select v-model="filterLaag" data-testid="arch-filter-laag" aria-label="Filter op ArchiMate-laag" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="l in LAAG_OPTIES" :key="l" :value="l">{{ laagLabel(l) }}</option>
         </select>
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Aspect</span>
-        <select v-model="filterAspect" data-testid="arch-filter-aspect" aria-label="Filter op ArchiMate-aspect" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]" @change="herfilter">
+        <select v-model="filterAspect" data-testid="arch-filter-aspect" aria-label="Filter op ArchiMate-aspect" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="a in ASPECT_OPTIES" :key="a" :value="a">{{ aspectLabel(a) }}</option>
         </select>
       </label>
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Type</span>
-        <select v-model="filterType" data-testid="arch-filter-type" aria-label="Filter op element-type" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]" @change="herfilter">
+        <select v-model="filterType" data-testid="arch-filter-type" aria-label="Filter op element-type" class="lk-veld" @change="herfilter">
           <option value="">Alle</option>
           <option v-for="t in TYPE_OPTIES" :key="t" :value="t">{{ typeLabel(t) }}</option>
         </select>

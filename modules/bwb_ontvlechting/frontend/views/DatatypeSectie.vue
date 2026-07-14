@@ -252,7 +252,7 @@ laad({ reset: true })
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="dt-categorie" class="font-semibold">Categorie *</label>
           <div class="flex items-center gap-[var(--lk-space-xs)]">
-          <select id="dt-categorie" ref="eersteVeld" autofocus v-model="form.categorie" data-testid="dt-veld-categorie" :aria-invalid="!!fouten.categorie" aria-describedby="dt-fout-categorie" class="flex-1 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white">
+          <select id="dt-categorie" ref="eersteVeld" autofocus v-model="form.categorie" data-testid="dt-veld-categorie" :aria-invalid="!!fouten.categorie" aria-describedby="dt-fout-categorie" class="lk-veld flex-1">
             <option value="" disabled>— maak een keuze —</option>
             <option v-for="c in opties.categorie" :key="c" :value="c">{{ label(DATATYPE_CATEGORIE, c) }}</option>
           </select>

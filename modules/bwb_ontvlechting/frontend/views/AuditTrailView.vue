@@ -101,11 +101,11 @@ laad()
       </div>
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
         <label for="filter-van" class="text-[length:var(--lk-text-sm)] font-semibold">Van</label>
-        <input id="filter-van" v-model="filters.van" type="date" data-testid="filter-van" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]" @change="pasToe" />
+        <input id="filter-van" v-model="filters.van" type="date" data-testid="filter-van" class="lk-veld" @change="pasToe" />
       </div>
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
         <label for="filter-tot" class="text-[length:var(--lk-text-sm)] font-semibold">Tot</label>
-        <input id="filter-tot" v-model="filters.tot" type="date" data-testid="filter-tot" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]" @change="pasToe" />
+        <input id="filter-tot" v-model="filters.tot" type="date" data-testid="filter-tot" class="lk-veld" @change="pasToe" />
       </div>
       <div class="flex flex-col gap-[var(--lk-space-xs)] min-w-[14rem]">
         <label for="filter-component" class="text-[length:var(--lk-text-sm)] font-semibold">Onderdeel</label>
@@ -113,7 +113,7 @@ laad()
       </div>
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
         <label for="filter-actie" class="text-[length:var(--lk-text-sm)] font-semibold">Handeling</label>
-        <select id="filter-actie" v-model="filters.actie" data-testid="filter-actie" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" @change="pasToe">
+        <select id="filter-actie" v-model="filters.actie" data-testid="filter-actie" class="lk-veld" @change="pasToe">
           <option value="">Alle</option>
           <option v-for="a in ['create', 'update', 'delete', 'derive']" :key="a" :value="a">{{ label(AUDIT_ACTIE, a) }}</option>
         </select>

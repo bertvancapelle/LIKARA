@@ -365,7 +365,7 @@ function bevestigAnnuleren() {
               data-testid="veld-componenttype"
               :aria-invalid="!!fouten.componenttype"
               :disabled="typeVergrendeld"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-60"
+              class="lk-veld"
             >
               <option value="" disabled>— maak een keuze —</option>
               <option v-for="o in typeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
@@ -437,14 +437,14 @@ function bevestigAnnuleren() {
               </label>
               <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
                 <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Applicatiefunctie</span>
-                <select v-model="regelFunctie" data-testid="regel-functie" class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]">
+                <select v-model="regelFunctie" data-testid="regel-functie" class="lk-veld">
                   <option value="">— kies —</option>
                   <option v-for="f in functies" :key="f.optie_sleutel" :value="f.optie_sleutel">{{ f.label }}</option>
                 </select>
               </label>
               <label class="flex min-w-[10rem] flex-1 flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
                 <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Toelichting</span>
-                <input v-model="regelToelichting" type="text" maxlength="500" data-testid="regel-toelichting" class="h-10 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)]" />
+                <input v-model="regelToelichting" type="text" maxlength="500" data-testid="regel-toelichting" class="lk-veld" />
               </label>
               <Button type="button" label="+" data-testid="regel-toevoegen" severity="secondary" aria-label="Voeg procesregel toe" @click="voegRegelToe" />
             </div>
@@ -468,7 +468,7 @@ function bevestigAnnuleren() {
               v-model="form.componentrol"
               data-testid="veld-componentrol"
               :aria-invalid="!!fouten.componentrol"
-              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              class="lk-veld"
             >
               <option v-for="o in rolOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
             </select>
@@ -487,7 +487,7 @@ function bevestigAnnuleren() {
                   :id="`f-${b.veld}`"
                   v-model="form[b.veld]"
                   :data-testid="`veld-${b.veld}`"
-                  class="w-full min-w-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                  class="lk-veld w-full min-w-0"
                 >
                   <option value="">—</option>
                   <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
@@ -509,7 +509,7 @@ function bevestigAnnuleren() {
                 :id="`f-${p.veld}`"
                 v-model="form[p.veld]"
                 :data-testid="`veld-${p.veld}`"
-                class="w-full min-w-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                class="lk-veld w-full min-w-0"
               >
                 <option v-for="code in Object.keys(p.opties)" :key="code" :value="code">{{ optieLabel(p.opties, code) }}</option>
               </select>

@@ -331,7 +331,7 @@ onMounted(laad)
       <form class="flex flex-col gap-[var(--lk-space-md)] min-w-[24rem]" data-testid="gap-lid-form" @submit.prevent="bevestigKoppel">
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="gl-type" class="font-semibold">Type lid</label>
-          <select id="gl-type" v-model="lidForm.lidType" data-testid="gl-type" class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white" @change="onLidTypeChange">
+          <select id="gl-type" v-model="lidForm.lidType" data-testid="gl-type" class="lk-veld" @change="onLidTypeChange">
             <option value="component">Component</option>
             <option value="contract">Contract</option>
           </select>

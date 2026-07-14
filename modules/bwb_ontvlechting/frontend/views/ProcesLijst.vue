@@ -491,7 +491,7 @@ onMounted(() => {
           data-testid="filter-zoek"
           aria-label="Zoek op procesnaam"
           placeholder="zoeken…"
-          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          class="lk-veld"
         />
       </label>
     </div>
@@ -652,11 +652,11 @@ onMounted(() => {
         <p v-if="formFout" role="alert" data-testid="proces-dialog-fout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ formFout }}</p>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="proces-naam" class="font-semibold">Naam *</label>
-          <input id="proces-naam" v-model="form.naam" type="text" maxlength="255" data-testid="proces-naam" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]" />
+          <input id="proces-naam" v-model="form.naam" type="text" maxlength="255" data-testid="proces-naam" class="lk-veld" />
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="proces-toelichting" class="font-semibold">Toelichting</label>
-          <textarea id="proces-toelichting" v-model="form.toelichting" rows="3" data-testid="proces-toelichting" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]"></textarea>
+          <textarea id="proces-toelichting" v-model="form.toelichting" rows="3" data-testid="proces-toelichting" class="lk-veld-tekstvlak"></textarea>
         </div>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" :label="dialogProces ? 'Opslaan' : 'Toevoegen'" data-testid="proces-dialog-opslaan" :disabled="bezig" />
