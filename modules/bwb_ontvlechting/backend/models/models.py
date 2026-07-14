@@ -744,6 +744,67 @@ class Procesvervulling(Base, TenantMixin, TimestampMixin):
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class Functievervulling(Base, TenantMixin, TimestampMixin):
+    """ADR-049 (gate 2a) — koppelregel: "component X ondersteunt bedrijfsfunctie Y".
+
+    Het procesvervulling-recept, mét één verschil: de as is KAAL — géén applicatiefunctie,
+    géén werkwoord (dat blijft bij het proces). Het anker is het ADRES van de plek, niet
+    `relatie.id` (ADR-049 besluit 2): `functie_id` = de ondersteunde functie, `ouder_functie_id`
+    = onder welke functie ze staat. Leeg adres (`ouder_functie_id IS NULL`) = GROF ("nog niet
+    nagevraagd wáár precies"); gevuld = FIJN (déze plek). Eén soort registratie, plek optioneel
+    (ADR-049 besluit 3).
+
+    Uniciteit structureel in TWEE partiële vormen — Postgres telt NULL als *distinct*, dus een
+    gewone `UNIQUE(..., ouder_functie_id)` zou onbeperkt grove dubbelen toelaten:
+    - `uq_functievervulling_grof`  : één grove per (component, functie)      WHERE ouder NULL;
+    - `uq_functievervulling_fijn`  : één fijne per (component, functie, plek) WHERE ouder NOT NULL.
+    Meerdere componenten per plek is normaal (ander `component_id` botst niet).
+
+    Drie composiet-FK's → `element` (CASCADE): het component, de functie én de ouder-functie
+    (nullable). Dat het écht een component/bedrijfsfunctie is, en dat de plek bestaat, dwingt de
+    service af (422). Optionele `toelichting`; server-stamped `verklaard_door_sub`/`verklaard_door`
+    (wie), `created_at` (wanneer). Puur registratief — géén engine-koppeling. FORCE RLS.
+    De leesregel "fijn verdringt grof" wordt NIET opgeslagen; ze leeft één keer in de service
+    (`dekking_overzicht`) als leeslaag (ADR-049 besluit 1/5)."""
+
+    __tablename__ = "functievervulling"
+    __table_args__ = (
+        Index(
+            "uq_functievervulling_grof", "tenant_id", "component_id", "functie_id",
+            unique=True, postgresql_where=text("ouder_functie_id IS NULL"),
+        ),
+        Index(
+            "uq_functievervulling_fijn", "tenant_id", "component_id", "functie_id", "ouder_functie_id",
+            unique=True, postgresql_where=text("ouder_functie_id IS NOT NULL"),
+        ),
+        Index("ix_functievervulling_tenant_functie", "tenant_id", "functie_id"),
+        Index("ix_functievervulling_tenant_component", "tenant_id", "component_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "component_id"], ["element.tenant_id", "element.id"],
+            name="fk_functievervulling_component", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "functie_id"], ["element.tenant_id", "element.id"],
+            name="fk_functievervulling_functie", ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "ouder_functie_id"], ["element.tenant_id", "element.id"],
+            name="fk_functievervulling_ouder", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    component_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    functie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    ouder_functie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ADR-049 punt 2 — wie/wanneer, server-stamped (nooit uit de payload). `sub` = stabiele
+    # actor-sleutel (naam-resolutie via ADR-029), `verklaard_door` = e-mail-fallback; `created_at`
+    # (TimestampMixin) is het "wanneer".
+    verklaard_door_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verklaard_door: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+
 class Referentiemodel(Base, TenantMixin, TimestampMixin):
     """ADR-043 gate 1a — de INGELEZEN referentiemodel-instantie van déze tenant (wélk
     model, welke versie, wanneer ingelezen). Tenant-scoped registratie-feit (FORCE RLS

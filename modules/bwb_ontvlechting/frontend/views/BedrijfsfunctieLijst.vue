@@ -54,6 +54,9 @@ const magInlezen = computed(() => auth.hasRole('beheerder'))
 const alle = ref([]) // platte set (alle pagina's); de boom is een client-side afgeleide
 const laden = ref(false)
 const fout = ref(null)
+// ADR-049 gate 2a — de GEDEELDE leesregel per plek (fijn verdringt grof), server-side
+// afgeleid. De boom LEEST deze uitkomst; ze beslist grof/fijn nooit zelf (besluit 5).
+const dekking = ref([])
 
 const zoekterm = ref('')
 // ADR-044 — uitklap-staat is PLEK-gebonden: sleutels zijn plek-paden ('wortel>…>functie',
@@ -115,7 +118,43 @@ async function laad() {
   } finally {
     laden.value = false
   }
+  laadDekking() // best-effort, parallel: de koppelingen kleuren de boom in
 }
+
+// ADR-049 — de gedeelde dekking ophalen (best-effort; faalt dit, dan toont de boom geen
+// koppelingen maar blijft bruikbaar — geen dubbele rode ruis naast de laad-fout).
+async function laadDekking() {
+  try {
+    dekking.value = (await api.functievervullingen.dekking()) ?? []
+  } catch {
+    dekking.value = []
+  }
+}
+// Plek-sleutel voor de leesregel-lookup: functie + ouder ('' = wortel/grof). Spiegelt exact
+// de backend-sleutel (functie_id, ouder_functie_id) — de boom KIEST hier niets, ze zoekt op.
+const _dekkingSleutel = (functieId, ouderId) => `${functieId}|${ouderId ?? ''}`
+const dekkingPerPlek = computed(() => {
+  const m = new Map()
+  for (const d of dekking.value) {
+    m.set(_dekkingSleutel(d.functie_id, d.ouder_functie_id), d)
+  }
+  return m
+})
+const dekkingVoorRij = (rij) => dekkingPerPlek.value.get(_dekkingSleutel(rij.functie.id, rij.ouderId)) || null
+// LI041 — het getelde reikwijdte-label voor een grove plek. De TELLING komt uit de gedeelde
+// leeslaag (`grof_totaal_plekken` N, `grof_geldt_op` M) — hier alleen de zin eromheen; de boom
+// telt niets zelf. Op een fijne plek staat gewoon "alleen hier".
+function dekkingLabel(d) {
+  if (!d || d.herkomst === 'fijn') return 'alleen hier'
+  const n = d.grof_totaal_plekken
+  const m = d.grof_geldt_op
+  if (n === 1) return 'geldt op deze plek'
+  if (m === n) return `geldt op alle ${n} plekken`
+  return `geldt nog op ${m} van de ${n} plekken`
+}
+// De namen van het grove antwoord dat op déze (fijne) plek verdrongen is (read-only; het
+// bestaat nog — ADR-049 besluit 1). Leeg = niets verdrongen.
+const verdrongenNamen = (d) => (d?.verdrongen || []).map((c) => c.component_naam).join(', ')
 
 const isEigen = (f) => !f?.bron_sleutel
 // LI039 UI-afronding v2 (punt 3) — herkomst ÉÉN KEER boven de boom, niet per rij
@@ -475,6 +514,110 @@ async function bevestigHaalWeg() {
     if (e?.status !== 401) haalWegFout.value = e?.message || 'Weghalen is mislukt.'
   } finally {
     haalWegBezig.value = false
+  }
+}
+
+// ── Koppelen (ADR-049 gate 2a) — systeem aan functie/plek, grof of fijn ───────────
+// Koppelen mag op ELKE functie (óók modelinhoud — "Toezicht" koppelen is de use-case);
+// alleen vervallen functies zijn niet koppelbaar (backend 422 — de knop weren we vooraf).
+// De picker toont alleen componenten die WERK ondersteunen (ADR-045; het server-side
+// `ondersteunt_werk`-filter spiegelt de backend-regel — geen typenlijst in de frontend).
+const koppelRij = ref(null)        // { functie, ouderId, plek }
+const koppelComponent = ref(null)  // { id, naam }
+const koppelScope = ref('overal')  // 'overal' (grof) | 'hier' (fijn) — 'hier' alleen mét plek
+const koppelFout = ref(null)
+const koppelBezig = ref(false)
+const koppelKey = ref(0)           // remount-sleutel per opening (stale-label-les LI032)
+const koppelHeeftPlek = computed(() => !!koppelRij.value?.ouderId)
+function openKoppel(rij) {
+  koppelRij.value = { functie: rij.functie, ouderId: rij.ouderId, plek: rij.plek }
+  koppelComponent.value = null
+  // "Geldt overal" staat voorop (ADR-044 besluit 2 / ADR-045 besluit 3); een wortel kent
+  // maar één plek, dus daar valt grof en fijn samen → altijd grof.
+  koppelScope.value = 'overal'
+  koppelFout.value = null
+  koppelKey.value += 1
+}
+// De picker spiegelt de backend: alleen werk-ondersteunende componenten (server-side filter).
+async function zoekKoppelComponenten(params = {}) {
+  try {
+    return await api.componenten.lijst({ ondersteunt_werk: true, zoek: params.zoek || undefined, limit: 25 })
+  } catch {
+    return { items: [], volgende_cursor: null }
+  }
+}
+const koppelComponentWeergave = (x) => x?.naam ?? ''
+function kiesKoppelComponent(item) {
+  if (item?.id) koppelComponent.value = { id: item.id, naam: item.naam }
+  koppelFout.value = null
+}
+const koppelZin = computed(() => {
+  const r = koppelRij.value
+  const c = koppelComponent.value
+  if (!r || !c) return ''
+  if (koppelScope.value === 'hier' && r.ouderId) {
+    return `"${c.naam}" ondersteunt "${r.functie.naam}" alleen op deze plek (onder "${naamVanId(r.ouderId)}"). Een grof antwoord op deze plek wordt hier vervangen.`
+  }
+  return `"${c.naam}" ondersteunt "${r.functie.naam}" — op elke plek waar deze functie staat. Verfijn later per plek als het ergens anders gaat.`
+})
+async function bevestigKoppel() {
+  const r = koppelRij.value
+  const c = koppelComponent.value
+  if (!r || !c) return
+  koppelBezig.value = true
+  koppelFout.value = null
+  try {
+    const ouder = koppelScope.value === 'hier' && r.ouderId ? r.ouderId : null
+    await api.functievervullingen.maak({ component_id: c.id, functie_id: r.functie.id, ouder_functie_id: ouder })
+    toastSucces(toast, 'Gekoppeld')
+    koppelRij.value = null
+    await laadDekking()
+    toonFunctie(r.functie.id, r.plek)
+  } catch (e) {
+    if (e?.status !== 401) koppelFout.value = e?.message || 'Koppelen is mislukt.'
+  } finally {
+    koppelBezig.value = false
+  }
+}
+
+// Ontkoppelen = een registratie-feit terugnemen → medewerker (magBewerken, ADR-050: wie koppelt,
+// ontkoppelt). Een fijne koppeling weghalen maakt het grove antwoord op die plek wéér leesbaar;
+// er is nooit iets weggeschreven (ADR-049 besluit 1).
+const ontkoppelDoel = ref(null) // { vervulling_id, component_naam, functie_naam, herkomst, ouderId }
+const ontkoppelFout = ref(null)
+const ontkoppelBezig = ref(false)
+function openOntkoppel(rij, comp, herkomst) {
+  ontkoppelDoel.value = {
+    vervulling_id: comp.vervulling_id,
+    component_naam: comp.component_naam,
+    functie_naam: rij.functie.naam,
+    herkomst,
+    ouderId: rij.ouderId,
+  }
+  ontkoppelFout.value = null
+}
+const ontkoppelZin = computed(() => {
+  const d = ontkoppelDoel.value
+  if (!d) return ''
+  if (d.herkomst === 'fijn') {
+    return `De koppeling van "${d.component_naam}" aan "${d.functie_naam}" hier weghalen? Het antwoord dat overal geldt wordt op deze plek weer leesbaar.`
+  }
+  return `De koppeling van "${d.component_naam}" aan "${d.functie_naam}" weghalen? Deze geldt overal — hij verdwijnt op elke plek waar "${d.functie_naam}" staat.`
+})
+async function bevestigOntkoppel() {
+  const d = ontkoppelDoel.value
+  if (!d) return
+  ontkoppelBezig.value = true
+  ontkoppelFout.value = null
+  try {
+    await api.functievervullingen.verwijder(d.vervulling_id)
+    toastSucces(toast, 'Koppeling weggehaald')
+    ontkoppelDoel.value = null
+    await laadDekking()
+  } catch (e) {
+    if (e?.status !== 401) ontkoppelFout.value = e?.message || 'Weghalen is mislukt.'
+  } finally {
+    ontkoppelBezig.value = false
   }
 }
 
@@ -855,6 +998,48 @@ onMounted(() => {
                 >{{ naamVanId(o) }}</button>
               </template>
             </p>
+            <!-- ADR-049 gate 2a — welke componenten dragen déze plek. De boom LEEST de
+                 gedeelde leesregel (fijn verdringt grof): 'herkomst' komt van de server,
+                 de boom beslist niets zelf. "geldt overal" = grof, "alleen hier" = fijn.
+                 Weghalen loopt via de bevestigingsdialoog (nooit een kaal kruisje op een
+                 registratie-feit); alleen de beheerder ziet die affordance. -->
+            <p
+              v-if="dekkingVoorRij(rij)"
+              class="pl-7 text-[length:var(--lk-text-sm)]"
+              :data-testid="`functie-dekking-${rij.plek}`"
+            >
+              <span class="text-[var(--lk-color-text-muted)]">Ondersteund door: </span>
+              <template v-for="(c, i) in dekkingVoorRij(rij).componenten" :key="c.vervulling_id">
+                <span v-if="i" aria-hidden="true">, </span>
+                <span
+                  class="font-medium text-[var(--lk-color-text)]"
+                  :data-testid="`functie-dekking-comp-${rij.plek}--${c.component_id}`"
+                >{{ c.component_naam }}</span>
+                <button
+                  v-if="magBewerken"
+                  type="button"
+                  class="ml-1 text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+                  :data-testid="`functie-ontkoppel-${rij.plek}--${c.component_id}`"
+                  :aria-label="`Koppeling van ${c.component_naam} weghalen`"
+                  @click="openOntkoppel(rij, c, dekkingVoorRij(rij).herkomst)"
+                >weghalen</button>
+              </template>
+              <span
+                class="ml-1 shrink-0 rounded-[var(--lk-radius-badge)] border px-1.5 text-[length:var(--lk-text-xs)]"
+                :class="dekkingVoorRij(rij).herkomst === 'fijn'
+                  ? 'border-[var(--lk-color-primary)] text-[var(--lk-color-primary)]'
+                  : 'border-[var(--lk-color-border)] text-[var(--lk-color-text-muted)]'"
+                :data-testid="`functie-dekking-herkomst-${rij.plek}`"
+              >{{ dekkingLabel(dekkingVoorRij(rij)) }}</span>
+            </p>
+            <!-- LI041 — de verdringing benoemt zichzelf: op een verfijnde plek blijft het grove
+                 antwoord LEESBAAR, gedempt (leeslaag, geen scanlaag) en zónder eigen actie (de
+                 "weghalen"-actie woont bij de herkomst, niet hier). Rustige taal — niets kapot. -->
+            <p
+              v-if="dekkingVoorRij(rij) && dekkingVoorRij(rij).verdrongen.length"
+              class="pl-7 text-[length:var(--lk-text-xs)] italic text-[var(--lk-color-text-muted)]"
+              :data-testid="`functie-verdrongen-${rij.plek}`"
+            >{{ verdrongenNamen(dekkingVoorRij(rij)) }} geldt overal, maar is hier vervangen door de verfijning</p>
           </div>
           <!-- Rij-acties — rustig (LI039 C0, gedeelde RijActies-bouwsteen: tertiair,
                zichtbaar op de actieve rij/via focus). De affordances spiegelen de
@@ -870,6 +1055,16 @@ onMounted(() => {
               :data-testid="`functie-diagram-${rij.plek}`"
               :aria-label="`Toon ${rij.functie.naam} in het functiebeeld`"
               @click="toonInFunctiebeeld(rij.functie)"
+            />
+            <!-- ADR-049 gate 2a — koppelen mag op ELKE functie (óók modelinhoud: "Toezicht"
+                 koppelen is de use-case); alleen vervallen functies niet (backend 422). -->
+            <Button
+              v-if="magBewerken && !rij.functie.vervallen"
+              label="Koppel systeem"
+              outlined
+              :data-testid="`functie-koppel-${rij.plek}`"
+              :aria-label="`Koppel een systeem aan ${rij.functie.naam}`"
+              @click="openKoppel(rij)"
             />
             <Button
               v-if="magBewerken && !rij.functie.vervallen"
@@ -1006,6 +1201,66 @@ onMounted(() => {
     >
       <span v-if="haalWegFout" data-testid="functie-haalweg-fout" class="text-[var(--lk-color-warning)]">{{ haalWegFout }}</span>
       <span v-else data-testid="functie-haalweg-zin">{{ haalWegZin }}</span>
+    </BevestigVerwijderDialog>
+
+    <!-- ADR-049 gate 2a — Koppel een systeem: picker toont alleen werk-ondersteunende
+         componenten (server-side ondersteunt_werk-filter); scope grof/fijn (alleen als de
+         rij een plek heeft — een wortel valt samen op grof). Eén primary ("Koppelen"). -->
+    <Dialog
+      :visible="!!koppelRij"
+      modal
+      :closable="false"
+      :header="`Koppel een systeem aan “${koppelRij?.functie.naam ?? ''}”`"
+      data-testid="functie-koppel-dialog"
+      @update:visible="(v) => { if (!v) koppelRij = null }"
+    >
+      <div class="flex min-w-[26rem] max-w-xl flex-col gap-[var(--lk-space-md)]">
+        <p v-if="koppelFout" role="alert" data-testid="functie-koppel-fout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ koppelFout }}</p>
+        <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+          <span>Kies het systeem waarmee dit werk gedaan wordt</span>
+          <ZoekSelect
+            :key="koppelKey"
+            :zoek-functie="zoekKoppelComponenten"
+            :weergave="koppelComponentWeergave"
+            id-veld="id"
+            placeholder="Zoek een systeem…"
+            testid="functie-koppel-component"
+            @keuze="kiesKoppelComponent"
+          />
+          <!-- Scope-regel (ADR-045 besluit 3): benoemt de scope, verklaart geen afwezigheid. -->
+          <span class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]" data-testid="functie-koppel-scoperegel">Componenten waarmee werk gedaan wordt.</span>
+        </label>
+        <fieldset v-if="koppelHeeftPlek" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="functie-koppel-scope">
+          <label class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+            <input v-model="koppelScope" type="radio" value="overal" data-testid="functie-koppel-scope-overal" />
+            <span>Geldt overal — op elke plek waar “{{ koppelRij?.functie.naam }}” staat</span>
+          </label>
+          <label class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+            <input v-model="koppelScope" type="radio" value="hier" data-testid="functie-koppel-scope-hier" />
+            <span>Alleen hier — onder “{{ naamVanId(koppelRij?.ouderId) }}”</span>
+          </label>
+        </fieldset>
+        <p v-if="koppelZin" data-testid="functie-koppel-zin" class="max-w-prose font-medium">{{ koppelZin }}</p>
+        <div class="flex gap-[var(--lk-space-md)]">
+          <Button type="button" label="Koppelen" data-testid="functie-koppel-bevestig" :disabled="!koppelComponent || koppelBezig" @click="bevestigKoppel" />
+          <Button type="button" label="Annuleren" severity="secondary" @click="koppelRij = null" />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- ADR-049 gate 2a — koppeling weghalen (beheerder): gedeelde bevestigingsdialoog met de
+         regel leesbaar; een fijne weghalen maakt het grove antwoord op die plek weer leesbaar. -->
+    <BevestigVerwijderDialog
+      :visible="!!ontkoppelDoel"
+      kop="Koppeling weghalen"
+      bevestig-label="Weghalen"
+      :bezig="ontkoppelBezig"
+      testid="functie-ontkoppel"
+      @update:visible="(v) => { if (!v) ontkoppelDoel = null }"
+      @bevestig="bevestigOntkoppel"
+    >
+      <span v-if="ontkoppelFout" data-testid="functie-ontkoppel-fout" class="text-[var(--lk-color-warning)]">{{ ontkoppelFout }}</span>
+      <span v-else data-testid="functie-ontkoppel-zin">{{ ontkoppelZin }}</span>
     </BevestigVerwijderDialog>
 
     <!-- Gate 1b — referentiemodel inlezen: VOORBEELD vóór bevestigen (dialog-overlay

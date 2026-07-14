@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response
 
-from app.core.rbac import Actie, Entiteit
+from app.core.rbac import Actie, Entiteit, verwijder_actie
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
@@ -47,7 +47,7 @@ async def werk_koppeling_bij(
 @router.delete("/{koppeling_id}", status_code=204)
 async def verwijder_koppeling(
     koppeling_id: uuid.UUID,
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_CONTRACT, Actie.VERWIJDEREN)),
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_CONTRACT, verwijder_actie(Entiteit.COMPONENT_CONTRACT))),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     await svc.verwijder(session, user.tenant_id, koppeling_id)

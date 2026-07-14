@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import JSONResponse, Response
 
-from app.core.rbac import Actie, Entiteit
+from app.core.rbac import Actie, Entiteit, verwijder_actie
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
@@ -74,7 +74,7 @@ async def maak_organisatiegebruik(
 @router.delete("/{gebruik_id}", status_code=204)
 async def verwijder_organisatiegebruik(
     gebruik_id: uuid.UUID,
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.ORGANISATIEGEBRUIK, Actie.VERWIJDEREN)),
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.ORGANISATIEGEBRUIK, verwijder_actie(Entiteit.ORGANISATIEGEBRUIK))),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     """Verwijder een grof feit — alléén zonder verfijning eronder (ADR-038/046: de

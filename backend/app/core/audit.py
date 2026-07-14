@@ -70,6 +70,8 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "plateau", "work_package", "deliverable", "gap",
     # ADR-042 — procesregister (nestbare procesboom) + koppelregel component→proces.
     "proces", "procesvervulling",
+    # ADR-049 gate 2a — koppelregel component→bedrijfsfunctie (kaal; grof/fijn per plek).
+    "functievervulling",
     # ADR-043 gate 1a — bedrijfsfunctie-as + ingelezen referentiemodel-instantie.
     "bedrijfsfunctie", "referentiemodel",
     # ADR-027 — niet-scorende component-klaarverklaring (klaar→open→klaar mét reden,

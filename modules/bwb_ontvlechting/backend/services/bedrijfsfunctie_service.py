@@ -215,6 +215,27 @@ def _is_modelinhoud(obj: Bedrijfsfunctie) -> bool:
     return obj.bron_sleutel is not None
 
 
+async def is_modelinhoud_plaatsing(session: AsyncSession, tenant_id, relatie) -> bool:
+    """ADR-050/ADR-043 — is deze relatie een GEMMA-plaatsing die GROND is? = een aggregation
+    waarvan het kind (doel) een bedrijfsfunctie mét bronsleutel is. Zulke plaatsingen zijn niet
+    corrigeerbaar, door niemand — de bescherming is inhoudelijk (`MODELINHOUD_BESCHERMD`), geen
+    rollenkwestie. Het gedeelde slot (LI041): het generieke relatie-mutatiepad voert zijn
+    modelinhoud-check hierlangs, i.p.v. een tweede implementatie ernaast. Het legitieme
+    import-pad muteert plaatsingen via `plaats`/`verwijder_plaatsing(via_import=True)`, níét via
+    de generieke relatie-service — dit slot raakt dat pad dus niet."""
+    if getattr(relatie, "relatietype", None) != _AGGREGATION:
+        return False
+    tid = _tenant_uuid(tenant_id)
+    kind = (
+        await session.execute(
+            select(Bedrijfsfunctie).where(
+                Bedrijfsfunctie.id == relatie.doel_id, Bedrijfsfunctie.tenant_id == tid
+            )
+        )
+    ).scalar_one_or_none()
+    return kind is not None and _is_modelinhoud(kind)
+
+
 async def _lees_met_ouders(session: AsyncSession, tid: uuid.UUID, obj: Bedrijfsfunctie) -> dict:
     paren = await _plaatsings_paren(session, tid)
     return _lees(obj, await _model_labels(session, tid), _ouders_map(paren).get(obj.id, []))

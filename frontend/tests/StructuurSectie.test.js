@@ -195,13 +195,13 @@ describe('StructuurSectie', () => {
     expect(w.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(false)
   })
 
-  it('LI037 rol-gating: medewerker mag toevoegen/bewerken maar NIET ontkoppelen (VERWIJDEREN = beheerder)', async () => {
+  it('ADR-050 rol-gating: een structuurrelatie is een uitspraak → medewerker mag ontkoppelen; viewer niet', async () => {
     api.componenten.structuur.mockResolvedValue({ draait_op: [_draaitOp()], gebruikt_door: [] })
     const m = await mountSectie({ rollen: ['medewerker'] })
     expect(m.find('[data-testid="st-toevoegen"]').exists()).toBe(true)
     expect(m.find('[data-testid="st-bewerk-s-1"]').exists()).toBe(true)
-    expect(m.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(false)
-    const b = await mountSectie({ rollen: ['beheerder'] })
-    expect(b.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(true) // ADR-050: wie legt, neemt terug
+    const v = await mountSectie({ rollen: ['viewer'] })
+    expect(v.find('[data-testid="st-ontkoppel-s-1"]').exists()).toBe(false)
   })
 })

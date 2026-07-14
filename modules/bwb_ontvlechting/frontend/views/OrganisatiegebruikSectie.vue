@@ -39,8 +39,10 @@ const auth = useAuthStore()
 const toast = useToast()
 const router = useRouter()
 const magToevoegen = computed(() => auth.hasRole('medewerker', 'beheerder'))
-// Destructief gate't op het specifieke Verwijderen-recht (LI037): beheerder-only.
-const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een gebruiksfeit is een uitspraak van de gemeente: wie 'm legt, neemt 'm terug →
+// medewerker. De 409-weigering bij een bestaande verfijning blijft (beschermt tegen stil verlies,
+// niet tegen de verkeerde rol).
+const magVerwijderen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const rijen = ref([])
 const laden = ref(false)

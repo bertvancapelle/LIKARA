@@ -113,7 +113,9 @@ _ENDPOINTS = [
     ("A", "POST", "/api/v1/relaties", {"bron_id": _BRON, "doel_id": _DOEL, "relatietype": "flow", "naam": "StUF"}, 201),
     ("L", "GET", f"/api/v1/relaties/{_REL}", None, 200),
     ("W", "PATCH", f"/api/v1/relaties/{_REL}", {"omschrijving": "x"}, 200),
-    ("V", "DELETE", f"/api/v1/relaties/{_REL}", None, 204),
+    # ADR-050: een relatie is een uitspraak → verwijderen guardt op WIJZIGEN (medewerker), niet
+    # VERWIJDEREN. (De GEMMA-grond is een aparte, inhoudelijke bescherming — MODELINHOUD_BESCHERMD.)
+    ("W", "DELETE", f"/api/v1/relaties/{_REL}", None, 204),
 ]
 
 

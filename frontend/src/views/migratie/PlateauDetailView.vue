@@ -10,7 +10,7 @@
  * Registratie/migratielaag — raakt de engine (lifecycle/score/blokkade) niet.
  *
  * Rol-gating (affordance; backend handhaaft): wijzigen/koppelen = medewerker/beheerder
- * (PLATEAU·AANMAKEN/WIJZIGEN); verwijderen plateau + ontkoppelen lid = beheerder
+ * (PLATEAU·AANMAKEN/WIJZIGEN); verwijderen plateau = beheerder; ontkoppelen lid = medewerker (ADR-050)
  * (PLATEAU·VERWIJDEREN).
  */
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -29,6 +29,9 @@ const toast = useToast()
 const auth = useAuthStore()
 const magBeheren = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een lidmaatschap ontkoppelen is een registratie-feit (uitspraak: "dit hoort bij
+// dit plateau") → medewerker; het plateau-OBJECT vernietigen blijft beheerder (magVerwijderen).
+const magOntkoppelen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const plateau = ref(null)
 const leden = ref([])
@@ -264,7 +267,7 @@ onMounted(() => {
         <Column header="Bevestigd op"><template #body="{ data }">{{ formatDatum(data.bevestigd_op) }}</template></Column>
         <Column header="">
           <template #body="{ data }">
-            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`lid-ontkoppel-${data.id}`" @click="(e) => vraagOntkoppel(e, data)" />
+            <Button v-if="magOntkoppelen" label="Ontkoppelen" severity="danger" :data-testid="`lid-ontkoppel-${data.id}`" @click="(e) => vraagOntkoppel(e, data)" />
           </template>
         </Column>
         <template #empty>

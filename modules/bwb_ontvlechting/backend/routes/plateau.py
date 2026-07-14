@@ -126,7 +126,9 @@ async def werk_lid_bij(
 async def verwijder_lid(
     plateau_id: uuid.UUID,
     lid_relatie_id: uuid.UUID,
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PLATEAU, Actie.VERWIJDEREN)),
+    # ADR-050 — een lidmaatschap is een registratie-feit (membership-uitspraak) → WIJZIGEN
+    # (het plateau-object zelf vernietigt de beheerder).
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.PLATEAU, Actie.WIJZIGEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     await svc.verwijder_lid(session, user.tenant_id, plateau_id, lid_relatie_id)

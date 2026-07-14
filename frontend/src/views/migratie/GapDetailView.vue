@@ -7,7 +7,7 @@
  * en worden read-only getoond. Registratie/migratielaag — engine onaangeroerd; readiness is puur
  * afgeleid (geen invoer, geen tweede bron).
  *
- * Rol-gating: wijzigen/koppelen = medewerker/beheerder; verwijderen + ontkoppelen = beheerder.
+ * Rol-gating: wijzigen/koppelen = medewerker/beheerder; verwijderen object = beheerder; ontkoppelen lid = medewerker (ADR-050).
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, InputText, Tag, Textarea, useToast } from '@/primevue'
@@ -25,6 +25,9 @@ const toast = useToast()
 const auth = useAuthStore()
 const magBeheren = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een lid ontkoppelen is een registratie-feit (membership-uitspraak) → medewerker;
+// het gap-OBJECT vernietigen blijft beheerder (magVerwijderen).
+const magOntkoppelen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const gap = ref(null)
 const leden = ref([])
@@ -265,7 +268,7 @@ onMounted(laad)
         <Column field="naam" header="Naam"><template #body="{ data }">{{ data.naam || '—' }}</template></Column>
         <Column header="">
           <template #body="{ data }">
-            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`gap-lid-ontkoppel-${data.id}`" @click="vraagOntkoppel(data)" />
+            <Button v-if="magOntkoppelen" label="Ontkoppelen" severity="danger" :data-testid="`gap-lid-ontkoppel-${data.id}`" @click="vraagOntkoppel(data)" />
           </template>
         </Column>
         <template #empty>

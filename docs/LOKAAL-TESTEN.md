@@ -90,6 +90,30 @@ cd frontend && npm run dev      # → http://localhost:3000  (proxy /api → :80
    **Bewerken**, **Start inventarisatie** (alleen bij status `concept`),
    **Verwijderen** (alleen Beheerder, met cascade-waarschuwing).
 
+### 4b. Naar de bedrijfsfunctieboom (gate 2a — systeem koppelen)
+
+1. Sidebar → onder het kopje **BWB-ontvlechting** → **Bedrijfsfuncties** (route
+   `/bedrijfsfuncties`). Bovenaan staat de schakelaar **Boom** | **Diagram**; het koppelen
+   gebeurt in de **Boom**-weergave.
+2. Gebruik het **Zoeken**-veld om een functie te vinden (typen klapt de paden naar de
+   treffers open). De koppel-handeling zit in de actie-rij van een functierij, knop
+   **Koppel systeem**.
+3. De **gate-2a-routes worden pas geladen na een herstart** van de api-container
+   (`docker compose -f docker-compose.yml restart api`) — bind-mounts + `--reload` laden
+   nieuwe route-modules niet altijd in een draaiend proces. Route-check (verwacht `401`):
+   `curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/api/v1/functievervullingen/dekking`.
+4. Klik-voor-klik draaiboek: `docs/Draaiboek-browsercheck-gate2a-V041.md`.
+
+### 4c. Van gebruiker wisselen (rol-gating testen)
+
+Rechtsboven in de blauwe topbar staat je e-mailadres met de knop **Uitloggen**. Klik
+**Uitloggen** → je komt terug op het inlogscherm → log opnieuw in met een ander account
+(bv. van `beheerder-test` naar `medewerker-test`). Zo test je dat een medewerker wél mag
+koppelen maar niet ontkoppelen, en een beheerder beide.
+
+> De tenant-dev-accounts (`medewerker-test`, `beheerder-test`, …; wachtwoord
+> `changeme_dev`) staan in de tabel hieronder — die stond hier al en is niet gewijzigd.
+
 ---
 
 ## Testgebruikers en rollen

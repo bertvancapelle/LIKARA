@@ -104,7 +104,8 @@ _ENDPOINTS = [
     ("L", "GET", f"/api/v1/checklistscores/{_ID}", None, 200),
     ("A", "POST", "/api/v1/checklistscores", _CREATE_BODY, 201),
     ("W", "PATCH", f"/api/v1/checklistscores/{_ID}", {"score": "ja"}, 200),
-    ("V", "DELETE", f"/api/v1/checklistscores/{_ID}", None, 204),
+    # ADR-050: een score is een registratie-feit → verwijderen guardt op WIJZIGEN (medewerker).
+    ("W", "DELETE", f"/api/v1/checklistscores/{_ID}", None, 204),
 ]
 
 

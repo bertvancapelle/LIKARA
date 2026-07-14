@@ -24,8 +24,9 @@ const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 // LI037 — destructief = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het
 // endpoint eist Actie.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het
-// bestaande detailscherm-patroon (magVerwijderen).
-const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een component↔contract-koppeling is een registratie-feit: wie 'm legt, neemt 'm
+// terug → medewerker (geen aparte beheerder-gate meer op deze uitspraak).
+const magVerwijderen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const items = ref([])
 // §3 — 'valt onder'-conventie (model garandeert geen uniciteit: 0, 1 of meer).

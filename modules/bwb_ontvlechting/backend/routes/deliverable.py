@@ -125,7 +125,8 @@ async def koppel_werkpakket(
 async def ontkoppel_werkpakket(
     deliverable_id: uuid.UUID,
     relatie_id: uuid.UUID,
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.DELIVERABLE, Actie.VERWIJDEREN)),
+    # ADR-050 — een realisatie-koppeling is een registratie-feit (membership-uitspraak) → WIJZIGEN.
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.DELIVERABLE, Actie.WIJZIGEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     await svc.ontkoppel_werkpakket(session, user.tenant_id, deliverable_id, relatie_id)
@@ -146,7 +147,8 @@ async def koppel_plateau(
 async def ontkoppel_plateau(
     deliverable_id: uuid.UUID,
     relatie_id: uuid.UUID,
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.DELIVERABLE, Actie.VERWIJDEREN)),
+    # ADR-050 — een realisatie-koppeling is een registratie-feit (membership-uitspraak) → WIJZIGEN.
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.DELIVERABLE, Actie.WIJZIGEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     await svc.ontkoppel_plateau(session, user.tenant_id, deliverable_id, relatie_id)

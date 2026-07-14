@@ -53,6 +53,10 @@ class Entiteit(str, Enum):
     # ADR-042 slice 3 — koppelregel component→proces (eigen entiteit: de regel heeft geen
     # eenduidige "bron"-kant om op mee te liften, anders dan roltoewijzing→PARTIJ).
     PROCESVERVULLING = "procesvervulling"
+    # ADR-049 gate 2a — koppelregel component→bedrijfsfunctie (eigen entiteit, zelfde grond als
+    # PROCESVERVULLING: geen eenduidige "bron"-kant). Verwijderen guardt hier op VERWIJDEREN
+    # (beheerder) i.p.v. WIJZIGEN — opdrachtkeuze gate 2a §4/§6.7 (destructief = beheerder).
+    FUNCTIEVERVULLING = "functievervulling"
     # ADR-043 gate 1a — bedrijfsfunctie-as (tenant-zijde, inhoud-entiteit): de logische
     # ruggengraat van de kaart. Modelinhoud-bescherming (bronsleutel → read-only) zit in
     # de servicelaag, bovenop deze RBAC-gate.
@@ -160,6 +164,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.PROCES: dict(_INHOUD),
     # ADR-042 slice 3 — koppelregel: inhoud-patroon (verbreken guardt op WIJZIGEN, zie routes).
     Entiteit.PROCESVERVULLING: dict(_INHOUD),
+    # ADR-049 gate 2a — component→functie-koppeling: inhoud-patroon (verwijderen guardt op
+    # VERWIJDEREN = beheerder; koppelen = medewerker+, zie routes).
+    Entiteit.FUNCTIEVERVULLING: dict(_INHOUD),
     # ADR-043 gate 1a — bedrijfsfunctie-as: inhoud-patroon.
     Entiteit.BEDRIJFSFUNCTIE: dict(_INHOUD),
     # ADR-043 gate 1b — het referentiemodel INLEZEN is een beheerdershandeling (besloten
@@ -210,6 +217,54 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
         Rol.AUDITOR: _GEEN,
     },
 }
+
+
+# ── ADR-050 — de rollengrens knipt op het ONDERWERP, niet op het werkwoord ────────
+# Een REGISTRATIE-FEIT (een uitspraak van de gemeente — koppelingen, gebruik, scores,
+# relaties) neemt de MEDEWERKER terug → zijn verwijder-endpoint guardt op WIJZIGEN. Een
+# LANDSCHAPSOBJECT (een ding dat bestaat) vernietigt de BEHEERDER → VERWIJDEREN (die delete
+# sleept andermans werk mee). De matrix (`PERMISSIES`) verandert NIET; alleen wélke actie de
+# DELETE bewaakt. Eén bron van waarheid: het verwijder-pad ERFT via `verwijder_actie()` i.p.v.
+# per route opnieuw gekozen te worden — zo kan een nieuw feit de regel niet vergeten (de
+# bron-scan-test `test_rollengrens_adr050` faalt als een content-entiteit niet geclassificeerd
+# is of als haar primaire DELETE niet met haar categorie strookt). De feiten-op-een-host
+# (roltoewijzing→PARTIJ) en de lidmaatschap-sub-resources (plateau/gap/deliverable-leden,
+# bedrijfsfunctie-plaatsing, contract-band-dekking) zijn membership-mutaties → host.WIJZIGEN;
+# de grond (GEMMA-plaatsingen) is voor NIEMAND corrigeerbaar en wordt inhoudelijk beschermd
+# (`MODELINHOUD_BESCHERMD`), geen rollenkwestie — zie ADR-050 besluit 4.
+REGISTRATIE_FEIT_ENTITEITEN: frozenset[Entiteit] = frozenset({
+    Entiteit.FUNCTIEVERVULLING,
+    Entiteit.PROCESVERVULLING,
+    Entiteit.ORGANISATIEGEBRUIK,
+    Entiteit.COMPONENT_CONTRACT,
+    Entiteit.CHECKLISTSCORE,
+    Entiteit.RELATIE,
+})
+
+LANDSCHAPSOBJECT_ENTITEITEN: frozenset[Entiteit] = frozenset({
+    Entiteit.COMPONENT,
+    Entiteit.CONTRACT,
+    Entiteit.PARTIJ,
+    Entiteit.DATATYPE,
+    Entiteit.GEBRUIKERSGROEP,
+    Entiteit.BEDRIJFSFUNCTIE,
+    Entiteit.PROCES,
+    Entiteit.PLATEAU,
+    Entiteit.WORK_PACKAGE,
+    Entiteit.DELIVERABLE,
+    Entiteit.GAP,
+})
+# `IMPACT_VIEW` en `GEBRUIKER_VOORKEUR` vallen buiten de object/feit-grens: het zijn
+# EIGEN-BEHEER-records (je eigen view/voorkeur weggooien mag elke tenant-rol) — geen
+# landschapsobject dat alleen de beheerder vernietigt, en geen registratie-feit óver het
+# landschap. Ze houden hun bestaande `_EIGEN_BEHEER`/`_EIGEN_VOORKEUR`-matrix.
+
+
+def verwijder_actie(entiteit: Entiteit) -> Actie:
+    """ADR-050 — het verwijder-pad van een registratie-feit (uitspraak) guardt op WIJZIGEN
+    (de medewerker neemt zijn eigen uitspraak terug); dat van een landschapsobject op
+    VERWIJDEREN (alleen de beheerder vernietigt)."""
+    return Actie.WIJZIGEN if entiteit in REGISTRATIE_FEIT_ENTITEITEN else Actie.VERWIJDEREN
 
 
 # ── Keycloak-rolmapping ────────────────────────────────────────────────────────

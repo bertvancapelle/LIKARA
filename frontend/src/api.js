@@ -420,6 +420,15 @@ export const api = {
     werkBij: (id, data) => request(`/procesvervullingen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     verwijder: (id) => request(`/procesvervullingen/${id}`, { method: 'DELETE' }),
   },
+  // ADR-049 gate 2a — koppelregel component→bedrijfsfunctie (kaal). `dekking` levert de
+  // GEDEELDE leesregel per plek (fijn verdringt grof — één afleiding, server-side); de boom
+  // leest die, ze rekent niet zelf. Leeg `ouder_functie_id` bij maak = grof (geldt overal),
+  // gevuld = fijn (déze plek). Verwijderen = beheerder (backend handhaaft).
+  functievervullingen: {
+    dekking: () => request('/functievervullingen/dekking'),
+    maak: (data) => request('/functievervullingen', { method: 'POST', body: JSON.stringify(data) }),
+    verwijder: (id) => request(`/functievervullingen/${id}`, { method: 'DELETE' }),
+  },
   // ADR-043 gate 1a — bedrijfsfunctie-as (de logische ruggengraat). Het gebruikers-pad
   // maakt uitsluitend EIGEN functies; modelinhoud is server-side read-only (422
   // MODELINHOUD_BESCHERMD — de UI toont die affordance dan ook niet).

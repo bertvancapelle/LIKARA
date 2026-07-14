@@ -6,7 +6,7 @@
  * deliverable) en "Helpt realiseren (plateaus)" (deliverable → plateau). De keten is optioneel.
  * Registratie/migratielaag — engine onaangeroerd.
  *
- * Rol-gating: koppelen/wijzigen = medewerker/beheerder; verwijderen + ontkoppelen = beheerder.
+ * Rol-gating: koppelen/wijzigen = medewerker/beheerder; verwijderen object = beheerder; ontkoppelen lid = medewerker (ADR-050).
  * Backend-validatie: 422 ONGELDIGE_REALISATIE (verkeerd type), 409 REALISATIE_BESTAAT (dubbel).
  */
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -24,6 +24,9 @@ const toast = useToast()
 const auth = useAuthStore()
 const magBeheren = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een realisatie-koppeling ontkoppelen is een registratie-feit (membership-uitspraak)
+// → medewerker; de deliverable-OBJECT vernietigen blijft beheerder (magVerwijderen).
+const magOntkoppelen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const deliverable = ref(null)
 const keten = ref({ werkpakketten: [], plateaus: [] })
@@ -220,7 +223,7 @@ onMounted(laad)
         </Column>
         <Column header="">
           <template #body="{ data }">
-            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`del-wp-ontkoppel-${data.relatie_id}`" @click="ontkoppelWp(data)" />
+            <Button v-if="magOntkoppelen" label="Ontkoppelen" severity="danger" :data-testid="`del-wp-ontkoppel-${data.relatie_id}`" @click="ontkoppelWp(data)" />
           </template>
         </Column>
         <template #empty>
@@ -243,7 +246,7 @@ onMounted(laad)
         </Column>
         <Column header="">
           <template #body="{ data }">
-            <Button v-if="magVerwijderen" label="Ontkoppelen" severity="danger" :data-testid="`del-pl-ontkoppel-${data.relatie_id}`" @click="ontkoppelPl(data)" />
+            <Button v-if="magOntkoppelen" label="Ontkoppelen" severity="danger" :data-testid="`del-pl-ontkoppel-${data.relatie_id}`" @click="ontkoppelPl(data)" />
           </template>
         </Column>
         <template #empty>

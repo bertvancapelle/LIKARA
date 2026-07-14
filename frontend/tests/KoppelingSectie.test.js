@@ -110,16 +110,16 @@ describe('KoppelingSectie', () => {
     expect((await mountSectie({ rollen: ['beheerder'] })).find('[data-testid="kp-toevoegen"]').exists()).toBe(true)
   })
 
-  it('LI037 rol-gating: medewerker mag toevoegen/bewerken maar NIET verwijderen (VERWIJDEREN = beheerder)', async () => {
+  it('ADR-050 rol-gating: een koppeling is een uitspraak → medewerker mag verwijderen; viewer niet', async () => {
     api.relaties.lijst.mockImplementation(({ bron_id }) =>
       Promise.resolve(bron_id === APP ? { items: [_rel('k1', APP, ANDER)], volgende_cursor: null } : { items: [], volgende_cursor: null }),
     )
     const m = await mountSectie({ rollen: ['medewerker'] })
     expect(m.find('[data-testid="kp-toevoegen"]').exists()).toBe(true)
     expect(m.find('[data-testid="kp-bewerk-k1"]').exists()).toBe(true)
-    expect(m.find('[data-testid="kp-verwijder-k1"]').exists()).toBe(false)
-    const b = await mountSectie({ rollen: ['beheerder'] })
-    expect(b.find('[data-testid="kp-verwijder-k1"]').exists()).toBe(true)
+    expect(m.find('[data-testid="kp-verwijder-k1"]').exists()).toBe(true) // ADR-050: wie legt, neemt terug
+    const b = await mountSectie({ rollen: ['viewer'] })
+    expect(b.find('[data-testid="kp-verwijder-k1"]').exists()).toBe(false)
   })
 
   it('vult bron met de default-app (ZoekSelect-label) en weigert bron == doel', async () => {

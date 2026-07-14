@@ -26,6 +26,9 @@ vi.mock('@/api', () => ({
       lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn(),
       plaats: vi.fn(), verwijderPlaatsing: vi.fn(),
     },
+    // ADR-049 gate 2a — koppelen (dekking = gedeelde leesregel) + de component-picker.
+    functievervullingen: { dekking: vi.fn(), maak: vi.fn(), verwijder: vi.fn() },
+    componenten: { lijst: vi.fn() },
     // Gate 1b — referentiemodel inlezen (voorbeeld vóór bevestigen).
     referentiemodellen: { overzicht: vi.fn(), voorbeeld: vi.fn(), inlezen: vi.fn() },
   },
@@ -103,6 +106,9 @@ beforeEach(() => {
   api.bedrijfsfuncties.lijst.mockResolvedValue({ items: _boom(), volgende_cursor: null })
   // Het scherm haalt bij mount de model-status op (onvoltooid-signaal, best-effort).
   api.referentiemodellen.overzicht.mockResolvedValue([])
+  // Gate 2a — standaard: geen koppelingen, lege picker (per test overschreven).
+  api.functievervullingen.dekking.mockResolvedValue([])
+  api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -338,10 +344,10 @@ describe('BedrijfsfunctieLijst — modelinhoud vs. eigen (affordance spiegelt de
     expect(definitie.text()).toBe('Kernactiviteiten.') // volledige tekst in de DOM
     expect(definitie.attributes('class')).toContain('lk-rij-definitie')
     expect(definitie.attributes('class')).not.toContain('truncate')
-    // Punt 2 (v2) — gereserveerde actiekolom: álle zes beheerder-acties op een eigen
-    // functie-met-ouder staan bínnen de RijActies-container (nooit een knop buiten beeld).
+    // Punt 2 (v2) — gereserveerde actiekolom: álle zeven beheerder-acties op een eigen
+    // functie-met-ouder (incl. ADR-049 "Koppel systeem") staan bínnen de RijActies-container.
     const eigenRij = w.find('[data-testid="functie-rij-pr>dv>ddw"]')
-    expect(eigenRij.findAll('.lk-rij-acties button').length).toBe(6)
+    expect(eigenRij.findAll('.lk-rij-acties button').length).toBe(7)
     // De vervallen-badge hoort bij de naam (scan-laag).
     await w.find('[data-testid="functie-toggle-bs"]').trigger('click')
     const vervallenRij = w.find('[data-testid="functie-rij-bs>rs"]')
@@ -703,5 +709,179 @@ describe('BedrijfsfunctieLijst — onvoltooide inlees', () => {
     await flushPromises()
     expect(api.referentiemodellen.inlezen).toHaveBeenCalledWith('gemma_bedrijfsfuncties')
     expect(w.find('[data-testid="functie-inlees-onvoltooid"]').exists()).toBe(false) // signaal weg
+  })
+})
+
+describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
+  const _handh = { vervulling_id: 'v-handh', component_id: 'c-handh', component_naam: 'Handhavingssysteem', componenttype: 'applicatie', componenttype_label: 'Applicatie', toelichting: null }
+  const _insp = { vervulling_id: 'v-insp', component_id: 'c-insp', component_naam: 'Inspectie-app', componenttype: 'applicatie', componenttype_label: 'Applicatie', toelichting: null }
+  // Open beide plekken van Toezicht (pr>dv-pad + bs-wortel).
+  async function openBeidePlekken(w) {
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-bs"]').trigger('click')
+  }
+
+  // LI041 — dekking-entries dragen de reikwijdte-telling (N/M) en de verdringing.
+  const _grof = (ouder, n, m) => ({ functie_id: 'tz', ouder_functie_id: ouder, herkomst: 'grof', componenten: [_handh], verdrongen: [], grof_totaal_plekken: n, grof_geldt_op: m })
+  const _fijn = (ouder, verdrongen = [_handh]) => ({ functie_id: 'tz', ouder_functie_id: ouder, herkomst: 'fijn', componenten: [_insp], verdrongen, grof_totaal_plekken: null, grof_geldt_op: null })
+
+  it('de boom LEEST de gedeelde dekking: getelde reikwijdte op BEIDE plekken van Toezicht', async () => {
+    // De server heeft de leesregel al toegepast: per plek een resolved entry (grof), N=2, M=2.
+    api.functievervullingen.dekking.mockResolvedValue([_grof('dv', 2, 2), _grof('bs', 2, 2)])
+    const w = await mountLijst()
+    await openBeidePlekken(w)
+    for (const plek of ['pr>dv>tz', 'bs>tz']) {
+      expect(w.find(`[data-testid="functie-dekking-${plek}"]`).text()).toContain('Handhavingssysteem')
+      expect(w.find(`[data-testid="functie-dekking-herkomst-${plek}"]`).text()).toBe('geldt op alle 2 plekken')
+    }
+  })
+
+  it('fijn verdringt grof; het verdrongen antwoord blijft gedempt leesbaar + het label telt af', async () => {
+    api.functievervullingen.dekking.mockResolvedValue([_fijn('dv', [_handh]), _grof('bs', 2, 1)])
+    const w = await mountLijst()
+    await openBeidePlekken(w)
+    // Onder Dienstverlening wint het fijne antwoord (inspectie-app, "alleen hier")…
+    expect(w.find('[data-testid="functie-dekking-pr>dv>tz"]').text()).toContain('Inspectie-app')
+    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toBe('alleen hier')
+    // …maar het grove antwoord ZWIJGT niet: het staat gedempt, mét reden, en zonder actie.
+    const verdrongen = w.find('[data-testid="functie-verdrongen-pr>dv>tz"]')
+    expect(verdrongen.exists()).toBe(true)
+    expect(verdrongen.text()).toBe('Handhavingssysteem geldt overal, maar is hier vervangen door de verfijning')
+    // Onder Besturend blijft het grove antwoord staan; het label telt: nog 1 van de 2.
+    expect(w.find('[data-testid="functie-dekking-bs>tz"]').text()).toContain('Handhavingssysteem')
+    expect(w.find('[data-testid="functie-dekking-herkomst-bs>tz"]').text()).toBe('geldt nog op 1 van de 2 plekken')
+    // Geen "weghalen" op de verdrongen regel (de actie woont bij de herkomst).
+    expect(verdrongen.find('button').exists()).toBe(false)
+  })
+
+  it('bevestigd ≠ verdrongen: hetzelfde systeem als verfijning → geen "vervangen"-regel, wél in Ondersteund door', async () => {
+    // Zaaksysteem (_handh) is óók grof, maar hier expliciet als verfijning bevestigd → de
+    // server levert een LEGE verdrongen-lijst. De rij mag zichzelf niet tegenspreken.
+    api.functievervullingen.dekking.mockResolvedValue([
+      { functie_id: 'tz', ouder_functie_id: 'dv', herkomst: 'fijn', componenten: [_handh], verdrongen: [], grof_totaal_plekken: null, grof_geldt_op: null },
+      _grof('bs', 2, 1),
+    ])
+    const w = await mountLijst()
+    await openBeidePlekken(w)
+    // Het systeem staat gewoon als antwoord…
+    expect(w.find('[data-testid="functie-dekking-pr>dv>tz"]').text()).toContain('Handhavingssysteem')
+    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toBe('alleen hier')
+    // …en de zelf-tegensprekende "vervangen"-regel is er NIET.
+    expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').exists()).toBe(false)
+  })
+
+  it('overgang: verfijnen → grof verhuist naar de gedempte regel; verfijning weg → grof staat weer gewoon', async () => {
+    // Start: grof op beide plekken (N=2, M=2).
+    api.functievervullingen.dekking.mockResolvedValue([_grof('dv', 2, 2), _grof('bs', 2, 2)])
+    api.functievervullingen.maak.mockResolvedValue({ ..._insp, functie_id: 'tz', ouder_functie_id: 'dv', herkomst: 'fijn' })
+    api.functievervullingen.verwijder.mockResolvedValue(undefined)
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    await openBeidePlekken(w)
+    expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').exists()).toBe(false)
+
+    // Verfijn dv: ná het opslaan levert de leeslaag dv=fijn (verdrongen) + bs=grof M=1.
+    api.functievervullingen.dekking.mockResolvedValue([_fijn('dv', [_handh]), _grof('bs', 2, 1)])
+    await w.find('[data-testid="functie-koppel-pr>dv>tz"]').trigger('click')
+    const zs = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-koppel-component')
+    zs.vm.$emit('keuze', { id: 'c-insp', naam: 'Inspectie-app' })
+    await w.find('[data-testid="functie-koppel-scope-hier"]').setValue()
+    await w.find('[data-testid="functie-koppel-bevestig"]').trigger('click')
+    await flushPromises()
+    // Het grove antwoord is VERHUISD naar de gedempte regel (het is er nog).
+    expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').text()).toContain('Handhavingssysteem geldt overal')
+    expect(w.find('[data-testid="functie-dekking-herkomst-bs>tz"]').text()).toBe('geldt nog op 1 van de 2 plekken')
+
+    // Haal de verfijning weg: de leeslaag valt terug op grof op beide plekken.
+    api.functievervullingen.dekking.mockResolvedValue([_grof('dv', 2, 2), _grof('bs', 2, 2)])
+    await w.find('[data-testid="functie-ontkoppel-pr>dv>tz--c-insp"]').trigger('click')
+    await w.find('[data-testid="functie-ontkoppel-bevestig"]').trigger('click')
+    await flushPromises()
+    // Grof staat WEER gewoon in de rij; geen gedempte regel meer; label telt weer alle 2.
+    expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').exists()).toBe(false)
+    expect(w.find('[data-testid="functie-dekking-pr>dv>tz"]').text()).toContain('Handhavingssysteem')
+    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toBe('geldt op alle 2 plekken')
+  })
+
+  it('koppel-picker toont alleen werk-ondersteunende componenten (server-side filter) + scope-regel', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-koppel-pr>dv>tz"]').trigger('click')
+    expect(w.find('[data-testid="functie-koppel-dialog"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-koppel-scoperegel"]').text()).toBe('Componenten waarmee werk gedaan wordt.')
+    // De picker spiegelt de backend-regel: het server-side ondersteunt_werk-filter.
+    const zs = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-koppel-component')
+    await zs.props('zoekFunctie')({ zoek: 'sys' })
+    expect(api.componenten.lijst).toHaveBeenCalledWith(expect.objectContaining({ ondersteunt_werk: true, zoek: 'sys' }))
+  })
+
+  it('koppelen "geldt overal" → POST met leeg adres; "alleen hier" → POST met de plek-ouder', async () => {
+    api.functievervullingen.maak.mockResolvedValue({ ..._handh, functie_id: 'tz', ouder_functie_id: null, herkomst: 'grof' })
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-koppel-pr>dv>tz"]').trigger('click')
+    const zs = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-koppel-component')
+    zs.vm.$emit('keuze', { id: 'c-handh', naam: 'Handhavingssysteem' })
+    await flushPromises()
+    // Default scope = geldt overal (grof): leeg adres.
+    expect(w.find('[data-testid="functie-koppel-zin"]').text()).toContain('op elke plek')
+    await w.find('[data-testid="functie-koppel-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.functievervullingen.maak).toHaveBeenCalledWith({ component_id: 'c-handh', functie_id: 'tz', ouder_functie_id: null })
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Gekoppeld')
+
+    // Nu "alleen hier": het adres is de plek-ouder (Dienstverlening).
+    api.functievervullingen.maak.mockClear()
+    await w.find('[data-testid="functie-koppel-pr>dv>tz"]').trigger('click')
+    const zs2 = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-koppel-component')
+    zs2.vm.$emit('keuze', { id: 'c-insp', naam: 'Inspectie-app' })
+    await w.find('[data-testid="functie-koppel-scope-hier"]').setValue()
+    await flushPromises()
+    expect(w.find('[data-testid="functie-koppel-zin"]').text()).toContain('alleen op deze plek')
+    await w.find('[data-testid="functie-koppel-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.functievervullingen.maak).toHaveBeenCalledWith({ component_id: 'c-insp', functie_id: 'tz', ouder_functie_id: 'dv' })
+  })
+
+  it('een wortel heeft geen scope-keuze (grof en fijn vallen samen)', async () => {
+    // "Datagedreven werken" als wortel (eigen functie, geen ouder).
+    api.bedrijfsfuncties.lijst.mockResolvedValue({
+      items: [..._boom(), _f('root', 'Losse eigen functie', [], {})], volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-koppel-root"]').trigger('click')
+    expect(w.find('[data-testid="functie-koppel-dialog"]').exists()).toBe(true)
+    expect(w.find('[data-testid="functie-koppel-scope"]').exists()).toBe(false) // geen grof/fijn-keuze
+  })
+
+  it('vervallen functie is niet koppelbaar (knop vooraf geweerd)', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-toggle-bs"]').trigger('click')
+    expect(w.find('[data-testid="functie-koppel-bs>rs"]').exists()).toBe(false) // rs = vervallen
+  })
+
+  it('ontkoppelen = medewerker (ADR-050: wie koppelt, ontkoppelt); viewer niet', async () => {
+    api.functievervullingen.dekking.mockResolvedValue([_fijn('dv', [_handh]), _grof('bs', 2, 1)])
+    api.functievervullingen.verwijder.mockResolvedValue(undefined)
+    // Viewer ziet GEEN weghalen-affordance (alleen lezen).
+    const wv = await mountLijst({ rollen: ['viewer'] })
+    await wv.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await wv.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    expect(wv.find('[data-testid="functie-ontkoppel-pr>dv>tz--c-insp"]').exists()).toBe(false)
+
+    // Medewerker: weghalen → bevestigingsdialoog met de leesbare gevolg-zin (fijn → grof weer leesbaar).
+    const w = await mountLijst({ rollen: ['medewerker'] })
+    await w.find('[data-testid="functie-toggle-pr"]').trigger('click')
+    await w.find('[data-testid="functie-toggle-pr>dv"]').trigger('click')
+    await w.find('[data-testid="functie-ontkoppel-pr>dv>tz--c-insp"]').trigger('click')
+    const zin = w.find('[data-testid="functie-ontkoppel-zin"]').text()
+    expect(zin).toContain('Inspectie-app')
+    expect(zin).toContain('weer leesbaar')
+    await w.find('[data-testid="functie-ontkoppel-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.functievervullingen.verwijder).toHaveBeenCalledWith('v-insp')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Koppeling weggehaald')
   })
 })

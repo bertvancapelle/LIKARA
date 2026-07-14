@@ -97,11 +97,11 @@ describe('PlateauDetailView — render + rol-gating', () => {
     expect(w.find('[data-testid="lid-ontkoppel-rel1"]').exists()).toBe(false)
   })
 
-  it('medewerker mag koppelen maar niet ontkoppelen (alleen beheerder)', async () => {
+  it('ADR-050: medewerker koppelt én ontkoppelt leden (uitspraak), maar vernietigt het plateau-object niet', async () => {
     const { w } = await mountDetail({ rollen: ['medewerker'] })
     expect(w.find('[data-testid="lid-koppelen"]').exists()).toBe(true)
-    expect(w.find('[data-testid="plateau-verwijderen"]').exists()).toBe(false)
-    expect(w.find('[data-testid="lid-ontkoppel-rel1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="plateau-verwijderen"]').exists()).toBe(false) // object → beheerder
+    expect(w.find('[data-testid="lid-ontkoppel-rel1"]').exists()).toBe(true) // lidmaatschap → medewerker
   })
 
   it('een HISTORISCHE dispositie blijft read-only leesbaar (kolom verschijnt)', async () => {

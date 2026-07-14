@@ -32,8 +32,9 @@ const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 // LI037 — destructief = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het
 // endpoint eist Actie.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het
-// bestaande detailscherm-patroon (magVerwijderen).
-const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een koppeling (relatie tussen componenten) is een uitspraak van de gemeente: wie
+// 'm legt, neemt 'm terug → medewerker (geen aparte beheerder-gate meer).
+const magVerwijderen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 // B4 — gecureerde labels (gelijk aan de tabel ernaast), geen uit-veldnaam-afgeleide tekst.
 const VELD_LABEL = { richting: 'Richting', protocol: 'Protocol', impact_bij_verbreking: 'Impact bij verbreking' }

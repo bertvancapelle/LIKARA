@@ -113,7 +113,9 @@ async def voeg_lid_toe(
 async def verwijder_lid(
     gap_id: uuid.UUID,
     lid_relatie_id: uuid.UUID,
-    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GAP, Actie.VERWIJDEREN)),
+    # ADR-050 — een lidmaatschap is een registratie-feit (membership-uitspraak): de medewerker
+    # die het legt, neemt het terug → WIJZIGEN (het gap-object zelf vernietigt de beheerder).
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GAP, Actie.WIJZIGEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
     await svc.verwijder_lid(session, user.tenant_id, gap_id, lid_relatie_id)

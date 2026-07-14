@@ -196,6 +196,7 @@ async def werk_bij(session: AsyncSession, tenant_id, relatie_id, data: RelatieUp
     """Partieel: alleen `naam`/`kenmerken`/`omschrijving` zijn muteerbaar. Endpoints +
     relatietype zijn immutabel (een andere relatie = een nieuwe relatie)."""
     obj = await haal_op(session, tenant_id, relatie_id)
+    await _weiger_modelinhoud(session, tenant_id, obj)
     velden = data.model_dump(exclude_unset=True)
     if "kenmerken" in velden:
         await _valideer_kenmerken(session, obj.relatietype, velden["kenmerken"] or {})
@@ -210,8 +211,24 @@ async def werk_bij(session: AsyncSession, tenant_id, relatie_id, data: RelatieUp
     return obj
 
 
+async def _weiger_modelinhoud(session: AsyncSession, tenant_id, obj: Relatie) -> None:
+    """LI041/ADR-050 — de grond beschermt zichzelf, ook via de achterdeur. Een GEMMA-plaatsing
+    (aggregation waarvan het kind modelinhoud is) is voor NIEMAND corrigeerbaar via het generieke
+    relatie-pad — ook de beheerder niet. Eén slot: de check leeft in `bedrijfsfunctie_service`;
+    het legitieme import-pad loopt langs `verwijder_plaatsing(via_import=True)`, niet hierlangs."""
+    from services import bedrijfsfunctie_service
+
+    if await bedrijfsfunctie_service.is_modelinhoud_plaatsing(session, tenant_id, obj):
+        raise OngeldigeRegistratie(
+            "MODELINHOUD_BESCHERMD",
+            "Deze plaatsing komt uit het referentiemodel; haar plek in de boom wordt door het "
+            "model bepaald en is hier niet te wijzigen.",
+        )
+
+
 async def verwijder(session: AsyncSession, tenant_id, relatie_id) -> None:
     obj = await haal_op(session, tenant_id, relatie_id)
+    await _weiger_modelinhoud(session, tenant_id, obj)
     await session.delete(obj)
     await session.commit()
 

@@ -182,9 +182,9 @@ describe('OrganisatiegebruikSectie — rol-gating (affordance; backend handhaaft
     expect(w.find('[data-testid="gebruik-verwijder-g1"]').exists()).toBe(false)
   })
 
-  it('medewerker: wél toevoegen, géén verwijderen (LI037 — specifiek recht)', async () => {
+  it('ADR-050: een gebruiksfeit is een uitspraak → medewerker mag toevoegen én terugnemen', async () => {
     const w = await mountSectie({ rollen: ['medewerker'] })
     expect(w.find('[data-testid="gebruik-toevoegen"]').exists()).toBe(true)
-    expect(w.find('[data-testid="gebruik-verwijder-g1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="gebruik-verwijder-g1"]').exists()).toBe(true) // ADR-050: wie legt, neemt terug
   })
 })

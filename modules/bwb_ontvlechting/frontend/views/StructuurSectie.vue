@@ -29,8 +29,9 @@ const toast = useToast()
 const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 // LI037 — destructief = het VERWIJDEREN-recht (beheerder-only per de RBAC-matrix; het
 // endpoint eist Actie.VERWIJDEREN). Vooraf weren i.p.v. een 403 pas in de dialoog — het
-// bestaande detailscherm-patroon (magVerwijderen).
-const magVerwijderen = computed(() => auth.hasRole('beheerder'))
+// ADR-050 — een structuurrelatie (component-samenstelling / draait-op) is een uitspraak van
+// de gemeente: wie 'm legt, neemt 'm terug → medewerker (geen aparte beheerder-gate meer).
+const magVerwijderen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 // ADR-023 Fase C: het draait-op-relatietype is vast (assignment) — de UI biedt geen keuze.
 const DRAAIT_OP_TYPE = 'assignment'
