@@ -355,7 +355,11 @@ watch(() => props.id, async () => {
                 <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="levensfase-leeg">nog niet vastgelegd</span>
               </dd>
               <dt class="font-semibold">Bedoeling</dt>
-              <dd data-testid="comp-bedoeling">{{ label(MIGRATIEPAD, component.migratiepad) }}</dd>
+              <dd data-testid="comp-bedoeling">
+                <span v-if="component.migratiepad">{{ label(MIGRATIEPAD, component.migratiepad) }}</span>
+                <!-- LI040 — één leegte-taal: gedempt, identiek aan levensfase, nooit rood. -->
+                <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="bedoeling-leeg">nog niet vastgelegd</span>
+              </dd>
               <dt class="font-semibold">Complexiteit</dt>
               <dd>{{ label(NIVEAU, component.complexiteit) }}</dd>
               <dt class="font-semibold">Prioriteit</dt>

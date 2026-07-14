@@ -55,6 +55,9 @@ async def lijst_componenten(
     levensfase: Levensfase | None = Query(None),
     # LI040 — bedoeling-filter (enum-allowlist; UI-label "Bedoeling").
     migratiepad: Migratiepad | None = Query(None),
+    # LI040 — "nog niet vastgelegd" is vindbaar: filter op AFWEZIGHEID (NULL), per veld.
+    levensfase_ontbreekt: bool = Query(False),
+    migratiepad_ontbreekt: bool = Query(False),
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     leverancier_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
@@ -77,7 +80,9 @@ async def lijst_componenten(
         componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
         hostingmodel=hostingmodel.value if hostingmodel else None,
         levensfase=levensfase.value if levensfase else None,
+        levensfase_ontbreekt=levensfase_ontbreekt,
         migratiepad=migratiepad.value if migratiepad else None,
+        migratiepad_ontbreekt=migratiepad_ontbreekt,
         eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id, zoek=zoek,
         componentrol=componentrol or None,
         biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,

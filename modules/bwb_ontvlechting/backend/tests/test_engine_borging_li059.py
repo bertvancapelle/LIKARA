@@ -139,7 +139,7 @@ def test_transitie_attribuut_edit_muteert_engine_niet():
             s, _TID,
             ComponentCreate(componenttype="applicatie", 
                 naam=naam, hostingmodel="on_premise",
-                migratiepad="onbekend", complexiteit="midden", prioriteit="midden",
+                migratiepad=None, complexiteit="midden", prioriteit="midden",
             ),
         )
         cid = comp["id"]
@@ -191,7 +191,7 @@ def test_geen_wees_element_na_facade_delete():
             s, _TID,
             ComponentCreate(componenttype="applicatie", 
                 naam=naam, hostingmodel="on_premise",
-                migratiepad="onbekend", complexiteit="midden", prioriteit="midden",
+                migratiepad=None, complexiteit="midden", prioriteit="midden",
             ),
         )
         cid = comp["id"]

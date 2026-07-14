@@ -30,9 +30,10 @@ def test_enum_waarden():
     ]
     assert [e.value for e in m.NiveauEnum] == ["laag", "midden", "hoog"]
     # ADR-046 besluit 2 — de bedoeling kent uitsluitend bestemmingen; `uitfaseren`
-    # (fase-taal) is verwijderd (migratie 0066, enum-recreate) en leeft in Levensfase.
+    # (fase-taal, migratie 0066) én `onbekend` (leegte-taal, migratie 0067) zijn
+    # verwijderd: afwezigheid is écht NULL ("nog niet vastgelegd"), geen sentinel.
     assert [e.value for e in m.Migratiepad] == [
-        "lift_and_shift", "herbouw", "vervangen", "gedeeld", "onbekend"
+        "lift_and_shift", "herbouw", "vervangen", "gedeeld"
     ]
     # ADR-046 besluit 1 — vaste set van drie (vormkeuze A: geen beheerbare catalogus).
     assert [e.value for e in m.Levensfase] == ["in_ontwikkeling", "in_productie", "uitfaseren"]

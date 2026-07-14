@@ -162,14 +162,15 @@ export const HOSTINGMODEL = {
 }
 
 // ADR-046 besluit 2 — de BEDOELING ("waar gaat het heen"): uitsluitend bestemmingen.
-// `uitfaseren` is verwijderd (fase-taal — leeft nu in LEVENSFASE). UI-label = "Bedoeling";
-// de API-veldnaam blijft `migratiepad`.
+// `uitfaseren` is verwijderd (fase-taal — leeft nu in LEVENSFASE); `onbekend` eveneens
+// (LI040 — leegte-taal: afwezigheid is écht NULL en toont overal gedempt "nog niet
+// vastgelegd", identiek aan de levensfase). UI-label = "Bedoeling"; API-veldnaam blijft
+// `migratiepad`.
 export const MIGRATIEPAD = {
   lift_and_shift: 'Lift-and-shift',
   herbouw: 'Herbouw',
   vervangen: 'Vervangen',
   gedeeld: 'Gedeeld',
-  onbekend: 'Onbekend',
 }
 
 // ADR-046 besluit 1 — de LEVENSFASE (feit over het component; vaste set van drie).

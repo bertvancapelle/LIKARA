@@ -83,11 +83,11 @@ def test_auditlog_naam_verrijking_en_filters():
                 # Mutatie als gekoppelde actor (→ audit-rows met sub_gek).
                 app_gek = await _muteer(sub_gek, "jan.kc@org.test", lambda s2: component_service.maak_aan(
                     s2, tid, ComponentCreate(componenttype="applicatie", naam=f"AudApp-gek-{merk}", hostingmodel="saas",
-                                              migratiepad="onbekend", complexiteit="midden", prioriteit="midden")))
+                                              migratiepad=None, complexiteit="midden", prioriteit="midden")))
                 # Mutatie als ongekoppelde actor (beheerder zonder persoon → e-mail-fallback).
                 app_ong = await _muteer(sub_ong, "beheerder@audit", lambda s2: component_service.maak_aan(
                     s2, tid, ComponentCreate(componenttype="applicatie", naam=f"AudApp-ong-{merk}", hostingmodel="saas",
-                                              migratiepad="onbekend", complexiteit="midden", prioriteit="midden")))
+                                              migratiepad=None, complexiteit="midden", prioriteit="midden")))
                 ids += [app_gek["id"], app_ong["id"]]
 
                 # (1+2) Verrijking: gekoppeld → persoon.naam; ongekoppeld → e-mail-fallback.

@@ -211,7 +211,7 @@ def test_objecthistorie_component_live_met_naam():
                         aard=PartijAard.persoon, naam=f"Jan OH {merk}", email=f"j.{merk}@org.test", organisatie_id=org.id))
                     s.add(GebruikerPersoon(tenant_id=tid, keycloak_sub=f"oh:jan:{merk}", persoon_id=persoon.id))
                     app_obj = await component_service.maak_aan(s, tid, ComponentCreate(componenttype="applicatie", 
-                        naam=f"OHApp-{merk}", hostingmodel="saas", migratiepad="onbekend",
+                        naam=f"OHApp-{merk}", hostingmodel="saas", migratiepad=None,
                         complexiteit="midden", prioriteit="midden"))
                     await component_service.werk_bij(s, tid, app_obj["id"], ComponentUpdate(beschrijving="gewijzigd"))
                     ids += [org.id, persoon.id, app_obj["id"]]

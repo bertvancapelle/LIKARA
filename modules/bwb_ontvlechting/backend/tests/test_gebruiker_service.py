@@ -261,7 +261,7 @@ def test_maak_gebruiker_live_happy_en_geen_mutatie(monkeypatch):
             afd = await partij_service.maak_aan(s, tid, PartijCreate(
                 aard=PartijAard.organisatie_eenheid, naam="WT-Afd", organisatie_id=org.id))
             app = await component_service.maak_aan(s, tid, ComponentCreate(componenttype="applicatie", 
-                naam="WT-GebrApp", hostingmodel="saas", migratiepad="onbekend",
+                naam="WT-GebrApp", hostingmodel="saas", migratiepad=None,
                 complexiteit="midden", prioriteit="midden"))
             ids += [org.id, afd.id, app["id"]]
             lc_voor = (await s.execute(

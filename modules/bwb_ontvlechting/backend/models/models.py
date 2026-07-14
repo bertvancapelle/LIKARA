@@ -57,14 +57,15 @@ class NiveauEnum(str, Enum):
 
 class Migratiepad(str, Enum):
     """ADR-046 besluit 2 — de BEDOELING van een component ("waar gaat het heen"):
-    uitsluitend bestemmingen. `uitfaseren` is met migratie 0066 verwijderd (enum-recreate,
-    precedent 0053): dat is fase-taal en leeft nu in `Levensfase`."""
+    uitsluitend bestemmingen. `uitfaseren` is met migratie 0066 verwijderd (fase-taal →
+    `Levensfase`); `onbekend` met migratie 0067 (LI040 — leegte-taal: een sentinel die
+    als antwoord oogde; afwezigheid is nu écht NULL = "nog niet vastgelegd", identiek
+    aan de levensfase). Beide via enum-recreate (precedent 0053)."""
 
     lift_and_shift = "lift_and_shift"
     herbouw = "herbouw"
     vervangen = "vervangen"
     gedeeld = "gedeeld"  # LI057 — hernoemd van `tijdelijk_gedeeld` (Slice 1); DB: ALTER TYPE RENAME VALUE
-    onbekend = "onbekend"
 
 
 class Levensfase(str, Enum):
@@ -377,9 +378,10 @@ class Component(Base, TenantMixin, TimestampMixin):
     # het basis-component (élk componenttype), NOT NULL met defaults. De engine leest deze NIET
     # (lifecycle-driver blijft de score). De `applicatie`-subtabel houdt (voorlopig) spiegel-kolommen
     # tot de contract-slice; de service dual-writet zodat ze niet driften.
-    migratiepad: Mapped[Migratiepad] = mapped_column(
-        migratiepad_enum, nullable=False, server_default=text("'onbekend'")
-    )
+    # LI040 — de bedoeling is, net als de levensfase, NULLABLE zonder default (vormkeuze
+    # B): ontbrekend = "nog niet vastgelegd" (leeg ≠ fout, wél vindbaar via het
+    # ontbreekt-filter). De vroegere sentinel `onbekend` oogde als antwoord en is weg.
+    migratiepad: Mapped[Migratiepad | None] = mapped_column(migratiepad_enum, nullable=True)
     # ADR-046 besluit 1 — levensfase: geregistreerd feit ("het draait"), NULLABLE zonder
     # default (vormkeuze B): een default zou LIKARA een uitspraak laten doen die niemand
     # deed. Ontbrekend toont als "nog niet vastgelegd". Puur registratief; engine leest

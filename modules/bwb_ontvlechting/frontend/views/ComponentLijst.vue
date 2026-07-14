@@ -75,7 +75,9 @@ const filterZoek = ref('')
 const rolOpties = ref([]) // [{ optie_sleutel, label }]
 const bivNiveaus = ref([]) // [{ optie_sleutel, label }] — ordinaal (laag → hoog)
 const filterRol = ref([])
-const BIV_ZONDER = '__zonder__'
+// LI040 — gedeeld client-sentinel voor "nog niet vastgelegd" (server-side wordt dit een
+// `*_ontbreekt`-param: filteren op AFWEZIGHEID/NULL, nooit op een sentinel-waarde).
+const ZONDER = '__zonder__'
 const filterBiv = ref('')
 // ADR-045 besluit 5 — filter op de catalogus-eigenschap "ondersteunt werk"
 // ('' = alle · 'ja' · 'nee'); de vraag vóór en na een vlag-flip in het beheer.
@@ -132,9 +134,15 @@ const filterChips = computed(() => {
   if (filterLaag.value) chips.push({ sleutel: 'laag', label: 'Laag', waarde: laagLabel(filterLaag.value) })
   if (filterHosting.value) chips.push({ sleutel: 'hosting', label: 'Hosting', waarde: hosting(filterHosting.value) })
   if (filterLevensfase.value)
-    chips.push({ sleutel: 'levensfase', label: 'Levensfase', waarde: levensfaseLabel(filterLevensfase.value) })
+    chips.push({
+      sleutel: 'levensfase', label: 'Levensfase',
+      waarde: filterLevensfase.value === ZONDER ? 'nog niet vastgelegd' : levensfaseLabel(filterLevensfase.value),
+    })
   if (filterBedoeling.value)
-    chips.push({ sleutel: 'bedoeling', label: 'Bedoeling', waarde: label(MIGRATIEPAD, filterBedoeling.value) })
+    chips.push({
+      sleutel: 'bedoeling', label: 'Bedoeling',
+      waarde: filterBedoeling.value === ZONDER ? 'nog niet vastgelegd' : label(MIGRATIEPAD, filterBedoeling.value),
+    })
   if (filterWerk.value)
     chips.push({ sleutel: 'werk', label: 'Ondersteunt werk', waarde: filterWerk.value === 'ja' ? 'Ja' : 'Nee' })
   if (filterRol.value.length)
@@ -142,7 +150,7 @@ const filterChips = computed(() => {
   if (filterBiv.value)
     chips.push({
       sleutel: 'biv', label: 'BIV',
-      waarde: filterBiv.value === BIV_ZONDER ? 'nog niet vastgelegd' : `≥ ${bivLabel(filterBiv.value)}`,
+      waarde: filterBiv.value === ZONDER ? 'nog niet vastgelegd' : `≥ ${bivLabel(filterBiv.value)}`,
     })
   if (filterEigenaarId.value)
     chips.push({ sleutel: 'eigenaar', label: 'Eigenaar', waarde: filterEigenaarNaam.value || 'gekozen organisatie' })
@@ -195,8 +203,8 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
       filterType: _tekst,
       filterLaag: _tekst,
       filterHosting: (w) => w === '' || HOSTING_OPTIES.includes(w),
-      filterLevensfase: (w) => w === '' || LEVENSFASE_OPTIES.includes(w),
-      filterBedoeling: (w) => w === '' || Object.keys(MIGRATIEPAD).includes(w),
+      filterLevensfase: (w) => w === '' || w === ZONDER || LEVENSFASE_OPTIES.includes(w),
+      filterBedoeling: (w) => w === '' || w === ZONDER || Object.keys(MIGRATIEPAD).includes(w),
       filterEigenaarId: (w) => w === null || _tekst(w),
       filterEigenaarNaam: _tekst,
       filterZoek: _tekst,
@@ -225,7 +233,7 @@ function _pruneTegenCatalogus() {
   }
   // LI040 — één BIV-filter: catalogus-sleutel of de vaste '__zonder__'-optie.
   if (
-    bivNiveaus.value.length && filterBiv.value && filterBiv.value !== BIV_ZONDER &&
+    bivNiveaus.value.length && filterBiv.value && filterBiv.value !== ZONDER &&
     !bivNiveaus.value.some((n) => n.optie_sleutel === filterBiv.value)
   ) {
     filterBiv.value = ''
@@ -241,16 +249,18 @@ async function laad({ reset = false } = {}) {
     if (filterType.value) params.componenttype = filterType.value
     if (filterLaag.value) params.laag = filterLaag.value
     if (filterHosting.value) params.hostingmodel = filterHosting.value
-    // ADR-046 — levensfase (leeg = geen clause).
-    if (filterLevensfase.value) params.levensfase = filterLevensfase.value
-    // LI040 — bedoeling (API-param `migratiepad`).
-    if (filterBedoeling.value) params.migratiepad = filterBedoeling.value
+    // ADR-046/LI040 — levensfase; "nog niet vastgelegd" filtert op afwezigheid (NULL).
+    if (filterLevensfase.value === ZONDER) params.levensfase_ontbreekt = 1
+    else if (filterLevensfase.value) params.levensfase = filterLevensfase.value
+    // LI040 — bedoeling (API-param `migratiepad`); idem voor het gat.
+    if (filterBedoeling.value === ZONDER) params.migratiepad_ontbreekt = 1
+    else if (filterBedoeling.value) params.migratiepad = filterBedoeling.value
     if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
     // ADR-028 — rol (array → herhaalde param). LI040 — één BIV-filter: hoogste as ≥
     // drempel (`biv_min`) of het registratiegat (`biv_ontbreekt`).
     if (filterRol.value.length) params.componentrol = filterRol.value
-    if (filterBiv.value === BIV_ZONDER) params.biv_ontbreekt = 1
+    if (filterBiv.value === ZONDER) params.biv_ontbreekt = 1
     else if (filterBiv.value) params.biv_min = filterBiv.value
     // ADR-045 — server-side op de catalogus-eigenschap (leeg = geen clause).
     if (filterWerk.value) params.ondersteunt_werk = filterWerk.value === 'ja'
@@ -462,6 +472,7 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="f in LEVENSFASE_OPTIES" :key="f" :value="f">{{ levensfaseLabel(f) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
         </select>
       </label>
 
@@ -478,6 +489,7 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="code in Object.keys(MIGRATIEPAD)" :key="code" :value="code">{{ label(MIGRATIEPAD, code) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
         </select>
       </label>
 
@@ -523,7 +535,7 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
-          <option :value="BIV_ZONDER">nog niet vastgelegd</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
         </select>
       </label>
 
@@ -651,10 +663,12 @@ onMounted(async () => {
           <span v-else data-testid="levensfase-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
         </template>
       </Column>
-      <!-- LI040 — bedoeling-kolom (sorteerbaar, zoals levensfase — de twee vragen samen). -->
+      <!-- LI040 — bedoeling-kolom (sorteerbaar); ontbrekend = gedempt "nog niet
+           vastgelegd", identiek aan levensfase (één leegte-taal, nooit "Onbekend"). -->
       <Column header="Bedoeling" sort-field="migratiepad" sortable>
         <template #body="{ data }">
-          <span data-testid="rij-bedoeling">{{ label(MIGRATIEPAD, data.migratiepad) }}</span>
+          <span v-if="data.migratiepad" data-testid="rij-bedoeling">{{ label(MIGRATIEPAD, data.migratiepad) }}</span>
+          <span v-else data-testid="bedoeling-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
         </template>
       </Column>
       <Column header="Status" sort-field="lifecycle_status" sortable>

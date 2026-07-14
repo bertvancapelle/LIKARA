@@ -141,7 +141,7 @@ async def _maak_app(s, tid, naam):
     from services import component_service
 
     app = await component_service.maak_aan(
-        s, tid, ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad="onbekend",
+        s, tid, ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad=None,
                                  complexiteit="midden", prioriteit="midden"))
     return app["id"]
 

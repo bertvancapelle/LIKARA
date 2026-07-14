@@ -225,7 +225,7 @@ def test_landschapskaart_graf_vier_ringen_en_lifecycle_live():
             # Applicatie (krijgt een profiel → lifecycle_status) + een database-component.
             app = await component_service.maak_aan(
                 s, tid, ComponentCreate(componenttype="applicatie",
-                    naam="WT-LK-App", hostingmodel="saas", migratiepad="onbekend",
+                    naam="WT-LK-App", hostingmodel="saas", migratiepad=None,
                     levensfase="uitfaseren",  # ADR-046 — het kaart-signaal komt van het component
                     complexiteit="midden", prioriteit="midden"))
             comp = await component_service.maak_aan(s, tid, ComponentCreate(naam="WT-LK-DB", componenttype="database"))
@@ -336,7 +336,7 @@ def test_landschapskaart_contract_leverancier_edge_live():
         try:
             app = await component_service.maak_aan(
                 s, tid, ComponentCreate(componenttype="applicatie", naam="WT-CL-App", hostingmodel="saas",
-                                        migratiepad="onbekend", complexiteit="midden", prioriteit="midden"))
+                                        migratiepad=None, complexiteit="midden", prioriteit="midden"))
             app_id = app["id"]; ids.append(app_id)
             # Leverancier-partij (externe_partij → géén org-balk-effect).
             le = Element(tenant_id=tid, element_type=ElementType.partij); s.add(le); await s.flush()
@@ -729,7 +729,7 @@ def test_landschapskaart_blokkades_open_telling_live():
         ids = []
         try:
             app = await component_service.maak_aan(
-                s, tid, ComponentCreate(componenttype="applicatie", naam="WT-LK-Blok", hostingmodel="saas", migratiepad="onbekend",
+                s, tid, ComponentCreate(componenttype="applicatie", naam="WT-LK-Blok", hostingmodel="saas", migratiepad=None,
                                          complexiteit="midden", prioriteit="midden"))
             ids.append(app["id"])
             await component_service.start_beoordeling(s, tid, app["id"])
@@ -786,7 +786,7 @@ def test_eigenaar_edge_is_context_geen_impact():
 
 def _ac(naam):
     from schemas.component import ComponentCreate
-    return ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad="onbekend",
+    return ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad=None,
                             complexiteit="midden", prioriteit="midden")
 
 

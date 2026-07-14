@@ -319,7 +319,8 @@ async def _pas_filters_toe(
     session: AsyncSession, stmt, tid: uuid.UUID, *, typing: dict,
     componenttype: str | None = None, laag: str | None = None, status: list[str] | None = None,
     hostingmodel: str | None = None, levensfase: str | None = None,
-    migratiepad: str | None = None,
+    levensfase_ontbreekt: bool = False,
+    migratiepad: str | None = None, migratiepad_ontbreekt: bool = False,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
     zoek: str | None = None, componentrol: list[str] | None = None,
     biv_min: str | None = None, biv_ontbreekt: bool = False,
@@ -345,9 +346,15 @@ async def _pas_filters_toe(
     # ADR-046 — levensfase-gelijkheid ("welke systemen faseren uit?" = één klik).
     if levensfase:
         stmt = stmt.where(Component.levensfase == Levensfase(levensfase))
+    # LI040 — "nog niet vastgelegd" is vindbaar: filtert op AFWEZIGHEID (NULL), geen
+    # sentinel. De consultant vraagt "waar moet ik nog langs?" — dit is die vraag.
+    if levensfase_ontbreekt:
+        stmt = stmt.where(Component.levensfase.is_(None))
     # LI040 — bedoeling-gelijkheid ("welke systemen gaan we vervangen?" = één klik).
     if migratiepad:
         stmt = stmt.where(Component.migratiepad == Migratiepad(migratiepad))
+    if migratiepad_ontbreekt:
+        stmt = stmt.where(Component.migratiepad.is_(None))
     if eigenaar_organisatie_id:
         stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
     if leverancier_id:
@@ -466,7 +473,8 @@ async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
     sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
-    levensfase: str | None = None, migratiepad: str | None = None,
+    levensfase: str | None = None, levensfase_ontbreekt: bool = False,
+    migratiepad: str | None = None, migratiepad_ontbreekt: bool = False,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
     zoek: str | None = None,
     componentrol: list[str] | None = None,
@@ -507,7 +515,8 @@ async def lijst(
     stmt = await _pas_filters_toe(
         session, stmt, tid, typing=typing,
         componenttype=componenttype, laag=laag, status=status, hostingmodel=hostingmodel,
-        levensfase=levensfase, migratiepad=migratiepad,
+        levensfase=levensfase, levensfase_ontbreekt=levensfase_ontbreekt,
+        migratiepad=migratiepad, migratiepad_ontbreekt=migratiepad_ontbreekt,
         eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id,
         zoek=zoek, componentrol=componentrol,
         biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,
@@ -581,9 +590,9 @@ async def maak_applicatie_component(
     beschrijving: str | None,
     hostingmodel: HostingModel,
     eigenaar_organisatie_id: uuid.UUID | None,
-    migratiepad: Migratiepad,
-    complexiteit: NiveauEnum,
-    prioriteit: NiveauEnum,
+    migratiepad: Migratiepad | None = None,
+    complexiteit: NiveauEnum = NiveauEnum.midden,
+    prioriteit: NiveauEnum = NiveauEnum.midden,
     levensfase: Levensfase | None = None,
     componentrol: str = _DEFAULT_ROL,
     biv_beschikbaarheid: str | None = None,

@@ -165,19 +165,22 @@ describe('ComponentFormulier — overlay + layout (ADR-042 4b)', () => {
     expect(w.emitted('update:visible').at(-1)).toEqual([false])
   })
 
-  it('levensfase mag LEEG blijven — opslaan slaagt met levensfase: null (ADR-046 vormkeuze B)', async () => {
+  it('levensfase én bedoeling mogen LEEG blijven — opslaan met null, geen verzonnen waarde (LI040)', async () => {
     api.componenten.maak.mockResolvedValueOnce({ id: 'new-2' })
     const { w } = await mountForm()
-    // De keuzelijst biedt de leeg-optie expliciet aan als "nog niet vastgelegd".
-    const opties = w.find('[data-testid="veld-levensfase"]').findAll('option').map((o) => o.text())
-    expect(opties[0]).toContain('nog niet vastgelegd')
-    expect(opties).toEqual(expect.arrayContaining(['In ontwikkeling', 'In productie', 'Uitfaseren']))
+    // Beide keuzelijsten bieden de leeg-optie expliciet aan als "nog niet vastgelegd".
+    const faseOpties = w.find('[data-testid="veld-levensfase"]').findAll('option').map((o) => o.text())
+    expect(faseOpties[0]).toContain('nog niet vastgelegd')
+    expect(faseOpties).toEqual(expect.arrayContaining(['In ontwikkeling', 'In productie', 'Uitfaseren']))
+    const padOpties = w.find('[data-testid="veld-migratiepad"]').findAll('option').map((o) => o.text())
+    expect(padOpties[0]).toContain('nog niet vastgelegd')
+    expect(padOpties).not.toContain('Onbekend') // LI040 — de sentinel is weg
     await w.find('[data-testid="veld-naam"]').setValue('Zonder fase')
     await w.find('[data-testid="veld-componenttype"]').setValue('fileshare')
     await w.find('[data-testid="component-form"]').trigger('submit')
     await flushPromises()
     expect(api.componenten.maak).toHaveBeenCalledWith(
-      expect.objectContaining({ naam: 'Zonder fase', levensfase: null }),
+      expect.objectContaining({ naam: 'Zonder fase', levensfase: null, migratiepad: null }),
     )
   })
 
@@ -276,7 +279,7 @@ describe('ComponentFormulier — bewerken (voorgevuld, identiek aan aanmaken)', 
   it('bewerken laadt de bestaande waarden (incl. rol + BIV) en PATCHt', async () => {
     api.componenten.haal.mockResolvedValueOnce({
       id: 'c-9', naam: 'Extern koppelpunt', componenttype: 'fileshare', hostingmodel: 'onbekend',
-      migratiepad: 'onbekend', complexiteit: 'midden', prioriteit: 'midden',
+      migratiepad: null, complexiteit: 'midden', prioriteit: 'midden',
       eigenaar_organisatie_id: null, eigenaar_organisatie_naam: '', beschrijving: '',
       componentrol: 'externe_dataprovider', biv_beschikbaarheid: 'laag', biv_integriteit: null, biv_vertrouwelijkheid: 'hoog',
     })
@@ -296,7 +299,7 @@ describe('ComponentFormulier — bewerken (voorgevuld, identiek aan aanmaken)', 
   it('bewerken toont de direct-opslaande processectie (zelfde semantiek als het Overzicht)', async () => {
     api.componenten.haal.mockResolvedValueOnce({
       id: 'c-9', naam: 'X', componenttype: 'database', hostingmodel: 'onbekend',
-      migratiepad: 'onbekend', complexiteit: 'midden', prioriteit: 'midden',
+      migratiepad: null, complexiteit: 'midden', prioriteit: 'midden',
       eigenaar_organisatie_id: null, eigenaar_organisatie_naam: '', beschrijving: '',
       componentrol: 'interne_applicatie', biv_beschikbaarheid: null, biv_integriteit: null, biv_vertrouwelijkheid: null,
     })

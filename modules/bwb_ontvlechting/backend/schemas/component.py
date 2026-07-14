@@ -56,8 +56,9 @@ class ComponentCreate(BaseModel):
     # ADR-024 UX-B6-b — optionele verwijzing naar de eigenaar-organisatie (partij, aard=organisatie).
     eigenaar_organisatie_id: uuid.UUID | None = None
     beschrijving: str | None = None
-    # LI057 (Slice 1) — component-brede transitie-attributen, met defaults (verplicht in de DB).
-    migratiepad: Migratiepad = Migratiepad.onbekend
+    # LI040 — de bedoeling: optioneel ZONDER default (vormkeuze B, identiek aan
+    # levensfase); weggelaten = "nog niet vastgelegd". De sentinel `onbekend` is weg.
+    migratiepad: Migratiepad | None = None
     # ADR-046 besluit 1 — levensfase (vormkeuze B): optioneel ZONDER default; weggelaten =
     # "nog niet vastgelegd" (LIKARA doet die uitspraak nooit zelf).
     levensfase: Levensfase | None = None
@@ -99,7 +100,8 @@ class ComponentUpdate(BaseModel):
     hostingmodel: HostingModel | None = None
     eigenaar_organisatie_id: uuid.UUID | None = None
     beschrijving: str | None = None
-    # LI057 (Slice 1) — component-brede transitie-attributen (PATCH: optioneel, niet expliciet null).
+    # LI040 — de bedoeling mag, net als de levensfase, expliciet op null (terug naar
+    # "nog niet vastgelegd"; exclude_unset onderscheidt weggelaten/null).
     migratiepad: Migratiepad | None = None
     # ADR-046 — levensfase mag wél expliciet op null (terug naar "nog niet vastgelegd":
     # een registratie moet corrigeerbaar zijn; exclude_unset onderscheidt weggelaten/null).
@@ -144,9 +146,9 @@ class ComponentRead(BaseModel):
     eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_organisatie_naam: str | None = None
     beschrijving: str | None
-    # LI057 (Slice 1) — component-brede transitie-attributen (nu op élk component, NOT NULL).
-    migratiepad: Migratiepad
-    # ADR-046 — levensfase: null = "nog niet vastgelegd" (leeg ≠ fout, UI toont gedempt).
+    # LI040 — bedoeling én levensfase: null = "nog niet vastgelegd" (leeg ≠ fout, UI
+    # toont gedempt; één taal voor afwezigheid).
+    migratiepad: Migratiepad | None = None
     levensfase: Levensfase | None = None
     complexiteit: NiveauEnum
     prioriteit: NiveauEnum
@@ -201,9 +203,8 @@ class ComponentLijstItem(BaseModel):
     # ADR-024 UX-B6-b — eigenaar-organisatie als verwijzing + geresolveerde naam (lijst).
     eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_organisatie_naam: str | None = None
-    # LI057 (Slice 1) — nu op élk component (was nullable via applicatie-LEFT-JOIN).
-    migratiepad: Migratiepad
-    # ADR-046 — levensfase (null = "nog niet vastgelegd"); lijstkolom + filter.
+    # LI040 — bedoeling én levensfase: null = "nog niet vastgelegd"; lijstkolom + filter.
+    migratiepad: Migratiepad | None = None
     levensfase: Levensfase | None = None
     complexiteit: NiveauEnum
     prioriteit: NiveauEnum

@@ -326,6 +326,45 @@ describe('ComponentLijst', () => {
     expect(w.find('[data-testid="resultaat-aantal"]').text()).toBe('19 componenten')
   })
 
+  it('LI040: "nog niet vastgelegd" filtert op AFWEZIGHEID (levensfase_ontbreekt/migratiepad_ontbreekt) + chips', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 13, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-levensfase"]').setValue('__zonder__')
+    await flushPromises()
+    let call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.levensfase_ontbreekt).toBe(1)
+    expect(call.levensfase).toBeUndefined() // afwezigheid, geen sentinel-waarde
+    expect(w.find('[data-testid="filter-chip-levensfase"]').text()).toContain('Levensfase: nog niet vastgelegd')
+    await w.find('[data-testid="filter-bedoeling"]').setValue('__zonder__')
+    await flushPromises()
+    call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.migratiepad_ontbreekt).toBe(1)
+    expect(call.migratiepad).toBeUndefined()
+    expect(w.find('[data-testid="filter-chip-bedoeling"]').text()).toContain('Bedoeling: nog niet vastgelegd')
+    // Chip wissen haalt alléén dat ontbreekt-filter weg.
+    await w.find('[data-testid="chip-wis-levensfase"]').trigger('click')
+    await flushPromises()
+    call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.levensfase_ontbreekt).toBeUndefined()
+    expect(call.migratiepad_ontbreekt).toBe(1)
+  })
+
+  it('LI040: de bedoeling-kolom toont het gat gedempt ("nog niet vastgelegd", nooit "Onbekend")', async () => {
+    api.componenten.lijst.mockResolvedValue({
+      items: [
+        { ..._comp('Zaaksysteem', 'c1', { subtype: true }), migratiepad: 'vervangen' },
+        { ..._comp('Archiefbeheer', 'c2'), migratiepad: null },
+      ],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="rij-bedoeling"]').text()).toBe('Vervangen')
+    const leeg = w.find('[data-testid="bedoeling-leeg"]')
+    expect(leeg.exists()).toBe(true)
+    expect(leeg.text()).toBe('nog niet vastgelegd')
+    expect(w.find('[data-testid="componenten-tabel"]').text()).not.toContain('Onbekend')
+  })
+
   it('ADR-028/LI040: wisFilters wist ook rol + BIV + bedoeling', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()

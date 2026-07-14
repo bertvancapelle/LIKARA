@@ -46,7 +46,8 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
     assert out["heeft_applicatie_subtype"] is True
     assert vastgelegd["naam"] == "Nieuwe app"
     assert vastgelegd["eigenaar_organisatie_id"] is None  # optioneel (UX-B6-b)
-    assert vastgelegd["migratiepad"] == Migratiepad.onbekend
+    # LI040 — geen verzonnen bedoeling meer: weggelaten = None ("nog niet vastgelegd").
+    assert vastgelegd["migratiepad"] is None
     assert vastgelegd["complexiteit"] == NiveauEnum.midden
     assert vastgelegd["prioriteit"] == NiveauEnum.midden
     # ADR-028 — de default-rol wordt door de convergente aanmaak doorgegeven aan de kern.

@@ -131,7 +131,7 @@ def test_verantwoordelijke_edit_muteert_engine_niet():
         comp_obj = await comp.maak_aan(
             s, _TID,
             ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="on_premise",
-                            migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
+                            migratiepad=None, complexiteit="midden", prioriteit="midden"),
         )
         cid = comp_obj["id"]
         try:

@@ -162,7 +162,7 @@ async def _maak_app(s, tid, naam="WT-OG-App"):
     comp = await component_service.maak_applicatie_component(
         s, tid, naam=naam, beschrijving=None, hostingmodel=HostingModel.on_premise,
         eigenaar_organisatie_id=None,
-        migratiepad=Migratiepad.onbekend, complexiteit=NiveauEnum.midden, prioriteit=NiveauEnum.midden,
+        migratiepad=None, complexiteit=NiveauEnum.midden, prioriteit=NiveauEnum.midden,
     )
     return comp.id
 

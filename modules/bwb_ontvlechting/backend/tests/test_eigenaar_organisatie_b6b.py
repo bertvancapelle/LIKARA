@@ -90,7 +90,7 @@ def test_eigenaar_organisatie_component_en_applicatie_live():
             # Applicatie: eigenaar-organisatie zetten → read levert de naam (transient attribuut).
             app = await component_service.maak_aan(
                 s, tid, ComponentCreate(componenttype="applicatie", naam="WT-B6b-App", hostingmodel="saas",
-                                         eigenaar_organisatie_id=org_id, migratiepad="onbekend",
+                                         eigenaar_organisatie_id=org_id, migratiepad=None,
                                          complexiteit="midden", prioriteit="midden"),
             )
             ids.append(app["id"])
@@ -112,7 +112,7 @@ def test_eigenaar_organisatie_component_en_applicatie_live():
                     s, tid, ComponentCreate(naam="x", componenttype="database", eigenaar_organisatie_id=ext_id)),
                 lambda: component_service.maak_aan(
                     s, tid, ComponentCreate(componenttype="applicatie", naam="x", hostingmodel="saas", eigenaar_organisatie_id=ext_id,
-                                             migratiepad="onbekend", complexiteit="midden", prioriteit="midden")),
+                                             migratiepad=None, complexiteit="midden", prioriteit="midden")),
             ):
                 try:
                     await maak()

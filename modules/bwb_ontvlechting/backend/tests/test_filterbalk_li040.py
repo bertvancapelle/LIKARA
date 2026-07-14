@@ -117,7 +117,7 @@ def test_tel_gefilterd_en_ongefilterd_live():
     async def _flow(s):
         ids = []
         try:
-            plan = [("WT-TEL-a", "vervangen"), ("WT-TEL-b", "vervangen"), ("WT-TEL-c", "onbekend")]
+            plan = [("WT-TEL-a", "vervangen"), ("WT-TEL-b", "vervangen"), ("WT-TEL-c", None)]
             for naam, pad in plan:
                 c = await svc.maak_aan(s, _TID, ComponentCreate(
                     naam=naam, componenttype="database", migratiepad=pad))

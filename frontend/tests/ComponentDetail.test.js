@@ -420,6 +420,13 @@ describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', 
     expect(leeg.text()).toBe('nog niet vastgelegd')
     // Gedempt (muted token) — géén rood: leeg ≠ fout.
     expect(leeg.classes().join(' ')).toContain('text-muted')
+    // LI040 — één leegte-taal: de bedoeling zonder waarde toont IDENTIEK gedempt
+    // "nog niet vastgelegd" (nooit meer 'Onbekend').
+    const padLeeg = wat.find('[data-testid="bedoeling-leeg"]')
+    expect(padLeeg.exists()).toBe(true)
+    expect(padLeeg.text()).toBe('nog niet vastgelegd')
+    expect(padLeeg.classes().join(' ')).toContain('text-muted')
+    expect(wat.text()).not.toContain('Onbekend')
   })
 
   it('ADR-046: een gezette levensfase toont het label (zichtbare tekst, niet alleen "rendert")', async () => {

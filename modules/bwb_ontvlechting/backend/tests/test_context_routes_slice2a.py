@@ -122,7 +122,7 @@ async def _ruim(s, ids):
 
 def _app_create(naam):
     from schemas.component import ComponentCreate
-    return ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad="onbekend",
+    return ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas", migratiepad=None,
                             complexiteit="midden", prioriteit="midden")
 
 

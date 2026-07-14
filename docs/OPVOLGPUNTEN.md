@@ -9,6 +9,25 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
 
+0a. **Eén taal voor afwezigheid — sentinel-inventarisatie (LI040 §1.3).** `migratiepad.
+   onbekend` is opgeruimd (migratie 0067); de rest is read-only geïnventariseerd en
+   vergt per geval een BESLUIT van Bert (soms is "n.v.t." een echt antwoord — dat
+   onderscheid niet zelf verzinnen):
+   - `HostingModel.onbekend` — enum-sentinel, kolom NOT NULL, formulier-default: oogt
+     als antwoord. Leegte of echt antwoord? (De checklist-optieset 2.1 is hiervan
+     afgeleid en volgt vanzelf mee.)
+   - `complexiteit`/`prioriteit` — NOT NULL met default `midden`: geen leegte-wóórd,
+     maar wel een verzonnen midden-oordeel dat elk component ongevraagd krijgt.
+   - `ChecklistScore.nvt` — vermoedelijk een écht oordeel ("niet van toepassing");
+     bevestigen, niet aanraken zonder besluit (engine-waarde!).
+   - `AntwoordType.geen` — structuurkeuze (vraag zonder getypeerd antwoord), geen
+     leegte-sentinel; alleen benoemd voor volledigheid.
+   - UI-leegteteksten lopen uiteen: "nog niet vastgelegd" (levensfase/bedoeling),
+     "Niet geclassificeerd" (BIV-detail), "nog niet geregistreerd" (eigenaar/
+     sleutelrollen), "n.v.t." (plateau-bevestiging), "—" (lijstkolommen) — één
+     taal kiezen is een eigen (kleine) UX-slice.
+   Status: **open — besluit per geval bij Bert**.
+
 0. **Resultaatregel uitrollen naar de overige lijsten.** LI040 bouwde de gedeelde
    bouwsteen `FilterResultaatRegel.vue` (aantal + actieve filters uitgeschreven + los
    wisbaar) en zette de componentenlijst om. Read-only vastgesteld: contract-, partij-,

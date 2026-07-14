@@ -152,7 +152,7 @@ def test_score_write_driver_plus_afgeleide_delen_correlatie():
                 app = await component_service.maak_aan(
                     s, DEV_TENANT,
                     ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas",
-                                     migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
+                                     migratiepad=None, complexiteit="midden", prioriteit="midden"),
                 )
                 app_id = app["id"]
                 await component_service.start_beoordeling(s, DEV_TENANT, app_id)
@@ -221,7 +221,7 @@ def test_handmatige_blokkade_wissel_is_update_zonder_score_driver():
             app = await component_service.maak_aan(
                 s, DEV_TENANT,
                 ComponentCreate(componenttype="applicatie", naam=naam, hostingmodel="saas",
-                                 migratiepad="onbekend", complexiteit="midden", prioriteit="midden"),
+                                 migratiepad=None, complexiteit="midden", prioriteit="midden"),
             )
             app_id = app["id"]
             await component_service.start_beoordeling(s, DEV_TENANT, app_id)

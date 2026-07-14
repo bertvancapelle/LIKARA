@@ -127,7 +127,7 @@ def test_proces_projectie_subboom_eerste_klas_live():
         try:
             app = await component_service.maak_aan(
                 s, tid, ComponentCreate(componenttype="applicatie",
-                    naam="WT-PL-App", hostingmodel="saas", migratiepad="onbekend",
+                    naam="WT-PL-App", hostingmodel="saas", migratiepad=None,
                     complexiteit="midden", prioriteit="midden"))
             los = await component_service.maak_aan(s, tid, ComponentCreate(naam="WT-PL-Los", componenttype="database"))
             app_id, los_id = app["id"], los["id"]

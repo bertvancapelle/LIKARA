@@ -377,3 +377,16 @@ afleidingsgrens).
   `lifecycle_status` zou met het echte levensfase-veld botsen).
 - **Opvolgpunt 3 (stale docstring `models.py`)** bleek bij de bouw al eerder
   gecorrigeerd — geen actie nodig; opvolgpunten 4/5/6 blijven open.
+
+### Addendum A-vervolg — LI040 "leeg is vindbaar" (migratie 0067)
+
+De bouw trok vormkeuze B dóór naar de bedoeling zelf: de sentinel **`onbekend` is uit
+`migratiepad` verwijderd** (enum-recreate, 0053/0066-precedent) en de kolom is — identiek
+aan de levensfase — **nullable zonder default**. Reden: een sentinel die "niets
+vastgelegd" betekent maar als antwoord oogt, is een verkapte tweede leegte-taal;
+gemeten datakost nul (19/19 rijen stonden op `onbekend` → NULL). Afwezigheid is nu in
+beide velden écht NULL, toont overal gedempt **"nog niet vastgelegd"**, en is **vindbaar**:
+de lijst filtert op afwezigheid (`levensfase_ontbreekt`/`migratiepad_ontbreekt`, naar het
+`biv_ontbreekt`-patroon) — de werkvoorraad-vraag "waar moet ik nog langs?" is één klik.
+De bredere sentinel-inventarisatie (HostingModel.onbekend, de midden-defaults, de
+uiteenlopende UI-leegteteksten) staat als benoemd opvolgpunt in `docs/OPVOLGPUNTEN.md`.
