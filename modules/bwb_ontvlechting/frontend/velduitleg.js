@@ -272,6 +272,15 @@ export const VELD_UITLEG = {
       'Aan = componenten van dit type worden op registratie-volledigheid beoordeeld (ze krijgen een ' +
       'profiel en beoordelingsvragen). Uit = dit type wordt niet gescoord.',
   },
+  ondersteunt_werk: {
+    uitleg:
+      'Aan = met componenten van dit type wordt werk gedaan; ze zijn koppelbaar aan een ' +
+      'bedrijfsfunctie (een zaaksysteem, maar ook een fileshare waar dossiers op leven). ' +
+      'Uit = het type ondersteunt een systeem, geen mens (database, server) en verschijnt ' +
+      'niet in de koppel-keuze.',
+    vuistregel:
+      'Uitzetten verwijdert niets: bestaande koppelingen blijven staan en blijven zichtbaar.',
+  },
   systeem_sleutel: {
     uitleg:
       'Een beschermde systeemsleutel: essentieel voor LIKARA, kan niet worden verwijderd of gedeactiveerd.',

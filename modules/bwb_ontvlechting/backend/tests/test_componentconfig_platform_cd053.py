@@ -48,7 +48,9 @@ def _optie(id=1, dimensie=None, optie_sleutel="database", label="Database", volg
 # ── Schemas ─────────────────────────────────────────────────────────────────────
 
 # ADR-026 — geldige componenttype-typering voor de tests.
-_TYP = {"archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active"}
+_TYP = {"archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active",
+        # ADR-045 besluit 4 — een componenttype wordt in één handeling volledig ingericht.
+        "checklist_dragend": False, "ondersteunt_werk": False}
 
 
 def test_create_patroon_en_immutability():
@@ -207,7 +209,9 @@ def test_beheerder_mag_toevoegen(monkeypatch):
     r = _client(monkeypatch, _PB).post(
         "/api/v1/platform/componentconfig",
         json={"dimensie": "componenttype", "optie_sleutel": "etl_tool", "label": "ETL-tool",
-              "archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active"},
+              "archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active",
+              # ADR-045 besluit 4 — beide vlaggen horen bij een volledige inrichting.
+              "checklist_dragend": False, "ondersteunt_werk": False},
     )
     assert r.status_code == 201, r.text
     assert r.json()["optie_sleutel"] == "etl_tool"

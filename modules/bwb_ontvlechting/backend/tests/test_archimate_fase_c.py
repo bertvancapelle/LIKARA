@@ -68,7 +68,7 @@ def test_actieve_opties_dragen_laag_voor_het_frontend_filter():
     rows = [
         SimpleNamespace(
             dimensie=ComponentConfigDimensie.componenttype, optie_sleutel="database",
-            label="Database", volgorde=1, checklist_dragend=False,
+            label="Database", volgorde=1, checklist_dragend=False, ondersteunt_werk=False,
             archimate_element="system_software", laag="technology",
         ),
     ]

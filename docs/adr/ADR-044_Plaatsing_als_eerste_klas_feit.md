@@ -193,3 +193,36 @@ lifecycle-driver; dit alles is registratie + leeslaag).
    plek is verwarrend en onwaar; grof = onvoltooid, niet universeel (besluit 2, kernregel).
 5. **Gap-signaal op de functie** — verworpen: niet beantwoordbaar bij meerdere plekken;
    verstopt het ene gat achter het andere (besluit 4).
+
+---
+
+## Addendum LI040 — de plaatsing is een houdbaar anker (gemeten, niet aangenomen)
+
+*Toegevoegd 2026-07-13 (Bert, LI040), naar aanleiding van registratie-feiten-knoop 2
+(`docs/Feitenrapport-registratie-feiten-V040.md`) en de meting
+`docs/Meting-plaatsingsstabiliteit-V040.md`.*
+
+Tussen de GEMMA-releases van okt-2025 en juli-2026 is **geen enkele plaatsing
+verhangen** (301/301 paren identiek, inclusief alle 13 meervoud-paren; de enige
+wijziging is één nieuwe plaatsing voor de éne nieuwe functie). Registraties die aan een
+plaatsing (`relatie.id`) hangen zijn over dit interval dus volkomen veilig geweest.
+
+**Besluit: er komt géén overleef-machinerie** (hermatching van registraties over
+plaatsings-identiteiten heen, herstelroutes): dat zou overdimensionering zijn voor een
+gebeurtenis die nul keer voorkwam. Het is n=1 interval en VNG geeft geen formele
+garantie — dus wél deze twee vangrails:
+
+1. **Het inleesvoorbeeld moet een verhuizing benoemen.** Het scherm kent nu drie
+   woorden (nieuw / bijgewerkt / vervallen); een verhangen plaatsing is geen van drieën
+   en zou **onzichtbaar** verdwijnen — mét de registratie eraan. Vierde categorie:
+   *"X verhuist van A naar B — hier hangen N componenten en M bevindingen aan."*
+   **Ontwerpeis voor gate 2 / het import-pad.**
+2. **De import verwijdert nooit stilzwijgend een plaatsing mét registratie** — dezelfde
+   lijn als *vervallen ≠ verwijderen*: markeren en melden, nooit CASCADE-en over
+   veldwerk. (Vandaag verwijdert `voer_uit` een verhangen plaatsing hard; dat is
+   houdbaar zolang er niets aan hangt — zodra gate 2 registraties aan plaatsingen
+   hangt, gaat deze vangrail gelden.)
+
+De herhaalmeting is dankzij de releasegeschiedenis in
+`modules/bwb_ontvlechting/backend/referentiemodellen/HERKOMST.md` voortaan goedkoop;
+ze hoort bij elke curatie van een nieuwe release.

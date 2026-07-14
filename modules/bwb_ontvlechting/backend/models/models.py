@@ -1584,6 +1584,13 @@ class ComponentConfigOptie(Base):
     checklist_dragend: Mapped[bool] = mapped_column(
         sa.Boolean, nullable=False, server_default=text("false")
     )
+    # ADR-045 — markeert een `componenttype` als werkondersteunend (koppelbaar aan een
+    # bedrijfsfunctie-plaatsing, gate 2). Enige bron; anders dan `checklist_dragend` is
+    # de dimensie-binding hier SCHEMA-afgedwongen (CHECK, migratie 0065): buiten
+    # dim=`componenttype` blijft de kolom structureel `false`. Registratief — geen engine.
+    ondersteunt_werk: Mapped[bool] = mapped_column(
+        sa.Boolean, nullable=False, server_default=text("false")
+    )
 
 
 # --------------------------------------------------------------------------

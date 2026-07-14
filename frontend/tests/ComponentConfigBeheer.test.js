@@ -18,8 +18,8 @@ import { useAuthStore } from '@/store/auth'
 import ComponentConfigBeheer from '@/views/ComponentConfigBeheer.vue'
 
 const _opties = () => [
-  { id: 1, dimensie: 'componenttype', optie_sleutel: 'applicatie', label: 'Applicatie', volgorde: 0, actief: true, archimate_element: 'application_component', archimate_laag: 'application', archimate_aspect: 'active', checklist_dragend: true },
-  { id: 2, dimensie: 'componenttype', optie_sleutel: 'database', label: 'Database', volgorde: 1, actief: true, archimate_element: 'system_software', archimate_laag: 'technology', archimate_aspect: 'active', checklist_dragend: false },
+  { id: 1, dimensie: 'componenttype', optie_sleutel: 'applicatie', label: 'Applicatie', volgorde: 0, actief: true, archimate_element: 'application_component', archimate_laag: 'application', archimate_aspect: 'active', checklist_dragend: true, ondersteunt_werk: true },
+  { id: 2, dimensie: 'componenttype', optie_sleutel: 'database', label: 'Database', volgorde: 1, actief: true, archimate_element: 'system_software', archimate_laag: 'technology', archimate_aspect: 'active', checklist_dragend: false, ondersteunt_werk: false },
   { id: 3, dimensie: 'componenttype', optie_sleutel: 'oud', label: 'Oud', volgorde: 2, actief: false, archimate_element: 'node', archimate_laag: 'technology', archimate_aspect: 'active', checklist_dragend: false },
   { id: 4, dimensie: 'structuurrelatie_type', optie_sleutel: 'draait_op', label: 'Draait op', volgorde: 0, actief: true },
   // ADR-027 Deel 4 — archimate_relatie-rijen met (code-eigen) kenmerk_definitie voor de read-only viewer.
@@ -204,9 +204,12 @@ describe('ComponentConfigBeheer — ADR-027 checklist_dragend-toggle + kenmerk-v
     await w.find('[data-testid="cat-add-laag"]').setValue('technology')
     await w.find('[data-testid="cat-add-aspect"]').setValue('active')
     await w.find('[data-testid="cat-add-checklist_dragend"]').setValue(true)
+    await w.find('[data-testid="cat-add-ondersteunt_werk"]').setValue(true)
     await w.find('[data-testid="cat-add-form"]').trigger('submit')
     await flushPromises()
-    expect(api.platformComponentconfig.maak).toHaveBeenCalledWith(expect.objectContaining({ optie_sleutel: 'middleware', checklist_dragend: true }))
+    // ADR-045 besluit 4 — de volledige inrichting in één handeling: BEIDE vlaggen in de
+    // Create-payload (het pad dat vóór deze slice op 422 extra_forbidden stukliep).
+    expect(api.platformComponentconfig.maak).toHaveBeenCalledWith(expect.objectContaining({ optie_sleutel: 'middleware', checklist_dragend: true, ondersteunt_werk: true }))
   })
 
   it('bewerken stuurt checklist_dragend mee (toggle uit)', async () => {
@@ -217,6 +220,22 @@ describe('ComponentConfigBeheer — ADR-027 checklist_dragend-toggle + kenmerk-v
     await w.find('[data-testid="cat-edit-form"]').trigger('submit')
     await flushPromises()
     expect(api.platformComponentconfig.werkBij).toHaveBeenCalledWith(1, expect.objectContaining({ checklist_dragend: false }))
+  })
+
+  it('ADR-045: toont de Ondersteunt-werk-status per componenttype (Ja/Nee)', async () => {
+    const w = await mountBeheer()
+    expect(w.find('[data-testid="cat-werk-1"]').text()).toContain('Ja') // applicatie
+    expect(w.find('[data-testid="cat-werk-2"]').text()).toContain('Nee') // database
+  })
+
+  it('ADR-045: bewerken stuurt ondersteunt_werk mee (toggle uit)', async () => {
+    api.platformComponentconfig.werkBij.mockResolvedValue({ ..._opties()[0], ondersteunt_werk: false })
+    const w = await mountBeheer()
+    await w.find('[data-testid="cat-bewerk-1"]').trigger('click')
+    await w.find('[data-testid="cat-edit-ondersteunt_werk"]').setValue(false)
+    await w.find('[data-testid="cat-edit-form"]').trigger('submit')
+    await flushPromises()
+    expect(api.platformComponentconfig.werkBij).toHaveBeenCalledWith(1, expect.objectContaining({ ondersteunt_werk: false }))
   })
 
   it('kenmerk-viewer toont read-only de kenmerken per relatietype; géén bewerk-affordance', async () => {

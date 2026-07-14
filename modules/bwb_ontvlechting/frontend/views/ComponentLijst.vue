@@ -62,6 +62,9 @@ const filterRol = ref([])
 const filterBivB = ref('')
 const filterBivI = ref('')
 const filterBivV = ref('')
+// ADR-045 besluit 5 — filter op de catalogus-eigenschap "ondersteunt werk"
+// ('' = alle · 'ja' · 'nee'); de vraag vóór en na een vlag-flip in het beheer.
+const filterWerk = ref('')
 const BIV_ASPECTEN = [
   { veld: 'biv_beschikbaarheid_min', ref: filterBivB, label: 'Beschikbaarheid' },
   { veld: 'biv_integriteit_min', ref: filterBivI, label: 'Integriteit' },
@@ -107,7 +110,8 @@ const heeftFilters = computed(
     filterRol.value.length > 0 ||
     !!filterBivB.value ||
     !!filterBivI.value ||
-    !!filterBivV.value,
+    !!filterBivV.value ||
+    !!filterWerk.value,
 )
 
 // Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
@@ -119,7 +123,7 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
   'component-lijst',
   {
     filterStatus, filterType, filterLaag, filterHosting, filterEigenaarId, filterEigenaarNaam,
-    filterZoek, filterRol, filterBivB, filterBivI, filterBivV,
+    filterZoek, filterRol, filterBivB, filterBivI, filterBivV, filterWerk,
     filterKlaarverklaring, filterAfwijking, sortVeld, sortRichting,
   },
   {
@@ -135,6 +139,7 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
       filterBivB: _tekst,
       filterBivI: _tekst,
       filterBivV: _tekst,
+      filterWerk: (w) => w === '' || w === 'ja' || w === 'nee',
       filterKlaarverklaring: (w) => w === '' || w === 'klaar',
       filterAfwijking: (w) => typeof w === 'boolean',
       sortVeld: (w) => w === null || SORTEERBARE_VELDEN.includes(w),
@@ -178,6 +183,8 @@ async function laad({ reset = false } = {}) {
     if (filterBivB.value) params.biv_beschikbaarheid_min = filterBivB.value
     if (filterBivI.value) params.biv_integriteit_min = filterBivI.value
     if (filterBivV.value) params.biv_vertrouwelijkheid_min = filterBivV.value
+    // ADR-045 — server-side op de catalogus-eigenschap (leeg = geen clause).
+    if (filterWerk.value) params.ondersteunt_werk = filterWerk.value === 'ja'
     if (filterAfwijking.value) params.afwijking = 1
     else if (filterKlaarverklaring.value) params.klaarverklaring = filterKlaarverklaring.value
     if (sortVeld.value) {
@@ -223,6 +230,7 @@ function wisFilters() {
   filterBivB.value = ''
   filterBivI.value = ''
   filterBivV.value = ''
+  filterWerk.value = ''
   herfilter()
 }
 
@@ -366,6 +374,21 @@ onMounted(async () => {
         >
           <option value="">Alle</option>
           <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Ondersteunt werk</span>
+        <select
+          v-model="filterWerk"
+          data-testid="filter-ondersteunt-werk"
+          aria-label="Filter op ondersteunt werk"
+          class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-1 focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option value="ja">Ja</option>
+          <option value="nee">Nee</option>
         </select>
       </label>
 

@@ -85,6 +85,11 @@ async def voeg_toe(session: AsyncSession, data: ComponentConfigOptieCreate) -> C
         archimate_element=data.archimate_element,
         laag=data.archimate_laag,
         aspect=data.archimate_aspect,
+        # ADR-045 besluit 4 — in één handeling volledig inrichten: het schema borgt dat
+        # beide vlaggen voor een componenttype gezet zijn en voor andere dimensies None
+        # (→ False, conform de DB-CHECK van 0065).
+        checklist_dragend=bool(data.checklist_dragend),
+        ondersteunt_werk=bool(data.ondersteunt_werk),
     )
     session.add(obj)
     await session.commit()
@@ -127,6 +132,15 @@ async def wijzig(
     # `checklist_dragend`-attribuut (SimpleNamespace) niet breken; echte rijen dragen de vlag altijd.
     _oud_dragend = getattr(obj, "checklist_dragend", False)
     velden = data.model_dump(exclude_unset=True)
+    # ADR-045 — de vlaggen gelden uitsluitend voor de dimensie componenttype; op elke
+    # andere rij worden ze geweigerd (nette 422 vóór de DB-CHECK-backstop van 0065).
+    if obj.dimensie != _SYSTEEM_DIMENSIE and (
+        "checklist_dragend" in velden or "ondersteunt_werk" in velden
+    ):
+        raise OngeldigeRegistratie(
+            "VLAG_ALLEEN_COMPONENTTYPE",
+            "checklist_dragend en ondersteunt_werk gelden alleen voor de dimensie componenttype.",
+        )
     if (
         velden.get("actief") is False
         and obj.dimensie == _SYSTEEM_DIMENSIE

@@ -57,6 +57,13 @@ class ComponentConfigOptieCreate(BaseModel):
     archimate_element: str | None = None
     archimate_laag: str | None = None
     archimate_aspect: str | None = None
+    # ADR-045 besluit 4 — een componenttype wordt in ÉÉN handeling volledig ingericht:
+    # beide vlaggen zijn verplicht voor dimensie componenttype (model-validator) en
+    # geweerd voor andere dimensies. Dit repareert het 422-gat: het beheerscherm stuurde
+    # `checklist_dragend` al mee bij aanmaken, terwijl dit schema (extra='forbid') het
+    # veld niet kende — "componenttype toevoegen" faalde daardoor altijd.
+    checklist_dragend: bool | None = None
+    ondersteunt_werk: bool | None = None
 
     @field_validator("optie_sleutel")
     @classmethod
@@ -95,6 +102,23 @@ class ComponentConfigOptieCreate(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _vlaggen_horen_bij_componenttype(self) -> "ComponentConfigOptieCreate":
+        # ADR-045 besluit 4 — in één handeling volledig inrichten: beide vlaggen
+        # verplicht (niet None) voor een componenttype; andere dimensies dragen ze niet
+        # (meesturen ⇒ 422, spiegel van de typering-regel; de DB-CHECK van 0065 is de
+        # structurele backstop voor `ondersteunt_werk`).
+        if self.dimensie == ComponentConfigDimensie.componenttype:
+            if self.checklist_dragend is None or self.ondersteunt_werk is None:
+                raise ValueError(
+                    "Een componenttype vereist checklist_dragend en ondersteunt_werk."
+                )
+        elif self.checklist_dragend is not None or self.ondersteunt_werk is not None:
+            raise ValueError(
+                "checklist_dragend en ondersteunt_werk gelden alleen voor de dimensie componenttype."
+            )
+        return self
+
 
 class ComponentConfigOptieUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -104,6 +128,10 @@ class ComponentConfigOptieUpdate(BaseModel):
     actief: bool | None = None
     # ADR-027 — markeert (alleen zinvol op dimensie componenttype) of het type een checklist draagt.
     checklist_dragend: bool | None = None
+    # ADR-045 — markeert of het type werk ondersteunt (koppelbaar aan de functie-as).
+    # De service weigert beide vlaggen op een niet-componenttype-rij (422); de DB-CHECK
+    # (0065) is de structurele backstop voor `ondersteunt_werk`.
+    ondersteunt_werk: bool | None = None
     # ADR-026 — typering corrigeren naar geldige waarden. Leegmaken (None) voor een
     # componenttype wordt in de service geweigerd (Besluit 5) + door de DB-CHECK afgevangen.
     archimate_element: str | None = None
@@ -142,6 +170,8 @@ class ComponentConfigOptieRead(BaseModel):
     actief: bool
     # ADR-022/027 — of het type een checklist draagt (alleen zinvol op dimensie componenttype).
     checklist_dragend: bool = False
+    # ADR-045 — of het type werk ondersteunt (alleen zinvol op dimensie componenttype).
+    ondersteunt_werk: bool = False
     # ADR-026 — typering meegeven. De model-kolommen heten `laag`/`aspect`; de API-velden
     # dragen het `archimate_`-voorvoegsel (validation_alias mapt de ORM-attributen).
     archimate_element: str | None = None

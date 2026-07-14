@@ -19,6 +19,7 @@ from models.models import (
     Checklistscore,
     Component,
     ComponentConfigDimensie,
+    ComponentConfigOptie,
     ComponentKlaarverklaring,
     ComponentProfiel,
     Contract,
@@ -315,6 +316,7 @@ async def lijst(
     biv_beschikbaarheid_min: str | None = None, biv_integriteit_min: str | None = None,
     biv_vertrouwelijkheid_min: str | None = None,
     klaarverklaring: str | None = None, afwijking: bool = False,
+    ondersteunt_werk: bool | None = None,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
 
@@ -381,6 +383,19 @@ async def lijst(
     # ADR-028 — rol-filter (multi-select → IN; onbekende sleutel matcht simpelweg niets).
     if componentrol:
         stmt = stmt.where(Component.componentrol.in_(componentrol))
+    # ADR-045 besluit 5 — filter op de CATALOGUS-eigenschap zelf, nooit op een lijstje
+    # typen: een IN-subquery op `componentconfig_optie.ondersteunt_werk` beweegt vanzelf
+    # mee als de platformbeheerder een type omzet of toevoegt. Alleen achter de guard
+    # (default-pad byte-identiek — ADR-028-guard-les).
+    if ondersteunt_werk is not None:
+        stmt = stmt.where(
+            Component.componenttype.in_(
+                select(ComponentConfigOptie.optie_sleutel).where(
+                    ComponentConfigOptie.dimensie == ComponentConfigDimensie.componenttype,
+                    ComponentConfigOptie.ondersteunt_werk.is_(ondersteunt_werk),
+                )
+            )
+        )
     # ADR-028 — BIV-drempel per aspect: vertaal de gekozen sleutel naar de ORDINALE `volgorde` en
     # houd componenten met `aspect-volgorde >= drempel`. Een component zonder waarde op dat aspect
     # (NULL) valt weg (correlated subquery → NULL ≥ x is NULL/false). Ongeldige drempel ⇒ 422.

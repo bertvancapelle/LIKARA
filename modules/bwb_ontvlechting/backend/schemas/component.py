@@ -218,6 +218,9 @@ class ComponentKeuze(BaseModel):
     # ADR-022 Fase E: per componenttype of het checklist-dragend is (krijgt profiel +
     # checklist). Voor andere dimensies (structuurrelatie_type) altijd false.
     checklist_dragend: bool = False
+    # ADR-045: per componenttype of het werk ondersteunt (koppelbaar aan de functie-as,
+    # gate 2). Voor andere dimensies altijd false.
+    ondersteunt_werk: bool = False
     # ADR-023 Fase C: ArchiMate-typing per componenttype (read-only) — voedt het
     # laag-filter van de componentlijst. Null voor andere dimensies.
     archimate_element: str | None = None

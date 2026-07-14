@@ -257,6 +257,36 @@ describe('ComponentLijst', () => {
     expect(laatste.componentrol).toBeUndefined()
   })
 
+  it('ADR-045: ondersteunt-werk-filter belandt als boolean in de api-call en reset de cursor', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ondersteunt_werk: false, after: undefined }),
+    )
+    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('ja')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ ondersteunt_werk: true }),
+    )
+    // Terug naar "Alle": de param verdwijnt volledig uit de call (default-pad).
+    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('')
+    await flushPromises()
+    expect(api.componenten.lijst.mock.calls.at(-1)[0].ondersteunt_werk).toBeUndefined()
+  })
+
+  it('ADR-045: wisFilters wist ook het ondersteunt-werk-filter', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ ondersteunt_werk: false }))
+    await w.find('[data-testid="filters-wissen"]').trigger('click')
+    await flushPromises()
+    expect(api.componenten.lijst.mock.calls.at(-1)[0].ondersteunt_werk).toBeUndefined()
+  })
+
   it('een ?type=applicatie-query preselecteert het typefilter (Applicaties-redirect)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     await mountLijst({ pad: '/componenten?type=applicatie' })

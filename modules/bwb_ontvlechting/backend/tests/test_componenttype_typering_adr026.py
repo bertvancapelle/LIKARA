@@ -13,7 +13,9 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy import text
 
-_TYP = {"archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active"}
+_TYP = {"archimate_element": "system_software", "archimate_laag": "technology", "archimate_aspect": "active",
+        # ADR-045 besluit 4 — een componenttype wordt in één handeling volledig ingericht.
+        "checklist_dragend": False, "ondersteunt_werk": False}
 
 
 def _result(val):

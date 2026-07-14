@@ -76,6 +76,13 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('biv_vertrouwelijkheid_min=hoog')
   })
 
+  it('ADR-045: componenten.lijst zet ondersteunt_werk (boolean) in de URL', async () => {
+    await api.componenten.lijst({ ondersteunt_werk: false })
+    expect(laatsteUrl).toContain('ondersteunt_werk=false')
+    await api.componenten.lijst({ ondersteunt_werk: true })
+    expect(laatsteUrl).toContain('ondersteunt_werk=true')
+  })
+
   it('LI033: organisatiegebruik.lijstVoorOrganisatie zet organisatie_id in de URL', async () => {
     await api.organisatiegebruik.lijstVoorOrganisatie({ organisatie_id: 'org-1' })
     expect(laatsteUrl).toContain('/organisatiegebruik')

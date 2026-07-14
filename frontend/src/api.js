@@ -274,7 +274,7 @@ export const api = {
     // (read-only catalogus-typing) bovenop het type-filter.
     lijst: (params = {}) =>
       request(
-        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'eigenaar_organisatie_id', 'leverancier_id', 'zoek', 'componentrol', 'biv_beschikbaarheid_min', 'biv_integriteit_min', 'biv_vertrouwelijkheid_min', 'klaarverklaring', 'afwijking'])}`,
+        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'eigenaar_organisatie_id', 'leverancier_id', 'zoek', 'componentrol', 'biv_beschikbaarheid_min', 'biv_integriteit_min', 'biv_vertrouwelijkheid_min', 'klaarverklaring', 'afwijking', 'ondersteunt_werk'])}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),

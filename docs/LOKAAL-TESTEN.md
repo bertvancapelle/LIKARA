@@ -106,6 +106,32 @@ Allen wachtwoord **`changeme_dev`**, tenant `11111111-1111-1111-1111-11111111111
 De rol zit vast aan de gekozen gebruiker (Keycloak-realm-rol). Rol-gating in de UI
 is een *affordance*; de backend handhaaft de rechten hoe dan ook.
 
+### Platform-testgebruikers (ADR-012 — tenant-overstijgend)
+
+Zelfde wachtwoord **`changeme_dev`**; deze accounts dragen **géén** tenant
+(platformbeheer is tenant-overstijgend — een platform-account kan de tenant-views
+niet gebruiken en andersom, strikte scheiding).
+
+| Gebruiker | Rol | Ziet in de UI |
+|---|---|---|
+| `platformbeheerder-test` | platformbeheerder | catalogi lezen **én** muteren (+ Toevoegen, Bewerken, Deactiveren/Reactiveren) |
+| `platformoperator-test` | platformoperator | alles alleen-lezen (geen enkele mutatieknop) |
+
+## Platformbeheer openen
+
+1. **Zelfde inlogscherm** als de tenant-app: `http://localhost:3000` → Inloggen →
+   Keycloak → `platformbeheerder-test` / `changeme_dev`.
+2. Na login stuurt de router-guard een platform-sessie **automatisch** naar de
+   beheersectie (`/beheer` — de lichte `BeheerLayout`-shell; een tenant-route is
+   voor dit account niet bereikbaar).
+3. Navigatie (linksboven): o.a. **Contractcatalogus · Componentcatalogus ·
+   Relatie-kenmerk-catalogus · Vraagbetekenis-catalogus**.
+4. **Componentcatalogus** (`/beheer/componentconfig`) toont per dimensie een
+   sectie; de sectie **"Componenttypen"** bovenaan heeft de knop **"+ Toevoegen"**
+   (alleen zichtbaar als platformbeheerder) en per rij Bewerken/Deactiveren. De
+   toevoeg-/bewerk-dialoog bevat naam, ArchiMate-typering en de vlaggen
+   Checklist-dragend + Ondersteunt werk.
+
 ---
 
 ## Troubleshooting

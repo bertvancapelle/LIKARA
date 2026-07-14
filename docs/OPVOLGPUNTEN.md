@@ -7,6 +7,38 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI040 (2026-07-13) — ADR-045 "ondersteunt werk"
+
+1. **"Geweerd tonen mét reden" — evaluatiepunt in echt gebruik.** ADR-045 besluit 3
+   verwierp de uitleg-bouwsteen ("waarom ontbreekt deze optie") voor de MVP: in een
+   onvolledig landschap is "niet gevonden" meestal *niet geregistreerd*, niet *geweerd* —
+   een verklaring zou dan raden. De koppel-picker krijgt een altijd-ware scope-regel
+   ("Componenten waarmee werk gedaan wordt"); dáárop kan "geweerd tonen mét reden" later
+   groeien, zonder herbouw. Status: **geparkeerd, evalueren in echt gebruik**.
+2. **Registratie-feiten: teruggeknipt (besloten LI040).** Het brede spoor
+   (verantwoordelijkheid, benoemde verwijzingen, twee ankers, verplichte reden) blijft
+   **blok D — ná de MVP**. Gate 2 neemt wél mee (hoort bij de registratie zelf):
+   **wie/wanneer server-gestempeld op het feit** (zichtbaar op de plek; audit = vangnet,
+   nooit de leeslaag) + **optionele vrije toelichting** bij "hier gebruiken we geen
+   systeem". Verplichte reden verworpen voor de MVP (leert ruis typen). Zie ADR-045
+   opvolgpunt 2. Status: **besloten — gate-2-scope**.
+2b. **Gate-2-/import-ontwerpeisen uit de plaatsingsstabiliteitsmeting (ADR-044
+   addendum LI040, meting: 0 verhangen over 9 maanden, 301/301 identiek).** Geen
+   overleef-machinerie; wél twee vangrails: (1) het inleesvoorbeeld benoemt een
+   **verhuizing** als vierde categorie ("X verhuist van A naar B — hier hangen N
+   componenten en M bevindingen aan"); (2) de import verwijdert **nooit stilzwijgend
+   een plaatsing mét registratie** (markeren + melden, nooit CASCADE over veldwerk).
+   Herhaalmeting bij elke nieuwe release-curatie (releasegeschiedenis in HERKOMST.md).
+   Status: **besloten — ontwerpeis gate 2/import**.
+3. **Gelijktijdig vastleggen door twee consultants op dezelfde plaatsing.** Geen
+   taakvraag maar een registratievraag: weigeren of eerlijk melden, nooit stil de laatste
+   laten winnen. Status: **ontwerppunt gate 2**.
+4. **Dode functie `_seed_tweede_type` in de dev-seed (stale docstring).**
+   `backend/dev_seed_testdata.py:682` wordt niet aangeroepen vanuit `main()` en de
+   docstring ("database blijft false") is achterhaald door LI058/migratie 0046
+   (checkpoint-bevinding LI040). Opruimen bij de ADR-045-bouw of expliciet parkeren.
+   Status: **open**.
+
 ### Nieuw uit LI039 gate 1b (2026-07-13) — referentiemodel inlezen
 
 1. **GEMMA "Toelichting"-property (169/297 functies) blijft in de MVP liggen.** Het
@@ -21,12 +53,12 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    lijst + foutpad kan dezelfde overlap-bug opnieuw maken — de fout van de LI039-
    browsercheck, wachtend op herhaling. Zodra een tweede scherm dit nodig heeft: één
    gedeelde bouwsteen (composable) i.p.v. een tweede inline enum. Status: **open (n=1)**.
-3. **Picker-uitleg "waarom ontbreekt een optie" (fase-A patroon 11, besloten Bert) — te
-   bouwen, eerst nodig bij gate 2.** Pickers weren ongeldige doelen al vooraf (gebouwd),
-   maar leggen niet uit wáárom iets ontbreekt. Zonder uitleg is een ontbrekende optie in
-   de ogen van de gebruiker een bug: in gate 2 zoekt de consultant zijn database in de
-   koppel-picker, vindt hem niet, en denkt dat er iets stuk is — terwijl het een regel is
-   (een database ondersteunt geen werk). Status: **besloten, te bouwen bij gate 2**.
+3. **Picker-uitleg "waarom ontbreekt een optie" (fase-A patroon 11) — HERZIEN door
+   ADR-045 (LI040).** Het voornemen "picker legt uit waarom een optie ontbreekt" is bij de
+   LI040-weging verworpen (een verklaring van afwezigheid kan in een onvolledig landschap
+   niet betrouwbaar zijn) en vervangen door een altijd-ware **scope-regel** onder de
+   picker (ADR-045 besluit 3). "Geweerd tonen mét reden" staat geparkeerd als
+   evaluatiepunt (zie LI040-punt 1 hierboven). Status: **herzien — zie ADR-045**.
 4. **Afkappen definitie-leeslaag op zinsgrens i.p.v. regelgrens — te wegen.** De
    tweelaags rij kapt de definitie op twee regels (`line-clamp`, woordgrens); een
    zinsgrens-garantie bestaat niet. In de praktijk zelden relevant (mediaan

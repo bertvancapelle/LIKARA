@@ -62,6 +62,8 @@ async def lijst_componenten(
     # ADR-027 slice 3 — dashboard-doorklik: klaarverklaring=klaar / afwijking=1 (allowlist).
     klaarverklaring: str | None = Query(None, pattern="^klaar$"),
     afwijking: bool = Query(False),
+    # ADR-045 besluit 5 — filter op de catalogus-eigenschap (true/false; weglaten = alles).
+    ondersteunt_werk: bool | None = Query(None),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
@@ -75,6 +77,7 @@ async def lijst_componenten(
             biv_beschikbaarheid_min=biv_beschikbaarheid_min, biv_integriteit_min=biv_integriteit_min,
             biv_vertrouwelijkheid_min=biv_vertrouwelijkheid_min,
             klaarverklaring=klaarverklaring, afwijking=afwijking,
+            ondersteunt_werk=ondersteunt_werk,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De sorteer-/paginatieparameters zijn ongeldig.")

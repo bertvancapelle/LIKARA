@@ -117,6 +117,7 @@ async def actieve_opties_per_dimensie(session: AsyncSession) -> dict[str, list[d
                 ComponentConfigOptie.label,
                 ComponentConfigOptie.volgorde,
                 ComponentConfigOptie.checklist_dragend,
+                ComponentConfigOptie.ondersteunt_werk,
                 ComponentConfigOptie.archimate_element,
                 ComponentConfigOptie.laag,
             )
@@ -132,12 +133,15 @@ async def actieve_opties_per_dimensie(session: AsyncSession) -> dict[str, list[d
     for r in rijen:
         dim = r.dimensie.value if hasattr(r.dimensie, "value") else str(r.dimensie)
         # ADR-022 Fase E: `checklist_dragend` meeleveren (alleen zinvol voor componenttype).
+        # ADR-045: `ondersteunt_werk` idem — het tenant-read-pad voor de catalogus-vlag
+        # (voedt het lijstfilter nu en de koppel-picker in gate 2).
         # ADR-023 Fase C: ArchiMate-laag/-element meeleveren (read-only typing-projectie; voor
         # het laag-filter + laag-label in de componentlijst). Null voor andere dimensies.
         uit[dim].append(
             {
                 "optie_sleutel": r.optie_sleutel, "label": r.label,
                 "checklist_dragend": r.checklist_dragend,
+                "ondersteunt_werk": r.ondersteunt_werk,
                 "archimate_element": r.archimate_element, "laag": r.laag,
             }
         )

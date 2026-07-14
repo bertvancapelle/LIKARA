@@ -94,15 +94,17 @@ def test_componentconfig_opties_groepering():
     session = AsyncMock()
     res = MagicMock()
     res.all.return_value = [
-        SimpleNamespace(dimensie=D.componenttype, optie_sleutel="database", label="Database", volgorde=1, checklist_dragend=False, archimate_element="system_software", laag="technology"),
-        SimpleNamespace(dimensie=D.structuurrelatie_type, optie_sleutel="draait_op", label="Draait op", volgorde=0, checklist_dragend=False, archimate_element=None, laag=None),
+        SimpleNamespace(dimensie=D.componenttype, optie_sleutel="database", label="Database", volgorde=1, checklist_dragend=False, ondersteunt_werk=False, archimate_element="system_software", laag="technology"),
+        SimpleNamespace(dimensie=D.structuurrelatie_type, optie_sleutel="draait_op", label="Draait op", volgorde=0, checklist_dragend=False, ondersteunt_werk=False, archimate_element=None, laag=None),
     ]
     session.execute.return_value = res
     out = asyncio.run(catalog.actieve_opties_per_dimensie(session))
     assert set(out) == {d.value for d in D}
     # ADR-022 Fase E: opties dragen `checklist_dragend` mee; ADR-023 Fase C: laag/element.
+    # ADR-045 — het read-pad draagt óók `ondersteunt_werk` (tenant-vlag voor filter/picker).
     assert out["componenttype"][0] == {
         "optie_sleutel": "database", "label": "Database", "checklist_dragend": False,
+        "ondersteunt_werk": False,
         "archimate_element": "system_software", "laag": "technology",
     }
     assert out["structuurrelatie_type"][0]["label"] == "Draait op"

@@ -95,6 +95,7 @@ const addForm = reactive({
   optie_sleutel: '', label: '', volgorde: '',
   archimate_element: '', archimate_laag: '', archimate_aspect: '',
   checklist_dragend: false,
+  ondersteunt_werk: false,
 })
 
 // ADR-027 Deel 4 — read-only inzage: kenmerk-definitie per relatietype (code-eigendom).
@@ -122,6 +123,7 @@ function openToevoegen(dim) {
     optie_sleutel: '', label: '', volgorde: '',
     archimate_element: '', archimate_laag: '', archimate_aspect: '',
     checklist_dragend: false,
+    ondersteunt_werk: false,
   })
   Object.keys(addFouten).forEach((k) => delete addFouten[k])
   addFormFout.value = null
@@ -155,6 +157,7 @@ async function bevestigToevoegen() {
       data.archimate_laag = addForm.archimate_laag
       data.archimate_aspect = addForm.archimate_aspect
       data.checklist_dragend = addForm.checklist_dragend
+      data.ondersteunt_werk = addForm.ondersteunt_werk
     }
     const optie = await api.platformComponentconfig.maak(data)
     opties.value.push(optie)
@@ -176,7 +179,7 @@ async function bevestigToevoegen() {
 // ── Bewerken (label + volgorde; sleutel/dimensie immutabel — ook voor systeem) ─
 const editOpen = ref(false)
 const editOptie = ref(null)
-const editForm = reactive({ label: '', volgorde: '', archimate_element: '', archimate_laag: '', archimate_aspect: '', checklist_dragend: false })
+const editForm = reactive({ label: '', volgorde: '', archimate_element: '', archimate_laag: '', archimate_aspect: '', checklist_dragend: false, ondersteunt_werk: false })
 const editFouten = reactive({})
 const editIsComponenttype = computed(() => isComponenttype(editOptie.value?.dimensie))
 
@@ -188,6 +191,7 @@ function openBewerken(optie) {
     archimate_laag: optie.archimate_laag ?? '',
     archimate_aspect: optie.archimate_aspect ?? '',
     checklist_dragend: optie.checklist_dragend === true,
+    ondersteunt_werk: optie.ondersteunt_werk === true,
   })
   Object.keys(editFouten).forEach((k) => delete editFouten[k])
   editOpen.value = true
@@ -215,6 +219,7 @@ async function bevestigBewerken() {
       data.archimate_laag = editForm.archimate_laag
       data.archimate_aspect = editForm.archimate_aspect
       data.checklist_dragend = editForm.checklist_dragend
+      data.ondersteunt_werk = editForm.ondersteunt_werk
     }
     const updated = await api.platformComponentconfig.werkBij(editOptie.value.id, data)
     _vervang(updated)
@@ -300,6 +305,7 @@ laadTyperingOpties()
                 <th>Laag</th>
                 <th>Aspect</th>
                 <th>Checklist</th>
+                <th>Ondersteunt werk</th>
               </template>
               <th>Status</th>
               <th></th>
@@ -325,6 +331,13 @@ laadTyperingOpties()
                     :data-testid="`cat-dragend-${optie.id}`"
                     :value="optie.checklist_dragend ? 'Ja' : 'Nee'"
                     :severity="optie.checklist_dragend ? 'success' : 'secondary'"
+                  />
+                </td>
+                <td>
+                  <Tag
+                    :data-testid="`cat-werk-${optie.id}`"
+                    :value="optie.ondersteunt_werk ? 'Ja' : 'Nee'"
+                    :severity="optie.ondersteunt_werk ? 'success' : 'secondary'"
                   />
                 </td>
               </template>
@@ -364,7 +377,7 @@ laadTyperingOpties()
               </td>
             </tr>
             <tr v-if="!perDimensie(dim.key).length">
-              <td :colspan="isComponenttype(dim.key) ? 9 : 5" :data-testid="`cat-leeg-${dim.key}`" class="py-[var(--lk-space-sm)] text-[var(--lk-color-text-muted)]">
+              <td :colspan="isComponenttype(dim.key) ? 10 : 5" :data-testid="`cat-leeg-${dim.key}`" class="py-[var(--lk-space-sm)] text-[var(--lk-color-text-muted)]">
                 Nog geen opties in deze dimensie.
               </td>
             </tr>
@@ -463,6 +476,11 @@ laadTyperingOpties()
             <span class="font-semibold">Checklist-dragend</span>
           </label>
           <VeldUitleg veld="checklist_dragend" />
+          <label class="flex items-center gap-[var(--lk-space-sm)]">
+            <input type="checkbox" v-model="addForm.ondersteunt_werk" data-testid="cat-add-ondersteunt_werk" />
+            <span class="font-semibold">Ondersteunt werk</span>
+          </label>
+          <VeldUitleg veld="ondersteunt_werk" />
         </template>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="submit" label="Toevoegen" data-testid="cat-add-opslaan" :disabled="bezig" />
@@ -529,6 +547,11 @@ laadTyperingOpties()
             <input type="checkbox" v-model="editForm.checklist_dragend" data-testid="cat-edit-checklist_dragend" />
             <span class="font-semibold">Checklist-dragend</span>
             <span class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">— uitzetten sluit de invoer (bestaande antwoorden blijven leesbaar)</span>
+          </label>
+          <label class="flex items-center gap-[var(--lk-space-sm)]">
+            <input type="checkbox" v-model="editForm.ondersteunt_werk" data-testid="cat-edit-ondersteunt_werk" />
+            <span class="font-semibold">Ondersteunt werk</span>
+            <span class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">— uitzetten haalt het type uit de koppel-keuze; bestaande registraties blijven staan</span>
           </label>
         </template>
         <div class="flex gap-[var(--lk-space-md)]">
