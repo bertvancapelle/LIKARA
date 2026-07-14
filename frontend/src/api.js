@@ -426,7 +426,12 @@ export const api = {
   // gevuld = fijn (déze plek). Verwijderen = beheerder (backend handhaaft).
   functievervullingen: {
     dekking: () => request('/functievervullingen/dekking'),
+    // ADR-051 gate 3 — de VIER standen per plek + gedeelde tellers (één afleiding, twee vensters).
+    standen: () => request('/functievervullingen/standen'),
     maak: (data) => request('/functievervullingen', { method: 'POST', body: JSON.stringify(data) }),
+    // ADR-051 — "hier draait geen systeem — vastgesteld" (bevinding) + het oordeel op een koppeling.
+    geenSysteem: (data) => request('/functievervullingen/geen-systeem', { method: 'POST', body: JSON.stringify(data) }),
+    zetOordeel: (id, oordeel) => request(`/functievervullingen/${id}/oordeel`, { method: 'PATCH', body: JSON.stringify({ oordeel }) }),
     verwijder: (id) => request(`/functievervullingen/${id}`, { method: 'DELETE' }),
   },
   // ADR-043 gate 1a — bedrijfsfunctie-as (de logische ruggengraat). Het gebruikers-pad

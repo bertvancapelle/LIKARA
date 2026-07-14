@@ -13,6 +13,7 @@ import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api'
 import { humaniseer } from '@modules/bwb_ontvlechting/frontend/labels'
 import PlaatsingSignalenView from '@/views/PlaatsingSignalenView.vue'
+import WerkvoorraadPlekView from '@modules/bwb_ontvlechting/frontend/views/WerkvoorraadPlekView.vue'
 
 // Config per ernst: signaaltype-sleutel → label + link-soort (+ toon lifecycle-badge).
 const GROEPEN = {
@@ -96,6 +97,13 @@ onMounted(laadGaten)
         :class="['h-10 rounded-t-[var(--lk-radius-btn)] px-[var(--lk-space-md)] text-[length:var(--lk-text-sm)]', tab === 'plaatsing' ? 'bg-[var(--lk-color-primary)] font-semibold text-white' : 'hover:bg-[var(--lk-color-accent)]']"
         @click="tab = 'plaatsing'"
       >Plaatsing</button>
+      <!-- ADR-051 gate 3 — de plek-werkvoorraad (nieuwe naam: "plaatsingsignaal" was bezet). -->
+      <button
+        type="button" role="tab" data-testid="sig-tab-werkvoorraad"
+        :aria-selected="tab === 'werkvoorraad'"
+        :class="['h-10 rounded-t-[var(--lk-radius-btn)] px-[var(--lk-space-md)] text-[length:var(--lk-text-sm)]', tab === 'werkvoorraad' ? 'bg-[var(--lk-color-primary)] font-semibold text-white' : 'hover:bg-[var(--lk-color-accent)]']"
+        @click="tab = 'werkvoorraad'"
+      >Werkvoorraad</button>
     </div>
 
     <!-- Tab 1 — Registratiegaten (gegroepeerd per ernst) -->
@@ -135,6 +143,11 @@ onMounted(laadGaten)
     <!-- Tab 2 — Plaatsing (bestaande view, ongewijzigd ingebed) -->
     <div v-show="tab === 'plaatsing'" role="tabpanel" data-testid="sig-panel-plaatsing">
       <PlaatsingSignalenView />
+    </div>
+
+    <!-- Tab 3 — Werkvoorraad per plek (ADR-051 gate 3, venster 2) -->
+    <div v-show="tab === 'werkvoorraad'" role="tabpanel" data-testid="sig-panel-werkvoorraad">
+      <WerkvoorraadPlekView v-if="tab === 'werkvoorraad'" />
     </div>
   </section>
 </template>

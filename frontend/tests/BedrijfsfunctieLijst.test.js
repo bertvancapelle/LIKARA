@@ -27,7 +27,11 @@ vi.mock('@/api', () => ({
       plaats: vi.fn(), verwijderPlaatsing: vi.fn(),
     },
     // ADR-049 gate 2a — koppelen (dekking = gedeelde leesregel) + de component-picker.
-    functievervullingen: { dekking: vi.fn(), maak: vi.fn(), verwijder: vi.fn() },
+    // ADR-051 gate 3 — standen (vier standen per plek), geen-systeem-bevinding, oordeel.
+    functievervullingen: {
+      dekking: vi.fn(), maak: vi.fn(), verwijder: vi.fn(),
+      standen: vi.fn(), geenSysteem: vi.fn(), zetOordeel: vi.fn(),
+    },
     componenten: { lijst: vi.fn() },
     // Gate 1b — referentiemodel inlezen (voorbeeld vóór bevestigen).
     referentiemodellen: { overzicht: vi.fn(), voorbeeld: vi.fn(), inlezen: vi.fn() },
@@ -108,6 +112,7 @@ beforeEach(() => {
   api.referentiemodellen.overzicht.mockResolvedValue([])
   // Gate 2a — standaard: geen koppelingen, lege picker (per test overschreven).
   api.functievervullingen.dekking.mockResolvedValue([])
+  api.functievervullingen.standen.mockResolvedValue({ plekken: [], tellers: {} })
   api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
 })
 afterEach(() => vi.restoreAllMocks())
@@ -733,7 +738,7 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     await openBeidePlekken(w)
     for (const plek of ['pr>dv>tz', 'bs>tz']) {
       expect(w.find(`[data-testid="functie-dekking-${plek}"]`).text()).toContain('Handhavingssysteem')
-      expect(w.find(`[data-testid="functie-dekking-herkomst-${plek}"]`).text()).toBe('geldt op alle 2 plekken')
+      expect(w.find(`[data-testid="functie-dekking-herkomst-${plek}"]`).text()).toContain('geldt op alle 2 plekken')
     }
   })
 
@@ -743,14 +748,14 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     await openBeidePlekken(w)
     // Onder Dienstverlening wint het fijne antwoord (inspectie-app, "alleen hier")…
     expect(w.find('[data-testid="functie-dekking-pr>dv>tz"]').text()).toContain('Inspectie-app')
-    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toBe('alleen hier')
+    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toContain('alleen hier')
     // …maar het grove antwoord ZWIJGT niet: het staat gedempt, mét reden, en zonder actie.
     const verdrongen = w.find('[data-testid="functie-verdrongen-pr>dv>tz"]')
     expect(verdrongen.exists()).toBe(true)
     expect(verdrongen.text()).toBe('Handhavingssysteem geldt overal, maar is hier vervangen door de verfijning')
     // Onder Besturend blijft het grove antwoord staan; het label telt: nog 1 van de 2.
     expect(w.find('[data-testid="functie-dekking-bs>tz"]').text()).toContain('Handhavingssysteem')
-    expect(w.find('[data-testid="functie-dekking-herkomst-bs>tz"]').text()).toBe('geldt nog op 1 van de 2 plekken')
+    expect(w.find('[data-testid="functie-dekking-herkomst-bs>tz"]').text()).toContain('geldt nog op 1 van de 2 plekken')
     // Geen "weghalen" op de verdrongen regel (de actie woont bij de herkomst).
     expect(verdrongen.find('button').exists()).toBe(false)
   })
@@ -766,7 +771,7 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     await openBeidePlekken(w)
     // Het systeem staat gewoon als antwoord…
     expect(w.find('[data-testid="functie-dekking-pr>dv>tz"]').text()).toContain('Handhavingssysteem')
-    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toBe('alleen hier')
+    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toContain('alleen hier')
     // …en de zelf-tegensprekende "vervangen"-regel is er NIET.
     expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').exists()).toBe(false)
   })
@@ -790,7 +795,7 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     await flushPromises()
     // Het grove antwoord is VERHUISD naar de gedempte regel (het is er nog).
     expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').text()).toContain('Handhavingssysteem geldt overal')
-    expect(w.find('[data-testid="functie-dekking-herkomst-bs>tz"]').text()).toBe('geldt nog op 1 van de 2 plekken')
+    expect(w.find('[data-testid="functie-dekking-herkomst-bs>tz"]').text()).toContain('geldt nog op 1 van de 2 plekken')
 
     // Haal de verfijning weg: de leeslaag valt terug op grof op beide plekken.
     api.functievervullingen.dekking.mockResolvedValue([_grof('dv', 2, 2), _grof('bs', 2, 2)])
@@ -800,7 +805,7 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     // Grof staat WEER gewoon in de rij; geen gedempte regel meer; label telt weer alle 2.
     expect(w.find('[data-testid="functie-verdrongen-pr>dv>tz"]').exists()).toBe(false)
     expect(w.find('[data-testid="functie-dekking-pr>dv>tz"]').text()).toContain('Handhavingssysteem')
-    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toBe('geldt op alle 2 plekken')
+    expect(w.find('[data-testid="functie-dekking-herkomst-pr>dv>tz"]').text()).toContain('geldt op alle 2 plekken')
   })
 
   it('koppel-picker toont alleen werk-ondersteunende componenten (server-side filter) + scope-regel', async () => {
@@ -829,7 +834,7 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     expect(w.find('[data-testid="functie-koppel-zin"]').text()).toContain('op elke plek')
     await w.find('[data-testid="functie-koppel-bevestig"]').trigger('click')
     await flushPromises()
-    expect(api.functievervullingen.maak).toHaveBeenCalledWith({ component_id: 'c-handh', functie_id: 'tz', ouder_functie_id: null })
+    expect(api.functievervullingen.maak).toHaveBeenCalledWith({ component_id: 'c-handh', functie_id: 'tz', ouder_functie_id: null, oordeel: null })
     expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Gekoppeld')
 
     // Nu "alleen hier": het adres is de plek-ouder (Dienstverlening).
@@ -842,7 +847,7 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     expect(w.find('[data-testid="functie-koppel-zin"]').text()).toContain('alleen op deze plek')
     await w.find('[data-testid="functie-koppel-bevestig"]').trigger('click')
     await flushPromises()
-    expect(api.functievervullingen.maak).toHaveBeenCalledWith({ component_id: 'c-insp', functie_id: 'tz', ouder_functie_id: 'dv' })
+    expect(api.functievervullingen.maak).toHaveBeenCalledWith({ component_id: 'c-insp', functie_id: 'tz', ouder_functie_id: 'dv', oordeel: null })
   })
 
   it('een wortel heeft geen scope-keuze (grof en fijn vallen samen)', async () => {
@@ -883,5 +888,106 @@ describe('BedrijfsfunctieLijst — ADR-049 gate 2a: koppelen', () => {
     await flushPromises()
     expect(api.functievervullingen.verwijder).toHaveBeenCalledWith('v-insp')
     expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Koppeling weggehaald')
+  })
+})
+
+describe('BedrijfsfunctieLijst — ADR-051 gate 3: standen + oordeel + bevinding', () => {
+  it('de boom LEEST de vier standen: gat en via-boven (met naam)', async () => {
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [
+      { functie_id: 'pr', ouder_functie_id: null, stand: 'gat', via_functie_id: null, via_aantal: 0 },
+      { functie_id: 'bs', ouder_functie_id: null, stand: 'via_boven', via_functie_id: 'pr', via_aantal: 1 },
+    ], tellers: {} })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="functie-stand-gat-pr"]').text()).toContain('nog niet vastgelegd waarmee dit werk gedaan wordt')
+    expect(w.find('[data-testid="functie-stand-viaboven-bs"]').text()).toBe('ondersteund via Primair — hier niet bevestigd')
+  })
+
+  it('via-boven bij meerdere dragers op gelijke afstand: telling i.p.v. een willekeurige naam', async () => {
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [
+      { functie_id: 'bs', ouder_functie_id: null, stand: 'via_boven', via_functie_id: null, via_aantal: 3 },
+    ], tellers: {} })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="functie-stand-viaboven-bs"]').text()).toBe('ondersteund via 3 bovenliggende functies — hier niet bevestigd')
+  })
+
+  it('"hier draait niets — vastgesteld" is een bevinding, zichtbaar anders dan een gat', async () => {
+    api.functievervullingen.dekking.mockResolvedValue([
+      { functie_id: 'bs', ouder_functie_id: null, herkomst: 'geen_systeem', componenten: [], verdrongen: [], bevinding_id: 'bev1', grof_totaal_plekken: null, grof_geldt_op: null },
+    ])
+    const w = await mountLijst()
+    expect(w.find('[data-testid="functie-stand-niets-bs"]').text()).toContain('Hiervoor wordt niets gebruikt — vastgesteld')
+    expect(w.find('[data-testid="functie-stand-gat-bs"]').exists()).toBe(false)
+  })
+
+  it('koppelen met oordeel "noodoplossing" stuurt het oordeel mee; de plek oogt niet volwaardig', async () => {
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [{ functie_id: 'bs', ouder_functie_id: null, stand: 'gat', via_functie_id: null, via_aantal: 0 }], tellers: {} })
+    api.functievervullingen.maak.mockResolvedValue({ vervulling_id: 'v1', functie_id: 'bs', herkomst: 'grof' })
+    const w = await mountLijst()
+    await w.find('[data-testid="functie-koppel-bs"]').trigger('click')
+    const zs = w.findAllComponents({ name: 'ZoekSelect' }).find((c) => c.props('testid') === 'functie-koppel-component')
+    zs.vm.$emit('keuze', { id: 'c1', naam: 'G-schijf' })
+    await w.find('[data-testid="functie-koppel-oordeel-noodoplossing"]').setValue()
+    await w.find('[data-testid="functie-koppel-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.functievervullingen.maak).toHaveBeenCalledWith(expect.objectContaining({ oordeel: 'noodoplossing' }))
+  })
+
+  it('een noodoplossing toont het oordeel; "Geen systeem" legt een bevinding vast (medewerker)', async () => {
+    api.functievervullingen.dekking.mockResolvedValue([
+      { functie_id: 'bs', ouder_functie_id: null, herkomst: 'grof', componenten: [{ vervulling_id: 'v1', component_id: 'c1', component_naam: 'G-schijf', componenttype: 'fileshare', componenttype_label: 'Fileshare', oordeel: 'noodoplossing' }], verdrongen: [], bevinding_id: null, grof_totaal_plekken: 1, grof_geldt_op: 1 },
+    ])
+    const w = await mountLijst()
+    expect(w.find('[data-testid="functie-oordeel-bs--c1"]').text()).toContain('noodoplossing')
+
+    api.functievervullingen.dekking.mockResolvedValue([])
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [{ functie_id: 'pr', ouder_functie_id: null, stand: 'gat', via_functie_id: null, via_aantal: 0 }], tellers: {} })
+    api.functievervullingen.geenSysteem.mockResolvedValue({ vervulling_id: 'b1', functie_id: 'pr', herkomst: 'geen_systeem' })
+    const w2 = await mountLijst()
+    await w2.find('[data-testid="functie-geen-systeem-pr"]').trigger('click')
+    await w2.find('[data-testid="functie-geen-systeem-bevestig"]').trigger('click')
+    await flushPromises()
+    expect(api.functievervullingen.geenSysteem).toHaveBeenCalledWith({ functie_id: 'pr', ouder_functie_id: null })
+  })
+})
+
+describe('BedrijfsfunctieLijst — ADR-051 correctie: twee lagen + taal', () => {
+  const _dek = (comps) => [{ functie_id: 'bs', ouder_functie_id: null, herkomst: 'grof', componenten: comps, verdrongen: [], bevinding_id: null, grof_totaal_plekken: 1, grof_geldt_op: 1 }]
+  const _c = (id, naam, oordeel = null) => ({ vervulling_id: `v-${id}`, component_id: id, component_naam: naam, componenttype: 'applicatie', componenttype_label: 'Applicatie', oordeel })
+
+  it('scanlaag draagt de namen ("Gedaan met"); het oordeel staat ÉÉN keer (leeslaag), niet dubbel', async () => {
+    api.functievervullingen.dekking.mockResolvedValue(_dek([_c('c1', 'Zaaksysteem', 'noodoplossing')]))
+    const w = await mountLijst()
+    // Scanlaag: de naam (waarmee).
+    expect(w.find('[data-testid="functie-dekking-bs"]').text()).toContain('Gedaan met:')
+    expect(w.find('[data-testid="functie-dekking-comp-bs--c1"]').text()).toBe('Zaaksysteem')
+    // Leeslaag: het oordeel — precies ÉÉN informatieve weergave (geen dubbel).
+    expect(w.findAll('[data-testid="functie-oordeel-bs--c1"]').length).toBe(1)
+    expect(w.find('[data-testid="functie-oordeel-bs--c1"]').text()).toContain('is een noodoplossing')
+    // De reikwijdte staat in de leeslaag, niet meer los.
+    expect(w.find('[data-testid="functie-dekking-lees-bs"]').text()).toContain('geldt op deze plek')
+  })
+
+  it('de leeslaag werkt óók bij vijf componenten op één plek (breekt niet)', async () => {
+    api.functievervullingen.dekking.mockResolvedValue(_dek([
+      _c('c1', 'Zaaksysteem'), _c('c2', 'DMS'), _c('c3', 'BRP'), _c('c4', 'Klantportaal'), _c('c5', 'G-schijf', 'noodoplossing'),
+    ]))
+    const w = await mountLijst()
+    const scan = w.find('[data-testid="functie-dekking-bs"]').text()
+    for (const n of ['Zaaksysteem', 'DMS', 'BRP', 'Klantportaal', 'G-schijf']) expect(scan).toContain(n)
+    // Elke component heeft één leeslaag-oordeel + één (verborgen tot actief) select.
+    expect(w.findAll('[data-testid^="functie-oordeel-bs--"]').length).toBe(5)
+    expect(w.find('[data-testid="functie-oordeel-bs--c5"]').text()).toContain('noodoplossing')
+  })
+
+  it('de bediening staat in de .lk-rij-acties (verschijnt op de actieve rij)', async () => {
+    api.functievervullingen.dekking.mockResolvedValue(_dek([_c('c1', 'Zaaksysteem')]))
+    const w = await mountLijst()
+    const select = w.find('[data-testid="functie-oordeel-select-bs--c1"]')
+    const weg = w.find('[data-testid="functie-ontkoppel-bs--c1"]')
+    expect(select.exists()).toBe(true)
+    expect(weg.exists()).toBe(true)
+    // Beide zitten binnen de .lk-rij-acties-container (opacity 0 tot hover/focus — main.css).
+    expect(select.element.closest('.lk-rij-acties')).not.toBeNull()
+    expect(weg.element.closest('.lk-rij-acties')).not.toBeNull()
   })
 })

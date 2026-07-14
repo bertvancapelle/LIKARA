@@ -19,7 +19,10 @@ from app.middleware.tenant import get_tenant_session
 from schemas.functievervulling import (
     FunctievervullingAanmaken,
     FunctievervullingUit,
+    GeenSysteemAanmaken,
+    OordeelWijzigen,
     PlekDekkingUit,
+    PlekStandenUit,
 )
 from services import functievervulling_service as svc
 
@@ -35,6 +38,15 @@ async def dekking(
     return await svc.dekking_overzicht(session, _user.tenant_id)
 
 
+@router.get("/standen", response_model=PlekStandenUit)
+async def standen(
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.FUNCTIEVERVULLING, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-051 — de vier standen per plek + de gedeelde tellers (één afleiding, twee vensters)."""
+    return await svc.plek_standen(session, _user.tenant_id)
+
+
 @router.post("", response_model=FunctievervullingUit, status_code=201)
 async def maak_functievervulling(
     body: FunctievervullingAanmaken,
@@ -42,11 +54,34 @@ async def maak_functievervulling(
     session: AsyncSession = Depends(get_tenant_session),
 ):
     """Koppel een component aan een functie. Leeg `ouder_functie_id` = grof (geldt overal);
-    gevuld = fijn (déze plek)."""
+    gevuld = fijn (déze plek). Optioneel `oordeel` (naar_behoren/noodoplossing)."""
     return await svc.maak_aan(
         session, user.tenant_id, body.component_id, body.functie_id,
-        body.ouder_functie_id, body.toelichting,
+        body.ouder_functie_id, body.toelichting, body.oordeel,
     )
+
+
+@router.post("/geen-systeem", response_model=FunctievervullingUit, status_code=201)
+async def registreer_geen_systeem(
+    body: GeenSysteemAanmaken,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.FUNCTIEVERVULLING, Actie.AANMAKEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-051 besluit 2 — leg vast: "hier draait geen systeem — vastgesteld" (een bevinding)."""
+    return await svc.registreer_geen_systeem(
+        session, user.tenant_id, body.functie_id, body.ouder_functie_id, body.toelichting,
+    )
+
+
+@router.patch("/{vervulling_id}/oordeel", response_model=FunctievervullingUit)
+async def wijzig_oordeel(
+    vervulling_id: uuid.UUID,
+    body: OordeelWijzigen,
+    user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.FUNCTIEVERVULLING, Actie.WIJZIGEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-051 besluit 3/4 — zet of wis het oordeel op een koppeling (registratie-feit → WIJZIGEN)."""
+    return await svc.zet_oordeel(session, user.tenant_id, vervulling_id, body.oordeel)
 
 
 @router.delete("/{vervulling_id}", status_code=204)

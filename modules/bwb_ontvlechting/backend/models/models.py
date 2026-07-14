@@ -744,6 +744,13 @@ class Procesvervulling(Base, TenantMixin, TimestampMixin):
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
+class FunctievervullingOordeel(str, Enum):
+    """ADR-051 besluit 3 — oordeel over de KOPPELING (de plek), niet over het componenttype.
+    Optioneel (besluit 4): leeg = "nog niet beoordeeld" (een eigen, vindbare stand — geen sentinel)."""
+    naar_behoren = "naar_behoren"
+    noodoplossing = "noodoplossing"
+
+
 class Functievervulling(Base, TenantMixin, TimestampMixin):
     """ADR-049 (gate 2a) — koppelregel: "component X ondersteunt bedrijfsfunctie Y".
 
@@ -769,16 +776,41 @@ class Functievervulling(Base, TenantMixin, TimestampMixin):
 
     __tablename__ = "functievervulling"
     __table_args__ = (
+        # Component-koppelingen: uniek per (component, functie[, plek]). `component_id IS NOT NULL`
+        # in de WHERE zodat de geen-systeem-rijen (component_id NULL) hier buiten vallen.
         Index(
             "uq_functievervulling_grof", "tenant_id", "component_id", "functie_id",
-            unique=True, postgresql_where=text("ouder_functie_id IS NULL"),
+            unique=True, postgresql_where=text("ouder_functie_id IS NULL AND component_id IS NOT NULL"),
         ),
         Index(
             "uq_functievervulling_fijn", "tenant_id", "component_id", "functie_id", "ouder_functie_id",
-            unique=True, postgresql_where=text("ouder_functie_id IS NOT NULL"),
+            unique=True, postgresql_where=text("ouder_functie_id IS NOT NULL AND component_id IS NOT NULL"),
+        ),
+        # ADR-051 — "hier draait niets — vastgesteld": hoogstens ÉÉN geen-systeem-bevinding per plek.
+        # De component-indexen vangen deze niet (component_id NULL → NULL-distinct), dus eigen partiële
+        # indexen — hetzelfde NULL-distinct-gat als bij gate 2a, nu voor de geen-systeem-kant.
+        Index(
+            "uq_functievervulling_geen_grof", "tenant_id", "functie_id",
+            unique=True, postgresql_where=text("ouder_functie_id IS NULL AND geen_systeem"),
+        ),
+        Index(
+            "uq_functievervulling_geen_fijn", "tenant_id", "functie_id", "ouder_functie_id",
+            unique=True, postgresql_where=text("ouder_functie_id IS NOT NULL AND geen_systeem"),
         ),
         Index("ix_functievervulling_tenant_functie", "tenant_id", "functie_id"),
         Index("ix_functievervulling_tenant_component", "tenant_id", "component_id"),
+        # ADR-051 besluit 2 — precies ÉÉN van beide: een component óf de uitkomst "geen systeem".
+        # Nooit geen van beide, nooit allebei (XOR). Structureel, niet in de servicelaag.
+        CheckConstraint(
+            "(component_id IS NOT NULL) <> geen_systeem",
+            name="ck_functievervulling_component_xor_geen",
+        ),
+        # ADR-051 besluit 3/4 — een oordeel hoort bij een component-koppeling; op "geen systeem"
+        # is het betekenisloos en mag het niet staan.
+        CheckConstraint(
+            "oordeel IS NULL OR geen_systeem = false",
+            name="ck_functievervulling_oordeel_alleen_component",
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "component_id"], ["element.tenant_id", "element.id"],
             name="fk_functievervulling_component", ondelete="CASCADE",
@@ -794,9 +826,17 @@ class Functievervulling(Base, TenantMixin, TimestampMixin):
     )
 
     id: Mapped[uuid.UUID] = _pk()
-    component_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # ADR-051 besluit 2 — nullable: een geen-systeem-bevinding draagt géén component (XOR-CHECK).
+    component_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     functie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     ouder_functie_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # ADR-051 besluit 2 — de uitkomst "hier draait geen systeem — vastgesteld" (een bevinding,
+    # geen ontbrekende registratie). Precies-één-van-beide met `component_id` via de XOR-CHECK.
+    geen_systeem: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("false"))
+    # ADR-051 besluit 3/4 — oordeel over de koppeling (optioneel; leeg = nog niet beoordeeld).
+    oordeel: Mapped[FunctievervullingOordeel | None] = mapped_column(
+        sa.Enum(FunctievervullingOordeel, name="functievervulling_oordeel_enum"), nullable=True,
+    )
     toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
     # ADR-049 punt 2 — wie/wanneer, server-stamped (nooit uit de payload). `sub` = stabiele
     # actor-sleutel (naam-resolutie via ADR-029), `verklaard_door` = e-mail-fallback; `created_at`

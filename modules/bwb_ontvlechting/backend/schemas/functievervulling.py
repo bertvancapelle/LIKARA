@@ -15,6 +15,19 @@ from pydantic import BaseModel, ConfigDict, field_validator
 from schemas._validators import _optionele_tekst
 
 
+_OORDELEN = {"naar_behoren", "noodoplossing"}
+
+
+def _v_oordeel(v: str | None) -> str | None:
+    """ADR-051 — optioneel; leeg = nog niet beoordeeld; anders uit de gesloten set."""
+    if v is None:
+        return None
+    v = v.strip()
+    if v not in _OORDELEN:
+        raise ValueError("onbekend oordeel")
+    return v
+
+
 class FunctievervullingAanmaken(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -23,11 +36,46 @@ class FunctievervullingAanmaken(BaseModel):
     # Leeg = grove koppeling (geldt overal); gevuld = fijne koppeling op díé plek (onder deze ouder).
     ouder_functie_id: uuid.UUID | None = None
     toelichting: str | None = None
+    # ADR-051 — optioneel oordeel bij het koppelen (naar_behoren / noodoplossing); leeg = nog niet beoordeeld.
+    oordeel: str | None = None
 
     @field_validator("toelichting")
     @classmethod
-    def _v_toelichting(cls, v: str | None) -> str | None:
+    def _vt(cls, v: str | None) -> str | None:
         return _optionele_tekst(v, 10_000)
+
+    @field_validator("oordeel")
+    @classmethod
+    def _vo(cls, v: str | None) -> str | None:
+        return _v_oordeel(v)
+
+
+class GeenSysteemAanmaken(BaseModel):
+    """ADR-051 besluit 2 — leg vast: "hier draait geen systeem — vastgesteld" (een bevinding)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    functie_id: uuid.UUID
+    ouder_functie_id: uuid.UUID | None = None
+    toelichting: str | None = None
+
+    @field_validator("toelichting")
+    @classmethod
+    def _vt(cls, v: str | None) -> str | None:
+        return _optionele_tekst(v, 10_000)
+
+
+class OordeelWijzigen(BaseModel):
+    """ADR-051 besluit 3/4 — zet of wis (None) het oordeel op een component-koppeling."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    oordeel: str | None = None
+
+    @field_validator("oordeel")
+    @classmethod
+    def _vo(cls, v: str | None) -> str | None:
+        return _v_oordeel(v)
 
 
 class DekkingComponent(BaseModel):
@@ -41,14 +89,26 @@ class DekkingComponent(BaseModel):
     componenttype: str
     componenttype_label: str
     toelichting: str | None = None
+    oordeel: str | None = None  # naar_behoren / noodoplossing / None (nog niet beoordeeld)
 
 
-class FunctievervullingUit(DekkingComponent):
-    """Eén koppelregel ná aanmaak, mét plek-context + herkomst (grof/fijn)."""
+class FunctievervullingUit(BaseModel):
+    """Eén registratie ná aanmaak: een component-koppeling óf een "geen systeem"-bevinding
+    (dan zijn de component-velden leeg). `herkomst` = 'grof' | 'fijn' | 'geen_systeem'."""
 
+    model_config = ConfigDict(from_attributes=True)
+
+    vervulling_id: uuid.UUID
+    component_id: uuid.UUID | None = None
+    component_naam: str | None = None
+    componenttype: str | None = None
+    componenttype_label: str | None = None
+    toelichting: str | None = None
+    oordeel: str | None = None
     functie_id: uuid.UUID
     ouder_functie_id: uuid.UUID | None = None
-    herkomst: str  # 'grof' (geldt overal) | 'fijn' (deze plek)
+    herkomst: str
+    geen_systeem: bool = False
     verklaard_door_naam: str | None = None
 
 
@@ -66,9 +126,36 @@ class PlekDekkingUit(BaseModel):
 
     functie_id: uuid.UUID
     ouder_functie_id: uuid.UUID | None = None
-    herkomst: str
-    componenten: list[DekkingComponent]
+    herkomst: str  # 'grof' | 'fijn' | 'geen_systeem'
+    componenten: list[DekkingComponent]  # leeg bij 'geen_systeem'
     # LI041 — de verdringing benoemt zichzelf.
     verdrongen: list[DekkingComponent] = []
     grof_totaal_plekken: int | None = None
     grof_geldt_op: int | None = None
+    # ADR-051 — het id van de "geen systeem"-bevinding op deze plek (om terug te nemen).
+    bevinding_id: uuid.UUID | None = None
+
+
+class PlekStandUit(BaseModel):
+    """ADR-051 — de stand van één plek: 'gat' · 'via_boven' · 'hier' · 'niets'. Bij 'via_boven',
+    langs het pad van DEZE plek: `via_functie_id` = de dichtstbijzijnde dragende voorouder als er
+    precies één op die afstand hangt; bij meerdere op gelijke afstand is `via_functie_id` leeg en
+    telt `via_aantal` ze (geen willekeurige keuze — ADR-044-les)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    functie_id: uuid.UUID
+    ouder_functie_id: uuid.UUID | None = None
+    stand: str
+    via_functie_id: uuid.UUID | None = None
+    via_aantal: int = 0
+
+
+class PlekStandenUit(BaseModel):
+    """ADR-051 besluit 5 — één afleiding, twee vensters: de boom-cue leest `plekken`, de centrale
+    signalering leest dezelfde lijst + de gedeelde `tellers` (read-only, nooit opgeslagen)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    plekken: list[PlekStandUit]
+    tellers: dict[str, int]

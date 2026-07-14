@@ -47,8 +47,10 @@ def test_model_partiele_uniciteit_en_cascade_en_kaal():
         i.name: (i.unique, str(i.dialect_options["postgresql"].get("where")))
         for i in Functievervulling.__table__.indexes
     }
-    assert idx["uq_functievervulling_grof"] == (True, "ouder_functie_id IS NULL")
-    assert idx["uq_functievervulling_fijn"] == (True, "ouder_functie_id IS NOT NULL")
+    # ADR-051 — de component-indexen dragen nu `component_id IS NOT NULL` (de geen-systeem-rijen
+    # hebben eigen indexen, zie test_rollengrens/test_gapsignaal).
+    assert idx["uq_functievervulling_grof"] == (True, "ouder_functie_id IS NULL AND component_id IS NOT NULL")
+    assert idx["uq_functievervulling_fijn"] == (True, "ouder_functie_id IS NOT NULL AND component_id IS NOT NULL")
     # Drie composiet-FK's naar element, allemaal CASCADE.
     fks = {
         con.name: con

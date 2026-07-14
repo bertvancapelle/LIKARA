@@ -57,6 +57,8 @@ const fout = ref(null)
 // ADR-049 gate 2a — de GEDEELDE leesregel per plek (fijn verdringt grof), server-side
 // afgeleid. De boom LEEST deze uitkomst; ze beslist grof/fijn nooit zelf (besluit 5).
 const dekking = ref([])
+// ADR-051 gate 3 — de gedeelde stand per plek (gat · via_boven · hier · niets).
+const standen = ref([])
 
 const zoekterm = ref('')
 // ADR-044 — uitklap-staat is PLEK-gebonden: sleutels zijn plek-paden ('wortel>…>functie',
@@ -119,6 +121,7 @@ async function laad() {
     laden.value = false
   }
   laadDekking() // best-effort, parallel: de koppelingen kleuren de boom in
+  laadStanden()
 }
 
 // ADR-049 — de gedeelde dekking ophalen (best-effort; faalt dit, dan toont de boom geen
@@ -129,6 +132,29 @@ async function laadDekking() {
   } catch {
     dekking.value = []
   }
+}
+// ADR-051 gate 3 — de VIER standen per plek uit de GEDEELDE afleiding (`plek_standen`). De boom
+// LEEST deze stand; ze beslist niets zelf (besluit 5). Best-effort.
+async function laadStanden() {
+  try {
+    standen.value = (await api.functievervullingen.standen())?.plekken ?? []
+  } catch {
+    standen.value = []
+  }
+}
+const standenPerPlek = computed(() => {
+  const m = new Map()
+  for (const p of standen.value) m.set(_dekkingSleutel(p.functie_id, p.ouder_functie_id), p)
+  return m
+})
+const standVoorRij = (rij) => standenPerPlek.value.get(_dekkingSleutel(rij.functie.id, rij.ouderId)) || null
+// De omhoog-cue in gebruikerstaal — de naam komt van de dichtstbijzijnde dragende voorouder
+// (via_functie_id, door de boom opgezocht in naamVanId); bij meerdere op gelijke afstand telt
+// de backend ze (via_aantal) en noemen we géén willekeurige naam.
+function viaTekst(p) {
+  if (!p) return ''
+  if (p.via_functie_id) return `ondersteund via ${naamVanId(p.via_functie_id)} — hier niet bevestigd`
+  return `ondersteund via ${p.via_aantal} bovenliggende functies — hier niet bevestigd`
 }
 // Plek-sleutel voor de leesregel-lookup: functie + ouder ('' = wortel/grof). Spiegelt exact
 // de backend-sleutel (functie_id, ouder_functie_id) — de boom KIEST hier niets, ze zoekt op.
@@ -525,6 +551,7 @@ async function bevestigHaalWeg() {
 const koppelRij = ref(null)        // { functie, ouderId, plek }
 const koppelComponent = ref(null)  // { id, naam }
 const koppelScope = ref('overal')  // 'overal' (grof) | 'hier' (fijn) — 'hier' alleen mét plek
+const koppelOordeel = ref('')      // ADR-051 — '' = nog niet beoordeeld (geen sentinel)
 const koppelFout = ref(null)
 const koppelBezig = ref(false)
 const koppelKey = ref(0)           // remount-sleutel per opening (stale-label-les LI032)
@@ -535,6 +562,7 @@ function openKoppel(rij) {
   // "Geldt overal" staat voorop (ADR-044 besluit 2 / ADR-045 besluit 3); een wortel kent
   // maar één plek, dus daar valt grof en fijn samen → altijd grof.
   koppelScope.value = 'overal'
+  koppelOordeel.value = ''  // leeg = nog niet beoordeeld
   koppelFout.value = null
   koppelKey.value += 1
 }
@@ -568,10 +596,14 @@ async function bevestigKoppel() {
   koppelFout.value = null
   try {
     const ouder = koppelScope.value === 'hier' && r.ouderId ? r.ouderId : null
-    await api.functievervullingen.maak({ component_id: c.id, functie_id: r.functie.id, ouder_functie_id: ouder })
+    await api.functievervullingen.maak({
+      component_id: c.id, functie_id: r.functie.id, ouder_functie_id: ouder,
+      oordeel: koppelOordeel.value || null,
+    })
     toastSucces(toast, 'Gekoppeld')
     koppelRij.value = null
     await laadDekking()
+    await laadStanden()
     toonFunctie(r.functie.id, r.plek)
   } catch (e) {
     if (e?.status !== 401) koppelFout.value = e?.message || 'Koppelen is mislukt.'
@@ -599,6 +631,9 @@ function openOntkoppel(rij, comp, herkomst) {
 const ontkoppelZin = computed(() => {
   const d = ontkoppelDoel.value
   if (!d) return ''
+  if (d.herkomst === 'geen_systeem') {
+    return `De bevinding "hiervoor wordt niets gebruikt" op "${d.functie_naam}" weghalen? De plek komt dan weer op de navraag-lijst.`
+  }
   if (d.herkomst === 'fijn') {
     return `De koppeling van "${d.component_naam}" aan "${d.functie_naam}" hier weghalen? Het antwoord dat overal geldt wordt op deze plek weer leesbaar.`
   }
@@ -614,12 +649,63 @@ async function bevestigOntkoppel() {
     toastSucces(toast, 'Koppeling weggehaald')
     ontkoppelDoel.value = null
     await laadDekking()
+    await laadStanden()
   } catch (e) {
     if (e?.status !== 401) ontkoppelFout.value = e?.message || 'Weghalen is mislukt.'
   } finally {
     ontkoppelBezig.value = false
   }
 }
+
+// ── ADR-051 gate 3 — "hier draait geen systeem — vastgesteld" (een bevinding) ─────
+// Een eigen actie op de plek, strikt onderscheiden van "nog niet gevraagd" (het gat). Medewerker-
+// werk (registratie-feit, ADR-050). Weghalen laat de plek terugvallen op gat/via-boven.
+const geenSysteemRij = ref(null)   // { functie, ouderId, plek }
+const geenSysteemFout = ref(null)
+const geenSysteemBezig = ref(false)
+function openGeenSysteem(rij) {
+  geenSysteemRij.value = { functie: rij.functie, ouderId: rij.ouderId, plek: rij.plek }
+  geenSysteemFout.value = null
+}
+const geenSysteemZin = computed(() => {
+  const r = geenSysteemRij.value
+  return r ? `Vastleggen dat dit werk zonder hulpmiddel gaat (bijvoorbeeld op papier)? Dit is een bevinding — geen openstaande vraag meer, en niet meer op de navraag-lijst.` : ''
+})
+async function bevestigGeenSysteem() {
+  const r = geenSysteemRij.value
+  if (!r) return
+  geenSysteemBezig.value = true
+  geenSysteemFout.value = null
+  try {
+    // "Hier" (fijne plek) als er een ouder is; anders grof (de functie-brede bevinding).
+    const ouder = r.ouderId || null
+    await api.functievervullingen.geenSysteem({ functie_id: r.functie.id, ouder_functie_id: ouder })
+    toastSucces(toast, 'Vastgelegd: hiervoor wordt niets gebruikt')
+    geenSysteemRij.value = null
+    await laadDekking()
+    await laadStanden()
+    toonFunctie(r.functie.id, r.plek)
+  } catch (e) {
+    if (e?.status !== 401) geenSysteemFout.value = e?.message || 'Vastleggen is mislukt.'
+  } finally {
+    geenSysteemBezig.value = false
+  }
+}
+
+// Het oordeel op een bestaande koppeling zetten/wissen (naar_behoren / noodoplossing / '' = leeg).
+async function zetOordeel(comp, oordeel) {
+  try {
+    await api.functievervullingen.zetOordeel(comp.vervulling_id, oordeel || null)
+    await laadDekking()
+    await laadStanden()
+  } catch (e) {
+    if (e?.status !== 401) toastSucces(toast, 'Bijgewerkt')  // fout is zeldzaam; geen rode ruis in de rij
+  }
+}
+const oordeelLabel = (o) => (o === 'naar_behoren' ? 'draagt naar behoren' : o === 'noodoplossing' ? 'noodoplossing' : 'nog niet beoordeeld')
+// ADR-051 correctie — de LEESLAAG-zin (hoe goed draagt dit component het werk): het oordeel
+// staat hier één keer. "Component", niet "systeem" (klopt óók voor een fileshare/G-schijf).
+const oordeelZin = (o) => (o === 'naar_behoren' ? 'draagt het werk naar behoren' : o === 'noodoplossing' ? 'is een noodoplossing' : 'nog niet beoordeeld')
 
 // Functie-taal voor het gedeelde Diagram (de gegeneraliseerde bouwsteen). De
 // vervallen-markering loopt via het eigen `vervallenIds`-kanaal met zijn eigen
@@ -1003,34 +1089,91 @@ onMounted(() => {
                  de boom beslist niets zelf. "geldt overal" = grof, "alleen hier" = fijn.
                  Weghalen loopt via de bevestigingsdialoog (nooit een kaal kruisje op een
                  registratie-feit); alleen de beheerder ziet die affordance. -->
+            <!-- ADR-051 correctie — twee lagen (likara-ux), zoals de functierij zelf: SCAN
+                 (wáármee) en daaronder LEES (hoe goed + hoe breed, gedempt). Het oordeel staat
+                 ÉÉN keer (leeslaag); de bediening (oordeel/weghalen) verschijnt pas op de actieve
+                 rij (.lk-rij-acties). "Component" i.p.v. "systeem" — klopt óók voor een fileshare. -->
+            <template v-if="dekkingVoorRij(rij) && dekkingVoorRij(rij).componenten.length">
+              <!-- Scanlaag: waarmee wordt dit werk gedaan -->
+              <p class="pl-7 text-[length:var(--lk-text-sm)]" :data-testid="`functie-dekking-${rij.plek}`">
+                <span class="text-[var(--lk-color-text-muted)]">Gedaan met: </span>
+                <template v-for="(c, i) in dekkingVoorRij(rij).componenten" :key="c.vervulling_id">
+                  <span v-if="i" aria-hidden="true"> · </span>
+                  <span
+                    class="font-medium"
+                    :class="c.oordeel === 'noodoplossing' ? 'text-[var(--lk-color-warning)]' : 'text-[var(--lk-color-text)]'"
+                    :data-testid="`functie-dekking-comp-${rij.plek}--${c.component_id}`"
+                  >{{ c.component_naam }}</span>
+                </template>
+              </p>
+              <!-- Leeslaag: hoe goed (oordeel — ÉÉN keer) + hoe breed (reikwijdte). Gedempt. -->
+              <p class="pl-7 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]" :data-testid="`functie-dekking-lees-${rij.plek}`">
+                <template v-for="(c, i) in dekkingVoorRij(rij).componenten" :key="c.vervulling_id">
+                  <span v-if="i"> · </span>
+                  <span
+                    :class="c.oordeel === 'noodoplossing' ? 'text-[var(--lk-color-warning)]' : ''"
+                    :data-testid="`functie-oordeel-${rij.plek}--${c.component_id}`"
+                  >{{ c.component_naam }} {{ oordeelZin(c.oordeel) }}</span>
+                </template>
+                <span :data-testid="`functie-dekking-herkomst-${rij.plek}`"> · {{ dekkingLabel(dekkingVoorRij(rij)) }}</span>
+              </p>
+              <!-- Bediening — pas op de actieve rij (.lk-rij-acties: hover/focus, permanent op touch):
+                   per component het oordeel wijzigen + weghalen. Wie registreert, corrigeert (ADR-050). -->
+              <div v-if="magBewerken" class="lk-rij-acties pl-7 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[length:var(--lk-text-xs)]">
+                <span v-for="c in dekkingVoorRij(rij).componenten" :key="c.vervulling_id" class="inline-flex items-center gap-1">
+                  <span class="text-[var(--lk-color-text-muted)]">{{ c.component_naam }}:</span>
+                  <select
+                    :value="c.oordeel || ''"
+                    class="lk-veld !h-6 !py-0 text-[length:var(--lk-text-xs)]"
+                    :data-testid="`functie-oordeel-select-${rij.plek}--${c.component_id}`"
+                    :aria-label="`Oordeel over ${c.component_naam}`"
+                    @change="(e) => zetOordeel(c, e.target.value)"
+                  >
+                    <option value="">nog niet beoordeeld</option>
+                    <option value="naar_behoren">draagt naar behoren</option>
+                    <option value="noodoplossing">noodoplossing</option>
+                  </select>
+                  <button
+                    type="button"
+                    class="text-[var(--lk-color-danger)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+                    :data-testid="`functie-ontkoppel-${rij.plek}--${c.component_id}`"
+                    :aria-label="`Koppeling van ${c.component_naam} weghalen`"
+                    @click="openOntkoppel(rij, c, dekkingVoorRij(rij).herkomst)"
+                  >weghalen</button>
+                </span>
+              </div>
+            </template>
+            <!-- ADR-051 gate 3 — de plek-standen die géén eigen koppeling zijn: 'niets' (bevinding),
+                 'via_boven' (omhoog-cue), 'gat'. De boom LEEST de server-stand; ze beslist niets zelf.
+                 Rustig — dit is werkvoorraad, geen fout; gescheiden van het amber vervallen-signaal. -->
             <p
-              v-if="dekkingVoorRij(rij)"
+              v-if="!(dekkingVoorRij(rij) && dekkingVoorRij(rij).componenten.length)"
               class="pl-7 text-[length:var(--lk-text-sm)]"
-              :data-testid="`functie-dekking-${rij.plek}`"
+              :data-testid="`functie-stand-${rij.plek}`"
             >
-              <span class="text-[var(--lk-color-text-muted)]">Ondersteund door: </span>
-              <template v-for="(c, i) in dekkingVoorRij(rij).componenten" :key="c.vervulling_id">
-                <span v-if="i" aria-hidden="true">, </span>
+              <template v-if="dekkingVoorRij(rij) && dekkingVoorRij(rij).herkomst === 'geen_systeem'">
                 <span
-                  class="font-medium text-[var(--lk-color-text)]"
-                  :data-testid="`functie-dekking-comp-${rij.plek}--${c.component_id}`"
-                >{{ c.component_naam }}</span>
+                  class="rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-text-muted)] px-1.5 text-[length:var(--lk-text-xs)] font-medium text-[var(--lk-color-text)]"
+                  :data-testid="`functie-stand-niets-${rij.plek}`"
+                >Hiervoor wordt niets gebruikt — vastgesteld</span>
                 <button
                   v-if="magBewerken"
                   type="button"
-                  class="ml-1 text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-                  :data-testid="`functie-ontkoppel-${rij.plek}--${c.component_id}`"
-                  :aria-label="`Koppeling van ${c.component_naam} weghalen`"
-                  @click="openOntkoppel(rij, c, dekkingVoorRij(rij).herkomst)"
+                  class="lk-rij-acties ml-2 text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)] hover:underline"
+                  :data-testid="`functie-bevinding-weg-${rij.plek}`"
+                  @click="openOntkoppel(rij, { vervulling_id: dekkingVoorRij(rij).bevinding_id, component_naam: 'niets' }, 'geen_systeem')"
                 >weghalen</button>
               </template>
               <span
-                class="ml-1 shrink-0 rounded-[var(--lk-radius-badge)] border px-1.5 text-[length:var(--lk-text-xs)]"
-                :class="dekkingVoorRij(rij).herkomst === 'fijn'
-                  ? 'border-[var(--lk-color-primary)] text-[var(--lk-color-primary)]'
-                  : 'border-[var(--lk-color-border)] text-[var(--lk-color-text-muted)]'"
-                :data-testid="`functie-dekking-herkomst-${rij.plek}`"
-              >{{ dekkingLabel(dekkingVoorRij(rij)) }}</span>
+                v-else-if="standVoorRij(rij) && standVoorRij(rij).stand === 'via_boven'"
+                class="text-[var(--lk-color-text-muted)]"
+                :data-testid="`functie-stand-viaboven-${rij.plek}`"
+              >{{ viaTekst(standVoorRij(rij)) }}</span>
+              <span
+                v-else-if="standVoorRij(rij) && standVoorRij(rij).stand === 'gat'"
+                class="rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-text-muted)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
+                :data-testid="`functie-stand-gat-${rij.plek}`"
+              >nog niet vastgelegd waarmee dit werk gedaan wordt</span>
             </p>
             <!-- LI041 — de verdringing benoemt zichzelf: op een verfijnde plek blijft het grove
                  antwoord LEESBAAR, gedempt (leeslaag, geen scanlaag) en zónder eigen actie (de
@@ -1060,11 +1203,21 @@ onMounted(() => {
                  koppelen is de use-case); alleen vervallen functies niet (backend 422). -->
             <Button
               v-if="magBewerken && !rij.functie.vervallen"
-              label="Koppel systeem"
+              label="Koppel component"
               outlined
               :data-testid="`functie-koppel-${rij.plek}`"
-              :aria-label="`Koppel een systeem aan ${rij.functie.naam}`"
+              :aria-label="`Koppel een component aan ${rij.functie.naam}`"
               @click="openKoppel(rij)"
+            />
+            <!-- ADR-051 — "hier draait geen systeem — vastgesteld": een bevinding. Alleen zinvol
+                 waar nog geen koppeling/bevinding staat (stand 'gat' of 'via_boven'). -->
+            <Button
+              v-if="magBewerken && !rij.functie.vervallen && standVoorRij(rij) && ['gat','via_boven'].includes(standVoorRij(rij).stand)"
+              label="Niets"
+              outlined
+              :data-testid="`functie-geen-systeem-${rij.plek}`"
+              :aria-label="`Leg vast dat dit werk zonder hulpmiddel gaat`"
+              @click="openGeenSysteem(rij)"
             />
             <Button
               v-if="magBewerken && !rij.functie.vervallen"
@@ -1210,20 +1363,20 @@ onMounted(() => {
       :visible="!!koppelRij"
       modal
       :closable="false"
-      :header="`Koppel een systeem aan “${koppelRij?.functie.naam ?? ''}”`"
+      :header="`Waarmee wordt “${koppelRij?.functie.naam ?? ''}” gedaan?`"
       data-testid="functie-koppel-dialog"
       @update:visible="(v) => { if (!v) koppelRij = null }"
     >
       <div class="flex min-w-[26rem] max-w-xl flex-col gap-[var(--lk-space-md)]">
         <p v-if="koppelFout" role="alert" data-testid="functie-koppel-fout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ koppelFout }}</p>
         <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-          <span>Kies het systeem waarmee dit werk gedaan wordt</span>
+          <span>Kies waarmee dit werk gedaan wordt</span>
           <ZoekSelect
             :key="koppelKey"
             :zoek-functie="zoekKoppelComponenten"
             :weergave="koppelComponentWeergave"
             id-veld="id"
-            placeholder="Zoek een systeem…"
+            placeholder="Zoek een component…"
             testid="functie-koppel-component"
             @keuze="kiesKoppelComponent"
           />
@@ -1240,10 +1393,49 @@ onMounted(() => {
             <span>Alleen hier — onder “{{ naamVanId(koppelRij?.ouderId) }}”</span>
           </label>
         </fieldset>
+        <!-- ADR-051 besluit 3/4 — het oordeel bij de koppeling (optioneel; leeg = nog niet
+             beoordeeld, geen sentinel). Het oordeel hoort bij de plek, niet bij het type. -->
+        <fieldset class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="functie-koppel-oordeel">
+          <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Draagt het het werk?</span>
+          <label class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+            <input v-model="koppelOordeel" type="radio" value="" data-testid="functie-koppel-oordeel-leeg" />
+            <span>Weet ik nog niet — beoordeel later</span>
+          </label>
+          <label class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+            <input v-model="koppelOordeel" type="radio" value="naar_behoren" data-testid="functie-koppel-oordeel-naarbehoren" />
+            <span>Draagt het werk naar behoren</span>
+          </label>
+          <label class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+            <input v-model="koppelOordeel" type="radio" value="noodoplossing" data-testid="functie-koppel-oordeel-noodoplossing" />
+            <span>Noodoplossing — draagt het werk niet volwaardig</span>
+          </label>
+        </fieldset>
         <p v-if="koppelZin" data-testid="functie-koppel-zin" class="max-w-prose font-medium">{{ koppelZin }}</p>
         <div class="flex gap-[var(--lk-space-md)]">
           <Button type="button" label="Koppelen" data-testid="functie-koppel-bevestig" :disabled="!koppelComponent || koppelBezig" @click="bevestigKoppel" />
           <Button type="button" label="Annuleren" severity="secondary" @click="koppelRij = null" />
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- ADR-051 — "hiervoor wordt niets gebruikt — vastgesteld": een BEVINDING, geen vernietiging.
+         Bewust GÉÉN BevestigVerwijderDialog (die heeft een rode danger-knop) — een neutrale dialoog
+         met een gewone (primary) bevestig-knop, zodat het interessantste feit van de workshop niet
+         als een gevaar oogt. -->
+    <Dialog
+      :visible="!!geenSysteemRij"
+      modal
+      :closable="false"
+      header="Hiervoor wordt niets gebruikt"
+      data-testid="functie-geen-systeem-dialog"
+      @update:visible="(v) => { if (!v) geenSysteemRij = null }"
+    >
+      <div class="flex min-w-[24rem] max-w-prose flex-col gap-[var(--lk-space-md)]">
+        <span v-if="geenSysteemFout" role="alert" data-testid="functie-geen-systeem-fout" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ geenSysteemFout }}</span>
+        <p v-else data-testid="functie-geen-systeem-zin">{{ geenSysteemZin }}</p>
+        <div class="flex gap-[var(--lk-space-md)]">
+          <Button type="button" label="Vastleggen" data-testid="functie-geen-systeem-bevestig" :disabled="geenSysteemBezig" @click="bevestigGeenSysteem" />
+          <Button type="button" label="Annuleren" severity="secondary" @click="geenSysteemRij = null" />
         </div>
       </div>
     </Dialog>
