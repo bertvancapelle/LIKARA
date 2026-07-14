@@ -31,6 +31,7 @@ class ComponentSorteerveld(str, Enum):
     complexiteit = "complexiteit"
     prioriteit = "prioriteit"
     levensfase = "levensfase"       # ADR-046 — nullable (NULLS-LAST via v2n)
+    migratiepad = "migratiepad"     # LI040 — de bedoeling (UI-label "Bedoeling")
     lifecycle_status = "lifecycle_status"
 
 
@@ -221,6 +222,10 @@ class ComponentLijstItem(BaseModel):
 class ComponentPagina(BaseModel):
     items: list[ComponentLijstItem]
     volgende_cursor: str | None = None
+    # LI040 — resultaatregel ("3 van 19 componenten"): het gefilterde totaal over de
+    # HELE dataset + het ongefilterde totaal (additief; None in oudere test-apps).
+    totaal: int | None = None
+    totaal_ongefilterd: int | None = None
 
 
 class ComponentKeuze(BaseModel):

@@ -9,6 +9,14 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
 
+0. **Resultaatregel uitrollen naar de overige lijsten.** LI040 bouwde de gedeelde
+   bouwsteen `FilterResultaatRegel.vue` (aantal + actieve filters uitgeschreven + los
+   wisbaar) en zette de componentenlijst om. Read-only vastgesteld: contract-, partij-,
+   proces-, bedrijfsfunctie- en architectuurlijst delen dezelfde filterbalk-vorm, maar
+   hun lijst-endpoints missen count-support (`totaal`/`totaal_ongefilterd`) — omzetten is
+   per lijst een eigen kleine slice (endpoint-telling via het gedeelde-filterwaarheid-
+   patroon van `component_service.tel` + chips-bedrading + tests). Status: **open**.
+
 1. **Dev-seed moet het ADR-046-verhaal vertellen.** Stuk 1 (LI040-bouw): de
    levensfasen zijn gezaaid (Zaaksysteem=uitfaseren, ZAC=in ontwikkeling, 4× in
    productie, 13× bewust leeg). De tranches/standen-seed volgt bij stuk 3/4.

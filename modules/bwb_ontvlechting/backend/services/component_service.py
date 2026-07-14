@@ -82,6 +82,8 @@ _SORTEERBARE_KOLOMMEN = {
     "prioriteit": Component.prioriteit,
     # ADR-046 — levensfase (nullable → NULLS-LAST via de v2n-cursor, zoals de rest).
     "levensfase": Component.levensfase,
+    # LI040 — de bedoeling (UI-label "Bedoeling"; API-/kolomnaam blijft migratiepad).
+    "migratiepad": Component.migratiepad,
     # ADR-022 Fase A: lifecycle_status leeft op het generieke profiel (shared-PK).
     "lifecycle_status": ComponentProfiel.lifecycle_status,
 }
@@ -94,6 +96,7 @@ _WAARDE_PARSERS = {
     "complexiteit": NiveauEnum,
     "prioriteit": NiveauEnum,
     "levensfase": Levensfase,
+    "migratiepad": Migratiepad,
     "lifecycle_status": LifecycleStatus,
 }
 
@@ -312,51 +315,22 @@ def _sorteer_waarde(comp: Component, lifecycle, eig_naam, sort: str):
     return getattr(comp, sort)  # naam / componenttype / hostingmodel / created_at
 
 
-async def lijst(
-    session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
-    sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
-    laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
-    levensfase: str | None = None,
+async def _pas_filters_toe(
+    session: AsyncSession, stmt, tid: uuid.UUID, *, typing: dict,
+    componenttype: str | None = None, laag: str | None = None, status: list[str] | None = None,
+    hostingmodel: str | None = None, levensfase: str | None = None,
+    migratiepad: str | None = None,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
-    zoek: str | None = None,
-    componentrol: list[str] | None = None,
-    biv_beschikbaarheid_min: str | None = None, biv_integriteit_min: str | None = None,
-    biv_vertrouwelijkheid_min: str | None = None,
+    zoek: str | None = None, componentrol: list[str] | None = None,
+    biv_min: str | None = None, biv_ontbreekt: bool = False,
     klaarverklaring: str | None = None, afwijking: bool = False,
     ondersteunt_werk: bool | None = None,
-) -> tuple[list[dict], str | None]:
-    """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
-
-    Verenigd werkscherm (CD054b W1): LEFT JOIN op het applicatie-subtype levert de
-    besturingsvelden (`eigenaar_organisatie`/`complexiteit`/`prioriteit`/
-    `lifecycle_status` — null voor niet-subtypen). Sortering op een nullable
-    subtype-kolom plaatst NULLs altijd achteraan (NULLS-LAST, v2n-cursor).
-
-    Filters (AND, alle optioneel): `componenttype` (gelijkheid), `status` (reële
-    lifecycle-statussen → IN, alleen subtypen matchen), `hostingmodel` (enum-
-    gelijkheid), `eigenaar`/`zoek` (ge-escapete ILIKE-contains)."""
-    limit = max(1, min(limit, _MAX_LIMIT))
-    tid = _tenant_uuid(tenant_id)
-    if sort not in _SORTEERBARE_KOLOMMEN:
-        raise ValueError(f"onbekend sorteerveld: {sort}")
-    if order not in ("asc", "desc"):
-        raise ValueError(f"onbekende sorteerrichting: {order}")
-    # UX-B6-b — eigenaar-organisatie als gejoinde partij; `eigenaar` sorteert op de org-naam.
-    eig = aliased(Partij)
-    kolom = eig.naam if sort == "eigenaar" else _SORTEERBARE_KOLOMMEN[sort]
-
-    stmt = (
-        # ADR-022 Fase A: lifecycle_status komt uit het profiel (LEFT JOIN — null voor
-        # niet-checklist-dragende componenten). UX-B6-b: LEFT JOIN de eigenaar-org-partij
-        # voor naam-in-read + sortering op naam. LI059 Slice 3: geen subtabel-join meer.
-        select(Component, ComponentProfiel.lifecycle_status.label("lifecycle_status"),
-               eig.naam.label("eigenaar_organisatie_naam"))
-        .outerjoin(ComponentProfiel, and_(ComponentProfiel.id == Component.id, ComponentProfiel.tenant_id == tid))
-        .outerjoin(eig, and_(eig.id == Component.eigenaar_organisatie_id, eig.tenant_id == tid))
-        .where(Component.tenant_id == tid)
-    )
-    # ADR-023 Fase C: ArchiMate-typing voor het laag-filter (read-only) + per-rij projectie.
-    typing = await catalog.archimate_typing(session)
+):
+    """Dé ene filterwaarheid (LI040): alle lijst-filters op een stmt FROM `component`
+    (mét `ComponentProfiel`-outerjoin — status/afwijking lezen die). Gedeeld door
+    `lijst` (items) en `tel` (resultaatregel-aantallen) zodat de telling nooit stil
+    van de lijst kan afwijken. Elke clause uitsluitend achter zijn guard
+    (default-pad byte-identiek — ADR-028-guard-les)."""
     if componenttype:
         stmt = stmt.where(Component.componenttype == componenttype)
     if laag:
@@ -368,10 +342,12 @@ async def lijst(
         stmt = stmt.where(ComponentProfiel.lifecycle_status.in_([LifecycleStatus(s) for s in status]))
     if hostingmodel:
         stmt = stmt.where(Component.hostingmodel == HostingModel(hostingmodel))
-    # ADR-046 — levensfase-gelijkheid ("welke systemen faseren uit?" = één klik). Alleen
-    # achter de guard (default-pad byte-identiek — ADR-028-guard-les).
+    # ADR-046 — levensfase-gelijkheid ("welke systemen faseren uit?" = één klik).
     if levensfase:
         stmt = stmt.where(Component.levensfase == Levensfase(levensfase))
+    # LI040 — bedoeling-gelijkheid ("welke systemen gaan we vervangen?" = één klik).
+    if migratiepad:
+        stmt = stmt.where(Component.migratiepad == Migratiepad(migratiepad))
     if eigenaar_organisatie_id:
         stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
     if leverancier_id:
@@ -396,8 +372,7 @@ async def lijst(
         stmt = stmt.where(Component.componentrol.in_(componentrol))
     # ADR-045 besluit 5 — filter op de CATALOGUS-eigenschap zelf, nooit op een lijstje
     # typen: een IN-subquery op `componentconfig_optie.ondersteunt_werk` beweegt vanzelf
-    # mee als de platformbeheerder een type omzet of toevoegt. Alleen achter de guard
-    # (default-pad byte-identiek — ADR-028-guard-les).
+    # mee als de platformbeheerder een type omzet of toevoegt.
     if ondersteunt_werk is not None:
         stmt = stmt.where(
             Component.componenttype.in_(
@@ -407,30 +382,40 @@ async def lijst(
                 )
             )
         )
-    # ADR-028 — BIV-drempel per aspect: vertaal de gekozen sleutel naar de ORDINALE `volgorde` en
-    # houd componenten met `aspect-volgorde >= drempel`. Een component zonder waarde op dat aspect
-    # (NULL) valt weg (correlated subquery → NULL ≥ x is NULL/false). Ongeldige drempel ⇒ 422.
-    if biv_beschikbaarheid_min or biv_integriteit_min or biv_vertrouwelijkheid_min:
-        _biv_drempels = (
-            (Component.biv_beschikbaarheid, biv_beschikbaarheid_min),
-            (Component.biv_integriteit, biv_integriteit_min),
-            (Component.biv_vertrouwelijkheid, biv_vertrouwelijkheid_min),
+    # LI040 — BIV-drempel over de HOOGSTE van de drie assen ("de zwaarste as bepaalt de
+    # zwaarte van het systeem"): een component blijft als MINSTENS ÉÉN as ≥ de drempel
+    # scoort (OR over correlated subqueries op de ORDINALE `volgorde` uit de beheerbare
+    # BIV-schaal-catalogus — nooit hardcoded). Een NULL-as doet niet mee (NULL ≥ x is
+    # NULL/false). Ongeldige drempel ⇒ 422 ONGELDIGE_BIV. Vervangt het per-as-filteren
+    # (ADR-028); de drie assen zelf blijven volledig bestaan (registratie ongemoeid).
+    if biv_min:
+        await bivschaal_catalog.valideer_niveau(session, biv_min)  # 422 ONGELDIGE_BIV
+        drempel = (
+            select(BivSchaalOptie.volgorde)
+            .where(BivSchaalOptie.optie_sleutel == biv_min)
+            .scalar_subquery()
         )
-        for kolom, min_sleutel in _biv_drempels:
-            if not min_sleutel:
-                continue
-            await bivschaal_catalog.valideer_niveau(session, min_sleutel)  # 422 ONGELDIGE_BIV
-            drempel = (
-                select(BivSchaalOptie.volgorde)
-                .where(BivSchaalOptie.optie_sleutel == min_sleutel)
-                .scalar_subquery()
-            )
+        as_boven_drempel = []
+        for biv_kolom in (Component.biv_beschikbaarheid, Component.biv_integriteit,
+                          Component.biv_vertrouwelijkheid):
             aspect_volgorde = (
                 select(BivSchaalOptie.volgorde)
-                .where(BivSchaalOptie.optie_sleutel == kolom)
+                .where(BivSchaalOptie.optie_sleutel == biv_kolom)
                 .scalar_subquery()
             )
-            stmt = stmt.where(aspect_volgorde >= drempel)
+            as_boven_drempel.append(aspect_volgorde >= drempel)
+        stmt = stmt.where(or_(*as_boven_drempel))
+    # LI040 — "nog niet vastgelegd": GEEN ENKELE as ingevuld (deels ingevuld telt als
+    # vastgelegd). Maakt het BIV-registratiegat vindbaar — zonder dit valt een BIV-loos
+    # component stilzwijgend buiten élk ≥-filter.
+    if biv_ontbreekt:
+        stmt = stmt.where(
+            and_(
+                Component.biv_beschikbaarheid.is_(None),
+                Component.biv_integriteit.is_(None),
+                Component.biv_vertrouwelijkheid.is_(None),
+            )
+        )
     # ADR-027 slice 3 — klaarverklaring-filters (doorklik vanaf het dashboard). `afwijking`
     # impliceert de klaar-join + lifecycle ∉ {migratieklaar, geblokkeerd} (de vragen-stand uit
     # de bestaande engine-status; geen tweede telling). Engine ongemoeid (read-only filter).
@@ -449,6 +434,85 @@ async def lijst(
                 [LifecycleStatus.migratieklaar, LifecycleStatus.geblokkeerd]
             )
         )
+    return stmt
+
+
+async def tel(
+    session: AsyncSession, tenant_id, **filters,
+) -> dict:
+    """LI040 — de aantallen voor de resultaatregel ("3 van 19 componenten"): het
+    gefilterde totaal over de HELE dataset (niet de geladen pagina) + het ongefilterde
+    totaal. Deelt `_pas_filters_toe` met `lijst` — één filterwaarheid, de telling kan
+    niet stil van de lijst afwijken. Read-only; paginering/cursor raken de telling niet."""
+    tid = _tenant_uuid(tenant_id)
+    typing = (await catalog.archimate_typing(session)) if filters.get("laag") else {}
+    basis = (
+        select(func.count())
+        .select_from(Component)
+        .outerjoin(ComponentProfiel, and_(ComponentProfiel.id == Component.id, ComponentProfiel.tenant_id == tid))
+        .where(Component.tenant_id == tid)
+    )
+    gefilterd = await _pas_filters_toe(session, basis, tid, typing=typing, **filters)
+    totaal = (await session.execute(gefilterd)).scalar_one()
+    totaal_ongefilterd = (
+        await session.execute(
+            select(func.count()).select_from(Component).where(Component.tenant_id == tid)
+        )
+    ).scalar_one()
+    return {"totaal": totaal, "totaal_ongefilterd": totaal_ongefilterd}
+
+
+async def lijst(
+    session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
+    sort: str = "created_at", order: str = "asc", componenttype: str | None = None,
+    laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
+    levensfase: str | None = None, migratiepad: str | None = None,
+    eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
+    zoek: str | None = None,
+    componentrol: list[str] | None = None,
+    biv_min: str | None = None, biv_ontbreekt: bool = False,
+    klaarverklaring: str | None = None, afwijking: bool = False,
+    ondersteunt_werk: bool | None = None,
+) -> tuple[list[dict], str | None]:
+    """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
+
+    Verenigd werkscherm (CD054b W1): LEFT JOIN op het profiel levert de
+    besturingsvelden (`lifecycle_status` — null voor niet-checklist-dragende typen).
+    Sortering op een nullable kolom plaatst NULLs altijd achteraan (NULLS-LAST,
+    v2n-cursor). De filters (AND, alle optioneel) leven in `_pas_filters_toe` —
+    gedeeld met `tel` (LI040-resultaatregel). BIV filtert sinds LI040 op de hoogste
+    van de drie assen (`biv_min`/`biv_ontbreekt`); het per-as-filteren is vervallen."""
+    limit = max(1, min(limit, _MAX_LIMIT))
+    tid = _tenant_uuid(tenant_id)
+    if sort not in _SORTEERBARE_KOLOMMEN:
+        raise ValueError(f"onbekend sorteerveld: {sort}")
+    if order not in ("asc", "desc"):
+        raise ValueError(f"onbekende sorteerrichting: {order}")
+    # UX-B6-b — eigenaar-organisatie als gejoinde partij; `eigenaar` sorteert op de org-naam.
+    eig = aliased(Partij)
+    kolom = eig.naam if sort == "eigenaar" else _SORTEERBARE_KOLOMMEN[sort]
+
+    stmt = (
+        # ADR-022 Fase A: lifecycle_status komt uit het profiel (LEFT JOIN — null voor
+        # niet-checklist-dragende componenten). UX-B6-b: LEFT JOIN de eigenaar-org-partij
+        # voor naam-in-read + sortering op naam. LI059 Slice 3: geen subtabel-join meer.
+        select(Component, ComponentProfiel.lifecycle_status.label("lifecycle_status"),
+               eig.naam.label("eigenaar_organisatie_naam"))
+        .outerjoin(ComponentProfiel, and_(ComponentProfiel.id == Component.id, ComponentProfiel.tenant_id == tid))
+        .outerjoin(eig, and_(eig.id == Component.eigenaar_organisatie_id, eig.tenant_id == tid))
+        .where(Component.tenant_id == tid)
+    )
+    # ADR-023 Fase C: ArchiMate-typing voor het laag-filter (read-only) + per-rij projectie.
+    typing = await catalog.archimate_typing(session)
+    stmt = await _pas_filters_toe(
+        session, stmt, tid, typing=typing,
+        componenttype=componenttype, laag=laag, status=status, hostingmodel=hostingmodel,
+        levensfase=levensfase, migratiepad=migratiepad,
+        eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id,
+        zoek=zoek, componentrol=componentrol,
+        biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,
+        klaarverklaring=klaarverklaring, afwijking=afwijking, ondersteunt_werk=ondersteunt_werk,
+    )
     if after:
         c_sort, c_order, c_isnull, c_waarde_str, c_id = decode_sort_cursor_nullable(after)
         if c_sort != sort or c_order != order:

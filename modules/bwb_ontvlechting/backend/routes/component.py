@@ -13,7 +13,7 @@ from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
-from models.models import HostingModel, Levensfase
+from models.models import HostingModel, Levensfase, Migratiepad
 from schemas.component import (
     ComponentCreate,
     ComponentImpact,
@@ -53,14 +53,17 @@ async def lijst_componenten(
     hostingmodel: HostingModel | None = Query(None),
     # ADR-046 — levensfase-filter (enum-allowlist; onbekende waarde ⇒ 422 aan de API-rand).
     levensfase: Levensfase | None = Query(None),
+    # LI040 — bedoeling-filter (enum-allowlist; UI-label "Bedoeling").
+    migratiepad: Migratiepad | None = Query(None),
     eigenaar_organisatie_id: uuid.UUID | None = Query(None),
     leverancier_id: uuid.UUID | None = Query(None),
     zoek: str | None = Query(None, max_length=255),
-    # ADR-028 — componentrol (multi-select, herhaalbaar) + BIV-drempel per aspect (sleutel).
+    # ADR-028 — componentrol (multi-select, herhaalbaar). LI040 — BIV filtert op de
+    # HOOGSTE van de drie assen (`biv_min`, catalogus-sleutel) of op het registratiegat
+    # (`biv_ontbreekt`: geen enkele as ingevuld); het per-as-filteren is vervallen.
     componentrol: list[str] = Query(default=[]),
-    biv_beschikbaarheid_min: str | None = Query(None, max_length=60),
-    biv_integriteit_min: str | None = Query(None, max_length=60),
-    biv_vertrouwelijkheid_min: str | None = Query(None, max_length=60),
+    biv_min: str | None = Query(None, max_length=60),
+    biv_ontbreekt: bool = Query(False),
     # ADR-027 slice 3 — dashboard-doorklik: klaarverklaring=klaar / afwijking=1 (allowlist).
     klaarverklaring: str | None = Query(None, pattern="^klaar$"),
     afwijking: bool = Query(False),
@@ -69,22 +72,28 @@ async def lijst_componenten(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
+    # Eén filterset voor items én telling (gedeelde `_pas_filters_toe` — LI040).
+    filters = dict(
+        componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
+        hostingmodel=hostingmodel.value if hostingmodel else None,
+        levensfase=levensfase.value if levensfase else None,
+        migratiepad=migratiepad.value if migratiepad else None,
+        eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id, zoek=zoek,
+        componentrol=componentrol or None,
+        biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,
+        klaarverklaring=klaarverklaring, afwijking=afwijking,
+        ondersteunt_werk=ondersteunt_werk,
+    )
     try:
         items, volgende = await svc.lijst(
             session, user.tenant_id, limit=limit, after=after, sort=sort.value, order=order.value,
-            componenttype=componenttype, laag=laag, status=[s.value for s in status] or None,
-            hostingmodel=hostingmodel.value if hostingmodel else None,
-            levensfase=levensfase.value if levensfase else None,
-            eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id, zoek=zoek,
-            componentrol=componentrol or None,
-            biv_beschikbaarheid_min=biv_beschikbaarheid_min, biv_integriteit_min=biv_integriteit_min,
-            biv_vertrouwelijkheid_min=biv_vertrouwelijkheid_min,
-            klaarverklaring=klaarverklaring, afwijking=afwijking,
-            ondersteunt_werk=ondersteunt_werk,
+            **filters,
         )
     except ValueError:
         return _fout(400, "ONGELDIGE_CURSOR", "De sorteer-/paginatieparameters zijn ongeldig.")
-    return {"items": items, "volgende_cursor": volgende}
+    # LI040 — resultaatregel: gefilterd totaal + ongefilterd totaal (hele dataset).
+    totalen = await svc.tel(session, user.tenant_id, **filters)
+    return {"items": items, "volgende_cursor": volgende, **totalen}
 
 
 @router.get("/opties", response_model=ComponentOpties)

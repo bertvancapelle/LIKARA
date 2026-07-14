@@ -64,16 +64,22 @@ describe('api-client — filter belandt in de query-string', () => {
     expect(laatsteUrl).toContain('relatietype=flow')
   })
 
-  it('ADR-028: componenten.lijst zet componentrol (herhaald) + BIV-drempels in de URL', async () => {
+  it('ADR-028/LI040: componenten.lijst zet componentrol (herhaald) + het ene BIV-filter in de URL', async () => {
     await api.componenten.lijst({
       componentrol: ['externe_dataprovider', 'koppelvlak'],
-      biv_beschikbaarheid_min: 'midden',
-      biv_vertrouwelijkheid_min: 'hoog',
+      biv_min: 'hoog',
     })
     expect(laatsteUrl).toContain('componentrol=externe_dataprovider')
     expect(laatsteUrl).toContain('componentrol=koppelvlak')
-    expect(laatsteUrl).toContain('biv_beschikbaarheid_min=midden')
-    expect(laatsteUrl).toContain('biv_vertrouwelijkheid_min=hoog')
+    expect(laatsteUrl).toContain('biv_min=hoog')
+    // LI040 — het registratiegat-filter + het bedoeling-filter.
+    await api.componenten.lijst({ biv_ontbreekt: 1, migratiepad: 'vervangen' })
+    expect(laatsteUrl).toContain('biv_ontbreekt=1')
+    expect(laatsteUrl).toContain('migratiepad=vervangen')
+    // De per-as-params zijn vervallen → onbekende key faalt LUID (nooit stil ongefilterd).
+    expect(() => api.componenten.lijst({ biv_beschikbaarheid_min: 'midden' })).toThrow(
+      /onbekende filter-parameter 'biv_beschikbaarheid_min'/,
+    )
   })
 
   it('ADR-046: organisatiegebruik.lijstVoorApplicatie zet applicatie_id in de URL; onbekende key faalt luid', async () => {

@@ -247,13 +247,14 @@ def test_catalog_levert_ondersteunt_werk_mee():
 def test_lijst_filter_alleen_achter_guard():
     """Default-pad byte-identiek (ADR-028-guard-les): de clause bestaat uitsluitend
     achter `if ondersteunt_werk is not None` en filtert via een IN-subquery op de
-    CATALOGUS (nooit een typen-lijst in code)."""
+    CATALOGUS (nooit een typen-lijst in code). LI040: de filters leven in de gedeelde
+    `_pas_filters_toe` (één filterwaarheid voor lijst én telling) — daar scannen."""
     import inspect
     import re
 
     from services import component_service as svc
 
-    bron = inspect.getsource(svc.lijst)
+    bron = inspect.getsource(svc._pas_filters_toe)
     m = re.search(r"if ondersteunt_werk is not None:\n(.+?)\n    (?:if|#|[a-z])", bron, re.S)
     assert m, "guard ontbreekt"
     blok = m.group(1)

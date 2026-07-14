@@ -380,8 +380,10 @@ def test_create_ongeldige_rol_en_biv_422():
 
 @integratie
 def test_lijst_filter_rol_in_en_biv_drempel():
-    """ADR-028 slice 3 — server-side lijst-filter: rol-IN (multi-select) + BIV-drempel per aspect
-    (ordinaal op volgorde). Een component zónder waarde op een aspect valt weg bij een drempel."""
+    """ADR-028 slice 3 (herzien LI040) — server-side lijst-filter: rol-IN (multi-select) +
+    BIV-drempel op de HOOGSTE van de drie assen (`biv_min`, ordinaal op volgorde). Een
+    component zonder enige BIV-waarde valt weg bij een drempel, en is vindbaar via
+    `biv_ontbreekt` (het registratiegat)."""
     from schemas.component import ComponentCreate
     from services import component_service as cs
     from sqlalchemy import text as _t
@@ -410,19 +412,22 @@ def test_lijst_filter_rol_in_en_biv_drempel():
 
             # rol-IN: alleen de twee externe dataproviders
             rol = await _namen(componentrol=["externe_dataprovider"])
-            # BIV-drempel vertrouwelijkheid >= midden: alleen 'a' (hoog); 'b' (laag) + 'c' (leeg) vallen weg
-            biv = await _namen(biv_vertrouwelijkheid_min="midden")
+            # LI040 — hoogste-as ≥ midden: alleen 'a' (V=hoog); 'b' (V=laag) + 'c' (leeg) vallen weg
+            biv = await _namen(biv_min="midden")
+            # LI040 — het registratiegat: exact de componenten zonder enige BIV-waarde
+            gat = await _namen(biv_ontbreekt=True)
             # combinatie AND
-            combi = await _namen(componentrol=["externe_dataprovider"], biv_vertrouwelijkheid_min="midden")
-            return rol, biv, combi
+            combi = await _namen(componentrol=["externe_dataprovider"], biv_min="midden")
+            return rol, biv, gat, combi
         finally:
             for i in ids:
                 await s.execute(_t("DELETE FROM element WHERE id=:i"), {"i": str(i)})
             await s.commit()
 
-    rol, biv, combi = asyncio.run(_run_rls(_flow))
+    rol, biv, gat, combi = asyncio.run(_run_rls(_flow))
     assert rol == {f"{sfx}-a", f"{sfx}-c"}
     assert biv == {f"{sfx}-a"}
+    assert gat == {f"{sfx}-c"}
     assert combi == {f"{sfx}-a"}
 
 
@@ -432,7 +437,7 @@ def test_lijst_ongeldige_biv_drempel_422():
     from services.errors import OngeldigeRegistratie
 
     async def _flow(s):
-        await cs.lijst(s, _TID, biv_integriteit_min="bestaat_niet", limit=5)
+        await cs.lijst(s, _TID, biv_min="bestaat_niet", limit=5)
 
     with pytest.raises(OngeldigeRegistratie) as e:
         asyncio.run(_run_rls(_flow))

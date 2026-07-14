@@ -18,6 +18,7 @@ import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
+import FilterResultaatRegel from '@/components/FilterResultaatRegel.vue'
 import ComponentFormulier from '@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import {
@@ -27,6 +28,7 @@ import {
   LEVENSFASE,
   LIFECYCLE,
   LIFECYCLE_SEVERITY,
+  MIGRATIEPAD,
   NIVEAU,
   label,
 } from '../labels'
@@ -41,6 +43,9 @@ const cursor = ref(null)
 const laden = ref(false)
 const fout = ref(null)
 const eersteGeladen = ref(false)
+// LI040 — resultaatregel: gefilterd totaal + ongefilterd totaal (server-side, hele dataset).
+const totaal = ref(null)
+const totaalAlles = ref(null)
 
 // Filters — gespiegeld aan de Applicaties-lijst (CD017), AND-gecombineerd.
 const STATUS_OPTIES = ['concept', 'in_inventarisatie', 'geblokkeerd', 'migratieklaar']
@@ -54,37 +59,33 @@ const filterLaag = ref('') // ADR-023 Fase C: '' = alle ArchiMate-lagen
 const filterHosting = ref('')
 // ADR-046 — levensfase ('' = alle).
 const filterLevensfase = ref('')
+// LI040 — bedoeling ('' = alle; API-param `migratiepad`, UI-label "Bedoeling").
+const filterBedoeling = ref('')
 // UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
 const filterEigenaarId = ref(null)
 // LI032-les: een hersteld eigenaar-id moet zijn label tonen (ZoekSelect kent alleen het
 // id) → de gekozen naam meebewaren en als `initieel-weergave` teruggeven.
 const filterEigenaarNaam = ref('')
 const filterZoek = ref('')
-// ADR-028 — rol (multi-select) + BIV-drempel per aspect ("minimaal X"), ordinaal op de schaal.
+// ADR-028 — rol (multi-select). LI040 — BIV is ÉÉN filter geworden: de hoogste van de
+// drie assen ≥ drempel ('' = alle · catalogus-sleutel · '__zonder__' = nog niet
+// vastgelegd, d.w.z. geen enkele as ingevuld). De waarden komen uit de beheerbare
+// BIV-schaal-catalogus (opties-endpoint) — nooit hardcoded. De drie assen zelf blijven
+// volledig bestaan op component/formulier/detail; alleen het per-as-filteren verviel.
 const rolOpties = ref([]) // [{ optie_sleutel, label }]
 const bivNiveaus = ref([]) // [{ optie_sleutel, label }] — ordinaal (laag → hoog)
 const filterRol = ref([])
-const filterBivB = ref('')
-const filterBivI = ref('')
-const filterBivV = ref('')
+const BIV_ZONDER = '__zonder__'
+const filterBiv = ref('')
 // ADR-045 besluit 5 — filter op de catalogus-eigenschap "ondersteunt werk"
 // ('' = alle · 'ja' · 'nee'); de vraag vóór en na een vlag-flip in het beheer.
 const filterWerk = ref('')
-const BIV_ASPECTEN = [
-  { veld: 'biv_beschikbaarheid_min', ref: filterBivB, label: 'Beschikbaarheid' },
-  { veld: 'biv_integriteit_min', ref: filterBivI, label: 'Integriteit' },
-  { veld: 'biv_vertrouwelijkheid_min', ref: filterBivV, label: 'Vertrouwelijkheid' },
-]
 const rolLabel = (sleutel) => rolOpties.value.find((o) => o.optie_sleutel === sleutel)?.label || sleutel
-// ADR-027 slice 3 — dashboard-doorklik-filters (geen dropdown; uit de route-query). Een
-// indicator-chip laat ze zien + wissen. `afwijking` impliceert server-side `klaarverklaring=klaar`.
+const bivLabel = (sleutel) => bivNiveaus.value.find((o) => o.optie_sleutel === sleutel)?.label || sleutel
+// ADR-027 slice 3 — dashboard-doorklik-filters (geen dropdown; uit de route-query).
+// LI040: zichtbaar + wisbaar via de resultaatregel-chips (geen losse chip meer).
 const filterKlaarverklaring = ref('') // '' | 'klaar'
 const filterAfwijking = ref(false)
-function wisKlaarverklaringFilter() {
-  filterKlaarverklaring.value = ''
-  filterAfwijking.value = false
-  laad({ reset: true })
-}
 
 // Organisatie-keuze (filter): server-side zoeken, beperkt tot aard=organisatie.
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
@@ -111,25 +112,81 @@ const heeftFilters = computed(
     !!filterLaag.value ||
     !!filterHosting.value ||
     !!filterLevensfase.value ||
+    !!filterBedoeling.value ||
     !!filterEigenaarId.value ||
     !!filterZoek.value.trim() ||
     filterRol.value.length > 0 ||
-    !!filterBivB.value ||
-    !!filterBivI.value ||
-    !!filterBivV.value ||
+    !!filterBiv.value ||
     !!filterWerk.value,
 )
+
+// LI040 — de resultaatregel-chips: elk actief filter uitgeschreven (label + waarde),
+// los wisbaar. Dit is het antwoord op "waarom is dit leeg?" — naast de melding, niet
+// verstopt in de dropdowns. Eén chip per filterveld (multi-select → waarden gejoined).
+const filterChips = computed(() => {
+  const chips = []
+  if (filterStatus.value.length)
+    chips.push({ sleutel: 'status', label: 'Status', waarde: filterStatus.value.map(lifecycleLabel).join(', ') })
+  if (filterType.value)
+    chips.push({ sleutel: 'type', label: 'Type', waarde: typeOpties.value.find((o) => o.optie_sleutel === filterType.value)?.label || filterType.value })
+  if (filterLaag.value) chips.push({ sleutel: 'laag', label: 'Laag', waarde: laagLabel(filterLaag.value) })
+  if (filterHosting.value) chips.push({ sleutel: 'hosting', label: 'Hosting', waarde: hosting(filterHosting.value) })
+  if (filterLevensfase.value)
+    chips.push({ sleutel: 'levensfase', label: 'Levensfase', waarde: levensfaseLabel(filterLevensfase.value) })
+  if (filterBedoeling.value)
+    chips.push({ sleutel: 'bedoeling', label: 'Bedoeling', waarde: label(MIGRATIEPAD, filterBedoeling.value) })
+  if (filterWerk.value)
+    chips.push({ sleutel: 'werk', label: 'Ondersteunt werk', waarde: filterWerk.value === 'ja' ? 'Ja' : 'Nee' })
+  if (filterRol.value.length)
+    chips.push({ sleutel: 'rol', label: 'Rol', waarde: filterRol.value.map(rolLabel).join(', ') })
+  if (filterBiv.value)
+    chips.push({
+      sleutel: 'biv', label: 'BIV',
+      waarde: filterBiv.value === BIV_ZONDER ? 'nog niet vastgelegd' : `≥ ${bivLabel(filterBiv.value)}`,
+    })
+  if (filterEigenaarId.value)
+    chips.push({ sleutel: 'eigenaar', label: 'Eigenaar', waarde: filterEigenaarNaam.value || 'gekozen organisatie' })
+  if (filterZoek.value.trim()) chips.push({ sleutel: 'zoek', label: 'Naam', waarde: `“${filterZoek.value.trim()}”` })
+  // ADR-027 — de dashboard-doorklik-filters horen óók uitgeschreven in de regel.
+  if (filterAfwijking.value)
+    chips.push({ sleutel: 'afwijking', label: 'Klaarverklaring', waarde: 'klaar verklaard, checklist nog niet compleet' })
+  else if (filterKlaarverklaring.value)
+    chips.push({ sleutel: 'klaarverklaring', label: 'Klaarverklaring', waarde: 'klaar verklaard' })
+  return chips
+})
+
+// Eén chip wissen = ALLEEN dat filterveld terug naar de default (+ herfilter).
+function wisChip(sleutel) {
+  const reset = {
+    status: () => (filterStatus.value = []),
+    type: () => (filterType.value = ''),
+    laag: () => (filterLaag.value = ''),
+    hosting: () => (filterHosting.value = ''),
+    levensfase: () => (filterLevensfase.value = ''),
+    bedoeling: () => (filterBedoeling.value = ''),
+    werk: () => (filterWerk.value = ''),
+    rol: () => (filterRol.value = []),
+    biv: () => (filterBiv.value = ''),
+    eigenaar: () => { filterEigenaarId.value = null; filterEigenaarNaam.value = '' },
+    zoek: () => (filterZoek.value = ''),
+    afwijking: () => (filterAfwijking.value = false),
+    klaarverklaring: () => (filterKlaarverklaring.value = ''),
+  }[sleutel]
+  reset?.()
+  herfilter()
+}
 
 // Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
 // Gevalideerd herstel: onbekende waarden vallen stil terug op de default; catalogus-
 // gedreven sleutels (type/laag/rol/BIV) worden ná het laden van de opties geprund.
-const SORTEERBARE_VELDEN = ['naam', 'componenttype', 'eigenaar', 'hostingmodel', 'complexiteit', 'prioriteit', 'levensfase', 'lifecycle_status']
+const SORTEERBARE_VELDEN = ['naam', 'componenttype', 'eigenaar', 'hostingmodel', 'complexiteit', 'prioriteit', 'levensfase', 'migratiepad', 'lifecycle_status']
 const _tekst = (w) => typeof w === 'string'
 const { herstel: herstelLijstStaat } = useLijstStaat(
   'component-lijst',
   {
-    filterStatus, filterType, filterLaag, filterHosting, filterLevensfase, filterEigenaarId, filterEigenaarNaam,
-    filterZoek, filterRol, filterBivB, filterBivI, filterBivV, filterWerk,
+    filterStatus, filterType, filterLaag, filterHosting, filterLevensfase, filterBedoeling,
+    filterEigenaarId, filterEigenaarNaam,
+    filterZoek, filterRol, filterBiv, filterWerk,
     filterKlaarverklaring, filterAfwijking, sortVeld, sortRichting,
   },
   {
@@ -139,13 +196,12 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
       filterLaag: _tekst,
       filterHosting: (w) => w === '' || HOSTING_OPTIES.includes(w),
       filterLevensfase: (w) => w === '' || LEVENSFASE_OPTIES.includes(w),
+      filterBedoeling: (w) => w === '' || Object.keys(MIGRATIEPAD).includes(w),
       filterEigenaarId: (w) => w === null || _tekst(w),
       filterEigenaarNaam: _tekst,
       filterZoek: _tekst,
       filterRol: (w) => Array.isArray(w) && w.every(_tekst),
-      filterBivB: _tekst,
-      filterBivI: _tekst,
-      filterBivV: _tekst,
+      filterBiv: _tekst, // catalogus-sleutel of '__zonder__'; prune tegen de catalogus na laden
       filterWerk: (w) => w === '' || w === 'ja' || w === 'nee',
       filterKlaarverklaring: (w) => w === '' || w === 'klaar',
       filterAfwijking: (w) => typeof w === 'boolean',
@@ -167,10 +223,12 @@ function _pruneTegenCatalogus() {
   if (rolOpties.value.length && filterRol.value.length) {
     filterRol.value = filterRol.value.filter((r) => rolOpties.value.some((o) => o.optie_sleutel === r))
   }
-  if (bivNiveaus.value.length) {
-    for (const a of BIV_ASPECTEN) {
-      if (a.ref.value && !bivNiveaus.value.some((n) => n.optie_sleutel === a.ref.value)) a.ref.value = ''
-    }
+  // LI040 — één BIV-filter: catalogus-sleutel of de vaste '__zonder__'-optie.
+  if (
+    bivNiveaus.value.length && filterBiv.value && filterBiv.value !== BIV_ZONDER &&
+    !bivNiveaus.value.some((n) => n.optie_sleutel === filterBiv.value)
+  ) {
+    filterBiv.value = ''
   }
 }
 
@@ -185,13 +243,15 @@ async function laad({ reset = false } = {}) {
     if (filterHosting.value) params.hostingmodel = filterHosting.value
     // ADR-046 — levensfase (leeg = geen clause).
     if (filterLevensfase.value) params.levensfase = filterLevensfase.value
+    // LI040 — bedoeling (API-param `migratiepad`).
+    if (filterBedoeling.value) params.migratiepad = filterBedoeling.value
     if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
-    // ADR-028 — rol (array → herhaalde param) + BIV-drempel per aspect (leeg = geen clause).
+    // ADR-028 — rol (array → herhaalde param). LI040 — één BIV-filter: hoogste as ≥
+    // drempel (`biv_min`) of het registratiegat (`biv_ontbreekt`).
     if (filterRol.value.length) params.componentrol = filterRol.value
-    if (filterBivB.value) params.biv_beschikbaarheid_min = filterBivB.value
-    if (filterBivI.value) params.biv_integriteit_min = filterBivI.value
-    if (filterBivV.value) params.biv_vertrouwelijkheid_min = filterBivV.value
+    if (filterBiv.value === BIV_ZONDER) params.biv_ontbreekt = 1
+    else if (filterBiv.value) params.biv_min = filterBiv.value
     // ADR-045 — server-side op de catalogus-eigenschap (leeg = geen clause).
     if (filterWerk.value) params.ondersteunt_werk = filterWerk.value === 'ja'
     if (filterAfwijking.value) params.afwijking = 1
@@ -203,6 +263,9 @@ async function laad({ reset = false } = {}) {
     const pagina = await api.componenten.lijst(params)
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
     cursor.value = pagina.volgende_cursor
+    // LI040 — resultaatregel-aantallen (server-side, hele dataset; ook bij "Meer laden").
+    totaal.value = pagina.totaal ?? null
+    totaalAlles.value = pagina.totaal_ongefilterd ?? null
   } catch (e) {
     fout.value = e?.status === 401 ? null : e?.message || 'Er ging iets mis bij het laden van de componenten.'
   } finally {
@@ -233,13 +296,12 @@ function wisFilters() {
   filterLaag.value = ''
   filterHosting.value = ''
   filterLevensfase.value = ''
+  filterBedoeling.value = ''
   filterEigenaarId.value = null
   filterEigenaarNaam.value = ''
   filterZoek.value = ''
   filterRol.value = []
-  filterBivB.value = ''
-  filterBivI.value = ''
-  filterBivV.value = ''
+  filterBiv.value = ''
   filterWerk.value = ''
   herfilter()
 }
@@ -403,6 +465,22 @@ onMounted(async () => {
         </select>
       </label>
 
+      <!-- LI040 — bedoeling-filter: "welke systemen gaan we vervangen?" is één klik
+           (de tweede vraag naast de levensfase — ADR-046). -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Bedoeling</span>
+        <select
+          v-model="filterBedoeling"
+          data-testid="filter-bedoeling"
+          aria-label="Filter op bedoeling"
+          class="lk-veld"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="code in Object.keys(MIGRATIEPAD)" :key="code" :value="code">{{ label(MIGRATIEPAD, code) }}</option>
+        </select>
+      </label>
+
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Ondersteunt werk</span>
         <select
@@ -431,21 +509,21 @@ onMounted(async () => {
         />
       </label>
 
-      <label
-        v-for="a in BIV_ASPECTEN"
-        :key="a.veld"
-        class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
-      >
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">{{ a.label }} ≥</span>
+      <!-- LI040 — één BIV-filter (de zwaarste as bepaalt): ≥ drempel op de hoogste van de
+           drie assen, of "nog niet vastgelegd" (geen enkele as ingevuld — het gat vindbaar).
+           Waarden uit de beheerbare BIV-schaal-catalogus, nooit hardcoded. -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">BIV ≥</span>
         <select
-          v-model="a.ref.value"
-          :data-testid="`filter-${a.veld}`"
-          :aria-label="`Filter op minimaal ${a.label}`"
+          v-model="filterBiv"
+          data-testid="filter-biv"
+          aria-label="Filter op BIV-classificatie (hoogste as)"
           class="lk-veld"
           @change="herfilter"
         >
-          <option value="">— Alle —</option>
+          <option value="">Alle</option>
           <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
+          <option :value="BIV_ZONDER">nog niet vastgelegd</option>
         </select>
       </label>
 
@@ -496,15 +574,17 @@ onMounted(async () => {
       {{ fout }}
     </p>
 
-    <!-- ADR-027 slice 3 — actieve klaarverklaring-doorklik (dashboard) als wisbare chip. -->
-    <div
-      v-if="filterKlaarverklaring || filterAfwijking"
-      data-testid="klaarverklaring-filter-chip"
-      class="mb-[var(--lk-space-md)] inline-flex items-center gap-[var(--lk-space-sm)] rounded-[var(--lk-radius-badge)] bg-[var(--lk-color-accent)] px-[var(--lk-space-md)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
-    >
-      <span>{{ filterAfwijking ? 'Klaar verklaard, checklist nog niet compleet' : 'Klaar verklaard' }}</span>
-      <button type="button" data-testid="klaarverklaring-filter-wis" aria-label="Filter wissen" class="font-semibold hover:underline" @click="wisKlaarverklaringFilter">×</button>
-    </div>
+    <!-- LI040 — de resultaatregel: aantal (altijd) + elk actief filter uitgeschreven en
+         los wisbaar. De lege-melding in de tabel staat zo náást zijn eigen reden.
+         (De vroegere losse klaarverklaring-chip is hierin opgegaan.) -->
+    <FilterResultaatRegel
+      :totaal="totaal"
+      :totaal-alles="totaalAlles"
+      :chips="filterChips"
+      eenheid="componenten"
+      eenheid-enkelvoud="component"
+      @wis="wisChip"
+    />
 
     <!-- Server-side sortering (ADR-017): lazy + @sort → sort/order + cursor-reset.
          Laag is bewust NIET sorteerbaar (afgeleide ArchiMate-projectie, geen kolom). -->
@@ -569,6 +649,12 @@ onMounted(async () => {
         <template #body="{ data }">
           <span v-if="data.levensfase" data-testid="rij-levensfase">{{ levensfaseLabel(data.levensfase) }}</span>
           <span v-else data-testid="levensfase-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
+        </template>
+      </Column>
+      <!-- LI040 — bedoeling-kolom (sorteerbaar, zoals levensfase — de twee vragen samen). -->
+      <Column header="Bedoeling" sort-field="migratiepad" sortable>
+        <template #body="{ data }">
+          <span data-testid="rij-bedoeling">{{ label(MIGRATIEPAD, data.migratiepad) }}</span>
         </template>
       </Column>
       <Column header="Status" sort-field="lifecycle_status" sortable>

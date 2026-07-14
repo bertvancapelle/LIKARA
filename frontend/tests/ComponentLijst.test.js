@@ -269,24 +269,77 @@ describe('ComponentLijst', () => {
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ componentrol: ['externe_dataprovider'], after: undefined }),
     )
-    // BIV-drempel (native select) op Vertrouwelijkheid ≥ hoog.
-    await w.find('[data-testid="filter-biv_vertrouwelijkheid_min"]').setValue('hoog')
+    // LI040 — één BIV-filter (hoogste as ≥ drempel) i.p.v. drie per-as-dropdowns.
+    await w.find('[data-testid="filter-biv"]').setValue('hoog')
     await flushPromises()
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
-      expect.objectContaining({ componentrol: ['externe_dataprovider'], biv_vertrouwelijkheid_min: 'hoog' }),
+      expect.objectContaining({ componentrol: ['externe_dataprovider'], biv_min: 'hoog' }),
     )
   })
 
-  it('ADR-028: wisFilters wist ook rol + BIV', async () => {
+  it('LI040: BIV "nog niet vastgelegd" stuurt biv_ontbreekt (het gat vindbaar)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-biv_beschikbaarheid_min"]').setValue('midden')
+    await w.find('[data-testid="filter-biv"]').setValue('__zonder__')
     await flushPromises()
-    expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ biv_beschikbaarheid_min: 'midden' }))
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.biv_ontbreekt).toBe(1)
+    expect(call.biv_min).toBeUndefined()
+  })
+
+  it('LI040: het bedoeling-filter belandt END-TO-END in de api-call (param migratiepad)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-bedoeling"]').setValue('vervangen')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ migratiepad: 'vervangen', after: undefined }),
+    )
+  })
+
+  it('LI040: de resultaatregel toont "X van Y componenten" + chips; één chip wissen wist ALLEEN die filter', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-levensfase"]').setValue('in_ontwikkeling')
+    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
+    await flushPromises()
+    // Het aantal + de twee actieve filters staan uitgeschreven naast de lege-melding.
+    expect(w.find('[data-testid="resultaat-aantal"]').text()).toBe('0 van 19 componenten')
+    expect(w.find('[data-testid="filter-chip-levensfase"]').text()).toContain('Levensfase: In ontwikkeling')
+    expect(w.find('[data-testid="filter-chip-werk"]').text()).toContain('Ondersteunt werk: Nee')
+    expect(w.find('[data-testid="lijst-geen-match"]').exists()).toBe(true) // leeg naast zijn reden
+    // Eén chip wissen → alleen dat filter verdwijnt uit de volgende call; de ander blijft.
+    await w.find('[data-testid="chip-wis-levensfase"]').trigger('click')
+    await flushPromises()
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.levensfase).toBeUndefined()
+    expect(call.ondersteunt_werk).toBe(false)
+    expect(w.find('[data-testid="filter-chip-levensfase"]').exists()).toBe(false)
+    expect(w.find('[data-testid="filter-chip-werk"]').exists()).toBe(true)
+  })
+
+  it('LI040: zonder filters toont de regel het kale totaal ("19 componenten")', async () => {
+    api.componenten.lijst.mockResolvedValue({
+      items: [_comp('Oracle FIN-DB', 'db-1')], volgende_cursor: null, totaal: 19, totaal_ongefilterd: 19,
+    })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="resultaat-aantal"]').text()).toBe('19 componenten')
+  })
+
+  it('ADR-028/LI040: wisFilters wist ook rol + BIV + bedoeling', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-biv"]').setValue('midden')
+    await w.find('[data-testid="filter-bedoeling"]').setValue('herbouw')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ biv_min: 'midden', migratiepad: 'herbouw' }),
+    )
     await w.find('[data-testid="filters-wissen"]').trigger('click')
     await flushPromises()
     const laatste = api.componenten.lijst.mock.calls.at(-1)[0]
-    expect(laatste.biv_beschikbaarheid_min).toBeUndefined()
+    expect(laatste.biv_min).toBeUndefined()
+    expect(laatste.migratiepad).toBeUndefined()
     expect(laatste.componentrol).toBeUndefined()
   })
 
@@ -339,31 +392,32 @@ describe('ComponentLijst', () => {
   })
 
   it('ADR-027: ?klaarverklaring=klaar belandt als api-filter + toont de wisbare chip', async () => {
-    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
     const w = await mountLijst({ pad: '/componenten?klaarverklaring=klaar' })
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ klaarverklaring: 'klaar' }),
     )
-    expect(w.find('[data-testid="klaarverklaring-filter-chip"]').exists()).toBe(true)
+    // LI040 — de doorklik-filter staat uitgeschreven in de resultaatregel-chips.
+    expect(w.find('[data-testid="filter-chip-klaarverklaring"]').exists()).toBe(true)
   })
 
   it('ADR-027: ?afwijking=1 belandt als afwijking-filter (impliceert geen losse klaarverklaring-param)', async () => {
-    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
     const w = await mountLijst({ pad: '/componenten?afwijking=1' })
     const call = api.componenten.lijst.mock.calls.at(-1)[0]
     expect(call.afwijking).toBe(1)
     expect(call.klaarverklaring).toBeUndefined() // afwijking impliceert server-side de klaar-join
-    expect(w.find('[data-testid="klaarverklaring-filter-chip"]').text()).toContain('nog niet compleet')
+    expect(w.find('[data-testid="filter-chip-afwijking"]').text()).toContain('nog niet compleet')
   })
 
-  it('ADR-027: chip wissen verwijdert de filter uit de volgende api-call', async () => {
-    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+  it('ADR-027/LI040: chip wissen verwijdert de filter uit de volgende api-call', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
     const w = await mountLijst({ pad: '/componenten?afwijking=1' })
-    await w.find('[data-testid="klaarverklaring-filter-wis"]').trigger('click')
+    await w.find('[data-testid="chip-wis-afwijking"]').trigger('click')
     const call = api.componenten.lijst.mock.calls.at(-1)[0]
     expect(call.afwijking).toBeUndefined()
     expect(call.klaarverklaring).toBeUndefined()
-    expect(w.find('[data-testid="klaarverklaring-filter-chip"]').exists()).toBe(false)
+    expect(w.find('[data-testid="filter-chip-afwijking"]').exists()).toBe(false)
   })
 
   it('?status= + ?type= samen zetten beide filters voor (exacte dashboard-tegel-match)', async () => {
@@ -400,7 +454,7 @@ describe('ComponentLijst', () => {
     )
   })
 
-  it('de 8 kolommen zijn sorteerbaar en Laag bewust niet', async () => {
+  it('de 9 kolommen zijn sorteerbaar en Laag bewust niet', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
     const sortFields = w.findAllComponents(Column).map((c) => ({
@@ -410,9 +464,10 @@ describe('ComponentLijst', () => {
     const sorteerbaar = sortFields.filter((c) => c.sortable).map((c) => c.header)
     expect(sorteerbaar).toEqual(
       // ADR-046 — Levensfase is een echte, server-side sorteerbare kolom (v2n NULLS-LAST).
-      expect.arrayContaining(['Naam', 'Type', 'Eigenaar', 'Hosting', 'Complexiteit', 'Prioriteit', 'Levensfase', 'Status']),
+      // LI040 — Bedoeling is een echte, server-side sorteerbare kolom (naast Levensfase).
+      expect.arrayContaining(['Naam', 'Type', 'Eigenaar', 'Hosting', 'Complexiteit', 'Prioriteit', 'Levensfase', 'Bedoeling', 'Status']),
     )
-    expect(sorteerbaar).toHaveLength(8)
+    expect(sorteerbaar).toHaveLength(9)
     expect(sorteerbaar).not.toContain('Laag')
   })
 
@@ -474,13 +529,13 @@ describe('ComponentLijst — lijststaat behouden bij terugnavigeren (useLijstSta
   it('pruned bewaarde catalogus-sleutels die niet (meer) bestaan (stale BIV → geen 422)', async () => {
     sessionStorage.setItem(
       'lijst-state:component-lijst',
-      JSON.stringify({ filterType: 'verwijderd_type', filterBivB: 'verwijderd_niveau', filterZoek: 'zaak' }),
+      JSON.stringify({ filterType: 'verwijderd_type', filterBiv: 'verwijderd_niveau', filterZoek: 'zaak' }),
     )
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     await mountLijst()
     const params = api.componenten.lijst.mock.calls[0][0]
     expect(params.componenttype).toBeUndefined()
-    expect(params.biv_beschikbaarheid_min).toBeUndefined()
+    expect(params.biv_min).toBeUndefined()
     expect(params.zoek).toBe('zaak') // geldige velden blijven hersteld
   })
 
