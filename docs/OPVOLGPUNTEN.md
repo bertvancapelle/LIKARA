@@ -9,6 +9,13 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
 
+> ⚠ **Bouwvolgorde LI041 HERZIEN (besluit Bert, naloper op de afsluiting):** de gates
+> van de bedrijfsfunctie-as (blok A: gate 2 → 3 → 4) gaan **vóór** het uitstapspoor
+> (blok B: stuk 3 → 5 → 4); de eerdere "stuk 3 eerst"-volgorde vervalt. De besluiten
+> van ADR-045/046 zelf veranderen NIET. Volledige volgorde + reden: `NEXT_SESSION.md`.
+> Verwijzingen hieronder als "ontwerpeis stuk 3/gate 3" zijn dependency-labels, geen
+> volgorde-uitspraken — die blijven zoals ze staan.
+
 0a. **Eén taal voor afwezigheid — sentinel-inventarisatie (LI040 §1.3).** `migratiepad.
    onbekend` is opgeruimd (migratie 0067); de rest is read-only geïnventariseerd en
    vergt per geval een BESLUIT van Bert (soms is "n.v.t." een echt antwoord — dat

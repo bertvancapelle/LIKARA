@@ -54,20 +54,28 @@ en de stukken 1+2 gebouwd; plus een consequente leegte-lijn en vier gedeelde bou
 - **38 patronen gevalideerd → 7 skills** (vindplaatsen + redenen; 2 expliciet als
   ontwerpbesluit gemarkeerd: bewust aanvinken · amber/neutrale taal).
 
-## Prioriteiten volgende sessie — TOP-3 (zie NEXT_SESSION.md)
-1. **ADR-046 stuk 3 — stand per gebruiker + Gebruik/Gebruikersgroepen één laag**
-   (stand op de gebruiksrelatie; ⚠ grof+fijn niet in twee tabs laten staan; zwaarte
-   geteld, amber, nooit rood).
-2. **Stuk 5 — het liegende signaal** (`component_zonder_gebruikersgroep` telt voortaan
-   op het grove feit; vuurt nu onterecht op 4 componenten).
-3. **Stuk 4 — tranche** (naam + volgorde; periode optioneel; "nog niet ingedeeld" =
-   signaal; geen planningstool).
+## Prioriteiten volgende sessie — bouwvolgorde LI041 (HERZIEN ná de afsluiting; zie NEXT_SESSION.md)
 
-**Daarna:** sentinel-besluiten (0a) · resultaatregel-uitrol (0) · gate 2/3-ontwerpeisen
-(bedrijfsfunctie-doorwerking, fileshare-als-drager=gat, koppelen grof/fijn,
-gap-per-plaatsing) · diagram-layout · gate 4 · klein: identiteitskopieën server-side (7),
-ADR-047-sweep (8), spook-gebruik (4), contract-datums (5), aard-hint (11),
-platform_init-lokaal (11a).
+> ⚠ Herzien besluit Bert (naloper op de afsluiting): **de gates van de
+> bedrijfsfunctie-as gaan vóór het uitstapspoor** — de eerdere "stuk 3 → 5 → 4"-
+> volgorde vervalt. De ADR-045/046-besluiten zelf veranderen niet. Reden: de
+> MVP-belofte (*model inlezen → systemen aanhangen → gaten zien*) stopt vandaag na
+> stap 1, en het uitstapverhaal wordt pas een bestuurlijk feit (i.p.v. een IT-lijstje)
+> zodra componenten aan functies hangen — blok A maakt blok B waardevol.
+
+- **Blok A — MVP afmaken (één verhaal, niet onderbreken):** gate 2 (koppelen
+  component ↔ bedrijfsfunctie, grof/fijn — eerste échte waarde) → gate 3 (gap-signaal
+  per plaatsing; fileshare-als-drager = GAT, niet groen) → gate 4 (kaart rust op
+  functies; procesregister uit beeld; "PROCES"-veld → bedrijfsfunctie).
+- **Blok B — uitstapspoor (ADR-046), ná blok A:** stuk 3 (stand per gebruiker +
+  Gebruik/Gebruikersgroepen één laag) → stuk 5 (liegend signaal telt op het grove
+  feit) → stuk 4 (tranche; geen planningstool).
+- **Blok C — leesbaarheid (direct ná A):** diagram links→rechts bij 297 functies;
+  beginscherm als enige vertrekpunt.
+- **Blok D — opruimwerk:** sentinels (0a) · resultaatregel-uitrol (0) ·
+  identiteitskopieën server-side (7) · ADR-047-sweep (8) · aard-hint (11) ·
+  spook-gebruik (4) · plaatstaat-herstel · contract-datums (5) ·
+  platform_init-lokaal (11a).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.

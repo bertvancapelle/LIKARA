@@ -64,11 +64,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
+b94dd88 LI040 afsluiting: skills (38 patronen) + TST-V041 + NEXT_SESSION/OPVOLGPUNTEN/PROJECTGEHEUGEN + build V041
 6cc7db0 [frontend] LI040: DetailKop-bouwsteen — de acties horen bij het object, niet bij het einde van de pagina
 3349905 [bwb_ontvlechting] LI040: 'Midden' is geen oordeel als niemand het gaf — oordelen nullable + vindbaar gat — ADR-046-lijn
 feb27f9 [bwb_ontvlechting] LI040: 'nog niet vastgelegd' is vindbaar — ontbreekt-filters + onbekend uit migratiepad — ADR-046
 39eb2ef [bwb_ontvlechting] LI040: de filterbalk vertelt wat hij doet — bedoeling-filter, resultaatregel, BIV op de hoogste as
-b027095 [bwb_ontvlechting] LI040 stuk 1: levensfase op het component + bedoeling opgeschoond — ADR-046
 ```
 
 ---
@@ -80,7 +80,7 @@ b027095 [bwb_ontvlechting] LI040 stuk 1: levensfase op het component + bedoeling
 **Gegenereerd**: 2026-07-14
 **Vorige build**: V041
 **Branch**: master
-**Laatste commit**: (afsluitcommit V041; daarvóór `6cc7db0` detailkop · `3349905` geen-oordeel · `feb27f9` leeg-vindbaar · `39eb2ef` filterbalk · `b027095` levensfase-stuk-1 · `05e8a93` stuk 2 + identiteit · `87dc120` ADR-045 · `7148672` veldbouwsteen)
+**Laatste commit**: `b94dd88` (afsluitcommit V041; daarvóór `6cc7db0` detailkop · `3349905` geen-oordeel · `feb27f9` leeg-vindbaar · `39eb2ef` filterbalk · `b027095` levensfase-stuk-1 · `05e8a93` stuk 2 + identiteit · `87dc120` ADR-045 · `7148672` veldbouwsteen)
 
 > **Sessie LI040 — Vier vragen, vier plekken; en LIKARA verzint niets meer (V041).**
 >
@@ -120,39 +120,68 @@ b027095 [bwb_ontvlechting] LI040 stuk 1: levensfase op het component + bedoeling
 
 ---
 
-## Volgende stappen — TOP-3 (besloten volgorde, ADR-046)
+## Volgende stappen — bouwvolgorde LI041 (HERZIEN besluit Bert, ná de afsluiting)
 
-### 1. Stuk 3 — stand per gebruiker + Gebruik/Gebruikersgroepen één laag
-De stand (*blijft · stopt-gepland · stopt-in uitvoering · gestopt*) is een feit op de
-**gebruiksrelatie** (`organisatiegebruik`) — want *"het zaaksysteem wordt uitgefaseerd"*
-is onwaar zodra drie van de vier gemeenten blijven. Invoer in de Gebruik-tabel (de
-kolommen Stand/Tranche zijn daar al voorzien, geen herbouw). ⚠ **Harde ontwerpeis**
-(OPVOLGPUNTEN LI040-punt 9): *Gebruik* en *Gebruikersgroepen* zijn nu twee tabbladen
-over hetzelfde feit — zodra de stand op de gebruik-rijen landt horen grof en fijn in
-**één gelaagde weergave** (grof → verfijning eronder). De zwaarte (*"nog 3 gebruikers"*)
-blijft **geteld**, nooit opgeslagen; neutrale taal, amber, nooit rood (ADR-046 besluit 5).
+> ⚠ **Deze volgorde vervangt de eerdere "stuk 3 → 5 → 4"-volgorde.** Besloten door
+> Bert ná de LI040-afsluiting: **de gates van de bedrijfsfunctie-as gaan vóór het
+> uitstapspoor.** De besluiten van ADR-045 en ADR-046 veranderen NIET — een ADR legt
+> vast *wat waar is*, niet *wanneer we het bouwen*. Alleen de bouwvolgorde verschuift.
 
-### 2. Stuk 5 — het liegende signaal
-`component_zonder_gebruikersgroep` telt serving-relaties en vuurt **onterecht op 4
-componenten** met wél geregistreerd grof gebruik. Telt voortaan op het grove feit
-(zelfde telbron als de zwaarte). **Eén liegend signaal besmet de rest.**
+### Waarom (vastgelegd — anders keert de oude volgorde terug)
+- **De MVP-belofte** (*model inlezen → systemen aanhangen → gaten zien*) **stopt
+  vandaag na stap 1.** De consultant kan de GEMMA-boom lezen en er **geen enkel
+  systeem aan hangen.**
+- **Het uitstapverhaal is afhankelijk van gate 2.** De regel waar het om draait —
+  *"2 bedrijfsfuncties raken zonder ondersteunend systeem als Tiel vertrekt"* — **kan
+  niet bestaan** zolang componenten niet aan functies hangen. Zonder gate 2 levert het
+  uitstapscherm een **IT-lijstje** (*"4 systemen zonder gebruikers"*) in plaats van een
+  **bestuurlijk feit** (*"Belastingheffing wordt door niets meer gedragen"*). **Blok A
+  maakt blok B niet alleen mogelijk — het maakt het waardevol.**
+- **Bewijs dat het nu wringt:** het componentformulier vraagt nog naar *"PROCES"*
+  terwijl de as de bedrijfsfunctie is. **LIKARA vertelt twee verhalen tegelijk.**
 
-### 3. Stuk 4 — tranche
-Logische groepering van een uitstap: naam + volgorde; periode optioneel; *"nog niet
-ingedeeld"* is het signaal. **Geen planningstool** (ADR-046 besluit 6; eigen
-tenant-tabel à la organisatiegebruik ligt het dichtst bij — vormkeuze bij de bouw).
+### Blok A — de MVP-belofte afmaken *(één verhaal, niet onderbreken)*
+1. **Gate 2 — koppelen: component ↔ bedrijfsfunctie.** Grof (geldt overal) of fijn
+   (per plaatsing) — ADR-044. De picker weert al op *"ondersteunt werk"* (ADR-045).
+   **Hier ontstaat de eerste échte waarde.** (Ontwerpeisen liggen klaar: koppelen
+   grof/fijn ADR-044 b2 · wie/wanneer-stempel + optionele toelichting ADR-045-punt 2 ·
+   import-vangrails 2b · gelijktijdigheid 3.)
+2. **Gate 3 — het gap-signaal per plaatsing.** *Nog navragen · half beantwoord · hier
+   gebruiken we niets (vastgesteld)* (ADR-044 b4). ⚠ Inclusief de harde ontwerpeis uit
+   ADR-045: **een functie die door een fileshare of client software gedragen wordt is
+   een GAT, niet groen** (punt 10); plus bedrijfsfunctie-doorwerking (punt 6).
+3. **Gate 4 — de kaart rust op functies; procesregister uit beeld.** Het veld
+   *"PROCES"* in het componentformulier wordt **bedrijfsfunctie**. **Hierna is de
+   logische kaart de MVP.**
 
-### Daarna
-- **Sentinel-besluiten** (OPVOLGPUNTEN 0a — per geval bij Bert): `HostingModel.onbekend` ·
-  `ChecklistScore.nvt` · `AntwoordType.geen` · één taal voor de vijf leegte-woorden.
-- **Resultaatregel-uitrol** naar contract-/partij-/proces-/bedrijfsfunctie-/architectuurlijst
-  (punt 0 — per lijst count-support via het `tel`-patroon).
-- **Ontwerpeisen gate 2/3** (LI039-lijn blijft staan): koppelen grof/fijn (ADR-044 b2),
-  gap-signaal per plaatsing (b4), bedrijfsfunctie-doorwerking (punt 6) en *"fileshare als
-  drager = gat, niet groen"* (punt 10); diagram-layout links→rechts; gate 4 kaart-op-functies.
-- **Kleiner**: server-side identiteitskopieën (7) · ADR-047-comment-sweep (8, 9 verwijzingen) ·
-  spook-gebruik (4) · contract-datums als uitstap-signaal (5) · aard-hint-ruis (11) ·
-  `platform_init`-lokaal vergt lk_admin-URL (11a).
+### Blok B — het uitstapspoor (ADR-046), ná blok A
+4. **Stuk 3 — stand per gebruiker + Gebruik/Gebruikersgroepen één laag.** De stand
+   (*blijft · stopt-gepland · stopt-in uitvoering · gestopt*) is een feit op de
+   **gebruiksrelatie** (`organisatiegebruik`) — want *"het zaaksysteem wordt
+   uitgefaseerd"* is onwaar zodra drie van de vier gemeenten blijven. Invoer in de
+   Gebruik-tabel (de kolommen Stand/Tranche zijn daar al voorzien, geen herbouw).
+   ⚠ **Harde ontwerpeis** (OPVOLGPUNTEN LI040-punt 9): *Gebruik* en *Gebruikersgroepen*
+   zijn nu twee tabbladen over hetzelfde feit — zodra de stand op de gebruik-rijen
+   landt horen grof en fijn in **één gelaagde weergave** (grof → verfijning eronder).
+   De zwaarte (*"nog 3 gebruikers"*) blijft **geteld**, nooit opgeslagen; neutrale
+   taal, amber, nooit rood (ADR-046 besluit 5).
+5. **Stuk 5 — het liegende signaal.** `component_zonder_gebruikersgroep` telt
+   serving-relaties en vuurt **onterecht op 4 componenten** met wél geregistreerd grof
+   gebruik. Telt voortaan op het grove feit (zelfde telbron als de zwaarte). **Eén
+   liegend signaal besmet de rest.**
+6. **Stuk 4 — tranche.** Naam + volgorde; periode optioneel; *"nog niet ingedeeld"*
+   is het signaal. **Geen planningstool** (ADR-046 besluit 6; eigen tenant-tabel à la
+   organisatiegebruik ligt het dichtst bij — vormkeuze bij de bouw).
+
+### Blok C — leesbaarheid *(direct ná A, want A levert de drukte)*
+7. Diagram links→rechts + leesbaarheid bij **297 functies**.
+8. Beginscherm als enige vertrekpunt.
+
+### Blok D — opruimwerk
+Sentinel-besluiten (0a, per geval bij Bert) · resultaatregel-uitrol (0) · server-side
+identiteitskopieën (7) · ADR-047-comment-sweep (8, 9 verwijzingen) · aard-hint-ruis
+(11) · spook-gebruik (4) · plaatstaat-herstel na onderbreking · contract-datums als
+uitstap-signaal (5) · `platform_init`-lokaal vergt lk_admin-URL (11a).
 
 ### Staande werkafspraken (ongewijzigd + LI040-aanscherpingen)
 - Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC,
