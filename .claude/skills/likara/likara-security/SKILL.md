@@ -2,7 +2,7 @@
 name: likara-security
 description: Security-patronen voor LIKARA (Zero Trust, httpOnly cookies, NCSC, RLS). Beschrijft de werkelijke V001-staat.
 stack: Keycloak 24.x, FastAPI middleware, Redis, PostgreSQL RLS
-bijgewerkt: V016
+bijgewerkt: V042
 ---
 
 # LIKARA Security Skill

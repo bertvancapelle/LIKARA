@@ -16,6 +16,46 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 > Verwijzingen hieronder als "ontwerpeis stuk 3/gate 3" zijn dependency-labels, geen
 > volgorde-uitspraken — die blijven zoals ze staan.
 
+### Nieuw uit LI041 (2026-07-14) — koppelen, gap-signaal, rollengrens
+
+L1. ⭐ **Een component verwijderen zou moeten vertellen wat er meegaat.** Wie een component
+   wegdoet, wist in één klik alle koppelingen, procesvervullingen, checklistscores,
+   blokkades, roltoewijzingen én gebruiksfeiten die eraan hangen — **zonder telling en
+   zonder waarschuwing** (`component_service.py:762-772`). Weken veldwerk verdwijnt met
+   dezelfde kale bevestiging als de lichtste actie. **Urgenter sinds ADR-050** verwijderen
+   bij meer mensen (elke medewerker) heeft neergelegd. *Open ontwerpvraag:* **spiegel**
+   (toon eerst wat meegaat, zoals het model-inlees-voorbeeldscherm) óf **weigering** (409 +
+   laag voor laag ontmantelen, zoals organisatiegebruik)? En: bij élk landschapsobject of
+   alleen bij een grote cascade? (Suggestie: de bestaande read-only `impact_analyse`,
+   `component_service.py:841`, als bevestigstap.) Status: **open — ontwerpbesluit Bert**.
+L2. **De bescherming van de modelinhoud leunt op een afspraak, niet op een test.**
+   `MODELINHOUD_BESCHERMD` staat nu op twee mutatiepaden (`bedrijfsfunctie_service` +
+   `relatie_service._weiger_modelinhoud`), maar er is **geen test die bewijst dat élk**
+   relatie-mutatiepad de guard passeert. Dat is precies de constructie die de KERNLES
+   afwijst (*"een regel houdt pas als een bouwsteen hem afdwingt"*) — de achterdeur is
+   gedicht, maar niets bewaakt dat er geen nieuwe bijkomt. Nodig: een bronscan-/dekkingstest
+   over alle relatie-schrijfpaden. Status: **open**.
+L3. **Een typefout in de toelichting op een koppeling is niet te herstellen (gate 2b).**
+   Er is geen PATCH-kenmerk-pad op een functievervulling; een medewerker kan zijn eigen
+   vergissing alleen rechtzetten door de hele koppeling weg te gooien en opnieuw te leggen.
+   Status: **open — hoort bij gate 2b**.
+L4. **De dev-seed vertelt het gate-3-verhaal niet.** De seed zaait geen koppelingen, geen
+   "hier draait niets"-bevinding en geen noodoplossing → **op een verse database is gate 3
+   onzichtbaar** (je ziet de vier standen pas na handmatig klikken). Regel: *de seed volgt
+   de user story, de tests volgen de seed.* Status: **open**.
+L5. **Dode rechten-entiteiten.** `Entiteit.KOPPELING` en `Entiteit.COMPONENT_STRUCTUUR`
+   hebben 0 route-treffers — restanten van een oud model. Schrappen (met de matrixtests
+   die meebewegen). Status: **open, klein**.
+L6. **Taalpunt gate 3 — de omhoog-cue is formeler dan de rest.** *"ondersteund via {naam}
+   — hier niet bevestigd"* wijkt af van de spreektaal elders in gate 3. Kandidaat:
+   *"hierboven is al iets vastgelegd — hier nog niet bevestigd."* Status: **open — taalkeuze
+   Bert**.
+L7. **De css-build-poort draait pas bij de closeout, niet vóór een commit.** Daardoor kon
+   een veldnorm-schending landen in `78ffd5e` (de gate-3 oordeel-select) en pas uren later
+   zichtbaar worden — een gat in de commit-discipline, geen codebug. Overweeg de poort naar
+   de per-commit-groencheck te halen: een regel die pas aan het eind bijt, laat schuld
+   ontstaan. (De schending zelf is gedicht in `6d1b3fc`.) Status: **open**.
+
 0a. **Eén taal voor afwezigheid — sentinel-inventarisatie (LI040 §1.3).** `migratiepad.
    onbekend` is opgeruimd (migratie 0067); de rest is read-only geïnventariseerd en
    vergt per geval een BESLUIT van Bert (soms is "n.v.t." een echt antwoord — dat
@@ -73,9 +113,13 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    nog eigen kopieën: de kaart-labels (`landschapskaart_service.py`, o.a. de
    gebruikersgroep-/persoon-namen) en `gebruikersgroep_service.identiteit`. Zolang die
    niet dezelfde vorm delen, kunnen kaart en scherm stil uiteenlopen. Status: **open**.
-8. **ADR-047-comment-sweep.** Gemeten: **9 code-verwijzingen** (py/vue/js) naar een
-   ADR-047 dat niet bestaat — vermoedelijk een vroege werktitel voor wat ADR-046 werd.
-   Sweep = hernummeren of schrappen; puur comments, geen gedrag. Status: **open, klein**.
+8. **Fantoom-ADR-comment-sweep (047 én 048).** Gemeten (LI041, opnieuw): **11
+   code-verwijzingen** naar een **ADR-047** dat niet bestaat (vermoedelijk een vroege
+   werktitel voor wat ADR-046 werd) **én 1 verwijzing naar ADR-048**
+   (`backend/app/middleware/security_headers.py:1` — "ADR-048 Sprint 1 B5"), óók zonder
+   bijbehorend ADR-bestand. Sweep = beide hernummeren of schrappen; puur comments, geen
+   gedrag. ⚠ Neem **047 én 048 samen** — anders pakt een volgende sessie 048 alsnog per
+   ongeluk als losse rest. Status: **open, klein**.
 9. **Gebruik + Gebruikersgroepen = één laag — harde ontwerpeis voor stuk 3.** Vandaag
    zijn het twee tabbladen over hetzelfde feit (grof vs. verfijnd). Zodra de
    uitstap-stand op de gebruik-rijen landt (stuk 3), horen grof en fijn in één

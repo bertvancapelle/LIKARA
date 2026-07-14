@@ -1,4 +1,4 @@
-# SESSIE_BRIEFING.md — LIKARA V041
+# SESSIE_BRIEFING.md — LIKARA V042
 
 **Gegenereerd**: 2026-07-14
 
@@ -10,11 +10,11 @@
 
 | Veld | Waarde |
 |------|--------|
-| Build | V041 |
+| Build | V042 |
 | Datum | July 2026 |
-| Commit | 6cc7db0 |
-| Tests | backend 1095 (2 skipped) / frontend 92 files, 1199 groen |
-| TST-rapport | TST-V041-Validatierapport.md |
+| Commit | 6d1b3fc |
+| Tests | backend 1122 (2 skipped) / frontend 93 files, 1219 groen |
+| TST-rapport | TST-V042-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -22,135 +22,97 @@
 ## Recente commits
 
 ```
-b94dd88 LI040 afsluiting: skills (38 patronen) + TST-V041 + NEXT_SESSION/OPVOLGPUNTEN/PROJECTGEHEUGEN + build V041
-6cc7db0 [frontend] LI040: DetailKop-bouwsteen — de acties horen bij het object, niet bij het einde van de pagina
-3349905 [bwb_ontvlechting] LI040: 'Midden' is geen oordeel als niemand het gaf — oordelen nullable + vindbaar gat — ADR-046-lijn
-feb27f9 [bwb_ontvlechting] LI040: 'nog niet vastgelegd' is vindbaar — ontbreekt-filters + onbekend uit migratiepad — ADR-046
-39eb2ef [bwb_ontvlechting] LI040: de filterbalk vertelt wat hij doet — bedoeling-filter, resultaatregel, BIV op de hoogste as
+6d1b3fc [frontend] LI041: het oordeel staat waar het over gaat — veldnorm-fix — ADR-051
+8cb3bcb [skills] LI041: de vorm bepaalt nooit de betekenis — kernregel + checkvraag + rollengrens — ADR-049/050/051
+78ffd5e LI041: gate 3 — het gap-signaal per plek (ADR-051)
+a5f8473 [docs] ADR-051 — gap-signaal per plek: wat draagt deze plek? (gate 3 stap 1)
+8c2bf00 [docs] Feitenrapport gate 3 — het gap-signaal per plek (read-only checkpoint)
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# NEXT_SESSION.md — LIKARA V041
+# NEXT_SESSION.md — LIKARA V042
 
 **Gegenereerd**: 2026-07-14
-**Vorige build**: V041
+**Vorige build**: V042
 **Branch**: master
-**Laatste commit**: `b94dd88` (afsluitcommit V041; daarvóór `6cc7db0` detailkop · `3349905` geen-oordeel · `feb27f9` leeg-vindbaar · `39eb2ef` filterbalk · `b027095` levensfase-stuk-1 · `05e8a93` stuk 2 + identiteit · `87dc120` ADR-045 · `7148672` veldbouwsteen)
+**Laatste commit**: `6d1b3fc` (veldnorm-fix) · daarvóór `8cb3bcb` skills · `78ffd5e` gate 3 · `980587b` gate 2a + rollengrens · `8c2bf00`/`a5f8473` feitenrapport + ADR-051
 
-> **Sessie LI040 — Vier vragen, vier plekken; en LIKARA verzint niets meer (V041).**
+> **Sessie LI041 — Blok A voor tweederde af: de consultant kan nu koppelen én zijn werkvoorraad zien.**
 >
-> Wat LI040 heeft opgeleverd (gebruikerstaal):
-> - **De platformbeheerder kan weer een componenttype toevoegen** (dat was kapot) en
->   bepaalt zelf wat werk ondersteunt — een eigenschap in de catalogus, geen lijst in
->   code (**ADR-045**, `87dc120`).
-> - **De consultant kan vastleggen wélke organisatie een systeem gebruikt**, zónder de
->   afdeling te weten (ADR-046 stuk 2, `05e8a93` — het ADR-036-restpunt is gedicht);
->   verwijderen dat verfijning zou meenemen wordt geweigerd met telling + reden
->   (409 — *"verdwijnt nooit stil"*).
-> - **ADR-046 vastgelegd én stuk 1 gebouwd**: levensfase · bedoeling · uitstap per
->   gebruiker · tranche — **vier vragen, vier plekken**. Levensfase op het component
->   (`b027095`); `uitfaseren` uit de bedoeling (migratie 0066); plateau-dispositie
->   afgebouwd; het niet-deterministische kaart-eerste-wint-gedrag is weg.
-> - **LIKARA verzint niets meer**: "Onbekend" (migratie 0067) en de gratis
->   "Midden"-oordelen (migratie 0068) zijn weg — leeg heet overal gedempt *"nog niet
->   vastgelegd"* en is **vindbaar** (ontbreekt-filters: het registratiegat is de
->   werkvoorraad van de consultant). De filterbalk vertelt wat hij doet: *"3 van 19
->   componenten"*, elk filter als chip, los wisbaar (`39eb2ef`).
-> - **Vier bouwstenen mét een scan die bijt**: veldhoogte (`.lk-veld`) · identiteit
->   (`IdentiteitLabel` — faalt luid) · filterresultaat (`FilterResultaatRegel`) ·
->   detailkop (`DetailKop`, `6cc7db0` — acties bij het object, destructief in een
->   eigen zone; 8 detailschermen omgezet). Veld- + detailkop-scan draaien met
->   zelftests mee in `test:css-build`.
-> - **Gemeten, niet aangenomen**: 0 verhangen plaatsingen over 9 maanden (de plaatsing
->   is een houdbaar anker); **25/32 gebruiksfeiten zijn grof-only** → de uitstap-stand
->   hangt aan het organisatiegebruik; vóór/ná-metingen bij elke opruimmigratie
->   (19×onbekend→NULL; 19×midden→NULL ×2).
-> - **38 sessie-patronen gevalideerd en vastgelegd** in de 7 likara-skills (met
->   vindplaatsen; "bewust aanvinken" + "amber/neutrale taal" expliciet als
->   ontwerpbesluit gemarkeerd, niet als code-claim).
+> Wat LI041 heeft opgeleverd (gebruikerstaal):
+> - **Gate 2 (ADR-049) — de consultant hangt een systeem aan een bedrijfsfunctie**, grof
+>   (*"ons handhavingssysteem ondersteunt Toezicht"* — geldt overal) of fijn (*"maar in Milieu
+>   doen we het met de inspectie-app"* — op díé plek). Fijn verdringt grof **bij het lezen**; het
+>   grove antwoord blijft bestaan en wordt weer leesbaar zodra je het fijne weghaalt. Eén gedeelde
+>   leesregel (`dekking_overzicht`), geen `if` per scherm. `980587b`.
+> - **Gate 3 (ADR-051) — het gap-signaal per plek.** Vier standen: *nog geen systeem · ondersteund
+>   via een bovenliggende functie (hier niet bevestigd) · hier draait dit · hier draait niets —
+>   vastgesteld.* Plus een oordeel op elke koppeling (*naar behoren / noodoplossing / nog niet
+>   beoordeeld*). Twee vensters (de boom-cue + de centrale werkvoorraad) uit één afleiding
+>   (`plek_standen`). `78ffd5e`.
+> - **De rollengrens verschoven (ADR-050) — wie registreert, corrigeert.** Een registratie-feit
+>   (een uitspraak) neemt de medewerker terug; een landschapsobject vernietigt de beheerder; de
+>   modelinhoud verbouwt niemand. Structureel via `verwijder_actie()`, niet per route. Onderweg
+>   geland, buiten het oorspronkelijke plan — ontstaan uit de vraag *"is een consultant een
+>   beheerder of een gebruiker?"* Sloot en passant een beschermingsgat: de modelinhoud stond open
+>   via het generieke relatie-endpoint (achterdeur) — nu gedicht.
+> - **De patronen verankerd (skills):** één kernregel *"de vorm bepaalt nooit de betekenis"* (drie
+>   gezichten, i.p.v. drie losse regels) · de adversariële checkvraag vóór de bouw · de
+>   rollengrens · de bronscan-norm · de stale LI037-verwijder-regel herschreven. `8cb3bcb`.
+> - **Eén veldnorm-schending gedicht:** de gate-3 oordeel-select overruled `.lk-veld` om in de
+>   actie-strook te passen. Het oordeel staat nu waar het over gaat — de leeslaag-zin is klikbaar,
+>   drie keuzes op volle grootte. `6d1b3fc`.
 >
-> Tests: backend **1095 (2 skipped)** / frontend **92 files, 1199** groen; TST:
-> `TST-V041-Validatierapport.md` (**0 kritieken**; migratieketen 0001→0068 vanaf schoon
-> bewezen op een scratch-DB, seed vertelt de user story). Migratie-head **0068**.
+> Tests: backend **1122 (2 skipped)** / frontend **93 files, 1219** groen; TST:
+> `TST-V042-Validatierapport.md` (**0 kritieken**). Migratie-head **0070**.
 
 ---
 
-## Volgende stappen — bouwvolgorde LI041 (HERZIEN besluit Bert, ná de afsluiting)
+## Volgende stappen — Blok A afmaken (gate 4), dan blok B
 
-> ⚠ **Deze volgorde vervangt de eerdere "stuk 3 → 5 → 4"-volgorde.** Besloten door
-> Bert ná de LI040-afsluiting: **de gates van de bedrijfsfunctie-as gaan vóór het
-> uitstapspoor.** De besluiten van ADR-045 en ADR-046 veranderen NIET — een ADR legt
-> vast *wat waar is*, niet *wanneer we het bouwen*. Alleen de bouwvolgorde verschuift.
+> Bouwvolgorde ongewijzigd (herzien LI040→LI041): **de gates van de bedrijfsfunctie-as vóór het
+> uitstapspoor.** Gate 2 + 3 zijn af; gate 4 is het sluitstuk van blok A.
 
-### Waarom (vastgelegd — anders keert de oude volgorde terug)
-- **De MVP-belofte** (*model inlezen → systemen aanhangen → gaten zien*) **stopt
-  vandaag na stap 1.** De consultant kan de GEMMA-boom lezen en er **geen enkel
-  systeem aan hangen.**
-- **Het uitstapverhaal is afhankelijk van gate 2.** De regel waar het om draait —
-  *"2 bedrijfsfuncties raken zonder ondersteunend systeem als Tiel vertrekt"* — **kan
-  niet bestaan** zolang componenten niet aan functies hangen. Zonder gate 2 levert het
-  uitstapscherm een **IT-lijstje** (*"4 systemen zonder gebruikers"*) in plaats van een
-  **bestuurlijk feit** (*"Belastingheffing wordt door niets meer gedragen"*). **Blok A
-  maakt blok B niet alleen mogelijk — het maakt het waardevol.**
-- **Bewijs dat het nu wringt:** het componentformulier vraagt nog naar *"PROCES"*
-  terwijl de as de bedrijfsfunctie is. **LIKARA vertelt twee verhalen tegelijk.**
+### Blok A — de MVP-belofte (nog één gate)
+- **Gate 1 — referentiemodel inlezen** ✅ (gate 1b)
+- **Gate 2 — koppelen (ADR-049)** ✅ `980587b`
+- **Gate 3 — het gap-signaal per plek (ADR-051)** ✅ `78ffd5e`
+- **Gate 4 — VOLGENDE: de kaart rust op functies; het procesregister uit de MVP-UI (ADR-043).**
+  Het veld *"PROCES"* in het componentformulier wordt een **bedrijfsfunctie**; het procesregister
+  wordt **verborgen, niet verwijderd** (n≥2 — de LI038-bouw wordt hergebruikt). **Hierna is de
+  logische kaart de MVP.**
 
-### Blok A — de MVP-belofte afmaken *(één verhaal, niet onderbreken)*
-1. **Gate 2 — koppelen: component ↔ bedrijfsfunctie.** Grof (geldt overal) of fijn
-   (per plaatsing) — ADR-044. De picker weert al op *"ondersteunt werk"* (ADR-045).
-   **Hier ontstaat de eerste échte waarde.** (Ontwerpeisen liggen klaar: koppelen
-   grof/fijn ADR-044 b2 · wie/wanneer-stempel + optionele toelichting ADR-045-punt 2 ·
-   import-vangrails 2b · gelijktijdigheid 3.)
-2. **Gate 3 — het gap-signaal per plaatsing.** *Nog navragen · half beantwoord · hier
-   gebruiken we niets (vastgesteld)* (ADR-044 b4). ⚠ Inclusief de harde ontwerpeis uit
-   ADR-045: **een functie die door een fileshare of client software gedragen wordt is
-   een GAT, niet groen** (punt 10); plus bedrijfsfunctie-doorwerking (punt 6).
-3. **Gate 4 — de kaart rust op functies; procesregister uit beeld.** Het veld
-   *"PROCES"* in het componentformulier wordt **bedrijfsfunctie**. **Hierna is de
-   logische kaart de MVP.**
+  ⚠ **Begin met een read-only checkpoint** vóór er iets verandert:
+  - Wat leest de kaart vandaag, en waar hangt het procesregister in de UI?
+  - Wat raakt het **verbergen** van het procesregister — welke schermen/routes/tests?
+  - **Niet verwijderen wat de kaart nodig heeft:** de kaart-lagenweergave gebruikt
+    `ARCHITECTUUR.LEZEN` (proces-projectie als read-only subgraaf-verrijking). Verbergen ≠ slopen.
 
 ### Blok B — het uitstapspoor (ADR-046), ná blok A
-4. **Stuk 3 — stand per gebruiker + Gebruik/Gebruikersgroepen één laag.** De stand
-   (*blijft · stopt-gepland · stopt-in uitvoering · gestopt*) is een feit op de
-   **gebruiksrelatie** (`organisatiegebruik`) — want *"het zaaksysteem wordt
-   uitgefaseerd"* is onwaar zodra drie van de vier gemeenten blijven. Invoer in de
-   Gebruik-tabel (de kolommen Stand/Tranche zijn daar al voorzien, geen herbouw).
-   ⚠ **Harde ontwerpeis** (OPVOLGPUNTEN LI040-punt 9): *Gebruik* en *Gebruikersgroepen*
-   zijn nu twee tabbladen over hetzelfde feit — zodra de stand op de gebruik-rijen
-   landt horen grof en fijn in **één gelaagde weergave** (grof → verfijning eronder).
-   De zwaarte (*"nog 3 gebruikers"*) blijft **geteld**, nooit opgeslagen; neutrale
-   taal, amber, nooit rood (ADR-046 besluit 5).
-5. **Stuk 5 — het liegende signaal.** `component_zonder_gebruikersgroep` telt
-   serving-relaties en vuurt **onterecht op 4 componenten** met wél geregistreerd grof
-   gebruik. Telt voortaan op het grove feit (zelfde telbron als de zwaarte). **Eén
-   liegend signaal besmet de rest.**
-6. **Stuk 4 — tranche.** Naam + volgorde; periode optioneel; *"nog niet ingedeeld"*
-   is het signaal. **Geen planningstool** (ADR-046 besluit 6; eigen tenant-tabel à la
-   organisatiegebruik ligt het dichtst bij — vormkeuze bij de bouw).
+Ongewijzigd t.o.v. LI040: stuk 3 (stand per gebruiker + Gebruik/Gebruikersgroepen één laag) →
+stuk 5 (het liegende `component_zonder_gebruikersgroep`-signaal) → stuk 4 (tranche). Details en
+ontwerpeisen: OPVOLGPUNTEN §"Nieuw uit LI040".
 
-### Blok C — leesbaarheid *(direct ná A, want A levert de drukte)*
-7. Diagram links→rechts + leesbaarheid bij **297 functies**.
-8. Beginscherm als enige vertrekpunt.
+### Direct oppakbaar (klein, uit LI041 — OPVOLGPUNTEN L1–L7)
+- ⭐ **L1** — een component verwijderen zou moeten vertellen wat er meegaat (ontwerpbesluit Bert:
+  spiegel vs. weigering; urgenter sinds ADR-050 verwijderen breder neerlegt).
+- **L2** — de guard-dekkingstest ontbreekt (modelinhoud-bescherming leunt op een afspraak).
+- **L4** — de dev-seed vertelt het gate-3-verhaal niet (verse DB → gate 3 onzichtbaar).
+- **L7** — de css-build-poort naar de per-commit-groencheck halen (liet een schending landen).
 
-### Blok D — opruimwerk
-Sentinel-besluiten (0a, per geval bij Bert) · resultaatregel-uitrol (0) · server-side
-identiteitskopieën (7) · ADR-047-comment-sweep (8, 9 verwijzingen) · aard-hint-ruis
-(11) · spook-gebruik (4) · plaatstaat-herstel na onderbreking · contract-datums als
-uitstap-signaal (5) · `platform_init`-lokaal vergt lk_admin-URL (11a).
-
-### Staande werkafspraken (ongewijzigd + LI040-aanscherpingen)
-- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC,
-  letterlijk (varianten tellen niet).
-- UX-first; browserverificatie is het sluitpunt (een niet-geresolvede component rendert
-  STIL leeg — de suite blijft groen); assert op zichtbare tekst.
-- Eén taak per schone worktree; commit landt vóór de volgende `START:`; bij ~100% context:
-  verse sessie + zelfstandige overdracht-`.md`.
-- Meten vóór besluiten; vóór/ná-metingen bij elke datamigratie; leeg ≠ fout maar wél
-  vindbaar; LIKARA verzint nooit een antwoord.
-- Fix in de bouwsteen; nieuwe regels waar mogelijk met een bron-scan die aantoonbaar bijt.
+### Staande werkafspraken (ongewijzigd + LI041)
+- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC, letterlijk.
+- **De vorm bepaalt nooit de betekenis** (kernregel LI041): geen tabel-/endpoint-/typefeit als
+  bevoegdheids-/oordeelsregel; geen stille keuze; het scherm zwijgt nooit over wat het weet.
+- **Adversariële checkvraag vóór de bouw**: waar een ontwerp een niet-besloten keuze maakt (tiebreak,
+  categorie, vertrekpunt), stel eerst een read-only checkvraag — bouw niet door op een aanname die
+  zich voordoet als een besluit.
+- UX-first; browserverificatie is het sluitpunt (assert op zichtbare tekst); één taak per schone
+  worktree; meten vóór besluiten; leeg ≠ fout maar wél vindbaar; fix in de bouwsteen met een scan
+  die bijt.
 
 ---
 
@@ -158,13 +120,13 @@ uitstap-signaal (5) · `platform_init`-lokaal vergt lk_admin-URL (11a).
 
 | Veld | Waarde |
 |------|--------|
-| Build | V041 |
+| Build | V042 |
 | Datum | 2026-07-14 |
-| Tests | backend 1095 (2 skipped) / frontend 92 files, 1199 groen |
-| Migratie-head | 0068_li040_geen_oordeel |
-| TST-rapport | TST-V041-Validatierapport.md |
+| Tests | backend 1122 (2 skipped) / frontend 93 files, 1219 groen |
+| Migratie-head | 0070_adr051_gapsignaal |
+| TST-rapport | TST-V042-Validatierapport.md |
 | Kritieke bevindingen | 0 |
-| Skills | zeven likara-skills bijgewerkt (LI040 — 38 gevalideerde patronen met vindplaatsen) |
+| Skills | zes likara-skills bijgewerkt (LI041 — kernregel + checkvraag + rollengrens + bronscan-norm) |
 
 
 ---
@@ -173,5 +135,5 @@ uitstap-signaal (5) · `platform_init`-lokaal vergt lk_admin-URL (11a).
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V041"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V042"
 4. Wacht op START: [naam] van Bert

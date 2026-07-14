@@ -1,7 +1,7 @@
 ---
 name: likara-ux
 description: Interaction-design-denkmethode voor LIKARA. Verplicht te raadplegen bij ELKE frontend-rakende slice (nieuw scherm, nieuwe sectie, nieuwe actie) — door zowel CC als claude.ai. Borgt dat een functie de UI logisch en compleet houdt voor de gebruiker: geen lege lijsten zonder route naar de actie, actie op de plek waar de gebruiker hem verwacht, terminologie vanuit de gebruiker. Dit is GEEN stijl-/visuele skill (dat is likara-frontend); dit gaat over of het scherm doet wat de gebruiker verwacht.
-bijgewerkt: V040
+bijgewerkt: V042
 ---
 
 # LIKARA UX / Interaction-Design Skill
