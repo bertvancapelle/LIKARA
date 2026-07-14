@@ -226,3 +226,96 @@ if (veldOvertredingen.length > 0) {
   process.exit(1)
 }
 console.log(`[css-build-check] OK — veld-bron-scan: 0 afwijkingen in ${gescand} views (alle velden op de bouwsteen).`)
+
+// ── LI040: detailkop-bron-scan — de acties horen bij het object, niet bij het einde
+// van de pagina. Elk detailscherm (bestandsnaam bevat 'Detail'; de bouwsteen zelf
+// uitgezonderd) MOET de gedeelde DetailKop gebruiken, en de OBJECT-acties — de
+// Bewerken-/Verwijderen-knop en de Geschiedenis-ingang (ObjectHistoriePaneel) — mogen
+// UITSLUITEND binnen dat DetailKop-blok staan. Een eigen actiebalk (onderaan, in het
+// midden, of als tweede kop) is daarmee structureel onmogelijk i.p.v. een afspraak.
+// Sectie-acties ("+ Lid koppelen", rij-"Ontkoppelen", dialoog-"Definitief
+// verwijderen") matchen deze exacte labels niet en blijven vrij in hun sectie.
+function scanDetailkopOvertredingen(bron, label) {
+  const overtredingen = []
+  const tmpl = /<template>([\s\S]*)<\/template>/.exec(bron)
+  if (!tmpl) return overtredingen
+  const t = tmpl[1].replace(/<!--[\s\S]*?-->/g, '')
+  const kopStart = t.indexOf('<DetailKop')
+  if (kopStart < 0) {
+    overtredingen.push(`${label}: detailscherm zonder <DetailKop> — elk detailscherm is consument van de bouwsteen`)
+    return overtredingen
+  }
+  const kopEinde = t.indexOf('</DetailKop>', kopStart)
+  if (kopEinde < 0) {
+    overtredingen.push(`${label}: <DetailKop> zonder sluittag`)
+    return overtredingen
+  }
+  const OBJECT_ACTIES = ['<ObjectHistoriePaneel', 'label="Bewerken"', 'label="Verwijderen"']
+  for (const naald of OBJECT_ACTIES) {
+    let idx = t.indexOf(naald)
+    while (idx >= 0) {
+      if (idx < kopStart || idx > kopEinde) {
+        overtredingen.push(`${label}: object-actie ${naald} staat buiten de DetailKop — acties horen bij het object (in de kop)`)
+      }
+      idx = t.indexOf(naald, idx + 1)
+    }
+  }
+  return overtredingen
+}
+
+// Zelftest — bewijs dat de detailkop-scan bijt, bij élke run: (a) een detailscherm
+// zonder DetailKop wordt gevangen, (b) een Bewerken-knop buiten de kop wordt gevangen,
+// (c) een geldig scherm passeert, (d) sectie-/dialoog-labels ("Definitief verwijderen",
+// "+ Lid koppelen") triggeren niet, (e) een ObjectHistoriePaneel buiten de kop wordt gevangen.
+const KOP_ZELFTEST = [
+  { naam: 'zonder-detailkop-gevangen', verwacht: 1, bron: '<template><h1>X</h1><Button label="Bewerken" /></template>' },
+  {
+    naam: 'bewerken-buiten-kop-gevangen', verwacht: 1,
+    bron: '<template><DetailKop naam="X"></DetailKop><div><Button label="Bewerken" /></div></template>',
+  },
+  {
+    naam: 'geldig-scherm-passeert', verwacht: 0,
+    bron: '<template><DetailKop naam="X"><Button label="Bewerken" /><ObjectHistoriePaneel /><Button label="Verwijderen" /></DetailKop><Button label="Definitief verwijderen" /></template>',
+  },
+  {
+    naam: 'sectie-acties-triggeren-niet', verwacht: 0,
+    bron: '<template><DetailKop naam="X"></DetailKop><Button label="+ Lid koppelen" /><Button label="Ontkoppelen" /></template>',
+  },
+  {
+    naam: 'historie-buiten-kop-gevangen', verwacht: 1,
+    bron: '<template><DetailKop naam="X"></DetailKop><ObjectHistoriePaneel /></template>',
+  },
+]
+let kopZelftestFouten = 0
+for (const { naam, verwacht, bron } of KOP_ZELFTEST) {
+  const n = scanDetailkopOvertredingen(bron, 'zelftest').length
+  if (n !== verwacht) {
+    console.error(`  ✗ zelftest "${naam}": ${n} overtreding(en), verwacht ${verwacht} — de detailkop-scan bijt niet zoals bedoeld`)
+    kopZelftestFouten++
+  }
+}
+if (kopZelftestFouten > 0) {
+  console.error('\n[css-build-check] FAAL: de detailkop-bron-scan doorstaat zijn eigen zelftest niet.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — detailkop-scan-zelftest: ${KOP_ZELFTEST.length}/${KOP_ZELFTEST.length} (de scan bijt).`)
+
+let kopOvertredingen = []
+let detailGescand = 0
+for (const wortel of SCAN_WORTELS) {
+  for (const bestand of vueBestanden(path.join(FRONTEND, wortel))) {
+    const naam = path.basename(bestand)
+    if (!naam.includes('Detail') || naam === 'DetailKop.vue') continue
+    detailGescand++
+    kopOvertredingen = kopOvertredingen.concat(
+      scanDetailkopOvertredingen(readFileSync(bestand, 'utf8'), path.relative(FRONTEND, bestand)),
+    )
+  }
+}
+if (kopOvertredingen.length > 0) {
+  console.error(`\n[css-build-check] FAAL: ${kopOvertredingen.length} detailkop-afwijking(en):`)
+  for (const o of kopOvertredingen) console.error(`  ✗ ${o}`)
+  console.error('De acties horen bij het object: gebruik de DetailKop-bouwsteen (src/components/DetailKop.vue) — geen eigen actiebalk.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — detailkop-scan: ${detailGescand} detailschermen op de bouwsteen (object-acties in de kop).`)

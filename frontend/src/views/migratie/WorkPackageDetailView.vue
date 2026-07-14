@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import ObjectHistoriePaneel from '@modules/bwb_ontvlechting/frontend/views/ObjectHistoriePaneel.vue'
+import DetailKop from '@/components/DetailKop.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -165,21 +166,23 @@ onMounted(laad)
     <p v-else-if="laden" data-testid="wp-detail-laden" class="my-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <template v-else-if="wp">
-      <div class="mt-[var(--lk-space-sm)] mb-[var(--lk-space-sm)]">
-        <div class="flex items-center gap-[var(--lk-space-md)]">
-          <h1 id="wp-detail-titel" data-testid="wp-naam" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-            {{ wp.naam }}
-          </h1>
-          <ObjectHistoriePaneel entiteit-type="work_package" :entiteit-id="props.id" class="ml-auto" />
+      <!-- LI040 — gedeelde DetailKop (was een eigen kopregel met Verwijderen naast Bewerken). -->
+      <DetailKop :naam="wp.naam" titel-id="wp-detail-titel">
+        <template #acties>
           <Button v-if="magBeheren" label="Bewerken" data-testid="wp-bewerken" @click="openBewerken" />
-          <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="wp-verwijderen" @click="verwijderOpen = true" />
-        </div>
-        <!-- Parent-context: bovenliggend werkpakket als subtitel (alleen als niet top-niveau). -->
-        <p v-if="wp.bovenliggend_id" data-testid="wp-ouder" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-          Onderdeel van
-          <router-link :to="{ name: 'work-package-detail', params: { id: wp.bovenliggend_id } }" data-testid="wp-ouder-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouder?.naam || 'bovenliggend pakket' }}</router-link>
-        </p>
-      </div>
+          <ObjectHistoriePaneel entiteit-type="work_package" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="wp-verwijderen" @click="verwijderOpen = true" />
+        </template>
+        <template #subtitel>
+          <!-- Parent-context: bovenliggend werkpakket als subtitel (alleen als niet top-niveau). -->
+          <p v-if="wp.bovenliggend_id" data-testid="wp-ouder" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+            Onderdeel van
+            <router-link :to="{ name: 'work-package-detail', params: { id: wp.bovenliggend_id } }" data-testid="wp-ouder-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouder?.naam || 'bovenliggend pakket' }}</router-link>
+          </p>
+        </template>
+      </DetailKop>
       <p v-if="wp.toelichting" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text)]">{{ wp.toelichting }}</p>
 
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">

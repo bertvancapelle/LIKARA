@@ -20,6 +20,7 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import ObjectHistoriePaneel from '@modules/bwb_ontvlechting/frontend/views/ObjectHistoriePaneel.vue'
+import DetailKop from '@/components/DetailKop.vue'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -224,14 +225,16 @@ onMounted(() => {
     <p v-else-if="laden" data-testid="plateau-detail-laden" class="my-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <template v-else-if="plateau">
-      <div class="mt-[var(--lk-space-sm)] mb-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-md)]">
-        <h1 id="plateau-detail-titel" data-testid="plateau-naam" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-          {{ plateau.naam }}
-        </h1>
-        <ObjectHistoriePaneel entiteit-type="plateau" :entiteit-id="props.id" class="ml-auto" />
-        <Button v-if="magBeheren" label="Bewerken" data-testid="plateau-bewerken" @click="openBewerken" />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="plateau-verwijderen" @click="verwijderOpen = true" />
-      </div>
+      <!-- LI040 — gedeelde DetailKop (was een eigen kopregel met Verwijderen naast Bewerken). -->
+      <DetailKop :naam="plateau.naam" titel-id="plateau-detail-titel">
+        <template #acties>
+          <Button v-if="magBeheren" label="Bewerken" data-testid="plateau-bewerken" @click="openBewerken" />
+          <ObjectHistoriePaneel entiteit-type="plateau" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="plateau-verwijderen" @click="verwijderOpen = true" />
+        </template>
+      </DetailKop>
       <p v-if="plateau.toelichting" class="mb-[var(--lk-space-lg)] text-[var(--lk-color-text)]">{{ plateau.toelichting }}</p>
 
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">

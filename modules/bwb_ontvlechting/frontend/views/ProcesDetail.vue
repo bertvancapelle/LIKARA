@@ -23,6 +23,7 @@ import { bouwProcesKaartHandoff } from '../procesKaartIngang'
 import OnderliggendeProcessenSectie from './OnderliggendeProcessenSectie.vue'
 import ProcesComponentenSectie from './ProcesComponentenSectie.vue'
 import VeldUitleg from './VeldUitleg.vue'
+import DetailKop from '@/components/DetailKop.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 
@@ -147,38 +148,39 @@ watch(() => props.id, () => laad(), { immediate: true })
     <p v-else-if="laden && !proces" data-testid="proces-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <template v-if="proces">
-      <div class="mb-[var(--lk-space-md)]">
-        <div class="flex items-center gap-[var(--lk-space-xs)]">
-          <h1 id="proces-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-            {{ proces.naam }}
-          </h1>
+      <!-- LI040 — gedeelde DetailKop (dit scherm had de actie al bij de identiteit;
+           nu via de bouwsteen i.p.v. een eigen kopregel). -->
+      <DetailKop :naam="proces.naam" titel-id="proces-titel">
+        <template #badges>
           <VeldUitleg veld="proces" testid="uitleg-proces" />
-          <!-- LI037 fase 3 — actie bij de identiteit van het proces (ComponentDetail-precedent). -->
+        </template>
+        <template #acties>
           <Button
             v-if="magKaartZien"
             label="Bekijk op kaart"
             severity="secondary"
-            class="ml-auto"
             data-testid="proces-bekijk-op-kaart"
             :disabled="kaartBezig"
             @click="bekijkOpKaart"
           />
-        </div>
-        <!-- Broodkruimel (context-in-header): klikbare keten naar boven. -->
-        <p v-if="voorouders.length" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]" data-testid="proces-broodkruimel">
-          <template v-for="(v, i) in voorouders" :key="v.id">
-            <router-link
-              :to="{ name: 'proces-detail', params: { id: v.id } }"
-              class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-            >{{ v.naam }}</router-link>
-            <span aria-hidden="true"> › </span>
-          </template>
-          <span>{{ proces.naam }}</span>
-        </p>
-        <p v-if="proces.toelichting" class="mt-[var(--lk-space-sm)] max-w-prose" data-testid="proces-toelichting">
-          {{ proces.toelichting }}
-        </p>
-      </div>
+        </template>
+        <template #subtitel>
+          <!-- Broodkruimel (context-in-header): klikbare keten naar boven. -->
+          <p v-if="voorouders.length" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]" data-testid="proces-broodkruimel">
+            <template v-for="(v, i) in voorouders" :key="v.id">
+              <router-link
+                :to="{ name: 'proces-detail', params: { id: v.id } }"
+                class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+              >{{ v.naam }}</router-link>
+              <span aria-hidden="true"> › </span>
+            </template>
+            <span>{{ proces.naam }}</span>
+          </p>
+          <p v-if="proces.toelichting" class="mt-[var(--lk-space-sm)] max-w-prose" data-testid="proces-toelichting">
+            {{ proces.toelichting }}
+          </p>
+        </template>
+      </DetailKop>
 
       <!-- Blok 1 — de registratie op dít niveau (regels + regel-acties + toevoegregel). -->
       <ProcesComponentenSectie :key="props.id" :proces-id="props.id" :proces-naam="proces.naam" />

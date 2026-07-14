@@ -16,6 +16,7 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import ObjectHistoriePaneel from '@modules/bwb_ontvlechting/frontend/views/ObjectHistoriePaneel.vue'
+import DetailKop from '@/components/DetailKop.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -194,14 +195,16 @@ onMounted(laad)
     <p v-else-if="laden" data-testid="del-detail-laden" class="my-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <template v-else-if="deliverable">
-      <div class="mt-[var(--lk-space-sm)] mb-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-md)]">
-        <h1 id="del-detail-titel" data-testid="del-naam" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-          {{ deliverable.naam }}
-        </h1>
-        <ObjectHistoriePaneel entiteit-type="deliverable" :entiteit-id="props.id" class="ml-auto" />
-        <Button v-if="magBeheren" label="Bewerken" data-testid="del-bewerken" @click="openBewerken" />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="del-verwijderen" @click="verwijderOpen = true" />
-      </div>
+      <!-- LI040 — gedeelde DetailKop (was een eigen kopregel met Verwijderen naast Bewerken). -->
+      <DetailKop :naam="deliverable.naam" titel-id="del-detail-titel">
+        <template #acties>
+          <Button v-if="magBeheren" label="Bewerken" data-testid="del-bewerken" @click="openBewerken" />
+          <ObjectHistoriePaneel entiteit-type="deliverable" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="del-verwijderen" @click="verwijderOpen = true" />
+        </template>
+      </DetailKop>
       <p v-if="deliverable.toelichting" class="mb-[var(--lk-space-lg)] text-[var(--lk-color-text)]">{{ deliverable.toelichting }}</p>
 
       <!-- Opgeleverd door werkpakketten -->

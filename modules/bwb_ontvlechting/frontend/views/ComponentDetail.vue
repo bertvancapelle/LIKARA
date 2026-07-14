@@ -39,6 +39,7 @@ import MigratiegereedheidSectie from './MigratiegereedheidSectie.vue'
 import ComponentProcessenSectie from './ComponentProcessenSectie.vue'
 import ComponentFormulier from './ComponentFormulier.vue'
 import SignaleringBadge from './SignaleringBadge.vue'
+import DetailKop from '@/components/DetailKop.vue'
 // LI059 Slice 4 — applicatie-eigen kind-secties, conditioneel gemount (bij subtype).
 import DatatypeSectie from './DatatypeSectie.vue'
 import GebruikersgroepSectie from './GebruikersgroepSectie.vue'
@@ -285,19 +286,52 @@ watch(() => props.id, async () => {
     <p v-if="fout" role="alert" data-testid="detail-fout" class="text-[var(--lk-color-danger)]">{{ fout }}</p>
 
     <template v-if="component">
-      <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-        <h1 id="detail-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-          {{ component.naam }}
-        </h1>
-        <Tag data-testid="detail-type" :value="component.componenttype_label" :severity="isSubtype ? 'info' : 'secondary'" />
-        <Tag
-          v-if="component.lifecycle_status"
-          data-testid="detail-status"
-          :value="label(LIFECYCLE, component.lifecycle_status)"
-          :severity="LIFECYCLE_SEVERITY[component.lifecycle_status] || 'info'"
-        />
-        <SignaleringBadge :kritiek="signaleringBadge.kritiek" :aandacht="signaleringBadge.aandacht" :signalen="signaleringBadge.signalen || []" />
-      </div>
+      <!-- LI040 — de acties horen bij het object: één gedeelde DetailKop (naam +
+           badges links, acties rechts). Ze verhuizen niet meer mee met groeiende
+           tabs/secties; de vroegere balk onderaan het Overzicht-panel is weg. -->
+      <DetailKop :naam="component.naam" titel-id="detail-titel">
+        <template #badges>
+          <Tag data-testid="detail-type" :value="component.componenttype_label" :severity="isSubtype ? 'info' : 'secondary'" />
+          <Tag
+            v-if="component.lifecycle_status"
+            data-testid="detail-status"
+            :value="label(LIFECYCLE, component.lifecycle_status)"
+            :severity="LIFECYCLE_SEVERITY[component.lifecycle_status] || 'info'"
+          />
+          <SignaleringBadge :kritiek="signaleringBadge.kritiek" :aandacht="signaleringBadge.aandacht" :signalen="signaleringBadge.signalen || []" />
+        </template>
+        <template #acties>
+          <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="naarBewerken" />
+          <!-- Statusovergangen: verschijnen ALLEEN wanneer ze kunnen (geen grijze knop). -->
+          <Button
+            v-if="magStarten"
+            label="Start beoordeling"
+            severity="secondary"
+            data-testid="start-beoordeling-knop"
+            :disabled="bezig"
+            @click="startBeoordeling"
+          />
+          <Button
+            v-if="magKlaarverklaren && isChecklistDragend"
+            :label="gereedheidLabel"
+            severity="secondary"
+            data-testid="klaarverklaar-knop"
+            @click="(e) => gereedheidSectie?.openDialog(e)"
+          />
+          <!-- Navigatie — visueel lichter. -->
+          <Button
+            v-if="magKaartZien"
+            label="Bekijk op kaart"
+            severity="secondary"
+            data-testid="bekijk-op-kaart-knop"
+            @click="bekijkOpKaart"
+          />
+          <ObjectHistoriePaneel entiteit-type="component" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="openVerwijderDialog" />
+        </template>
+      </DetailKop>
 
       <p v-if="isChecklistDragend" data-testid="detail-voortgang" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">
         {{ scoreSectie?.aantalGescoord ?? 0 }}/{{ scoreSectie?.aantalVragen ?? 0 }} vragen gescoord ·
@@ -428,33 +462,7 @@ watch(() => props.id, async () => {
           />
         </div>
 
-        <div class="mt-[var(--lk-space-lg)] flex flex-wrap gap-[var(--lk-space-md)]">
-          <Button
-            v-if="magKaartZien"
-            label="Bekijk op kaart"
-            severity="secondary"
-            data-testid="bekijk-op-kaart-knop"
-            @click="bekijkOpKaart"
-          />
-          <Button
-            v-if="magKlaarverklaren && isChecklistDragend"
-            :label="gereedheidLabel"
-            severity="secondary"
-            data-testid="klaarverklaar-knop"
-            @click="(e) => gereedheidSectie?.openDialog(e)"
-          />
-          <ObjectHistoriePaneel entiteit-type="component" :entiteit-id="props.id" />
-          <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="naarBewerken" />
-          <Button
-            v-if="magStarten"
-            label="Start beoordeling"
-            severity="secondary"
-            data-testid="start-beoordeling-knop"
-            :disabled="bezig"
-            @click="startBeoordeling"
-          />
-          <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="openVerwijderDialog" />
-        </div>
+        <!-- LI040 — de actiebalk die hier stond is verhuisd naar de DetailKop. -->
       </div>
 
       <!-- Checklist: 12 categorieën als sub-navigatie (checklist-dragende typen) -->

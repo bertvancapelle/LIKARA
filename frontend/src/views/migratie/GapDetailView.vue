@@ -17,6 +17,7 @@ import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import ObjectHistoriePaneel from '@modules/bwb_ontvlechting/frontend/views/ObjectHistoriePaneel.vue'
+import DetailKop from '@/components/DetailKop.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -219,15 +220,16 @@ onMounted(laad)
     <p v-else-if="laden" data-testid="gap-detail-laden" class="my-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <template v-else-if="gap">
-      <div class="mt-[var(--lk-space-sm)] mb-[var(--lk-space-sm)]">
-        <div class="flex items-center gap-[var(--lk-space-md)]">
-          <h1 id="gap-detail-titel" data-testid="gap-naam" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-            {{ gap.naam }}
-          </h1>
-          <ObjectHistoriePaneel entiteit-type="gap" :entiteit-id="props.id" class="ml-auto" />
+      <!-- LI040 — gedeelde DetailKop (was een eigen kopregel met Verwijderen naast Bewerken). -->
+      <DetailKop :naam="gap.naam" titel-id="gap-detail-titel">
+        <template #acties>
           <Button v-if="magBeheren" label="Bewerken" data-testid="gap-bewerken" @click="openBewerken" />
-          <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="gap-verwijderen" @click="verwijderOpen = true" />
-        </div>
+          <ObjectHistoriePaneel entiteit-type="gap" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="gap-verwijderen" @click="verwijderOpen = true" />
+        </template>
+        <template #subtitel>
         <!-- Parent-context: baseline → doel-plateau als subtitel in de header. -->
         <p data-testid="gap-overgang" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
           Overgang:
@@ -235,7 +237,8 @@ onMounted(laad)
           →
           <router-link :to="{ name: 'plateau-detail', params: { id: gap.doel_plateau_id } }" data-testid="gap-doel-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ doelNaam || 'doel-plateau' }}</router-link>
         </p>
-      </div>
+        </template>
+      </DetailKop>
       <p v-if="gap.toelichting" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text)]">{{ gap.toelichting }}</p>
 
       <div class="mb-[var(--lk-space-sm)] grid gap-[var(--lk-space-md)] sm:grid-cols-2">

@@ -16,6 +16,7 @@ import { api } from '@/api'
 import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, PARTIJ_AARD, PARTIJ_SCOPE, REGISTER_FOUT, label } from '../labels'
 import PartijRollenSectie from './PartijRollenSectie.vue'
 import ObjectHistoriePaneel from './ObjectHistoriePaneel.vue'
+import DetailKop from '@/components/DetailKop.vue'
 import GebruikteApplicatiesSectie from './GebruikteApplicatiesSectie.vue'
 import PartijProcessenSectie from './PartijProcessenSectie.vue'
 
@@ -239,19 +240,31 @@ const RIJEN = [
     <p v-if="fout" role="alert" data-testid="detail-fout" class="text-[var(--lk-color-danger)]">{{ fout }}</p>
 
     <template v-if="partij">
-      <div class="mb-[var(--lk-space-md)]">
-        <div class="flex items-center gap-[var(--lk-space-md)]">
-          <h1 id="partij-detail-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-            {{ partij.naam }}
-          </h1>
+      <!-- LI040 — gedeelde DetailKop: acties bij het object (waren onder de metadata). -->
+      <DetailKop :naam="partij.naam" titel-id="partij-detail-titel">
+        <template #badges>
           <Tag data-testid="detail-aard" :value="aardLabel(partij.aard)" severity="info" />
-        </div>
-        <!-- Parent-context als subtitelregel in de header (ADR-024) -->
-        <p v-if="ouderOrgNaam" data-testid="partij-hoortbij" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-          Hoort bij:
-          <router-link :to="{ name: 'partij-detail', params: { id: partij.organisatie_id } }" data-testid="hoortbij-org-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderOrgNaam }}</router-link><span v-if="ouderAfdelingNaam"> › <router-link :to="{ name: 'partij-detail', params: { id: partij.afdeling_id } }" data-testid="hoortbij-afd-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderAfdelingNaam }}</router-link></span>
-        </p>
-      </div>
+        </template>
+        <template #acties>
+          <Button
+            v-if="magBewerken"
+            label="Bewerken"
+            data-testid="bewerken-knop"
+            @click="router.push({ name: 'partij-bewerken', params: { id: props.id } })"
+          />
+          <ObjectHistoriePaneel :key="props.id" entiteit-type="partij" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
+        </template>
+        <template #subtitel>
+          <!-- Parent-context als subtitelregel in de header (ADR-024) -->
+          <p v-if="ouderOrgNaam" data-testid="partij-hoortbij" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+            Hoort bij:
+            <router-link :to="{ name: 'partij-detail', params: { id: partij.organisatie_id } }" data-testid="hoortbij-org-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderOrgNaam }}</router-link><span v-if="ouderAfdelingNaam"> › <router-link :to="{ name: 'partij-detail', params: { id: partij.afdeling_id } }" data-testid="hoortbij-afd-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderAfdelingNaam }}</router-link></span>
+          </p>
+        </template>
+      </DetailKop>
 
       <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
         <!-- ADR-038 — intern/extern (alleen bij organisatie/externe partij; afgeleid bij afdeling/persoon). -->
@@ -283,16 +296,7 @@ const RIJEN = [
         </template>
       </dl>
 
-      <div class="mt-[var(--lk-space-lg)] flex flex-wrap gap-[var(--lk-space-md)]">
-        <ObjectHistoriePaneel :key="props.id" entiteit-type="partij" :entiteit-id="props.id" />
-        <Button
-          v-if="magBewerken"
-          label="Bewerken"
-          data-testid="bewerken-knop"
-          @click="router.push({ name: 'partij-bewerken', params: { id: props.id } })"
-        />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
-      </div>
+      <!-- LI040 — de actiebalk die hier stond is verhuisd naar de DetailKop. -->
 
       <!-- Onderdelen ("hoort bij", andere kant) — gesplitst in Afdelingen + Personen -->
       <template v-if="heeftLeden">

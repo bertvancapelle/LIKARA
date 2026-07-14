@@ -23,6 +23,7 @@ import {
 } from '../labels'
 import VerantwoordelijkheidSectie from './VerantwoordelijkheidSectie.vue'
 import ObjectHistoriePaneel from './ObjectHistoriePaneel.vue'
+import DetailKop from '@/components/DetailKop.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -107,19 +108,26 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
     <p v-if="fout" role="alert" data-testid="detail-fout" class="text-[var(--lk-color-danger)]">{{ fout }}</p>
 
     <template v-if="contract">
-      <div class="mb-[var(--lk-space-md)]">
-        <div class="flex items-center gap-[var(--lk-space-md)]">
-          <h1 id="contract-detail-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
-            {{ contract.contractnaam }}
-          </h1>
+      <!-- LI040 — gedeelde DetailKop: acties bij het object (waren onder de metadata). -->
+      <DetailKop :naam="contract.contractnaam" titel-id="contract-detail-titel">
+        <template #badges>
           <Tag data-testid="detail-type" :value="typeLabel(contract.contracttype)" :severity="CONTRACTTYPE_SEVERITY[contract.contracttype] || 'info'" />
-        </div>
-        <!-- Parent-context: deelcontract → mantelcontract (alleen indien aanwezig). -->
-        <p v-if="contract.mantelcontract_id" data-testid="contract-valt-onder" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-          Valt onder
-          <router-link :to="{ name: 'contract-detail', params: { id: contract.mantelcontract_id } }" data-testid="valt-onder-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ mantelNaam || 'mantelcontract' }}</router-link>
-        </p>
-      </div>
+        </template>
+        <template #acties>
+          <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="router.push({ name: 'contract-bewerken', params: { id: props.id } })" />
+          <ObjectHistoriePaneel entiteit-type="contract" :entiteit-id="props.id" />
+        </template>
+        <template v-if="magVerwijderen" #destructief>
+          <Button label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
+        </template>
+        <template #subtitel>
+          <!-- Parent-context: deelcontract → mantelcontract (alleen indien aanwezig). -->
+          <p v-if="contract.mantelcontract_id" data-testid="contract-valt-onder" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+            Valt onder
+            <router-link :to="{ name: 'contract-detail', params: { id: contract.mantelcontract_id } }" data-testid="valt-onder-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ mantelNaam || 'mantelcontract' }}</router-link>
+          </p>
+        </template>
+      </DetailKop>
 
       <dl class="card grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
         <dt class="font-semibold">Leverancier</dt>
@@ -162,11 +170,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         <dd class="whitespace-pre-wrap">{{ contract.toelichting || '—' }}</dd>
       </dl>
 
-      <div class="mt-[var(--lk-space-lg)] flex flex-wrap gap-[var(--lk-space-md)]">
-        <ObjectHistoriePaneel entiteit-type="contract" :entiteit-id="props.id" />
-        <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="router.push({ name: 'contract-bewerken', params: { id: props.id } })" />
-        <Button v-if="magVerwijderen" label="Verwijderen" severity="danger" data-testid="verwijder-knop" @click="verwijderDialog = true" />
-      </div>
+      <!-- LI040 — de actiebalk die hier stond is verhuisd naar de DetailKop. -->
 
       <!-- §1 — deelcontracten (alleen bij een mantelcontract) -->
       <section

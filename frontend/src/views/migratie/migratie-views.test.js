@@ -104,7 +104,7 @@ describe('F-1 plateau-detail', () => {
       { id: 'l2', lid_element_type: 'contract', dispositie: 'behouden', dispositie_label: 'Behouden', contractueel_bevestigd: true, bevestigd_aantal_gebruikers: 250, bevestigd_door: 'bert@x', bevestigd_op: '2026-06-15T10:00:00Z' },
     ])
     const w = await mountView(PlateauDetailView, { id: 'p1' })
-    expect(w.find('[data-testid="plateau-naam"]').text()).toBe('Doel')
+    expect(w.find('[data-testid="detail-kop-naam"]').text()).toBe('Doel')
     expect(w.text()).toContain('Migreren')
     expect(w.text()).toContain('Behouden')
     expect(w.text()).toContain('Bevestigd')
@@ -123,7 +123,7 @@ describe('F-1 gap-detail', () => {
     api.gaps.leden.mockResolvedValue([{ id: 'm1', lid_element_type: 'component', naam: 'App X' }])
     api.plateaus.haal.mockImplementation((id) => Promise.resolve({ id, naam: id === 'pb' ? 'Baseline' : 'Doel' }))
     const w = await mountView(GapDetailView, { id: 'g1' })
-    expect(w.find('[data-testid="gap-naam"]').text()).toBe('Kloof A')
+    expect(w.find('[data-testid="detail-kop-naam"]').text()).toBe('Kloof A')
     expect(w.find('[data-testid="gap-overgang"]').text()).toContain('Baseline')
     expect(w.find('[data-testid="gap-overgang"]').text()).toContain('Doel')
     expect(w.find('[data-testid="readiness-technisch"]').text()).toContain('1 van 2 (50%)')
@@ -147,7 +147,7 @@ describe('F-1 werkpakket-detail', () => {
       { id: 'w2', naam: 'WP-sub', bovenliggend_id: 'w1', niveau: 1, pad: ['WP-kind', 'WP-sub'] },
     ])
     const w = await mountView(WorkPackageDetailView, { id: 'w1' })
-    expect(w.find('[data-testid="wp-naam"]').text()).toBe('WP-kind')
+    expect(w.find('[data-testid="detail-kop-naam"]').text()).toBe('WP-kind')
     expect(w.find('[data-testid="wp-ouder-link"]').text()).toContain('WP-ouder')
     expect(w.text()).toContain('WP-sub')
     expect(w.text()).toContain('1 direct')
@@ -162,7 +162,7 @@ describe('F-1 deliverable-detail', () => {
       plateaus: [{ relatie_id: 'r2', element_id: 'p1', naam: 'Doelplateau' }],
     })
     const w = await mountView(DeliverableDetailView, { id: 'd1' })
-    expect(w.find('[data-testid="del-naam"]').text()).toBe('Overgezette DB')
+    expect(w.find('[data-testid="detail-kop-naam"]').text()).toBe('Overgezette DB')
     expect(w.text()).toContain('WP-migratie')
     expect(w.text()).toContain('Doelplateau')
   })

@@ -82,7 +82,7 @@ describe('WorkPackageDetailView — parent-context in header', () => {
 describe('WorkPackageDetailView — render + rol-gating', () => {
   it('toont naam, subpakketten en beheer-knoppen', async () => {
     const { w } = await mountDetail()
-    expect(w.find('[data-testid="wp-naam"]').text()).toBe('Financieel domein')
+    expect(w.find('[data-testid="detail-kop-naam"]').text()).toBe('Financieel domein')
     expect(w.text()).toContain('Oracle-DB overzetten')
     expect(w.text()).toContain('1 direct')
     expect(w.find('[data-testid="wp-bewerken"]').exists()).toBe(true)
