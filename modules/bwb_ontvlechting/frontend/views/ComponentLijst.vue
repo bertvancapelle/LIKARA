@@ -61,6 +61,9 @@ const filterHosting = ref('')
 const filterLevensfase = ref('')
 // LI040 — bedoeling ('' = alle; API-param `migratiepad`, UI-label "Bedoeling").
 const filterBedoeling = ref('')
+// LI040 — oordelen ('' = alle; echte niveaus + het gat "nog niet vastgelegd").
+const filterComplexiteit = ref('')
+const filterPrioriteit = ref('')
 // UX-B6-b — eigenaar-filter is een organisatie-keuze (FK) i.p.v. vrije tekst.
 const filterEigenaarId = ref(null)
 // LI032-les: een hersteld eigenaar-id moet zijn label tonen (ZoekSelect kent alleen het
@@ -115,6 +118,8 @@ const heeftFilters = computed(
     !!filterHosting.value ||
     !!filterLevensfase.value ||
     !!filterBedoeling.value ||
+    !!filterComplexiteit.value ||
+    !!filterPrioriteit.value ||
     !!filterEigenaarId.value ||
     !!filterZoek.value.trim() ||
     filterRol.value.length > 0 ||
@@ -142,6 +147,16 @@ const filterChips = computed(() => {
     chips.push({
       sleutel: 'bedoeling', label: 'Bedoeling',
       waarde: filterBedoeling.value === ZONDER ? 'nog niet vastgelegd' : label(MIGRATIEPAD, filterBedoeling.value),
+    })
+  if (filterComplexiteit.value)
+    chips.push({
+      sleutel: 'complexiteit', label: 'Complexiteit',
+      waarde: filterComplexiteit.value === ZONDER ? 'nog niet vastgelegd' : niveau(filterComplexiteit.value),
+    })
+  if (filterPrioriteit.value)
+    chips.push({
+      sleutel: 'prioriteit', label: 'Prioriteit',
+      waarde: filterPrioriteit.value === ZONDER ? 'nog niet vastgelegd' : niveau(filterPrioriteit.value),
     })
   if (filterWerk.value)
     chips.push({ sleutel: 'werk', label: 'Ondersteunt werk', waarde: filterWerk.value === 'ja' ? 'Ja' : 'Nee' })
@@ -172,6 +187,8 @@ function wisChip(sleutel) {
     hosting: () => (filterHosting.value = ''),
     levensfase: () => (filterLevensfase.value = ''),
     bedoeling: () => (filterBedoeling.value = ''),
+    complexiteit: () => (filterComplexiteit.value = ''),
+    prioriteit: () => (filterPrioriteit.value = ''),
     werk: () => (filterWerk.value = ''),
     rol: () => (filterRol.value = []),
     biv: () => (filterBiv.value = ''),
@@ -193,6 +210,7 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
   'component-lijst',
   {
     filterStatus, filterType, filterLaag, filterHosting, filterLevensfase, filterBedoeling,
+    filterComplexiteit, filterPrioriteit,
     filterEigenaarId, filterEigenaarNaam,
     filterZoek, filterRol, filterBiv, filterWerk,
     filterKlaarverklaring, filterAfwijking, sortVeld, sortRichting,
@@ -205,6 +223,8 @@ const { herstel: herstelLijstStaat } = useLijstStaat(
       filterHosting: (w) => w === '' || HOSTING_OPTIES.includes(w),
       filterLevensfase: (w) => w === '' || w === ZONDER || LEVENSFASE_OPTIES.includes(w),
       filterBedoeling: (w) => w === '' || w === ZONDER || Object.keys(MIGRATIEPAD).includes(w),
+      filterComplexiteit: (w) => w === '' || w === ZONDER || Object.keys(NIVEAU).includes(w),
+      filterPrioriteit: (w) => w === '' || w === ZONDER || Object.keys(NIVEAU).includes(w),
       filterEigenaarId: (w) => w === null || _tekst(w),
       filterEigenaarNaam: _tekst,
       filterZoek: _tekst,
@@ -255,6 +275,11 @@ async function laad({ reset = false } = {}) {
     // LI040 — bedoeling (API-param `migratiepad`); idem voor het gat.
     if (filterBedoeling.value === ZONDER) params.migratiepad_ontbreekt = 1
     else if (filterBedoeling.value) params.migratiepad = filterBedoeling.value
+    // LI040 — oordelen: echte niveaus of het gat ("nooit naar gekeken" ≠ "vastgesteld").
+    if (filterComplexiteit.value === ZONDER) params.complexiteit_ontbreekt = 1
+    else if (filterComplexiteit.value) params.complexiteit = filterComplexiteit.value
+    if (filterPrioriteit.value === ZONDER) params.prioriteit_ontbreekt = 1
+    else if (filterPrioriteit.value) params.prioriteit = filterPrioriteit.value
     if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
     // ADR-028 — rol (array → herhaalde param). LI040 — één BIV-filter: hoogste as ≥
@@ -307,6 +332,8 @@ function wisFilters() {
   filterHosting.value = ''
   filterLevensfase.value = ''
   filterBedoeling.value = ''
+  filterComplexiteit.value = ''
+  filterPrioriteit.value = ''
   filterEigenaarId.value = null
   filterEigenaarNaam.value = ''
   filterZoek.value = ''
@@ -493,6 +520,37 @@ onMounted(async () => {
         </select>
       </label>
 
+      <!-- LI040 — oordeel-filters: niveaus + het gat (geen verzonnen 'Midden' meer). -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Complexiteit</span>
+        <select
+          v-model="filterComplexiteit"
+          data-testid="filter-complexiteit"
+          aria-label="Filter op complexiteit"
+          class="lk-veld"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="n in Object.keys(NIVEAU)" :key="n" :value="n">{{ niveau(n) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Prioriteit</span>
+        <select
+          v-model="filterPrioriteit"
+          data-testid="filter-prioriteit"
+          aria-label="Filter op prioriteit"
+          class="lk-veld"
+          @change="herfilter"
+        >
+          <option value="">Alle</option>
+          <option v-for="n in Object.keys(NIVEAU)" :key="n" :value="n">{{ niveau(n) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Ondersteunt werk</span>
         <select
@@ -650,11 +708,19 @@ onMounted(async () => {
       <Column header="Hosting" sort-field="hostingmodel" sortable>
         <template #body="{ data }">{{ hosting(data.hostingmodel) }}</template>
       </Column>
+      <!-- LI040 — oordelen zonder waarde: gedempt "nog niet vastgelegd" (één leegte-
+           taal; nooit een verzonnen 'Midden'). -->
       <Column header="Complexiteit" sort-field="complexiteit" sortable>
-        <template #body="{ data }">{{ niveau(data.complexiteit) }}</template>
+        <template #body="{ data }">
+          <span v-if="data.complexiteit" data-testid="rij-complexiteit">{{ niveau(data.complexiteit) }}</span>
+          <span v-else data-testid="complexiteit-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
+        </template>
       </Column>
       <Column header="Prioriteit" sort-field="prioriteit" sortable>
-        <template #body="{ data }">{{ niveau(data.prioriteit) }}</template>
+        <template #body="{ data }">
+          <span v-if="data.prioriteit" data-testid="rij-prioriteit">{{ niveau(data.prioriteit) }}</span>
+          <span v-else data-testid="prioriteit-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
+        </template>
       </Column>
       <!-- ADR-046 — levensfase-kolom: ontbrekend = gedempt "nog niet vastgelegd" (nooit rood). -->
       <Column header="Levensfase" sort-field="levensfase" sortable>

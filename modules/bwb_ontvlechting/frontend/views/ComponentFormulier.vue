@@ -61,8 +61,8 @@ const form = reactive({
   beschrijving: '',
   migratiepad: '', // LI040 — '' = "nog niet vastgelegd" (payload null); geen verzonnen 'onbekend'
   levensfase: '', // ADR-046 — '' = "nog niet vastgelegd" (payload null); bewust GEEN default-fase
-  complexiteit: 'midden',
-  prioriteit: 'midden',
+  complexiteit: '', // LI040 — een oordeel wordt gegeven, niet uitgedeeld ('' = payload null)
+  prioriteit: '',
   componentrol: 'interne_applicatie',
   biv_beschikbaarheid: '',
   biv_integriteit: '',
@@ -83,8 +83,9 @@ const TRANSITIE_VELDEN = [
   // LI040 — de bedoeling mag óók leeg: geen verzonnen 'Onbekend' meer (één leegte-taal).
   { veld: 'migratiepad', label: 'Bedoeling', opties: MIGRATIEPAD, leegLabel: '— nog niet vastgelegd —' },
   { veld: 'hostingmodel', label: 'Hostingmodel', opties: HOSTINGMODEL },
-  { veld: 'complexiteit', label: 'Complexiteit', opties: NIVEAU },
-  { veld: 'prioriteit', label: 'Prioriteit', opties: NIVEAU },
+  // LI040 — oordelen mogen leeg blijven: geen gratis 'Midden' meer (één leegte-taal).
+  { veld: 'complexiteit', label: 'Complexiteit', opties: NIVEAU, leegLabel: '— nog niet vastgelegd —' },
+  { veld: 'prioriteit', label: 'Prioriteit', opties: NIVEAU, leegLabel: '— nog niet vastgelegd —' },
 ]
 const PLAATSING_VELDEN = computed(() => TRANSITIE_VELDEN.map((t) => ({ ...t, uitleg: t.veld })))
 const hosting = (c) => label(HOSTINGMODEL, c)
@@ -158,7 +159,7 @@ async function init() {
   Object.assign(form, {
     naam: '', componenttype: '', hostingmodel: 'onbekend',
     eigenaar_organisatie_id: null, eigenaar_organisatie_naam: '', beschrijving: '',
-    migratiepad: '', levensfase: '', complexiteit: 'midden', prioriteit: 'midden',
+    migratiepad: '', levensfase: '', complexiteit: '', prioriteit: '',
     componentrol: 'interne_applicatie',
     biv_beschikbaarheid: '', biv_integriteit: '', biv_vertrouwelijkheid: '',
   })
@@ -184,8 +185,8 @@ async function init() {
         beschrijving: c.beschrijving || '',
         migratiepad: c.migratiepad ?? '',
         levensfase: c.levensfase ?? '',
-        complexiteit: c.complexiteit ?? 'midden',
-        prioriteit: c.prioriteit ?? 'midden',
+        complexiteit: c.complexiteit ?? '',
+        prioriteit: c.prioriteit ?? '',
         componentrol: c.componentrol ?? 'interne_applicatie',
         biv_beschikbaarheid: c.biv_beschikbaarheid ?? '',
         biv_integriteit: c.biv_integriteit ?? '',
@@ -219,8 +220,8 @@ function _payload() {
     // LI040/ADR-046 — '' = "nog niet vastgelegd" → expliciet null (wist ook een eerdere waarde).
     migratiepad: form.migratiepad || null,
     levensfase: form.levensfase || null,
-    complexiteit: form.complexiteit,
-    prioriteit: form.prioriteit,
+    complexiteit: form.complexiteit || null,
+    prioriteit: form.prioriteit || null,
     componentrol: form.componentrol,
     biv_beschikbaarheid: form.biv_beschikbaarheid || null,
     biv_integriteit: form.biv_integriteit || null,

@@ -360,10 +360,18 @@ watch(() => props.id, async () => {
                 <!-- LI040 — één leegte-taal: gedempt, identiek aan levensfase, nooit rood. -->
                 <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="bedoeling-leeg">nog niet vastgelegd</span>
               </dd>
+              <!-- LI040 — oordelen zonder waarde: gedempt "nog niet vastgelegd" (één
+                   leegte-taal; nooit een verzonnen 'Midden'). -->
               <dt class="font-semibold">Complexiteit</dt>
-              <dd>{{ label(NIVEAU, component.complexiteit) }}</dd>
+              <dd data-testid="comp-complexiteit">
+                <span v-if="component.complexiteit">{{ label(NIVEAU, component.complexiteit) }}</span>
+                <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="complexiteit-leeg">nog niet vastgelegd</span>
+              </dd>
               <dt class="font-semibold">Prioriteit</dt>
-              <dd>{{ label(NIVEAU, component.prioriteit) }}</dd>
+              <dd data-testid="comp-prioriteit">
+                <span v-if="component.prioriteit">{{ label(NIVEAU, component.prioriteit) }}</span>
+                <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="prioriteit-leeg">nog niet vastgelegd</span>
+              </dd>
             </dl>
           </section>
 

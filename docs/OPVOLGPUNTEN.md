@@ -16,8 +16,9 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    - `HostingModel.onbekend` — enum-sentinel, kolom NOT NULL, formulier-default: oogt
      als antwoord. Leegte of echt antwoord? (De checklist-optieset 2.1 is hiervan
      afgeleid en volgt vanzelf mee.)
-   - `complexiteit`/`prioriteit` — NOT NULL met default `midden`: geen leegte-wóórd,
-     maar wel een verzonnen midden-oordeel dat elk component ongevraagd krijgt.
+   - `complexiteit`/`prioriteit` — AFGEHANDELD (LI040, migratie 0068): nullable zonder
+     default, gedempt "nog niet vastgelegd" + ontbreekt-filters; enum intact (midden
+     blijft een geldig, bewust te zetten oordeel).
    - `ChecklistScore.nvt` — vermoedelijk een écht oordeel ("niet van toepassing");
      bevestigen, niet aanraken zonder besluit (engine-waarde!).
    - `AntwoordType.geen` — structuurkeuze (vraag zonder getypeerd antwoord), geen

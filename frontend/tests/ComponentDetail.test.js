@@ -427,6 +427,14 @@ describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', 
     expect(padLeeg.text()).toBe('nog niet vastgelegd')
     expect(padLeeg.classes().join(' ')).toContain('text-muted')
     expect(wat.text()).not.toContain('Onbekend')
+    // LI040 — ook de oordelen zonder waarde: gedempt, en nergens een verzonnen 'Midden'.
+    for (const veld of ['complexiteit-leeg', 'prioriteit-leeg']) {
+      const el = wat.find(`[data-testid="${veld}"]`)
+      expect(el.exists()).toBe(true)
+      expect(el.text()).toBe('nog niet vastgelegd')
+      expect(el.classes().join(' ')).toContain('text-muted')
+    }
+    expect(wat.text()).not.toContain('Midden')
   })
 
   it('ADR-046: een gezette levensfase toont het label (zichtbare tekst, niet alleen "rendert")', async () => {

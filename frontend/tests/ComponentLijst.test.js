@@ -365,6 +365,46 @@ describe('ComponentLijst', () => {
     expect(w.find('[data-testid="componenten-tabel"]').text()).not.toContain('Onbekend')
   })
 
+  it('LI040: oordeel-filters end-to-end — waarde én "nog niet vastgelegd" (complexiteit/prioriteit)', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-complexiteit"]').setValue('hoog')
+    await flushPromises()
+    expect(api.componenten.lijst).toHaveBeenLastCalledWith(
+      expect.objectContaining({ complexiteit: 'hoog', after: undefined }),
+    )
+    await w.find('[data-testid="filter-prioriteit"]').setValue('__zonder__')
+    await flushPromises()
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.prioriteit_ontbreekt).toBe(1)
+    expect(call.prioriteit).toBeUndefined() // afwezigheid, geen sentinel-waarde
+    expect(w.find('[data-testid="filter-chip-complexiteit"]').text()).toContain('Complexiteit: Hoog')
+    expect(w.find('[data-testid="filter-chip-prioriteit"]').text()).toContain('Prioriteit: nog niet vastgelegd')
+    // Eén chip wissen wist alléén dat oordeel-filter.
+    await w.find('[data-testid="chip-wis-complexiteit"]').trigger('click')
+    await flushPromises()
+    const na = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(na.complexiteit).toBeUndefined()
+    expect(na.prioriteit_ontbreekt).toBe(1)
+  })
+
+  it('LI040: oordeel-kolommen tonen het gat gedempt — nergens een verzonnen "Midden"', async () => {
+    api.componenten.lijst.mockResolvedValue({
+      items: [
+        { ..._comp('Zaaksysteem', 'c1', { subtype: true }), complexiteit: 'hoog', prioriteit: null },
+        { ..._comp('Archiefbeheer', 'c2'), complexiteit: null, prioriteit: null },
+      ],
+      volgende_cursor: null,
+    })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="rij-complexiteit"]').text()).toBe('Hoog')
+    const leeg = w.find('[data-testid="prioriteit-leeg"]')
+    expect(leeg.exists()).toBe(true)
+    expect(leeg.text()).toBe('nog niet vastgelegd')
+    // Geen verzonnen oordeel meer in beeld bij componenten zonder oordeel.
+    expect(w.find('[data-testid="componenten-tabel"]').text()).not.toContain('Midden')
+  })
+
   it('ADR-028/LI040: wisFilters wist ook rol + BIV + bedoeling', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()

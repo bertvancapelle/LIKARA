@@ -156,7 +156,8 @@ describe('ComponentFormulier — overlay + layout (ADR-042 4b)', () => {
       expect.objectContaining({
         naam: 'Geo-fileshare', componenttype: 'fileshare', migratiepad: 'vervangen',
         levensfase: 'uitfaseren',
-        complexiteit: 'midden', prioriteit: 'midden',
+        // LI040 — oordelen niet aangeraakt in dit formulier → null (geen gratis 'midden').
+        complexiteit: null, prioriteit: null,
         componentrol: 'externe_dataprovider',
         biv_beschikbaarheid: null, biv_integriteit: null, biv_vertrouwelijkheid: 'hoog',
       }),

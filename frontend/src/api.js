@@ -285,7 +285,7 @@ export const api = {
         // LI040 — BIV filtert op de hoogste as (`biv_min`) of het gat (`biv_ontbreekt`);
         // de drie per-as-params zijn vervallen. `migratiepad` = het Bedoeling-filter.
         // LI040 — `*_ontbreekt` maakt "nog niet vastgelegd" vindbaar (filter op NULL).
-        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'levensfase', 'levensfase_ontbreekt', 'migratiepad', 'migratiepad_ontbreekt', 'eigenaar_organisatie_id', 'leverancier_id', 'zoek', 'componentrol', 'biv_min', 'biv_ontbreekt', 'klaarverklaring', 'afwijking', 'ondersteunt_werk'])}`,
+        `/componenten${_filterQuery('componenten.lijst', params, ['limit', 'after', 'sort', 'order', 'componenttype', 'laag', 'status', 'hostingmodel', 'levensfase', 'levensfase_ontbreekt', 'migratiepad', 'migratiepad_ontbreekt', 'complexiteit', 'complexiteit_ontbreekt', 'prioriteit', 'prioriteit_ontbreekt', 'eigenaar_organisatie_id', 'leverancier_id', 'zoek', 'componentrol', 'biv_min', 'biv_ontbreekt', 'klaarverklaring', 'afwijking', 'ondersteunt_werk'])}`,
       ),
     haal: (id) => request(`/componenten/${id}`),
     maak: (data) => request('/componenten', { method: 'POST', body: JSON.stringify(data) }),

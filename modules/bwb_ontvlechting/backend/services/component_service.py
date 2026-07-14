@@ -321,6 +321,8 @@ async def _pas_filters_toe(
     hostingmodel: str | None = None, levensfase: str | None = None,
     levensfase_ontbreekt: bool = False,
     migratiepad: str | None = None, migratiepad_ontbreekt: bool = False,
+    complexiteit: str | None = None, complexiteit_ontbreekt: bool = False,
+    prioriteit: str | None = None, prioriteit_ontbreekt: bool = False,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
     zoek: str | None = None, componentrol: list[str] | None = None,
     biv_min: str | None = None, biv_ontbreekt: bool = False,
@@ -355,6 +357,16 @@ async def _pas_filters_toe(
         stmt = stmt.where(Component.migratiepad == Migratiepad(migratiepad))
     if migratiepad_ontbreekt:
         stmt = stmt.where(Component.migratiepad.is_(None))
+    # LI040 — complexiteit/prioriteit: oordeel-gelijkheid + het gat ("nooit naar
+    # gekeken" ≠ "vastgesteld" — zonder deze filters is dat onderscheid onvindbaar).
+    if complexiteit:
+        stmt = stmt.where(Component.complexiteit == NiveauEnum(complexiteit))
+    if complexiteit_ontbreekt:
+        stmt = stmt.where(Component.complexiteit.is_(None))
+    if prioriteit:
+        stmt = stmt.where(Component.prioriteit == NiveauEnum(prioriteit))
+    if prioriteit_ontbreekt:
+        stmt = stmt.where(Component.prioriteit.is_(None))
     if eigenaar_organisatie_id:
         stmt = stmt.where(Component.eigenaar_organisatie_id == eigenaar_organisatie_id)
     if leverancier_id:
@@ -475,6 +487,8 @@ async def lijst(
     laag: str | None = None, status: list[str] | None = None, hostingmodel: str | None = None,
     levensfase: str | None = None, levensfase_ontbreekt: bool = False,
     migratiepad: str | None = None, migratiepad_ontbreekt: bool = False,
+    complexiteit: str | None = None, complexiteit_ontbreekt: bool = False,
+    prioriteit: str | None = None, prioriteit_ontbreekt: bool = False,
     eigenaar_organisatie_id: uuid.UUID | None = None, leverancier_id: uuid.UUID | None = None,
     zoek: str | None = None,
     componentrol: list[str] | None = None,
@@ -517,6 +531,8 @@ async def lijst(
         componenttype=componenttype, laag=laag, status=status, hostingmodel=hostingmodel,
         levensfase=levensfase, levensfase_ontbreekt=levensfase_ontbreekt,
         migratiepad=migratiepad, migratiepad_ontbreekt=migratiepad_ontbreekt,
+        complexiteit=complexiteit, complexiteit_ontbreekt=complexiteit_ontbreekt,
+        prioriteit=prioriteit, prioriteit_ontbreekt=prioriteit_ontbreekt,
         eigenaar_organisatie_id=eigenaar_organisatie_id, leverancier_id=leverancier_id,
         zoek=zoek, componentrol=componentrol,
         biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,
@@ -591,8 +607,9 @@ async def maak_applicatie_component(
     hostingmodel: HostingModel,
     eigenaar_organisatie_id: uuid.UUID | None,
     migratiepad: Migratiepad | None = None,
-    complexiteit: NiveauEnum = NiveauEnum.midden,
-    prioriteit: NiveauEnum = NiveauEnum.midden,
+    # LI040 — geen verzonnen oordeel: weggelaten = None ("nog niet vastgelegd").
+    complexiteit: NiveauEnum | None = None,
+    prioriteit: NiveauEnum | None = None,
     levensfase: Levensfase | None = None,
     componentrol: str = _DEFAULT_ROL,
     biv_beschikbaarheid: str | None = None,

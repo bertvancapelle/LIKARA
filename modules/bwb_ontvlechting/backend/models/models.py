@@ -387,12 +387,14 @@ class Component(Base, TenantMixin, TimestampMixin):
     # deed. Ontbrekend toont als "nog niet vastgelegd". Puur registratief; engine leest
     # dit NIET (score blijft de enige lifecycle-driver).
     levensfase: Mapped[Levensfase | None] = mapped_column(levensfase_enum, nullable=True)
-    complexiteit: Mapped[NiveauEnum] = mapped_column(
-        niveau_enum, nullable=False, server_default=text("'midden'")
-    )
-    prioriteit: Mapped[NiveauEnum] = mapped_column(
-        niveau_enum, nullable=False, server_default=text("'midden'")
-    )
+    # LI040 — complexiteit/prioriteit zijn OORDELEN: wie een waarde zet doet een
+    # uitspraak; wie hem leeg laat heeft er nog niet naar gekeken. Daarom — net als
+    # levensfase/bedoeling (migratie 0067-patroon) — NULLABLE zonder default: de
+    # vroegere default `midden` was een verzonnen oordeel dat elk component ongevraagd
+    # kreeg (en oogde als "iemand vond dit gemiddeld"). De enum-waarden zelf blijven
+    # (midden is een geldig oordeel — het wordt alleen niet meer gratis uitgedeeld).
+    complexiteit: Mapped[NiveauEnum | None] = mapped_column(niveau_enum, nullable=True)
+    prioriteit: Mapped[NiveauEnum | None] = mapped_column(niveau_enum, nullable=True)
     # ADR-028 — componentclassificatie (puur registratief; engine onaangeroerd). `componentrol`
     # is een tekst-sleutel uit `componentrol_optie`, NOT NULL met server_default `interne_applicatie`
     # (elk component heeft altijd een rol; geen lege staat, geen rol-registratiegat). De drie

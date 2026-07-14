@@ -62,8 +62,10 @@ class ComponentCreate(BaseModel):
     # ADR-046 besluit 1 — levensfase (vormkeuze B): optioneel ZONDER default; weggelaten =
     # "nog niet vastgelegd" (LIKARA doet die uitspraak nooit zelf).
     levensfase: Levensfase | None = None
-    complexiteit: NiveauEnum = NiveauEnum.midden
-    prioriteit: NiveauEnum = NiveauEnum.midden
+    # LI040 — complexiteit/prioriteit zijn oordelen: optioneel ZONDER default (de
+    # vroegere gratis 'midden' was een verzonnen oordeel; vormkeuze B-patroon).
+    complexiteit: NiveauEnum | None = None
+    prioriteit: NiveauEnum | None = None
     # ADR-028 — componentclassificatie (app-side gevalideerd tegen de actieve catalogi in de
     # service). `componentrol` heeft de beschermde default; de drie BIV-velden zijn optioneel.
     componentrol: str = _DEFAULT_ROL
@@ -103,8 +105,9 @@ class ComponentUpdate(BaseModel):
     # LI040 — de bedoeling mag, net als de levensfase, expliciet op null (terug naar
     # "nog niet vastgelegd"; exclude_unset onderscheidt weggelaten/null).
     migratiepad: Migratiepad | None = None
-    # ADR-046 — levensfase mag wél expliciet op null (terug naar "nog niet vastgelegd":
-    # een registratie moet corrigeerbaar zijn; exclude_unset onderscheidt weggelaten/null).
+    # ADR-046/LI040 — levensfase, complexiteit en prioriteit mogen wél expliciet op null
+    # (terug naar "nog niet vastgelegd": een registratie moet corrigeerbaar zijn;
+    # exclude_unset onderscheidt weggelaten/null).
     levensfase: Levensfase | None = None
     complexiteit: NiveauEnum | None = None
     prioriteit: NiveauEnum | None = None
@@ -146,12 +149,12 @@ class ComponentRead(BaseModel):
     eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_organisatie_naam: str | None = None
     beschrijving: str | None
-    # LI040 — bedoeling én levensfase: null = "nog niet vastgelegd" (leeg ≠ fout, UI
-    # toont gedempt; één taal voor afwezigheid).
+    # LI040 — bedoeling/levensfase/complexiteit/prioriteit: null = "nog niet
+    # vastgelegd" (leeg ≠ fout, UI toont gedempt; één taal voor afwezigheid).
     migratiepad: Migratiepad | None = None
     levensfase: Levensfase | None = None
-    complexiteit: NiveauEnum
-    prioriteit: NiveauEnum
+    complexiteit: NiveauEnum | None = None
+    prioriteit: NiveauEnum | None = None
     # ADR-028 — componentclassificatie (registratief): rol (+ label) en de drie BIV-velden
     # (+ labels; null als niet geregistreerd). Labels resolven ook gedeactiveerde sleutels.
     componentrol: str
@@ -203,11 +206,12 @@ class ComponentLijstItem(BaseModel):
     # ADR-024 UX-B6-b — eigenaar-organisatie als verwijzing + geresolveerde naam (lijst).
     eigenaar_organisatie_id: uuid.UUID | None = None
     eigenaar_organisatie_naam: str | None = None
-    # LI040 — bedoeling én levensfase: null = "nog niet vastgelegd"; lijstkolom + filter.
+    # LI040 — bedoeling/levensfase/complexiteit/prioriteit: null = "nog niet
+    # vastgelegd"; lijstkolommen + filters.
     migratiepad: Migratiepad | None = None
     levensfase: Levensfase | None = None
-    complexiteit: NiveauEnum
-    prioriteit: NiveauEnum
+    complexiteit: NiveauEnum | None = None
+    prioriteit: NiveauEnum | None = None
     # ADR-028 — componentclassificatie (registratief): rol + BIV (+ labels).
     componentrol: str
     rol_label: str

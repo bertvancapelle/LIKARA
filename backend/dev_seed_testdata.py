@@ -105,9 +105,11 @@ _ID_TO_CODE: dict[object, str] = {}
 
 # Neutrale, deterministische defaults voor de NOT NULL-velden die de opdracht
 # niet noemt (aanvulling A §2). Raken geen acceptatiepunt.
-# LI040 — geen `migratiepad` meer in de defaults: de bedoeling is nullable zonder
-# default ("nog niet vastgelegd" is de eerlijke beginstand; de seed verzint geen antwoord).
-APP_DEFAULTS = {"complexiteit": "midden", "prioriteit": "midden"}
+# LI040 — de seed verzint GEEN antwoorden meer: bedoeling, complexiteit en prioriteit
+# zijn nullable zonder default ("nog niet vastgelegd" is de eerlijke beginstand; een
+# waarde is een menselijke uitspraak, geen seed-invulling). De constante blijft als
+# aanhaakpunt voor de call-sites.
+APP_DEFAULTS = {}
 KOP_DEFAULTS = {"richting": "eenrichting", "impact_bij_verbreking": "midden"}
 
 # --- Aanvulling B: bevinding/eigenaar/actie op een subset gescoorde rijen --------

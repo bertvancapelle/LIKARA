@@ -46,10 +46,11 @@ def test_maak_aan_applicatie_type_convergeert(monkeypatch):
     assert out["heeft_applicatie_subtype"] is True
     assert vastgelegd["naam"] == "Nieuwe app"
     assert vastgelegd["eigenaar_organisatie_id"] is None  # optioneel (UX-B6-b)
-    # LI040 — geen verzonnen bedoeling meer: weggelaten = None ("nog niet vastgelegd").
+    # LI040 — geen verzonnen antwoorden meer: weggelaten = None ("nog niet vastgelegd")
+    # voor bedoeling ÉN de oordelen complexiteit/prioriteit (migratie 0067/0068).
     assert vastgelegd["migratiepad"] is None
-    assert vastgelegd["complexiteit"] == NiveauEnum.midden
-    assert vastgelegd["prioriteit"] == NiveauEnum.midden
+    assert vastgelegd["complexiteit"] is None
+    assert vastgelegd["prioriteit"] is None
     # ADR-028 — de default-rol wordt door de convergente aanmaak doorgegeven aan de kern.
     assert vastgelegd["componentrol"] == "interne_applicatie"
 
@@ -215,13 +216,14 @@ def test_lijst_levert_besturingsvelden_en_statusfilter():
 
     app, infra, gefilterd = asyncio.run(_sessie_run(_flow))
     assert app["heeft_applicatie_subtype"] is True
-    assert app["lifecycle_status"] is not None and app["complexiteit"] is not None
+    # LI040 — de lijst LEVERT de oordeel-velden (sleutels aanwezig), maar zonder gezet
+    # oordeel zijn ze None ("nog niet vastgelegd") — geen gratis 'midden' meer.
+    assert app["lifecycle_status"] is not None and "complexiteit" in app
     assert infra["heeft_applicatie_subtype"] is False
-    # LI057 (Slice 1): complexiteit/prioriteit/migratiepad zijn nu component-breed → kale infra
-    # draagt de defaults (niet langer None). lifecycle_status blijft None (geen profiel: niet
-    # checklist-dragend).
+    # lifecycle_status blijft None (geen profiel: niet checklist-dragend).
     assert infra["lifecycle_status"] is None
-    assert infra["complexiteit"] == "midden"  # NiveauEnum is een str-enum → stringvergelijk
+    # LI040 — geen gratis 'midden' meer: een ongemoeid component draagt géén oordeel.
+    assert infra["complexiteit"] is None
     # ADR-022 Fase E: het status-filter matcht elk checklist-dragend component (heeft een
     # profiel ⇒ lifecycle), niet langer uitsluitend applicatie-subtypen. Invariant: alle
     # gefilterde rijen hebben een lifecycle_status (kale infra zonder profiel valt eruit).
