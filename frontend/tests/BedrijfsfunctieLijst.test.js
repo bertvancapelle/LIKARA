@@ -979,15 +979,31 @@ describe('BedrijfsfunctieLijst — ADR-051 correctie: twee lagen + taal', () => 
     expect(w.find('[data-testid="functie-oordeel-bs--c5"]').text()).toContain('noodoplossing')
   })
 
-  it('de bediening staat in de .lk-rij-acties (verschijnt op de actieve rij)', async () => {
+  it('de actie-strook draagt alleen de handeling (weghalen); de krappe oordeel-select is weg (veldnorm, LI041)', async () => {
     api.functievervullingen.dekking.mockResolvedValue(_dek([_c('c1', 'Zaaksysteem')]))
     const w = await mountLijst()
-    const select = w.find('[data-testid="functie-oordeel-select-bs--c1"]')
     const weg = w.find('[data-testid="functie-ontkoppel-bs--c1"]')
-    expect(select.exists()).toBe(true)
     expect(weg.exists()).toBe(true)
-    // Beide zitten binnen de .lk-rij-acties-container (opacity 0 tot hover/focus — main.css).
-    expect(select.element.closest('.lk-rij-acties')).not.toBeNull()
+    // Weghalen zit binnen de .lk-rij-acties-container (opacity 0 tot hover/focus — main.css).
     expect(weg.element.closest('.lk-rij-acties')).not.toBeNull()
+    // De select die de .lk-veld-norm overruled bestaat niet meer.
+    expect(w.find('[data-testid="functie-oordeel-select-bs--c1"]').exists()).toBe(false)
+  })
+
+  it('het oordeel wordt bediend vanaf de leeslaag-zin: klik opent de drie keuzes op volle grootte', async () => {
+    api.functievervullingen.dekking.mockResolvedValue(_dek([_c('c1', 'Zaaksysteem')]))
+    api.functievervullingen.zetOordeel.mockResolvedValue({})
+    const w = await mountLijst()
+    // De leeslaag-zin is klikbaar (button voor de medewerker); klik opent het menu.
+    await w.find('[data-testid="functie-oordeel-bs--c1"]').trigger('click')
+    const dlg = w.find('[data-testid="functie-oordeel-dialog"]')
+    expect(dlg.exists()).toBe(true)
+    // Assert op ZICHTBARE TEKST — de drie keuzes op volle grootte, niet alleen "rendert".
+    expect(dlg.text()).toContain('Draagt het werk naar behoren')
+    expect(dlg.text()).toContain('Noodoplossing — draagt het werk niet volwaardig')
+    expect(dlg.text()).toContain('Weet ik nog niet — beoordeel later')
+    // Kiezen stuurt het oordeel mee (registratie-feit → medewerker).
+    await w.find('[data-testid="functie-oordeel-kies-noodoplossing"]').trigger('click')
+    expect(api.functievervullingen.zetOordeel).toHaveBeenCalledWith('v-c1', 'noodoplossing')
   })
 })

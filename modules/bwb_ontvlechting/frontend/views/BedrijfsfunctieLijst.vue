@@ -702,6 +702,21 @@ async function zetOordeel(comp, oordeel) {
     if (e?.status !== 401) toastSucces(toast, 'Bijgewerkt')  // fout is zeldzaam; geen rode ruis in de rij
   }
 }
+
+// ADR-051 correctie (LI041) — het oordeel wordt bediend vanaf de plek waar het OVER gaat: de
+// leeslaag-zin ("Zaaksysteem — is een noodoplossing"). Klik → de drie keuzes op VOLLE grootte
+// (een lichte dialoog), niet een krappe select in de actie-strook. Zo blijft de veldnorm heel
+// (geen .lk-veld-override) en oogt de rij rustiger — het oordeel is een eigenschap, geen handeling.
+const oordeelDoel = ref(null)   // { comp, functie_naam }
+function openOordeel(comp, functie_naam) {
+  oordeelDoel.value = { comp, functie_naam }
+}
+async function kiesOordeel(oordeel) {
+  const d = oordeelDoel.value
+  if (!d) return
+  oordeelDoel.value = null
+  await zetOordeel(d.comp, oordeel)
+}
 const oordeelLabel = (o) => (o === 'naar_behoren' ? 'draagt naar behoren' : o === 'noodoplossing' ? 'noodoplossing' : 'nog niet beoordeeld')
 // ADR-051 correctie — de LEESLAAG-zin (hoe goed draagt dit component het werk): het oordeel
 // staat hier één keer. "Component", niet "systeem" (klopt óók voor een fileshare/G-schijf).
@@ -1106,33 +1121,35 @@ onMounted(() => {
                   >{{ c.component_naam }}</span>
                 </template>
               </p>
-              <!-- Leeslaag: hoe goed (oordeel — ÉÉN keer) + hoe breed (reikwijdte). Gedempt. -->
+              <!-- Leeslaag: hoe goed (oordeel — ÉÉN keer) + hoe breed (reikwijdte). Gedempt.
+                   Het oordeel is KLIKBAAR (LI041) — de zin waar het over gaat opent de drie keuzes
+                   op volle grootte; geen krappe select. Voor een viewer een gewone (niet-klikbare) span. -->
               <p class="pl-7 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]" :data-testid="`functie-dekking-lees-${rij.plek}`">
                 <template v-for="(c, i) in dekkingVoorRij(rij).componenten" :key="c.vervulling_id">
                   <span v-if="i"> · </span>
+                  <button
+                    v-if="magBewerken"
+                    type="button"
+                    :class="['underline decoration-dotted underline-offset-2 hover:decoration-solid focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]', c.oordeel === 'noodoplossing' ? 'text-[var(--lk-color-warning)]' : 'text-[var(--lk-color-text-muted)]']"
+                    :data-testid="`functie-oordeel-${rij.plek}--${c.component_id}`"
+                    :aria-label="`Oordeel over ${c.component_naam} wijzigen — nu: ${oordeelZin(c.oordeel)}`"
+                    @click="openOordeel(c, rij.functie.naam)"
+                  >{{ c.component_naam }} {{ oordeelZin(c.oordeel) }}</button>
                   <span
+                    v-else
                     :class="c.oordeel === 'noodoplossing' ? 'text-[var(--lk-color-warning)]' : ''"
                     :data-testid="`functie-oordeel-${rij.plek}--${c.component_id}`"
                   >{{ c.component_naam }} {{ oordeelZin(c.oordeel) }}</span>
                 </template>
                 <span :data-testid="`functie-dekking-herkomst-${rij.plek}`"> · {{ dekkingLabel(dekkingVoorRij(rij)) }}</span>
               </p>
-              <!-- Bediening — pas op de actieve rij (.lk-rij-acties: hover/focus, permanent op touch):
-                   per component het oordeel wijzigen + weghalen. Wie registreert, corrigeert (ADR-050). -->
+              <!-- Bediening — pas op de actieve rij (.lk-rij-acties: hover/focus, permanent op touch).
+                   Alleen HANDELINGEN horen hier (weghalen). Het oordeel is een EIGENSCHAP van de
+                   koppeling en wordt bediend vanaf de leeslaag-zin hierboven (LI041 — de veldnorm
+                   blijft heel; geen krappe select in de strook). Wie registreert, corrigeert (ADR-050). -->
               <div v-if="magBewerken" class="lk-rij-acties pl-7 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[length:var(--lk-text-xs)]">
                 <span v-for="c in dekkingVoorRij(rij).componenten" :key="c.vervulling_id" class="inline-flex items-center gap-1">
                   <span class="text-[var(--lk-color-text-muted)]">{{ c.component_naam }}:</span>
-                  <select
-                    :value="c.oordeel || ''"
-                    class="lk-veld !h-6 !py-0 text-[length:var(--lk-text-xs)]"
-                    :data-testid="`functie-oordeel-select-${rij.plek}--${c.component_id}`"
-                    :aria-label="`Oordeel over ${c.component_naam}`"
-                    @change="(e) => zetOordeel(c, e.target.value)"
-                  >
-                    <option value="">nog niet beoordeeld</option>
-                    <option value="naar_behoren">draagt naar behoren</option>
-                    <option value="noodoplossing">noodoplossing</option>
-                  </select>
                   <button
                     type="button"
                     class="text-[var(--lk-color-danger)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
@@ -1437,6 +1454,28 @@ onMounted(() => {
           <Button type="button" label="Vastleggen" data-testid="functie-geen-systeem-bevestig" :disabled="geenSysteemBezig" @click="bevestigGeenSysteem" />
           <Button type="button" label="Annuleren" severity="secondary" @click="geenSysteemRij = null" />
         </div>
+      </div>
+    </Dialog>
+
+    <!-- ADR-051/LI041 — het oordeel over een koppeling, bediend vanaf de leeslaag-zin op VOLLE
+         grootte (geen krappe select — de veldnorm blijft heel). Drie gelijkwaardige keuzes;
+         "weet ik nog niet" wist het oordeel terug naar leeg. Registratie-feit → medewerker (ADR-050). -->
+    <Dialog
+      :visible="!!oordeelDoel"
+      modal
+      :closable="false"
+      :header="oordeelDoel ? `Hoe draagt ${oordeelDoel.comp.component_naam} dit werk?` : ''"
+      data-testid="functie-oordeel-dialog"
+      @update:visible="(v) => { if (!v) oordeelDoel = null }"
+    >
+      <div v-if="oordeelDoel" class="flex min-w-[22rem] max-w-prose flex-col gap-[var(--lk-space-sm)]">
+        <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]" data-testid="functie-oordeel-context">
+          Voor "{{ oordeelDoel.functie_naam }}".
+        </p>
+        <Button type="button" label="Draagt het werk naar behoren" severity="secondary" data-testid="functie-oordeel-kies-naar_behoren" @click="kiesOordeel('naar_behoren')" />
+        <Button type="button" label="Noodoplossing — draagt het werk niet volwaardig" severity="secondary" data-testid="functie-oordeel-kies-noodoplossing" @click="kiesOordeel('noodoplossing')" />
+        <Button type="button" label="Weet ik nog niet — beoordeel later" severity="secondary" data-testid="functie-oordeel-kies-leeg" @click="kiesOordeel('')" />
+        <Button type="button" label="Annuleren" severity="text" class="mt-[var(--lk-space-sm)]" @click="oordeelDoel = null" />
       </div>
     </Dialog>
 
