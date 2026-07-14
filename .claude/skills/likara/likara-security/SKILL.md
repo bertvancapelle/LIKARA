@@ -176,6 +176,13 @@ de enige handhaver** via `vereist_permissie` (fail-secure). Een frontend-gating-
 mag nooit tot een autorisatie-omzeiling leiden. `hasRole` is post-ADR-010
 functioneel (rollen uit `/auth/me`). Een toch-403 in de UI netjes afvangen (Toast).
 
+**Welk recht een DELETE eist, volgt het onderwerp, niet het werkwoord (ADR-050, LI041).** Een
+registratie-feit opheffen guardt op `WIJZIGEN` (medewerker), een landschapsobject vernietigen op
+`VERWIJDEREN` (beheerder) — bron van waarheid `verwijder_actie(entiteit)` in `rbac.py`. Herzien:
+dit is een **categorie**, niet "beheerder-only met twee uitzonderingen" (de oude LI037-formulering
+duwde nieuwe feiten stil terug naar beheerder). Domeinregel: likara-domeinmodel §7; frontend-gating:
+likara-frontend §"Destructieve gating volgt de rollengrens".
+
 ## Cookie — dev vs. productie
 
 `lk_session` is `HttpOnly`/`SameSite=Strict`; `cookie_secure` is **settings-driven**.

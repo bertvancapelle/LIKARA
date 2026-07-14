@@ -399,15 +399,26 @@ auth.hasRole('medewerker', 'beheerder')   // toont/verbergt knoppen
 De UI verbergt alleen knoppen; de **backend** handhaaft via `vereist_permissie`.
 Vang een toch-403 netjes af (Toast). Nooit tokens in `localStorage` (httpOnly).
 
-**Destructief gate't op het specifieke Verwijderen-recht (LI037).** Een **destructieve** actie
-(verwijderen/ontkoppelen) hangt aan `magVerwijderen = computed(() => auth.hasRole('beheerder'))`
-(het `_INHOUD`-patroon: VERWIJDEREN = beheerder-only), **niet** aan de bredere bewerk-check
-(`magBewerken`/`mag` = medewerker|beheerder). Vooraf weren (actie niet tonen), nooit een
-backend-403-pas-in-de-dialoog op een destructieve knop. Niet-destructieve acties
-(toevoegen/bewerken/verplaatsen) blijven op Wijzigen. Let op de bewuste uitzonderingen:
-procesvervulling-verbreken en roltoewijzing-verwijderen guarden backend-zijdig op **WIJZIGEN**
-en horen dus wél op de medewerker-check. (LI037: zes plekken gelijkgetrokken — ProcesLijst +
-Koppeling-/Structuur-/Datatype-/Gebruikersgroep-/ContractSectie.)
+**Destructieve gating volgt de rollengrens op het ONDERWERP (ADR-050, herzien LI041 — vervangt de
+oude LI037-formulering).** Welk recht een verwijder-/ontkoppel-knop eist, hangt af van **wát**
+verwijderd wordt, niet van het werkwoord:
+
+- **Registratie-feit** (een uitspraak óver het landschap — koppelingen, gebruik, rollen, scores,
+  vervullingen, álle `relatie`-typen): guardt backend-zijdig op **`WIJZIGEN`**, dus de frontend
+  gate't op de **medewerker**-check (`magBewerken`/`mag` = medewerker|beheerder). De medewerker
+  neemt zijn eigen uitspraak terug.
+- **Landschapsobject** (iets dat bestáát — component · contract · partij · datatype ·
+  gebruikersgroep · bedrijfsfunctie · proces · plateau · work_package · deliverable · gap): guardt
+  op **`VERWIJDEREN`**, dus `magVerwijderen = computed(() => auth.hasRole('beheerder'))`.
+
+⚠ **Dit is géén "beheerder-only met twee uitzonderingen" meer** (zoals de oude LI037-regel het las —
+die duwde een volgend registratie-feit weer richting VERWIJDEREN, precies de fout die ADR-050 bij
+zeven feiten verhielp). Het is een **categorie**: de bron van waarheid is `verwijder_actie(entiteit)`
+in `rbac.py` (`REGISTRATIE_FEIT_ENTITEITEN`/`LANDSCHAPSOBJECT_ENTITEITEN`); de frontend-gating
+**spiegelt** die, nooit strenger of losser. Bij een nieuw feit: kijk wat `verwijder_actie` teruggeeft,
+kies dan `magBewerken` of `magVerwijderen`. Vooraf weren (actie niet tonen), nooit een
+backend-403-pas-in-de-dialoog op een destructieve knop. (Domeinregel: likara-domeinmodel §7;
+backend-borging `test_rollengrens_adr050`.)
 
 ## Login-patroon (LoginView)
 

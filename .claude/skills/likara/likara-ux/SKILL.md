@@ -113,6 +113,15 @@ geen neutrale toestand.**
 Labels en koppen volgen hoe de gebruiker denkt, niet de tabelnamen. "Verantwoordelijkheden",
 niet "assignment-relaties". "Wie hoort hierbij", niet "lidmaatschap-FK".
 
+**Toets elke zin tegen het RANDGEVAL, niet het typische geval (LI041).** Taal is een
+ontwerpbesluit, geen laklaag. Een woord dat klopt voor het gemiddelde antwoord kan liegen voor het
+randgeval — en juist het randgeval is waar de consultant twijfelt. Concrete toets: **"klopt deze
+zin ook als het antwoord een fileshare is? En als het antwoord papier is?"** Instanties LI041:
+*"systeem"* bij een G-schijf (→ *"waarmee wordt dit werk gedaan"*) · *"component"* in de bevinding
+(te technisch → *"hiervoor wordt niets gebruikt"*) · *"vervangen"* bij een grove koppeling die juist
+**bevestigd** blijft (verdringing is een verschijning, geen verwijdering — ADR-049). De browsercheck
+is het sluitpunt: een verkeerd woord vangt geen test.
+
 ### 6. Consistentie met bestaande schermen
 Een nieuwe sectie hoort qua interactie te lijken op vergelijkbare bestaande secties
 (zelfde knop-plaatsing, zelfde lege-staat-stijl, zelfde manier van toevoegen/verwijderen),
@@ -244,6 +253,14 @@ kunnen wegfilteren.)
 - Een filter mag verbergen, maar **nooit stiekem**: elke verberging is het gevolg van een control die op
   dat moment **zichtbaar** is. Daarom: bij een set-wijziging **reset naar "alles aan"** — geen
   nawerkende, onzichtbare uitvink die stil objecten blijft verbergen.
+- **Verbergen mag, stiekem verbergen niet — twee LI041-instanties.** (1) De **verdrongen grove
+  koppeling**: op een plek met een fijn antwoord wint het fijne bij het tonen, maar het grove
+  verdwijnt alleen uit *beeld*, niet uit de database (ADR-049) — het scherm zegt dát er een grof
+  antwoord onder zit, verzwijgt het niet. (2) De **ongetelde reikwijdte**: een *"geldt overal"*-label
+  zonder telling verzwijgt hoe breed het geldt; het label draagt daarom de telling
+  (`grof_totaal_plekken`/`grof_geldt_op`). **De zin is de aankondiging; de gedeelde afleiding is de
+  vangrail** — teller en getoonde lijst uit één bron (`dekking_overzicht`), nooit twee die uit de pas
+  lopen (de kernregel-derde-gezicht, likara-domeinmodel §LI041).
 
 ## Verhouding tot andere skills
 

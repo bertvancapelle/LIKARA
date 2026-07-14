@@ -42,6 +42,17 @@ groene tests en niet door de skills zelf):**
 4. **Sterkste borging = structureel onmogelijk maken** (zie "Scope voeren op eigen ids"
    hieronder: de api-vrije view).
 
+**Derde geval (LI041, security-instantie): elk pad dat de regel kan omzeilen, moet hem dragen — of
+het pad moet niet bestaan.** `MODELINHOUD_BESCHERMD` zat alléén op de voordeur
+(`bedrijfsfunctie_service`); het generieke relatie-pad (`relatie_service.verwijder`/`werk_bij`) had
+**geen enkele guard** en wiste elke relatie op id. De modelinhoud was dus beschermd via de voordeur
+en stond open via de achterdeur. Dat dit toevallig beheerder-only was, was **geluk, geen
+bescherming**. De fix voerde de guard terug op de bestaande bescherming
+(`is_modelinhoud_plaatsing` → `_weiger_modelinhoud`, op beide mutatiepaden). ⚠ **Nog niet gebouwd
+(opvolgpunt):** een test die bewijst dat **élk** relatie-mutatiepad de guard passeert — nu leunt de
+dekking op de handmatig toegevoegde `_weiger_modelinhoud`, niet op een structurele scan. Tot die
+test bestaat is dit een aanname, geen borging.
+
 ## Scope voeren op de ids van je eigen domein (LI038)
 
 Voer een set-/scope-actie op de identiteiten van het domein dat je toont — niet op een
@@ -126,6 +137,27 @@ scan bepaalt de reikwijdte, Bert beslist over de afbakening. (LI037: seed-idempo
 verwijder-gating beide zo aangepakt — de gating-scan vond zes plekken i.p.v. één, én
 falsifieerde een vermeende zevende.)
 
+### Adversariële checkvraag vóór de bouw (LI041)
+
+Waar een ontwerp een keuze maakt die **niet expliciet besloten** is — een tiebreak, een
+categorie-indeling, een vertrekpunt — stel dan een **read-only checkvraag** die die keuze
+blootlegt, vóórdat er gebouwd wordt. **Bouw niet door op een aanname die zich voordoet als een
+besluit.**
+
+> De vraag is niet *"hoe implementeer ik dit?"* maar: *"welke keuze maak ik hier stilzwijgend, en
+> wie heeft die genomen?"*
+
+Dit is de sterkste vangrail van LI041: **drie van de vier stille keuzes** (de UUID-tiebreak in de
+omhoog-cue, de tabel-knip en de endpoint-knip op de rollengrens) zijn niet door een test maar door
+een read-only checkvraag/checkpoint vóór de bouw gevangen — de suite bleef groen. De checkvraag is
+de vooraf-tegenhouder bij de kernregel *"de vorm bepaalt nooit de betekenis"* (likara-domeinmodel
+§LI041); zonder deze stap is die kernregel een spreuk. De twee horen bij elkaar.
+
+**Het uitvoerder-gedrag dat de skill wil:** CC's eigen **twee stops** in LI041 — stoppen op de
+relatietype-classificatie (aggregation draagt zowel GEMMA-grond als component-samenstelling) en op
+de component-samenstelling, i.p.v. stil een classificatie kiezen. Stoppen op een onbeslisbare
+classificatie is correct gedrag, geen vertraging (Gate-werkwijze: "bij twijfel stoppen").
+
 ### Herijk de fasering als stappen niet los toetsbaar blijken
 
 Klein-houden is een **middel, geen doel**. Als een gate niet zelfstandig in de browser te beoordelen
@@ -143,6 +175,9 @@ browser stuk was. Daarom: bij elke slice die **UX, keuzevelden (pickers), of aut
 raakt, verifieert **Bert de betrokken schermen in de echte browser vóór `AKKOORD: commit`**. Het
 gate-rapport levert daarvoor een **browsercheck-draaiboek** (per stap: handeling → verwacht
 resultaat). Groene tests ≠ commit-toestemming.
+
+**LI041 = zevende bevestiging:** zeven bevindingen deze sessie, geen enkele zichtbaar in 1200+
+groene tests. De regel is niet nieuw — dit is opnieuw bewijs dat de browsercheck het sluitpunt is.
 
 **Rol-gating toetst met béíde rollen in de echte browser (LI037).** Een mock dekt "welk recht"
 niet: een groene test zag "knop verborgen bij magBewerken=false", maar niet dat verwijderen een

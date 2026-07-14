@@ -456,3 +456,25 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   bevatten het nieuwe registratieve veld als wóórd niet (`levensfase`, `migratiepad`,
   `complexiteit`, `prioriteit`) — plus live: een edit muteert lifecycle niet, 0 scores,
   0 blokkades. Referenties: `test_levensfase_adr046.py`, `test_geen_oordeel_li040.py`.
+
+## LI041-patronen (bronscan-norm + rollengrens-borging)
+
+- **Elke gedeelde leesregel/afleiding krijgt een bronscan-test die een tweede implementatie laat
+  falen.** Drie sessies raak — LI038 (twee ankers, één model) · LI040 (de "3 van 19"-teller/lijst-
+  splitsing) · LI041 (`dekking_overzicht` / `plek_standen`) — dus geen zin meer maar een **norm**:
+  de consument **leest** de gedeelde uitkomst en **rekent nooit zelf**; teller en lijst delen één
+  filterwaarheid. Vorm: een backend-bronscan die de verboden implementatie-interne symbolen in de
+  consumentbron uitsluit (de Vue-view mag `dekking_overzicht`/`plek_standen` niet nabouwen), plus
+  een frontend-test die bewijst dat teller en getoonde lijst uit dezelfde bron komen. Precedenten:
+  `test_leesregel_leeft_een_keer_en_boom_rekent_niet_zelf` (functievervulling_adr049) ·
+  `test_standen_afleiding_niet_gedupliceerd_in_de_vue` (gapsignaal_adr051) · de frontend-`it()`
+  *"teller en lijst delen één filterwaarheid"* (WerkvoorraadPlekView.test.js). ⚠ Verfijn de scan
+  zoals in LI041: verbied alléén de implementatie-interne symbolen (`_dichtstbijzijnde_dragers`,
+  `fijn_per_plek`, …), niet begrippen die legitiem in een comment/label mogen staan (`plek_standen`
+  als woord) — anders wordt de scan vals-rood.
+- **Rollengrens-borging is een classificatie-bronscan, geen per-route-assert** (ADR-050). Test dat
+  élke content-entiteit in precies één categorie valt (registratie-feit **xor** landschapsobject)
+  en dat haar primaire DELETE guardt op de actie die `verwijder_actie()` teruggeeft — faalt zodra
+  een nieuw feit niet geclassificeerd is of op de verkeerde actie guardt. Precedenten:
+  `test_classificatie_disjunct_en_verwijder_actie` · `test_primaire_delete_erft_categorie_en_bijt`
+  (test_rollengrens_adr050). Zo kan "zeven feiten vergaten de regel" niet opnieuw ontstaan.

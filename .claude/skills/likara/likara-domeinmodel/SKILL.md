@@ -470,6 +470,31 @@ Platform-catalogus → `PlatformEntiteit.<NAAM>`, beheerder LAW (geen VERWIJDERE
 
 RBAC-matrixtests bewegen mee bij elke toevoeging.
 
+### Wie registreert, corrigeert — de rollengrens knipt op het onderwerp (ADR-050, LI041)
+
+De grens tussen medewerker en beheerder zit in **wát** verwijderd wordt, niet in het **werkwoord**:
+
+- **Registratie-feit** — *wat de gemeente zégt* (koppelingen, gebruik, rollen, scores,
+  vervullingen, alle `relatie`-typen): de **medewerker** legt vast, corrigeert én neemt terug.
+  Het verwijder-pad guardt op **`WIJZIGEN`** — wie een uitspraak mag doen, mag hem terugnemen. Een
+  delete hier neemt niets uit het landschap mee.
+- **Landschapsobject** — *wat bestáát* (component · contract · partij · datatype ·
+  gebruikersgroep · bedrijfsfunctie · proces · plateau · work_package · deliverable · gap): de
+  **beheerder** vernietigt. Guard op **`VERWIJDEREN`** — één delete sleept andermans werk mee.
+- **Grond** — *wat de gemeente kréég* (referentiemodel-plaatsingen met bronsleutel): verbouwt
+  **niemand**, ook de beheerder niet. Inhoudelijk beschermd door `MODELINHOUD_BESCHERMD`, **geen
+  rollenkwestie** (een rol-bescherming zou impliceren dat de beheerder de GEMMA-boom mág verbouwen).
+
+**Structureel, niet per route herhaald** (anders vergeet een nieuw feit de regel — de meting vond
+zeven feiten die dat deden): de rechtenmatrix (`PERMISSIES`) blijft `_INHOUD`; alleen **welke actie
+de DELETE bewaakt** volgt uit `verwijder_actie(entiteit)` + de frozensets
+`REGISTRATIE_FEIT_ENTITEITEN`/`LANDSCHAPSOBJECT_ENTITEITEN` (`rbac.py:235-267`). Een nieuw
+registratie-feit **erft** de regel. Geborgd door `test_rollengrens_adr050`
+(`test_classificatie_disjunct_en_verwijder_actie` + `test_primaire_delete_erft_categorie_en_bijt`:
+faalt als een content-entiteit niet geclassificeerd is of haar primaire DELETE niet met haar
+categorie strookt). Frontend-gating: `likara-frontend`/`likara-security` §LI037-reparatie.
+`IMPACT_VIEW`/`GEBRUIKER_VOORKEUR` vallen buiten de grens (eigen-beheer, `_EIGEN_*`).
+
 ### Audit: ADR-006 (append-only, hash-chained)
 
 Nieuw tenant-element → naam toevoegen aan `AUDIT_TENANT_ENTITEITEN`.
@@ -841,9 +866,37 @@ Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzi
 - **Meervoud tonen, nooit stil oplossen — ook in projecties.** De kaart toont ALLE plateaus van
   een component (alfabetisch samengevoegd, deterministisch) i.p.v. een willekeurige eerste
   (`landschapskaart_service`, LI040; zelfde regel als de ADR-044-plaatsingen). Een
-  niet-deterministische "eerste wint"-setdefault is een verboden vorm.
+  niet-deterministische "eerste wint"-setdefault is een verboden vorm. **Dit is het eerste gezicht
+  van de LI041-kernregel** (zie onderaan): LI041 breidt de regel uit van *meervoud* naar **elke
+  gelijkwaardige keuze** — de UUID-tiebreak in de omhoog-cue was exact dezelfde fout in een
+  niet-meervoud-vorm (stil één voorouder kiezen i.p.v. tellen).
 - **Generiek platform — geen uitstap-vocabulaire als platformbegrip.** Er komt géén
   "uittreding", géén deelnemersregister, géén samenwerkingsverband-entiteit: de generieke vorm
   is *"een organisatie stopt met het gebruik van een component"*; een gedeelde-diensten-
   organisatie is gewoon een tenant waarin dat twaalf keer tegelijk gebeurt. **BvoWB is
   voorbeelddata, geen platformfunctie** (ADR-046-invariant; zie ook likara-ux §generiek).
+
+## LI041/ADR-049/050/051 — de vorm bepaalt nooit de betekenis (KERNREGEL)
+
+**LIKARA laat de vorm nooit de betekenis bepalen, en verzint nooit een antwoord.** Eén regel,
+**drie gezichten** — bewust NIET drie losse regels: drie regels over hetzelfde onderwerp lopen
+gegarandeerd uit de pas (de tweede-waarheid-val die LI038/LI040/LI041 telkens verwierpen).
+
+**Lakmoes bij élk ontwerpbesluit:** *"verandert de betekenis als ik dit morgen anders opsla?"*
+Zo ja → de opslagvorm is stil tot regel gepromoveerd. Fout.
+
+| Gezicht | Wat het verbiedt | Instanties (LI041) |
+|---|---|---|
+| **De opslagvorm is geen betekenis** | een tabel-/endpoint-/typefeit tot bevoegdheids- of oordeelsregel maken | de *tabel* zou bepalen wat een bevoegdheid is (ADR-050 alt. 3) · het *endpoint* idem (ADR-050 alt. 4) · het *componenttype* zou definiëren wat een noodgreep is (ADR-051 besluit 3 — een fileshare is niet inherent een noodgreep; het oordeel zit in wát het moet dragen, en dat weet alleen de consultant ter plekke) |
+| **Een stille keuze is een verzonnen uitspraak** | waar meerdere antwoorden gelijkwaardig zijn er stil één uitpikken | "eerste ouder" (ADR-044) · de *UUID-tiebreak* in de omhoog-cue (ADR-051; gerepareerd — `_dichtstbijzijnde_dragers` geeft `(aantal, enige)` met `enige=None` bij gelijke afstand, dus tellen i.p.v. kiezen) · de functie-brede i.p.v. plek-specifieke walk |
+| **Het scherm zwijgt nooit over wat het weet** | een bekend feit stil verbergen | de verdrongen grove koppeling (ADR-049 besluit 1 + correctie — verdringen mag, stiekem verdringen niet) · "geldt overal" zonder telling (nu `grof_totaal_plekken`/`grof_geldt_op`) |
+
+**Dit generaliseert de bestaande meervoud-regel** (§LI040, *"meervoud wordt getoond, nooit stil
+opgelost"*) van *meervoud* naar **elke gelijkwaardige keuze**: tel ze of noem ze allemaal — pik er
+nooit stil één uit. De meervoud-regel is het eerste/tweede gezicht van deze kernregel, geen aparte
+regel.
+
+**Deze kernregel bijt alleen mét de adversariële checkvraag vóór de bouw** (likara-werkprotocol):
+drie van de vier stille keuzes hierboven zijn niet door een test maar door een **read-only
+checkvraag vóór de bouw** gevangen. De regel benoemt de fout achteraf; de checkvraag houdt hem
+vooraf tegen. Zonder die stap is deze kernregel een spreuk — de twee horen bij elkaar.
