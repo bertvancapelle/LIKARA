@@ -1387,3 +1387,30 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   `RijActies`-bouwsteen) — daar niets aan toegevoegd; de bestaande formulering is vollediger
   (kent ook `secondary`). ⚠ "Max één primary per scherm" + pijl-op-doorklik blijven
   **tekst-regels zonder bouwsteen** (het preset dwingt vormen af, niet het aantal of het label).
+
+
+## LI040-patronen — bouwstenen + bron-scan-handhaving (gevalideerd)
+
+- **De actuele gedeelde bouwstenen** (fix in de bouwsteen, niet in de consument — de
+  werkprotocol-KERNLES; consumenten bouwen géén eigen variant):
+  - **Veld**: `.lk-veld` / `.lk-veld-tekstvlak` + `--lk-veld-h` (main.css:40-77) — één hoogte
+    (= knophoogte), één rand/radius/focus-taal; het tekstvlak is de ENIGE uitzondering (hoger,
+    zelfde verdere vorm). Élke `<input>/<select>/<textarea>` draagt de klasse.
+  - **Identiteit**: `IdentiteitLabel.vue` + `partijIdentiteit`/`gebruikersgroepIdentiteit`
+    (labels.js:19-35), 6 consumenten — zie likara-ux voor de weergaveregels.
+  - **Resultaatregel**: `src/components/FilterResultaatRegel.vue` — aantal + chips + los wisbaar
+    (zie likara-ux); uitrol naar overige lijsten = OPVOLGPUNTEN 0.
+  - **Detailkop**: `src/components/DetailKop.vue` — naam (wrapt, nooit afgekapt) + #badges +
+    #subtitel + #acties + #destructief (eigen gescheiden zone); 8 detailschermen zijn consument.
+- **Een bouwsteen faalt LUID bij een programmeerfout** — nooit een stille lege uitkomst.
+  Referentie: `IdentiteitLabel.vue:27-50` — lege naam ⇒ zichtbare ⚠-marker (in élke omgeving) +
+  `console.error` die de consúment aanwijst. Een stille lege render is precies de faalmodus die
+  de suite niet vangt (zie de niet-geresolvede-component-les in likara-werkprotocol).
+- **Handhaving via bron-scan** (`scripts/check-css-build.mjs`): regels die zich lenen voor een
+  structurele scan krijgen er een — veld-recept (élk veld op de bouwsteen, geen eigen
+  hoogte/padding/rand) en detailkop (elk `*Detail*`-scherm gebruikt `<DetailKop>`; de
+  object-acties `label="Bewerken"`/`label="Verwijderen"`/`<ObjectHistoriePaneel` mogen
+  uitsluitend binnen dat blok). Eisen aan élke scan: (1) **aantoonbaar bijten** — een zelftest
+  met opzettelijk foute voorbeelden draait bij elke run mee; (2) **geen vals-positieven**
+  (template-only scannen, comments strippen, quote-bewust multi-line tags lezen) — een scan die
+  vals alarm slaat wordt genegeerd en is erger dan geen scan.

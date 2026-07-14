@@ -277,7 +277,9 @@ naleving, niet op structuur. De bestaande regels waar ze op aanhaken staan erbij
 - **Telling vóór besluit — "denkbaar is niet geteld" (aanscherping op §Reikwijdte-scan).**
   Een ontwerpbesluit over een verschijnsel begint met de meting ervan: ADR-044 (meervoudige
   ouders) is genomen op de GETELDE 7 gevallen uit de bron (Verkenning §B1), niet op "dat kan
-  voorkomen". Wie niet telt, dimensioneert op fantasie.
+  voorkomen". Wie niet telt, dimensioneert op fantasie. *(LI040 herbevestigd: 25/32 grof-only
+  gebruiksfeiten besliste waar de uitstap-stand landt — ADR-046 besluit 4; en de vóór/ná-metingen
+  van 0066/0067/0068 bevestigden "datakost nul" feitelijk i.p.v. aangenomen.)*
 - **Convergentie-vorm bij twee waarheden (aanvulling op de KERNLES):** nooit een tweede
   implementatie — een **tweede export in dezelfde module**, met de bestaande consument
   byte-compatibel. Referentie: `procesBoom.js` (`procesBoomStructuur` ongewijzigd voor
@@ -292,3 +294,25 @@ naleving, niet op structuur. De bestaande regels waar ze op aanhaken staan erbij
   binnen dezelfde slice, vóór de code actief wordt; een onderbroken slice laat dit als
   EERSTE herstelpunt na. (De lk-migrate-keten past bij een stackstart automatisch toe — het
   gat ontstaat lokaal, bij bind-mounted code zonder upgrade.)
+
+
+## LI040 — sessielessen (gevalideerd)
+
+- **Browserverificatie-faalmodus: de stil niet-geresolvede component.** Een ontbrekende `import`
+  van een Vue-component geeft GEEN fout — Vue rendert het element stil leeg, en de suite blijft
+  groen (mocks zien het niet). Dit is de scherpste reden achter de bestaande browsercheck-regel
+  (LI032) én de tests-regel "assert op zichtbare tekst" (likara-tests, LI040).
+- **Een volle CC-sessie levert stil kwaliteitsverlies.** Bij ~100% context: **verse sessie + een
+  zelfstandige overdracht-`.md`** (zelfde vorm als elke opdracht: stand vaststellen read-only,
+  suites bevestigen, dan wachten). Elke opdracht is zó geschreven dat opnieuw beginnen bijna
+  niets kost — dat is een eigenschap van het opdrachtformaat, geen toeval.
+- **Reproduceerbaarheid van externe bronnen.** Van elk ingelezen referentiemodel liggen
+  **commit-hash (gepind) + SHA-256** vast in `HERKOMST.md`
+  (`modules/bwb_ontvlechting/backend/referentiemodellen/`) — zodat een meting later herhaalbaar
+  is. *(Reden uit LI040: de verkenning liep vast doordat een eerdere GEMMA-release niet meer
+  vindbaar was; de raw-URL op de commit-hash haalt hem exact terug.)* Zie ook likara-domeinmodel
+  §ADR-043/044.
+- **Bedieningskennis hoort in de bedieningsdoc.** Wat een mens nodig heeft om te testen
+  (platform-inlog, menupad) staat in `docs/LOKAAL-TESTEN.md` (de platform-login staat daar
+  inmiddels, regel ~117-131) — niet alleen in een skill. *(LI040: een browsercheck-draaiboek liep
+  vast op een platform-login die al bestónd maar alleen in skill-context leefde.)*

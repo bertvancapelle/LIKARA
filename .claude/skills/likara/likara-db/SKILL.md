@@ -469,3 +469,24 @@ herbruikbaar voor elke toekomstige persoonlijke voorkeur (geen tabel per voorkeu
   `tenant_id` en `(tenant_id, sub)`. Spiegel van `impact_view` (0042).
 - Vindplaats: `models.py` (`GebruikerVoorkeur`), `migrations/versions/0055_adr041_gebruiker_voorkeur.py`.
   De service/route/RBAC staan in likara-backend/likara-security.
+
+
+## LI040-patronen (enum-/default-opruiming, betekenisvolle leegte)
+
+- **Enum-/default-opruiming, in déze volgorde** (migraties 0066/0067/0068; 0053-precedent):
+  `ALTER COLUMN … DROP DEFAULT` → `DROP NOT NULL` → waarde-conversie (`UPDATE … SET x = NULL
+  WHERE x = 'sentinel'`) → **enum-recreate** (rename → create → `USING …::text::enum` → drop
+  old; PostgreSQL kent geen DROP VALUE; NULL-rijen passeren de USING-cast onaangeroerd).
+  ⚠ **De default-drop is dé valkuil** — hij is in deze sessie drie keer bijna vergeten: een
+  kolom-default is aan het óúde type gebonden en laat de type-swap falen. **Meet vóór én ná**
+  (read-only, als lk_admin) en rapporteer de verdeling — "datakost nul" wordt bevestigd, nooit
+  aangenomen. Geen recreate nodig als alleen de default/NOT NULL vervalt (0068).
+- **Nullable zonder `server_default` wanneer afwezigheid betekenis heeft** (ADR-046 vormkeuze B,
+  toegepast op levensfase/migratiepad/complexiteit/prioriteit): een default die als antwoord
+  oogt is een verzonnen uitspraak. **Geen backfill die een waarde verzint**; de bestaande
+  default-rijen worden échte NULL. Zie likara-ux voor de weergave-/vindbaarheidsregels.
+- **Catalogus-waarden nooit hardcoden** (aanscherping op de ADR-028-ordinaliteit): een filter op
+  een beheerbare schaal leest de waarden ÉN hun `volgorde` uit de catalogus (correlated
+  subqueries op `biv_schaal_optie.volgorde` — `component_service._pas_filters_toe`); voegt een
+  beheerder een niveau toe, dan werkt het zonder codewijziging. Een waardenlijst in code is een
+  tweede waarheid.

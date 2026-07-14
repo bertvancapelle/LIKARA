@@ -805,7 +805,7 @@ Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzi
     plaatsingen blijven (bevroren); terugkeer in de bron = herleven. Verwijderen van
     modelinhoud is geweigerd.
   - *Aanbod gesloten, motor generiek*: de parser (`services/ameff.py`) is modelonafhankelijk;
-    het aanbod is de repo-route (`referentiemodellen/HERKOMST.md` — bestand gepind op
+    het aanbod is de repo-route (`modules/bwb_ontvlechting/backend/referentiemodellen/HERKOMST.md` — bestand gepind op
     bron-commit, mét licentie/SHA-256; platform-beheerscherm zonder POST). Nieuw model =
     release-curatie, geen upload.
   - *Dry-run = uitvoering*: één `_bepaal_plan` voedt voorbeeld én schrijfpad — er bestaat
@@ -822,3 +822,28 @@ Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzi
     LI039, **ADR nog te schrijven**; "ondersteunt werk" wordt een EIGENSCHAP van het
     componenttype (precedent: `checklist_dragend` op `componentconfig_optie`), geen lijst in
     code.
+
+
+## LI040/ADR-046 — levensfase, bedoeling, uitstap (stuk 1+2 gebouwd; 3/4/5 besloten)
+
+- **Eén vraag, één plek.** Twee velden die dezelfde vraag beantwoorden zijn een **tweede
+  waarheid** die gaat liegen zodra iemand ze allebei invult. De afbakeningstabel in ADR-046 is
+  de kaart: levensfase (feit, component) · bedoeling (`migratiepad`, component — enige
+  bestemming; plateau-dispositie is als tweede bestemmingsveld AFGEBOUWD, migratie 0066) ·
+  stand (gebruiksrelatie, stuk 3) · tranche (stuk 4) · registratiestatus (ongewijzigd).
+- **Een feit staat op het niveau waar het wáár is.** "Het zaaksysteem wordt uitgefaseerd" is
+  onwaar zodra drie van de vier gemeenten blijven — de uitstap-stand is een feit van de
+  GEBRUIKSRELATIE (organisatie × component), niet van het systeem (ADR-046 besluit 3; landt in
+  stuk 3 op `organisatiegebruik`).
+- **Afgeleide uitkomsten worden nooit opgeslagen** (generalisatie van de readiness-regel):
+  zwaarte ("nog 3 gebruikers") wordt GETELD op het grove feit, nooit geregistreerd — een
+  opgeslagen afleiding is een tweede waarheid (ADR-046 besluit 5).
+- **Meervoud tonen, nooit stil oplossen — ook in projecties.** De kaart toont ALLE plateaus van
+  een component (alfabetisch samengevoegd, deterministisch) i.p.v. een willekeurige eerste
+  (`landschapskaart_service`, LI040; zelfde regel als de ADR-044-plaatsingen). Een
+  niet-deterministische "eerste wint"-setdefault is een verboden vorm.
+- **Generiek platform — geen uitstap-vocabulaire als platformbegrip.** Er komt géén
+  "uittreding", géén deelnemersregister, géén samenwerkingsverband-entiteit: de generieke vorm
+  is *"een organisatie stopt met het gebruik van een component"*; een gedeelde-diensten-
+  organisatie is gewoon een tenant waarin dat twaalf keer tegelijk gebeurt. **BvoWB is
+  voorbeelddata, geen platformfunctie** (ADR-046-invariant; zie ook likara-ux §generiek).

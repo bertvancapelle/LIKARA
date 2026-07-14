@@ -600,3 +600,21 @@ Service + route voor de per-gebruiker voorkeur-laag (`gebruiker_voorkeur`, zie l
 - **`via_import`-slotpatroon:** een gebruikers-slot (`MODELINHOUD_BESCHERMD`) met één
   legitiem service-pad eromheen via een keyword-only parameter — het slot zelf blijft
   onverzwakt; de route-laag kan er nooit bij.
+
+
+## LI040-patronen (filterwaarheid, afwezigheid, weigeren-niet-cascaderen)
+
+- **Eén filterwaarheid.** De lijst en de resultaatregel-telling delen DEZELFDE filterfunctie —
+  `component_service._pas_filters_toe`, gebruikt door `lijst` én `tel` — geborgd met een
+  bronscan-test (`test_filterbalk_li040.py::test_tel_en_lijst_delen_een_filterwaarheid`). Een
+  teller die "3 van 19" zegt terwijl de lijst iets anders toont, liegt zonder dat iemand het
+  merkt. Elke clause blijft achter zijn guard (ADR-028-guard-les — default-pad byte-identiek).
+- **Filteren op afwezigheid is `.is_(None)`**, nooit een sentinel-waarde: de `*_ontbreekt`-
+  boolparams (levensfase/migratiepad/complexiteit/prioriteit/BIV) vertalen "nog niet vastgelegd"
+  naar een NULL-filter. Enum-gelijkheidsfilters zijn enum-getypeerde Query-params (native 422
+  aan de API-rand).
+- **Weigeren, niet cascaderen.** Verwijderen dat verfijnde registratie zou meenemen wordt
+  geweigerd met **409 + telling + leesbare reden**: `organisatiegebruik_service.verwijder` ⇒
+  `GEBRUIK_HEEFT_VERFIJNING` ("… verdwijnt nooit stil"; de FK is bovendien RESTRICT als
+  backstop). De gebruiker ontmantelt bewust, laag voor laag — **veldwerk verdwijnt nooit in één
+  klap.** (Zelfde familie als `HEEFT_SUBPAKKETTEN` op work_package.)

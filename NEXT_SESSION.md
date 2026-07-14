@@ -1,81 +1,92 @@
-# NEXT_SESSION.md — LIKARA V040
+# NEXT_SESSION.md — LIKARA V041
 
-**Gegenereerd**: 2026-07-13
-**Vorige build**: V040
+**Gegenereerd**: 2026-07-14
+**Vorige build**: V041
 **Branch**: master
-**Laatste commit**: (afsluitcommit V040; daarvóór `cf0f046` gate 1b · `85b9cf5` gate 1a-bis)
+**Laatste commit**: (afsluitcommit V041; daarvóór `6cc7db0` detailkop · `3349905` geen-oordeel · `feb27f9` leeg-vindbaar · `39eb2ef` filterbalk · `b027095` levensfase-stuk-1 · `05e8a93` stuk 2 + identiteit · `87dc120` ADR-045 · `7148672` veldbouwsteen)
 
-> **Sessie LI039 — De bedrijfsfunctie-as staat op het échte GEMMA-model (V040).**
+> **Sessie LI040 — Vier vragen, vier plekken; en LIKARA verzint niets meer (V041).**
 >
-> Afgerond in LI039:
-> - **Gate 1a-bis (ADR-044, `85b9cf5`):** plaatsing als eerste-klas feit — `ouder_id`
->   vervalt, de functieboom leeft in aggregation-plaatsingen; één functie op meerdere
->   plekken (de 7 GEMMA-gevallen), getoond als "staat ook onder", nooit stil opgelost.
-> - **Gate 1b (`cf0f046`):** referentiemodel inlezen — veilige AMEFF-lezer (defusedxml,
->   XXE-weigering), dry-run en uitvoering op ÉÉN plan (bronsleutel = identiteit; vervallen =
->   markeren; eigen functies ongemoeid), gecureerd GEMMA-bestand in de repo (release
->   1 juli 2026, commit-gepind, EUPL — `referentiemodellen/HERKOMST.md`), dev-seed leest het
->   echte model (297 functies · 302 plaatsingen), "Model inlezen" met voorbeeld-vóór-
->   bevestigen + platform-aanbodscherm, RBAC inlezen = beheerder.
-> - **Browsercheck-fixes (zelfde commit):** aanbod-staten gevuld/leeg/fout sluiten elkaar
->   structureel uit (leeg = toestand, geen fout) · onvoltooide inlees nooit stil
->   (begin-/eindmarkering `inlees_voltooid`, migratie 0064, waarschuwing + hervat-route).
-> - **Patronen-validatie fase A+B:** 32 sessie-patronen tegen de code getoetst
->   (`docs/Validatie-patronen-LI039.md` — 0 botsingen; 3 deel-correcties door Bert
->   besloten) en vastgelegd in 7 skills, mét status-markering en de 12-tekst-regels-lijst.
+> Wat LI040 heeft opgeleverd (gebruikerstaal):
+> - **De platformbeheerder kan weer een componenttype toevoegen** (dat was kapot) en
+>   bepaalt zelf wat werk ondersteunt — een eigenschap in de catalogus, geen lijst in
+>   code (**ADR-045**, `87dc120`).
+> - **De consultant kan vastleggen wélke organisatie een systeem gebruikt**, zónder de
+>   afdeling te weten (ADR-046 stuk 2, `05e8a93` — het ADR-036-restpunt is gedicht);
+>   verwijderen dat verfijning zou meenemen wordt geweigerd met telling + reden
+>   (409 — *"verdwijnt nooit stil"*).
+> - **ADR-046 vastgelegd én stuk 1 gebouwd**: levensfase · bedoeling · uitstap per
+>   gebruiker · tranche — **vier vragen, vier plekken**. Levensfase op het component
+>   (`b027095`); `uitfaseren` uit de bedoeling (migratie 0066); plateau-dispositie
+>   afgebouwd; het niet-deterministische kaart-eerste-wint-gedrag is weg.
+> - **LIKARA verzint niets meer**: "Onbekend" (migratie 0067) en de gratis
+>   "Midden"-oordelen (migratie 0068) zijn weg — leeg heet overal gedempt *"nog niet
+>   vastgelegd"* en is **vindbaar** (ontbreekt-filters: het registratiegat is de
+>   werkvoorraad van de consultant). De filterbalk vertelt wat hij doet: *"3 van 19
+>   componenten"*, elk filter als chip, los wisbaar (`39eb2ef`).
+> - **Vier bouwstenen mét een scan die bijt**: veldhoogte (`.lk-veld`) · identiteit
+>   (`IdentiteitLabel` — faalt luid) · filterresultaat (`FilterResultaatRegel`) ·
+>   detailkop (`DetailKop`, `6cc7db0` — acties bij het object, destructief in een
+>   eigen zone; 8 detailschermen omgezet). Veld- + detailkop-scan draaien met
+>   zelftests mee in `test:css-build`.
+> - **Gemeten, niet aangenomen**: 0 verhangen plaatsingen over 9 maanden (de plaatsing
+>   is een houdbaar anker); **25/32 gebruiksfeiten zijn grof-only** → de uitstap-stand
+>   hangt aan het organisatiegebruik; vóór/ná-metingen bij elke opruimmigratie
+>   (19×onbekend→NULL; 19×midden→NULL ×2).
+> - **38 sessie-patronen gevalideerd en vastgelegd** in de 7 likara-skills (met
+>   vindplaatsen; "bewust aanvinken" + "amber/neutrale taal" expliciet als
+>   ontwerpbesluit gemarkeerd, niet als code-claim).
 >
-> Tests: backend **1040 (2 skipped)** / frontend **88 files, 1146** groen; TST:
-> `TST-V040-Validatierapport.md` (0 kritieken). Migratie-head **0064**.
+> Tests: backend **1095 (2 skipped)** / frontend **92 files, 1199** groen; TST:
+> `TST-V041-Validatierapport.md` (**0 kritieken**; migratieketen 0001→0068 vanaf schoon
+> bewezen op een scratch-DB, seed vertelt de user story). Migratie-head **0068**.
 
 ---
 
-## Volgende stappen — TOP-5 (in deze volgorde)
+## Volgende stappen — TOP-3 (besloten volgorde, ADR-046)
 
-### 1. ADR-026-afronding: "ondersteunt werk" als eigenschap van het componenttype *(voorwaarde voor gate 2)*
-De opdracht ligt klaar. Besloten LI039: alleen wat werk ondersteunt mag aan een
-bedrijfsfunctie hangen; dat wordt een **eigenschap van het componenttype** (precedent:
-`checklist_dragend` op `componentconfig_optie`), geen lijst in code. ADR schrijven + de
-eigenschap landen. Neem hierin mee: de **picker-uitleg** ("waarom ontbreekt mijn database")
-— besloten opvolgpunt, precies hier voor het eerst nodig.
+### 1. Stuk 3 — stand per gebruiker + Gebruik/Gebruikersgroepen één laag
+De stand (*blijft · stopt-gepland · stopt-in uitvoering · gestopt*) is een feit op de
+**gebruiksrelatie** (`organisatiegebruik`) — want *"het zaaksysteem wordt uitgefaseerd"*
+is onwaar zodra drie van de vier gemeenten blijven. Invoer in de Gebruik-tabel (de
+kolommen Stand/Tranche zijn daar al voorzien, geen herbouw). ⚠ **Harde ontwerpeis**
+(OPVOLGPUNTEN LI040-punt 9): *Gebruik* en *Gebruikersgroepen* zijn nu twee tabbladen
+over hetzelfde feit — zodra de stand op de gebruik-rijen landt horen grof en fijn in
+**één gelaagde weergave** (grof → verfijning eronder). De zwaarte (*"nog 3 gebruikers"*)
+blijft **geteld**, nooit opgeslagen; neutrale taal, amber, nooit rood (ADR-046 besluit 5).
 
-### 2. Gate 2 — koppelen: grof en fijn (ADR-044 besluit 2)
-Component ↔ bedrijfsfunctie op de PLAATSING: verfijnen vervángt het grove antwoord op die
-plek; "erbij" = meerdere componenten op één plaatsing; koppel-UX bij meervoud (één
-zoekresultaat, "geldt overal" voorop, meerdere plekken tegelijk verfijnen). Vult ook de
-in-gebruik-telling van het inlees-voorbeeld ("3 vervallen — waarvan N nog in gebruik").
+### 2. Stuk 5 — het liegende signaal
+`component_zonder_gebruikersgroep` telt serving-relaties en vuurt **onterecht op 4
+componenten** met wél geregistreerd grof gebruik. Telt voortaan op het grove feit
+(zelfde telbron als de zwaarte). **Eén liegend signaal besmet de rest.**
 
-### 3. Diagram-layout: links→rechts, haakse lijnen, meervoud als verwijzing *(besloten, opdracht ligt klaar)*
-Vervangt de huidige top-down-weergave met alle-lijnen-getekend (expliciet zo gemarkeerd in
-likara-frontend). Combineer met de **leesbaarheids-ontwerpronde van de boom bij 297
-functies** (eigen ronde, nog te doen — Berts browseroordeel is de maat).
+### 3. Stuk 4 — tranche
+Logische groepering van een uitstap: naam + volgorde; periode optioneel; *"nog niet
+ingedeeld"* is het signaal. **Geen planningstool** (ADR-046 besluit 6; eigen
+tenant-tabel à la organisatiegebruik ligt het dichtst bij — vormkeuze bij de bouw).
 
-### 4. Gate 3 — het gap-signaal per plaatsing (ADR-044 besluit 4)
-"Geen ondersteunend systeem" hangt aan de PLEK, niet aan de functie; "hier gebruiken we
-niets" = vastgestelde bevinding ≠ "nooit naar gekeken" (besluit 3).
+### Daarna
+- **Sentinel-besluiten** (OPVOLGPUNTEN 0a — per geval bij Bert): `HostingModel.onbekend` ·
+  `ChecklistScore.nvt` · `AntwoordType.geen` · één taal voor de vijf leegte-woorden.
+- **Resultaatregel-uitrol** naar contract-/partij-/proces-/bedrijfsfunctie-/architectuurlijst
+  (punt 0 — per lijst count-support via het `tel`-patroon).
+- **Ontwerpeisen gate 2/3** (LI039-lijn blijft staan): koppelen grof/fijn (ADR-044 b2),
+  gap-signaal per plaatsing (b4), bedrijfsfunctie-doorwerking (punt 6) en *"fileshare als
+  drager = gat, niet groen"* (punt 10); diagram-layout links→rechts; gate 4 kaart-op-functies.
+- **Kleiner**: server-side identiteitskopieën (7) · ADR-047-comment-sweep (8, 9 verwijzingen) ·
+  spook-gebruik (4) · contract-datums als uitstap-signaal (5) · aard-hint-ruis (11) ·
+  `platform_init`-lokaal vergt lk_admin-URL (11a).
 
-### 5. Gate 4 — kaart op functies + procesregister uit beeld
-De kaart rust op bedrijfsfuncties; procesmenu/-ingangen eruit (model en LI038-bouw blijven
-intact — hergebruik, n≥2). Daarna is de logische kaart de MVP.
-
-**Positionering (naast de bouw):** de **ketting functie → systeem → partij → contract** als
-verhaal van LIKARA — zie de drie V040-marktverkenningsrapporten
-(`Marktverkenning-concurrenten-V040.md`, `Marktverkenning-ketting-V040.md`,
-`Verkenning-GEMMA-context-V040.md`, meegecommit in `cf0f046`).
-
-### Openstaand (detail + status in `docs/OPVOLGPUNTEN.md`)
-Toestandsbouwsteen "leeg ≠ fout" (converge bij n≥2 — de gevaarlijkste tekst-regel) ·
-picker-uitleg (→ TOP-1) · GEMMA "Toelichting"-property · zinsgrens-afkapping leeslaag (laag) ·
-ADR-spoor registratie-feiten op objecten · beginscherm als vertrekpunt · plaatstaat-herstel ·
-architectuur-scherm verwijderen (`ARCHITECTUUR.LEZEN` behouden — de kaart gebruikt het).
-
-### Staande werkafspraken (ongewijzigd + LI039-aanscherpingen)
-- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC.
-- UX-first; browsercheck-bevindingen → patroon-onderzoek vóór punt-fixes; groene tests ≠
-  sign-off; elk UI-pad heeft een test die hem opent.
-- Gate-discipline; hypothese van de PNA ≠ bouwopdracht (2× herbewezen LI039); telling vóór
-  besluit; nieuwe dependency ⇒ image herbouwen; migratie bouwen ÉN toepassen binnen de slice.
-- Eigen test-tenant zodra een teardown breder veegt dan de eigen fixtures.
-- Kernles LI038 blijft: regels borgen in gedeelde bouwstenen; fix in de bouwsteen.
+### Staande werkafspraken (ongewijzigd + LI040-aanscherpingen)
+- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC,
+  letterlijk (varianten tellen niet).
+- UX-first; browserverificatie is het sluitpunt (een niet-geresolvede component rendert
+  STIL leeg — de suite blijft groen); assert op zichtbare tekst.
+- Eén taak per schone worktree; commit landt vóór de volgende `START:`; bij ~100% context:
+  verse sessie + zelfstandige overdracht-`.md`.
+- Meten vóór besluiten; vóór/ná-metingen bij elke datamigratie; leeg ≠ fout maar wél
+  vindbaar; LIKARA verzint nooit een antwoord.
+- Fix in de bouwsteen; nieuwe regels waar mogelijk met een bron-scan die aantoonbaar bijt.
 
 ---
 
@@ -83,11 +94,10 @@ architectuur-scherm verwijderen (`ARCHITECTUUR.LEZEN` behouden — de kaart gebr
 
 | Veld | Waarde |
 |------|--------|
-| Build | V040 |
-| Datum | 2026-07-13 |
-| Tests | backend 1040 (2 skipped) / frontend 88 files, 1146 groen |
-| Migratie-head | 0064_gate1b_inlees_voltooid |
-| TST-rapport | TST-V040-Validatierapport.md |
+| Build | V041 |
+| Datum | 2026-07-14 |
+| Tests | backend 1095 (2 skipped) / frontend 92 files, 1199 groen |
+| Migratie-head | 0068_li040_geen_oordeel |
+| TST-rapport | TST-V041-Validatierapport.md |
 | Kritieke bevindingen | 0 |
-| Skills | zeven likara-skills bijgewerkt (LI039 fase B — gevalideerde patronen, status-markeringen, tekst-regels-lijst) |
-| Dev-DB | 299 functies (echt GEMMA-model) · `inlees_voltooid = true` · restdata 0 |
+| Skills | zeven likara-skills bijgewerkt (LI040 — 38 gevalideerde patronen met vindplaatsen) |

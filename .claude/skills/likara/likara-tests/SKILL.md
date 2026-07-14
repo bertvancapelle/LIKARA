@@ -429,3 +429,30 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   `expect(w.findComponent('[data-testid=…]').props('outlined')).toBe(true)` (referentie:
   BedrijfsfunctieLijst.test.js:325-329). Een payload-assert ziet niet dat een mutatie-knop
   per ongeluk als doorklik oogt. ⚠ Tekst-regel — per test een keuze.
+
+
+## LI040-patronen (leegte-borging, scan-zelftests, catalogus-asserts)
+
+- **Assert op zichtbare TEKST, niet op "rendert"** (aanscherping van de LI030-regel): een test
+  die alleen controleert dát een component rendert, vangt een leeg scherm niet — een ontbrekende
+  component-`import` rendert in Vue STIL als leeg element en de suite blijft groen. Assert dus de
+  letterlijke gebruikerstekst (`expect(...text()).toBe('nog niet vastgelegd')`,
+  `not.toContain('Onbekend')`), en bij UI-wijzigingen blijft de browsercheck het sluitpunt.
+- **Bewijs dat een test/scan bijt.** Elke bron-scan draagt een ZELFTEST die bij élke run
+  opzettelijk foute voorbeelden invoert en verifieert dat ze gevangen worden (referenties:
+  veld-scan + detailkop-scan in `check-css-build.mjs`, elk 5/5). Zonder bijt-bewijs is een
+  vangnet een aanname.
+- **Complementariteit bij gat-filters**: *gat-set ∪ waarde-sets = totaal* — geen enkel object
+  valt buiten beide, en een gezette waarde verlaat het gat. Referenties:
+  `test_leeg_vindbaar_li040.py` / `test_geen_oordeel_li040.py` (live).
+- **Assert alleen op eigen data — óók bij catalogi** (aanscherping van de LI021-regel):
+  set-GELIJKHEID over een hele beheerbare catalogus breekt zodra een beheerder legitiem een
+  optie toevoegt (dat is een feature, geen regressie) — gebruik een **subset-assert**
+  (`{verwachte} <= {gevonden}`) of assert op de eigen WT-fixtures. Exacte gelijkheid alleen op
+  code-eigen enums.
+- **Engine-grens dubbel borgen — nu óók de omgekeerde richting**: naast de bestaande
+  import-afwezigheid ("de nieuwe service importeert de engine niet") de **woord-scan op de
+  engine-bronnen zelf** — `lifecycle_service`/`checklistscore_service`/`blokkade_service`
+  bevatten het nieuwe registratieve veld als wóórd niet (`levensfase`, `migratiepad`,
+  `complexiteit`, `prioriteit`) — plus live: een edit muteert lifecycle niet, 0 scores,
+  0 blokkades. Referenties: `test_levensfase_adr046.py`, `test_geen_oordeel_li040.py`.

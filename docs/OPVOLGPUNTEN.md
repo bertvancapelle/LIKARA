@@ -61,6 +61,35 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    systeem als organisatie X vertrekt"*: **harde ontwerpeis voor gate 2/3** (zelfde
    signaal-familie als ADR-044 besluit 4 en ADR-045 besluit 2-keerzijde). Status:
    **besloten — ontwerpeis gate 2/3**.
+7. **Server-side kopieën van de identiteitsvorm.** De frontend-identiteit is
+   geconvergeerd (`IdentiteitLabel.vue` + `partijIdentiteit`), maar server-side leven
+   nog eigen kopieën: de kaart-labels (`landschapskaart_service.py`, o.a. de
+   gebruikersgroep-/persoon-namen) en `gebruikersgroep_service.identiteit`. Zolang die
+   niet dezelfde vorm delen, kunnen kaart en scherm stil uiteenlopen. Status: **open**.
+8. **ADR-047-comment-sweep.** Gemeten: **9 code-verwijzingen** (py/vue/js) naar een
+   ADR-047 dat niet bestaat — vermoedelijk een vroege werktitel voor wat ADR-046 werd.
+   Sweep = hernummeren of schrappen; puur comments, geen gedrag. Status: **open, klein**.
+9. **Gebruik + Gebruikersgroepen = één laag — harde ontwerpeis voor stuk 3.** Vandaag
+   zijn het twee tabbladen over hetzelfde feit (grof vs. verfijnd). Zodra de
+   uitstap-stand op de gebruik-rijen landt (stuk 3), horen grof en fijn in één
+   gelaagde weergave (grof → verfijning eronder) — niet twee losse tabs die elk een
+   halve waarheid tonen. Status: **besloten — ontwerpeis stuk 3**.
+10. **"Fileshare als drager = gat, niet groen" — harde ontwerpeis voor gate 3.** Een
+    bedrijfsfunctie die uitsluitend door een niet-werk-ondersteunend/noodgreep-achtig
+    component wordt gedragen telt als gat-signaal, niet als gedekt (ADR-045 besluit
+    2-keerzijde; zelfde familie als het gap-signaal per plaatsing, ADR-044 besluit 4).
+    Status: **besloten — ontwerpeis gate 3**.
+11a. **`platform_init` lokaal vergt een lk_admin-DATABASE_URL** (bevinding TST-V041):
+    de seed loopt via `get_platform_db_session()` op de DATABASE_URL-engine — in de
+    init-container is dat lk_admin (correct, ADR-011), maar het CLAUDE.md-alternatief
+    "cd backend && python3 -m app.platform_init" draait lokaal als lk_app (.env) en
+    faalt dan met permission denied op de platform-catalogi. Fix = docs/CLAUDE.md-regel
+    aanvullen met de DATABASE_URL-override, of platform_init op de platform-engine
+    zetten (klein ontwerpbesluit). Status: **open, klein**.
+11. **Aard-hint-ruis in picker-opties.** Nu de identiteit (namen + organisatie) in de
+    opties staat, onderscheidt de aard-hint ("organisatie", "externe partij" achter
+    elke regel) meestal niets meer — afweging voor Bert: dempen/weglaten of laten
+    staan. Status: **open — afweging Bert**.
 
 ### Nieuw uit LI040 (2026-07-13) — ADR-045 "ondersteunt werk"
 

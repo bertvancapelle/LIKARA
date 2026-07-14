@@ -118,14 +118,19 @@ Een nieuwe sectie hoort qua interactie te lijken op vergelijkbare bestaande sect
 (zelfde knop-plaatsing, zelfde lege-staat-stijl, zelfde manier van toevoegen/verwijderen),
 zodat de gebruiker niet per scherm opnieuw moet leren.
 
-**Identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie" (ADR-036a/037, LI030).**
-In ELKE niet-org-gescoopte lijst/picker waar afdelingen of personen verschijnen, toon de
-organisatie-context via de gedeelde helper `gebruikersgroepIdentiteit` (`labels.js`) — dit ontdubbelt
-gelijknamige afdelingen van verschillende organisaties ("Beheer & Exploitatie — Tiel" vs. "— Culemborg").
+**Identiteit "afdeling — organisatie" / "persoon — afdeling — organisatie" (ADR-036a/037, LI030;
+geconvergeerd LI040).** In ELKE niet-org-gescoopte lijst/picker waar afdelingen of personen
+verschijnen, toon de organisatie-context — dit ontdubbelt gelijknamige afdelingen/groepen van
+verschillende organisaties ("Studenten — Culemborg" is een ándere groep dan "Studenten — Tiel").
 Regels: afdeling → "afdeling — organisatie"; persoon → "persoon — afdeling — organisatie" (persoon
 zonder afdeling → "persoon — organisatie"). Het **geselecteerde** item in het veld toont dezelfde
-identiteit als de lijst (niet uiteen laten lopen). Toegepast op de verantwoordelijke-picker (ADR-037);
-nog toe te passen op de ContractFormulier-leverancier-picker + PartijLijst (opvolgpunt).
+identiteit als de lijst (niet uiteen laten lopen).
+- **Identiteit wordt nooit afgekapt en nooit ingekort** — óók niet als er een organisatie-kolom
+  naast staat: de organisatie is geen ruis maar het onderscheidende deel. Naam = **scanlaag**
+  (zwart), de rest = **gedempte leeslaag**; in platte picker-inputs kan demping niet — daar staat
+  wél de volledige tekst.
+- **Bouwsteen (LI040):** `IdentiteitLabel.vue` (6 consumenten) + `partijIdentiteit`/
+  `gebruikersgroepIdentiteit` in `labels.js:19-35` — geen losse identiteits-opmaak per scherm.
 
 ---
 
@@ -596,3 +601,48 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   besluit 2):** één zoekresultaat per functie (niet vier), *"geldt overal"* voorop, verfijnen
   mag meerdere plekken tegelijk, het scherm benoemt wat het doet, en pas als ÁLLE plekken
   verfijnd zijn is de functie volledig verfijnd.
+
+
+## LI040 — leegte, oordelen, filters en de detailkop (gevalideerd)
+
+- **Leeg ≠ fout, en LIKARA verzint nooit een antwoord.** Een default die als oordeel oogt
+  ("Onbekend", "Midden") is erger dan leegte: niet te onderscheiden van een echt oordeel — en
+  precies op de kolommen waarop een bestuurder sorteert. Velden waar afwezigheid betekenis heeft
+  zijn **nullable zonder default**; afwezigheid toont **gedempt** als **"nog niet vastgelegd"**,
+  nooit rood. LIKARA doet nooit zelf de uitspraak (ook de seed niet). *(Migraties 0067/0068;
+  ADR-046 addendum A, vormkeuze B.)*
+- **Eén taal voor afwezigheid** in de hele applicatie. ⚠ OPENSTAAND (OPVOLGPUNTEN 0a): er zijn
+  nu nog vijf woorden — "nog niet vastgelegd" · "Niet geclassificeerd" (BIV) · "nog niet
+  geregistreerd" (eigenaar/rollen) · "n.v.t." · "—". Keuze is aan Bert; niet zelf gladstrijken.
+- **Leeg moet vindbaar zijn.** Elk veld waar afwezigheid betekenis heeft krijgt een filteroptie
+  "nog niet vastgelegd". **Het registratiegat is de werkvoorraad van de consultant** — "waar moet
+  ik nog langs?" is de vraag die hij stelt. *(`*_ontbreekt`-filters op levensfase/bedoeling/
+  complexiteit/prioriteit + BIV; routes/component.py.)*
+- **De filterbalk vertelt wat hij doet:** altijd het **aantal** ("3 van 19 componenten"), elk
+  actief filter **uitgeschreven als chip** (label + waarde), **los wisbaar**. Een lege uitkomst
+  staat zo **naast zijn eigen reden** — anders is leeg een raadsel van elf dropdowns. *(Bouwsteen:
+  `src/components/FilterResultaatRegel.vue`; uitrol naar de overige lijsten = OPVOLGPUNTEN 0.)*
+- **De acties horen bij het object, niet bij het einde van de pagina.** Detailkop naast de naam:
+  **Bewerken** primair · **statusovergangen alleen wanneer ze kunnen** (geen grijze knop die
+  meereist) · navigatie (kaart/geschiedenis) lichter · **destructief in een eigen, gescheiden
+  zone** (een misklik wist niets). **Sectie-acties blijven in hun sectie** ("+ Lid koppelen" is
+  geen object-actie). Nooit op twee plekken. *(Bouwsteen: `src/components/DetailKop.vue`, 8
+  consumenten; bron-scan dwingt af.)*
+- **Eén veldhoogte** (`--lk-veld-h` = de knophoogte): élke formulierbesturing via `.lk-veld`; het
+  tekstvlak (`.lk-veld-tekstvlak`) is de ENIGE uitzondering — hoger, zelfde breedte/rand/radius/
+  focus. *(main.css:40-77; bron-scan dwingt af.)*
+- **Tabel zodra een rij meer dan één gegeven draagt of gesorteerd moet worden.** Bouw de vorm die
+  het **eindbeeld** draagt, niet wat vandaag nét past — de Gebruik-tabel draagt de kolommen
+  Stand/Tranche van stuk 3 zonder herbouw. *(`OrganisatiegebruikSectie.vue`, sorteerbare DataTable.)*
+- **Bewust aanvinken.** Bij een bulk-actie staat **niets voorgevinkt**: een vinkje is een
+  **uitspraak**, geen selectie — zeker waar het andermans veldwerk overschrijft. "Selecteer alles"
+  mag als expliciete klik; een stille default niet. *(LI040-besluit Bert; ontwerpregel — er is nog
+  geen gebouwde bulk-vinkinstantie om naar te wijzen.)*
+- **Neutrale taal bij afgeleide uitkomsten.** "geen gebruikers meer", niet "valt om". **Amber,
+  nooit rood** — er is niets kapot, en vaak is de uitkomst juist de bedoeling. LIKARA toont het
+  feit; de mens trekt de conclusie. *(ADR-046 besluit 5 — bouw volgt in stuk 3/5.)*
+- **Geen uitleg die moet gokken.** Verklaar afwezigheid niet als de reden niet zeker is (in een
+  onvolledig landschap is "niet gevonden" meestal "niet geregistreerd", niet "geweerd"). Een
+  **scope-regel** die benoemt wát je ziet ("met componenten van dit type wordt werk gedaan") is
+  **altijd waar**; een verklaring van afwezigheid niet. Verfijnt de LI039-regel "weren vooraf én
+  uitleggen waarom": de uitleg krijgt de vorm van een zékere scope-regel. *(velduitleg.js:286.)*
