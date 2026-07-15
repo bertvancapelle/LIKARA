@@ -27,6 +27,17 @@ export const VELD_UITLEG = {
       'De plek in de boom ís het niveau — begin gerust grof (het bedrijfsproces) en verfijn ' +
       'later met deelprocessen waar dat inzicht oplevert.',
   },
+  // ── Bedrijfsfunctie-koppeling (ADR-043 gate 4) ──────────────────────────────
+  bedrijfsfunctie: {
+    uitleg:
+      'Waarvoor dient dit systeem? Koppel het aan één of meer bedrijfsfuncties — wat de ' +
+      'organisatie kán, los van hoe de processen zijn ingericht. Voorbeeld: een zaaksysteem ' +
+      'ondersteunt "Vergunningverlening".',
+    vuistregel:
+      'Begin grof ("geldt overal") — dat is het vertrekpunt. Verfijn later naar één plek als het ' +
+      'daar met een ander systeem gaat. Geen bedrijfsfunctie? Dan staat het als openstaand punt ' +
+      'in de werkvoorraad — dat mag; leeg is geen fout.',
+  },
   applicatiefunctie: {
     uitleg:
       'Een applicatiefunctie is wat een systeem dóét binnen een proces; dit geldt voor elk ' +

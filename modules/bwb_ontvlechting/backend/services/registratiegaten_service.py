@@ -21,7 +21,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import (
     ChecklistVraag,
     Component,
+    ComponentConfigDimensie,
+    ComponentConfigOptie,
     Contract,
+    Functievervulling,
     Gebruikersgroep,
     Organisatiegebruik,
     Partij,
@@ -57,8 +60,21 @@ _SIG_GEBRUIK_GEEN_VERFIJNING = "gebruiksfeit_zonder_verfijning"
 # ADR-037 — gescoord antwoord zonder verantwoordelijke (aandacht). Bewust ONDERSCHEIDEN van
 # `component_zonder_verantwoordelijke` (beheerrol op een component) — andere sleutel, andere entiteit.
 _SIG_ANTW_VERANTW = "antwoord_zonder_verantwoordelijke"
+# ADR-043 gate 4 besluit G4 — werk-ondersteunend systeem zónder énige bedrijfsfunctie-koppeling
+# ("nog geen bedrijfsfunctie"): de werkvoorraad van de consultant. Optioneel = geen fout, wél vindbaar.
+_SIG_GEEN_BF = "component_zonder_bedrijfsfunctie"
 _KRITIEK = "kritiek"
 _AANDACHT = "aandacht"
+
+
+def _ondersteunt_werk_typen():
+    """Subquery: de componenttypen die WERK ondersteunen (ADR-045; catalogus-eigenschap, nooit
+    een hardcoded typelijst). Gedeeld door het gat-signaal en de badge — zelfde regel als de
+    koppel-picker/`functievervulling`-service."""
+    return select(ComponentConfigOptie.optie_sleutel).where(
+        ComponentConfigOptie.dimensie == ComponentConfigDimensie.componenttype,
+        ComponentConfigOptie.ondersteunt_werk.is_(True),
+    )
 
 # Gebruikersgroep heeft geen `naam`-kolom → label = de afdeling-partij-naam (ADR-036a; via een
 # per-query join op `afdeling_id`), anders een generieke fallback. `_gg_label(afd)` bouwt de
@@ -207,6 +223,22 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
             )
         )
     ).first() is not None
+    # ADR-043 gate 4 (G4) — werk-ondersteunend systeem zónder énige bedrijfsfunctie-koppeling.
+    geen_bedrijfsfunctie = (
+        await session.execute(
+            select(Component.id).where(
+                Component.tenant_id == tid,
+                Component.id == component_id,
+                Component.componenttype.in_(_ondersteunt_werk_typen()),
+                ~exists(
+                    select(Functievervulling.id).where(
+                        Functievervulling.tenant_id == tid,
+                        Functievervulling.component_id == component_id,
+                    )
+                ),
+            )
+        )
+    ).first() is not None
 
     kritiek: list[str] = []
     aandacht: list[str] = []
@@ -222,6 +254,8 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
         aandacht.append(_SIG_ISOLATIE)
     if geen_rol:  # een component zonder roltoewijzing telt óók als 'object zonder roltoewijzing' (ADR-035)
         aandacht.append(_SIG_OBJ_ROL)
+    if geen_bedrijfsfunctie:
+        aandacht.append(_SIG_GEEN_BF)
     return {"signalen": kritiek + aandacht, "kritiek": len(kritiek), "aandacht": len(aandacht)}
 
 
@@ -369,6 +403,31 @@ async def antwoord_zonder_verantwoordelijke(session: AsyncSession, tenant_id) ->
     ]
 
 
+async def component_zonder_bedrijfsfunctie(session: AsyncSession, tenant_id) -> list[dict]:
+    """Werk-ondersteunende componenten (ADR-045) zónder énige bedrijfsfunctie-koppeling
+    (ADR-043 gate 4 besluit G4 — "nog geen bedrijfsfunctie"). Systemen die géén werk
+    ondersteunen (bv. een database) kunnen per definitie niet koppelen en tellen hier NIET
+    mee — anders een vals gat. Een "geen systeem"-bevinding draagt geen component_id en
+    "dekt" dus nooit een component. Read-only; engine onaangeroerd."""
+    tid = _tenant_uuid(tenant_id)
+    geen_koppeling = ~exists(
+        select(Functievervulling.id).where(
+            Functievervulling.tenant_id == tid,
+            Functievervulling.component_id == Component.id,
+        )
+    )
+    stmt = (
+        select(Component.id, Component.naam)
+        .where(
+            Component.tenant_id == tid,
+            Component.componenttype.in_(_ondersteunt_werk_typen()),
+            geen_koppeling,
+        )
+        .order_by(Component.naam.asc(), Component.id.asc())
+    )
+    return [_aitem(r, _SIG_GEEN_BF) for r in (await session.execute(stmt)).all()]
+
+
 async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
     """Alle actieve signaaltypen, gegroepeerd per ernst (kritiek/aandacht). Read-only."""
     return {
@@ -384,5 +443,6 @@ async def registratiegaten(session: AsyncSession, tenant_id) -> dict:
             _SIG_GEBRUIK_GEEN_VERFIJNING: await gebruiksfeit_zonder_verfijning(session, tenant_id),
             _SIG_OBJ_ROL: await object_zonder_roltoewijzing(session, tenant_id),
             _SIG_ANTW_VERANTW: await antwoord_zonder_verantwoordelijke(session, tenant_id),
+            _SIG_GEEN_BF: await component_zonder_bedrijfsfunctie(session, tenant_id),
         },
     }

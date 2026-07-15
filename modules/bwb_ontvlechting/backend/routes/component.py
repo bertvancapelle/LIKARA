@@ -77,6 +77,8 @@ async def lijst_componenten(
     afwijking: bool = Query(False),
     # ADR-045 besluit 5 — filter op de catalogus-eigenschap (true/false; weglaten = alles).
     ondersteunt_werk: bool | None = Query(None),
+    # ADR-043 gate 4 (G4) — werkvoorraad: werk-ondersteunend systeem zónder bedrijfsfunctie-koppeling.
+    zonder_bedrijfsfunctie: bool = Query(False),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT, Actie.LEZEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
@@ -97,6 +99,7 @@ async def lijst_componenten(
         biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,
         klaarverklaring=klaarverklaring, afwijking=afwijking,
         ondersteunt_werk=ondersteunt_werk,
+        zonder_bedrijfsfunctie=zonder_bedrijfsfunctie,
     )
     try:
         items, volgende = await svc.lijst(

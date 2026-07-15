@@ -9,8 +9,9 @@ import ToastService from 'primevue/toastservice'
 vi.mock('@/api', () => ({
   api: {
     componenten: { opties: vi.fn(), haal: vi.fn(), maak: vi.fn(), werkBij: vi.fn() },
-    procesvervullingen: { functies: vi.fn(), maak: vi.fn(), lijst: vi.fn(), werkBij: vi.fn(), verwijder: vi.fn() },
-    processen: { lijst: vi.fn() },
+    // ADR-043 gate 4 — bij aanmaken grof koppelen; bij bewerken de direct-opslaande sectie.
+    bedrijfsfuncties: { lijst: vi.fn(), haal: vi.fn() },
+    functievervullingen: { maak: vi.fn(), componentKoppelingen: vi.fn(), verwijder: vi.fn(), zetOordeel: vi.fn() },
     partijen: { lijst: vi.fn() },
   },
 }))
@@ -65,18 +66,14 @@ beforeEach(() => {
       { optie_sleutel: 'hoog', label: 'Hoog' },
     ],
   })
-  api.procesvervullingen.functies.mockResolvedValue([
-    { optie_sleutel: 'registreren', label: 'Registreren' },
-    { optie_sleutel: 'raadplegen', label: 'Raadplegen' },
-  ])
-  api.procesvervullingen.lijst.mockResolvedValue([])
-  api.processen.lijst.mockResolvedValue({
+  api.bedrijfsfuncties.lijst.mockResolvedValue({
     items: [
-      { id: 'vv', naam: 'Vergunningverlening', ouder_id: null },
-      { id: 'ab', naam: 'Aanvraag behandelen', ouder_id: 'vv' },
+      { id: 'vv', naam: 'Vergunningverlening', ouder_ids: [], vervallen: false },
+      { id: 'ab', naam: 'Aanvraag behandelen', ouder_ids: ['vv'], vervallen: false },
     ],
     volgende_cursor: null,
   })
+  api.functievervullingen.componentKoppelingen.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -205,73 +202,70 @@ describe('ComponentFormulier — overlay + layout (ADR-042 4b)', () => {
   })
 })
 
-describe('ComponentFormulier — verzamel-procesregels bij aanmaken', () => {
-  async function kiesProces(w, id) {
-    await w.find('[data-testid="regel-proces-input"]').trigger('focus')
+describe('ComponentFormulier — verzamel-bedrijfsfunctiekoppelingen bij aanmaken (grof)', () => {
+  async function kiesFunctie(w, id) {
+    await w.find('[data-testid="regel-bedrijfsfunctie-input"]').trigger('focus')
     await flushPromises()
-    await w.find(`[data-testid="regel-proces-optie-${id}"]`).trigger('mousedown')
+    await w.find(`[data-testid="regel-bedrijfsfunctie-optie-${id}"]`).trigger('mousedown')
     await flushPromises()
   }
 
-  it('regels samenstellen met "+" (procescontext in treffer én lijstje); kruisje verwijdert', async () => {
+  it('koppelingen samenstellen met "+" (functienaam in lijstje); kruisje verwijdert', async () => {
     const { w } = await mountForm()
-    await w.find('[data-testid="regel-proces-input"]').trigger('focus')
+    await w.find('[data-testid="regel-bedrijfsfunctie-input"]').trigger('focus')
     await flushPromises()
-    // Treffer toont procescontext (identiteit-patroon).
-    expect(w.find('[data-testid="regel-proces-optie-ab"]').text()).toContain('Aanvraag behandelen — Vergunningverlening')
-    await w.find('[data-testid="regel-proces-optie-ab"]').trigger('mousedown')
+    expect(w.find('[data-testid="regel-bedrijfsfunctie-optie-ab"]').text()).toContain('Aanvraag behandelen')
+    await w.find('[data-testid="regel-bedrijfsfunctie-optie-ab"]').trigger('mousedown')
     await flushPromises()
-    await w.find('[data-testid="regel-functie"]').setValue('registreren')
     await w.find('[data-testid="regel-toevoegen"]').trigger('click')
     const lijst = w.find('[data-testid="regels-lijst"]')
-    expect(lijst.text()).toContain('Registreren')
-    expect(lijst.text()).toContain('Aanvraag behandelen — Vergunningverlening')
+    expect(lijst.text()).toContain('Aanvraag behandelen')
+    expect(lijst.text()).toContain('geldt overal')
     await w.find('[data-testid="regel-verwijder-0"]').trigger('click')
     expect(w.find('[data-testid="regels-lijst"]').exists()).toBe(false)
   })
 
-  it('verzamelde regels worden ná het component in één keer opgeslagen', async () => {
+  it('verzamelde koppelingen worden ná het component in één keer grof opgeslagen', async () => {
     api.componenten.maak.mockResolvedValueOnce({ id: 'c-pr' })
-    api.procesvervullingen.maak.mockResolvedValue({})
+    api.functievervullingen.maak.mockResolvedValue({})
     const { w } = await mountForm()
     await w.find('[data-testid="veld-naam"]').setValue('Zaaksysteem 2')
     await w.find('[data-testid="veld-componenttype"]').setValue('applicatie')
-    await kiesProces(w, 'ab')
-    await w.find('[data-testid="regel-functie"]').setValue('registreren')
+    await kiesFunctie(w, 'ab')
+    await w.find('[data-testid="regel-oordeel"]').setValue('noodoplossing')
     await w.find('[data-testid="regel-toevoegen"]').trigger('click')
     await w.find('[data-testid="component-form"]').trigger('submit')
     await flushPromises()
-    expect(api.procesvervullingen.maak).toHaveBeenCalledWith({
-      component_id: 'c-pr', proces_id: 'ab', applicatiefunctie: 'registreren', toelichting: null,
+    expect(api.functievervullingen.maak).toHaveBeenCalledWith({
+      component_id: 'c-pr', functie_id: 'ab', ouder_functie_id: null,
+      oordeel: 'noodoplossing', toelichting: null,
     })
     expect(w.emitted('opgeslagen')).toBeTruthy()
   })
 
-  it('faalt een regel → component stáát, danger-banner met de mislukte regel; retry maakt het component NIET opnieuw', async () => {
+  it('faalt een koppeling → component stáát, danger-banner met de functienaam; retry maakt het component NIET opnieuw', async () => {
     api.componenten.maak.mockResolvedValueOnce({ id: 'c-half' })
     const err = new Error('bestaat al')
     err.status = 409
-    err.code = 'VERVULLING_BESTAAT'
-    api.procesvervullingen.maak.mockRejectedValueOnce(err).mockResolvedValueOnce({})
+    err.code = 'KOPPELING_BESTAAT'
+    api.functievervullingen.maak.mockRejectedValueOnce(err).mockResolvedValueOnce({})
     const { w } = await mountForm()
     await w.find('[data-testid="veld-naam"]').setValue('Half')
     await w.find('[data-testid="veld-componenttype"]').setValue('database')
-    await kiesProces(w, 'ab')
-    await w.find('[data-testid="regel-functie"]').setValue('registreren')
+    await kiesFunctie(w, 'ab')
     await w.find('[data-testid="regel-toevoegen"]').trigger('click')
     await w.find('[data-testid="component-form"]').trigger('submit')
     await flushPromises()
-    // Overlay blijft open; leesbare danger-banner; knoppen wisselen naar retry/sluiten.
     expect(w.emitted('opgeslagen')).toBeFalsy()
     const banner = w.find('[data-testid="regels-opslaanfout"]')
-    expect(banner.text()).toContain('Registreren')
+    expect(banner.text()).toContain('Aanvraag behandelen')
     expect(banner.text()).toContain('bestaat al')
     expect(w.find('[data-testid="opslaan-knop"]').text()).toContain('Opnieuw proberen')
-    // Retry: component-maak NIET opnieuw, alleen de resterende regel.
+    // Retry: component-maak NIET opnieuw, alleen de resterende koppeling.
     await w.find('[data-testid="component-form"]').trigger('submit')
     await flushPromises()
     expect(api.componenten.maak).toHaveBeenCalledTimes(1)
-    expect(api.procesvervullingen.maak).toHaveBeenCalledTimes(2)
+    expect(api.functievervullingen.maak).toHaveBeenCalledTimes(2)
     expect(w.emitted('opgeslagen')[0][0]).toEqual({ id: 'c-half' })
   })
 })
@@ -297,7 +291,7 @@ describe('ComponentFormulier — bewerken (voorgevuld, identiek aan aanmaken)', 
     expect(w.emitted('opgeslagen')).toBeTruthy()
   })
 
-  it('bewerken toont de direct-opslaande processectie (zelfde semantiek als het Overzicht)', async () => {
+  it('bewerken toont de direct-opslaande bedrijfsfunctie-sectie (zelfde semantiek als het Overzicht)', async () => {
     api.componenten.haal.mockResolvedValueOnce({
       id: 'c-9', naam: 'X', componenttype: 'database', hostingmodel: 'onbekend',
       migratiepad: null, complexiteit: 'midden', prioriteit: 'midden',
@@ -305,7 +299,7 @@ describe('ComponentFormulier — bewerken (voorgevuld, identiek aan aanmaken)', 
       componentrol: 'interne_applicatie', biv_beschikbaarheid: null, biv_integriteit: null, biv_vertrouwelijkheid: null,
     })
     const { w } = await mountForm({ id: 'c-9' })
-    expect(w.find('[data-testid="component-processen-sectie"]').exists()).toBe(true)
+    expect(w.find('[data-testid="component-bedrijfsfunctie-sectie"]').exists()).toBe(true)
     expect(w.find('[data-testid="regels-verzamelaar"]').exists()).toBe(false)
   })
 })

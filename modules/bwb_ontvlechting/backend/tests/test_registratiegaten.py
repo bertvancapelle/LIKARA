@@ -37,39 +37,43 @@ def test_registratiegaten_engine_afwezigheid():
 
 # ── badge_voor_component — execute-volgorde: bestaat, geen-eigenaar, rol, serving(gg), flow ──
 # Badge-execute-volgorde: bestaat, geen_eigenaar, geen_rol, geen_gg(serving), geisoleerd(flow),
-# biv_onvolledig (ADR-028 slice 4 — de 6e query).
+# biv_onvolledig (ADR-028 slice 4 — de 6e query), geen_bedrijfsfunctie (ADR-043 gate 4 — de 7e query).
 def test_badge_component_geen_gaten():
-    """MET eigenaar/rol/gebruikersgroep/koppeling + complete BIV → geen signalen."""
+    """MET eigenaar/rol/gebruikersgroep/koppeling + complete BIV + bedrijfsfunctie → geen signalen."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
         _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
         _res_first(None),  # BIV compleet → geen signaal
+        _res_first(None),  # heeft een bedrijfsfunctie (of geen werk-type) → geen signaal
     ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
     assert out == {"signalen": [], "kritiek": 0, "aandacht": 0}
 
 
 def test_badge_component_alle_gaten():
-    """ZONDER eigenaar/rol/gebruikersgroep/koppeling + onvolledige BIV → 3 kritiek + 3 aandacht."""
+    """ZONDER eigenaar/rol/gebruikersgroep/koppeling/bedrijfsfunctie + onvolledige BIV → 3 kritiek + 4 aandacht."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
         _res_first(("c",)), _res_first(("c",)), _res_first(None), _res_first(None), _res_first(None),
         _res_first(("c",)),  # BIV onvolledig
+        _res_first(("c",)),  # geen bedrijfsfunctie
     ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
-    assert out["kritiek"] == 3 and out["aandacht"] == 3
+    assert out["kritiek"] == 3 and out["aandacht"] == 4
     assert set(out["signalen"]) == {
         "component_zonder_eigenaar", "component_zonder_verantwoordelijke", "biv_classificatie_onvolledig",
         "component_zonder_gebruikersgroep", "component_geisoleerd", "object_zonder_roltoewijzing",
+        "component_zonder_bedrijfsfunctie",
     }
 
 
 def test_badge_component_alleen_eigenaar_ontbreekt():
-    """ZONDER eigenaar, verder compleet (incl. BIV) → één kritiek signaal, geen aandacht."""
+    """ZONDER eigenaar, verder compleet (incl. BIV + bedrijfsfunctie) → één kritiek signaal, geen aandacht."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
         _res_first(("c",)), _res_first(("c",)), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
         _res_first(None),  # BIV compleet
+        _res_first(None),  # heeft een bedrijfsfunctie (of geen werk-type)
     ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
     assert out["signalen"] == ["component_zonder_eigenaar"] and out["kritiek"] == 1 and out["aandacht"] == 0
@@ -81,6 +85,7 @@ def test_badge_component_alleen_biv_onvolledig():
     s.execute = AsyncMock(side_effect=[
         _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
         _res_first(("c",)),  # BIV onvolledig
+        _res_first(None),  # heeft een bedrijfsfunctie (of geen werk-type)
     ])
     out = asyncio.run(svc.badge_voor_component(s, TID, uuid.uuid4()))
     assert out["signalen"] == ["biv_classificatie_onvolledig"] and out["kritiek"] == 1 and out["aandacht"] == 0
@@ -175,4 +180,5 @@ def test_registratiegaten_groepeert_per_ernst():
         "component_zonder_gebruikersgroep", "component_geisoleerd", "contract_zonder_component",
         "gebruiksfeit_zonder_verfijning",
         "object_zonder_roltoewijzing", "antwoord_zonder_verantwoordelijke",
+        "component_zonder_bedrijfsfunctie",
     }

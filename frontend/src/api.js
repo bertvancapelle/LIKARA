@@ -426,6 +426,9 @@ export const api = {
   // gevuld = fijn (déze plek). Verwijderen = beheerder (backend handhaaft).
   functievervullingen: {
     dekking: () => request('/functievervullingen/dekking'),
+    // ADR-043 gate 4 (G2) — "waarvoor dient dit systeem": de koppelingen van één component,
+    // uit dezelfde leesregel (fijn verdringt grof), her-geïndexeerd op het component.
+    componentKoppelingen: (componentId) => request(`/functievervullingen/component/${componentId}`),
     // ADR-051 gate 3 — de VIER standen per plek + gedeelde tellers (één afleiding, twee vensters).
     standen: () => request('/functievervullingen/standen'),
     maak: (data) => request('/functievervullingen', { method: 'POST', body: JSON.stringify(data) }),

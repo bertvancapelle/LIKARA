@@ -136,6 +136,29 @@ class PlekDekkingUit(BaseModel):
     bevinding_id: uuid.UUID | None = None
 
 
+class ComponentKoppelingUit(BaseModel):
+    """ADR-043 gate 4 (G2/G9) — één koppeling van dít component, gelezen uit de leesregel
+    `dekking_overzicht` (fijn verdringt grof; nooit een rauwe `where component_id`-query).
+
+    `herkomst` = 'grof' (geldt overal) of 'fijn' (één plek). Bij grof dragen `grof_totaal_plekken`
+    (N) / `grof_geldt_op` (M) de reikwijdte ("geldt nog op M van de N plekken") en `verdrongen_op`
+    het aantal plekken waar een fijner antwoord dit grove hier verbergt (het bestaat nog — ADR-049
+    besluit 1). Bij fijn dragen `ouder_functie_id`/`ouder_naam` de plek-context."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    vervulling_id: uuid.UUID
+    herkomst: str  # 'grof' | 'fijn'
+    functie_id: uuid.UUID
+    functie_naam: str | None = None
+    ouder_functie_id: uuid.UUID | None = None
+    ouder_naam: str | None = None
+    oordeel: str | None = None
+    grof_totaal_plekken: int | None = None
+    grof_geldt_op: int | None = None
+    verdrongen_op: int = 0
+
+
 class PlekStandUit(BaseModel):
     """ADR-051 — de stand van één plek: 'gat' · 'via_boven' · 'hier' · 'niets'. Bij 'via_boven',
     langs het pad van DEZE plek: `via_functie_id` = de dichtstbijzijnde dragende voorouder als er

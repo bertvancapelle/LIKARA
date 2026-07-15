@@ -478,6 +478,104 @@ async def dekking_overzicht(session: AsyncSession, tenant_id) -> list[dict]:
     return uit
 
 
+async def _functie_namen(session: AsyncSession, tid: uuid.UUID, ids) -> dict:
+    """Resolveer functie-namen voor een set ids (naam is een leeslaag-verrijking, GEEN
+    her-afleiding van de leesregel). Onbekende/None ids vallen weg."""
+    schone = {i for i in ids if i is not None}
+    if not schone:
+        return {}
+    rijen = (
+        await session.execute(
+            select(Bedrijfsfunctie.id, Bedrijfsfunctie.naam).where(
+                Bedrijfsfunctie.tenant_id == tid, Bedrijfsfunctie.id.in_(schone)
+            )
+        )
+    ).all()
+    return {r.id: r.naam for r in rijen}
+
+
+async def overzicht_voor_component(session: AsyncSession, tenant_id, component_id) -> list[dict]:
+    """De richting component → plekken (ADR-043 gate 4 besluit G2/G9): "waarvoor dient dit systeem".
+
+    ⚠ INVARIANT (ADR-043 §Gate 4 / ADR-049 besluit 5): deze functie leest UITSLUITEND de gedeelde
+    leesregel `dekking_overzicht` en indexeert die her op dit component — NOOIT een verse rauwe
+    `where component_id`-query op `functievervulling`. Zou ze dat wél doen, dan miste ze de
+    verdringing en toonde ze "geldt overal" terwijl een plek allang verdrongen is (de tweede-
+    waarheid-val). De structurele borging staat in `test_functievervulling_component_gate4.py`
+    (bronscan: deze functie leest de leesregel en bevat géén eigen rauwe koppelregel-query).
+
+    Component-kant onbekend binnen de tenant ⇒ 404 (no-leak). Read-only; nooit opgeslagen.
+
+    Levert één regel per koppeling van dit component:
+    - **grof** (geldt overal): één regel per functie, met `grof_totaal_plekken`/`grof_geldt_op`
+      (de reikwijdte-telling uit de leesregel) en `verdrongen_op` (op hoeveel plekken een fijner
+      antwoord dit grove hier verbergt — het blijft bestaan, ADR-049 besluit 1);
+    - **fijn** (één plek): één regel per plek, met de plek-context (`ouder_naam`).
+    """
+    tid = _tenant_uuid(tenant_id)
+    if await _element_type(session, tid, component_id) != ElementType.component.value:
+        raise NietGevonden("component", component_id)
+    dekking = await dekking_overzicht(session, tid)
+    cid = str(component_id)
+
+    def _is_dit(c) -> bool:
+        return str(c["component_id"]) == cid
+
+    grof: dict = {}   # functie_id -> regel (grove koppeling van dit component)
+    fijn: list = []   # fijne koppelingen (per plek)
+    for d in dekking:
+        for c in d["componenten"]:
+            if not _is_dit(c):
+                continue
+            if d["herkomst"] == "grof":
+                # De grove plek draagt de GEZAGHEBBENDE reikwijdte-telling; die zet hij ongeacht
+                # de volgorde (een verdrongen-plek kan de entry eerder hebben aangemaakt).
+                e = grof.setdefault(d["functie_id"], {"verdrongen_op": 0})
+                e["vervulling_id"] = c["vervulling_id"]
+                e["oordeel"] = c["oordeel"]
+                e["grof_totaal_plekken"] = d["grof_totaal_plekken"]
+                e["grof_geldt_op"] = d["grof_geldt_op"]
+            elif d["herkomst"] == "fijn":
+                fijn.append({
+                    "vervulling_id": c["vervulling_id"], "oordeel": c["oordeel"],
+                    "functie_id": d["functie_id"], "ouder_functie_id": d["ouder_functie_id"],
+                })
+        # Dit component als VERDRONGEN grof antwoord op een fijne plek (het bestaat nog, ADR-049).
+        # Fallback-telling (None) alleen als de grove plek zelf niet meer verschijnt (overal verdrongen).
+        for c in d.get("verdrongen", []):
+            if not _is_dit(c):
+                continue
+            e = grof.setdefault(d["functie_id"], {
+                "vervulling_id": c["vervulling_id"], "oordeel": c["oordeel"],
+                "grof_totaal_plekken": None, "grof_geldt_op": None, "verdrongen_op": 0,
+            })
+            e["verdrongen_op"] += 1
+
+    namen = await _functie_namen(
+        session, tid,
+        set(grof) | {f["functie_id"] for f in fijn} | {f["ouder_functie_id"] for f in fijn},
+    )
+    uit: list = []
+    for fid, e in grof.items():
+        uit.append({
+            "vervulling_id": e["vervulling_id"], "herkomst": "grof",
+            "functie_id": fid, "functie_naam": namen.get(fid),
+            "ouder_functie_id": None, "ouder_naam": None, "oordeel": e["oordeel"],
+            "grof_totaal_plekken": e["grof_totaal_plekken"], "grof_geldt_op": e["grof_geldt_op"],
+            "verdrongen_op": e["verdrongen_op"],
+        })
+    for f in fijn:
+        uit.append({
+            "vervulling_id": f["vervulling_id"], "herkomst": "fijn",
+            "functie_id": f["functie_id"], "functie_naam": namen.get(f["functie_id"]),
+            "ouder_functie_id": f["ouder_functie_id"], "ouder_naam": namen.get(f["ouder_functie_id"]),
+            "oordeel": f["oordeel"], "grof_totaal_plekken": None, "grof_geldt_op": None,
+            "verdrongen_op": 0,
+        })
+    uit.sort(key=lambda k: ((k["functie_naam"] or "").lower(), (k["ouder_naam"] or "").lower(), str(k["vervulling_id"])))
+    return uit
+
+
 async def plek_standen(session: AsyncSession, tenant_id) -> dict:
     """ADR-051 besluit 1/5 — de VIER standen per plek, uit dezelfde afleiding als `dekking_overzicht`
     (één bron, twee vensters). Read-only, nooit opgeslagen.

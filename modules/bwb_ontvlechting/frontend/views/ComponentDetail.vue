@@ -35,8 +35,9 @@ import ImpactSectie from './ImpactSectie.vue'
 import ChecklistscoreSectie from './ChecklistscoreSectie.vue'
 import BlokkadeSectie from './BlokkadeSectie.vue'
 import MigratiegereedheidSectie from './MigratiegereedheidSectie.vue'
-// ADR-042 4b — procesinzet-blok + het formulier als bewerk-overlay.
-import ComponentProcessenSectie from './ComponentProcessenSectie.vue'
+// ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" = bedrijfsfunctie-inzet (verving de
+// procesinzet; het procesregister gaat in slice 3 uit de UI). Formulier als bewerk-overlay.
+import ComponentBedrijfsfunctieSectie from './ComponentBedrijfsfunctieSectie.vue'
 import ComponentFormulier from './ComponentFormulier.vue'
 import SignaleringBadge from './SignaleringBadge.vue'
 import DetailKop from '@/components/DetailKop.vue'
@@ -193,6 +194,10 @@ async function bevestigVerwijderen() {
 // koppelingen) alleen bij een subtype; checklist/blokkades alleen bij checklist-dragend.
 const topTabs = computed(() => {
   const t = [{ key: 'overzicht', label: 'Overzicht' }]
+  // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het systeem én de
+  // bestemming van de werkvoorraad; daarom een EIGEN tab, direct na Overzicht (component-breed,
+  // net als Gebruik) i.p.v. een blok onder de vouw.
+  t.push({ key: 'bedrijfsfunctie', label: 'Bedrijfsfunctie' })
   if (isChecklistDragend.value) t.push({ key: 'checklist', label: 'Checklist' })
   if (isSubtype.value)
     t.push(
@@ -452,17 +457,25 @@ watch(() => props.id, async () => {
               :aantal-vragen="scoreSectie?.aantalVragen ?? 0"
             />
           </div>
-
-          <!-- 3. Waarvoor gebruiken we het — de procesinzet, direct registreerbaar. -->
-          <ComponentProcessenSectie
-            :key="props.id"
-            class="md:col-span-2"
-            :component-id="props.id"
-            :component-naam="component.naam"
-          />
         </div>
 
         <!-- LI040 — de actiebalk die hier stond is verhuisd naar de DetailKop. -->
+        <!-- "Waarvoor gebruiken we het" is verhuisd naar een eigen tab "Bedrijfsfunctie" (G2). -->
+      </div>
+
+      <!-- Bedrijfsfunctie: "waarvoor gebruiken we het" — de bedrijfsfunctie-inzet (ADR-043 gate 4). -->
+      <div
+        v-show="activeTop === 'bedrijfsfunctie'"
+        id="detailtabs-panel-bedrijfsfunctie"
+        role="tabpanel"
+        aria-labelledby="detailtabs-tab-bedrijfsfunctie"
+        data-testid="panel-bedrijfsfunctie"
+      >
+        <ComponentBedrijfsfunctieSectie
+          :key="props.id"
+          :component-id="props.id"
+          :component-naam="component.naam"
+        />
       </div>
 
       <!-- Checklist: 12 categorieën als sub-navigatie (checklist-dragende typen) -->

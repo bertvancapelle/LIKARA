@@ -376,4 +376,6 @@ export const SIGNAAL_LABEL = {
   // ADR-037 — aandacht: antwoord gescoord, maar niemand staat er (nog) voor in. Bewust
   // onderscheiden van `component_zonder_verantwoordelijke` (dat gaat over een beheerrol op een component).
   antwoord_zonder_verantwoordelijke: 'Antwoord zonder verantwoordelijke',
+  // ADR-043 gate 4 (G4) — werk-ondersteunend systeem zonder énige bedrijfsfunctie-koppeling.
+  component_zonder_bedrijfsfunctie: 'Nog geen bedrijfsfunctie',
 }

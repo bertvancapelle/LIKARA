@@ -26,6 +26,7 @@ from models.models import (
     Datatype,
     Element,
     ElementType,
+    Functievervulling,
     Gebruikersgroep,
     HostingModel,
     KlaarverklaringStatus,
@@ -328,6 +329,7 @@ async def _pas_filters_toe(
     biv_min: str | None = None, biv_ontbreekt: bool = False,
     klaarverklaring: str | None = None, afwijking: bool = False,
     ondersteunt_werk: bool | None = None,
+    zonder_bedrijfsfunctie: bool = False,
 ):
     """Dé ene filterwaarheid (LI040): alle lijst-filters op een stmt FROM `component`
     (mét `ComponentProfiel`-outerjoin — status/afwijking lezen die). Gedeeld door
@@ -400,6 +402,25 @@ async def _pas_filters_toe(
                     ComponentConfigOptie.ondersteunt_werk.is_(ondersteunt_werk),
                 )
             )
+        )
+    # ADR-043 gate 4 (G4) — werkvoorraad: werk-ondersteunende systemen ZÓNDER énige
+    # bedrijfsfunctie-koppeling ("nog geen bedrijfsfunctie"). Zelfde `ondersteunt_werk`-scope als
+    # het gat-signaal + de koppel-picker (een niet-koppelbaar type is géén gat). Een "geen
+    # systeem"-bevinding draagt geen component_id en dekt dus nooit een component.
+    if zonder_bedrijfsfunctie:
+        stmt = stmt.where(
+            Component.componenttype.in_(
+                select(ComponentConfigOptie.optie_sleutel).where(
+                    ComponentConfigOptie.dimensie == ComponentConfigDimensie.componenttype,
+                    ComponentConfigOptie.ondersteunt_werk.is_(True),
+                )
+            ),
+            ~select(Functievervulling.id)
+            .where(
+                Functievervulling.tenant_id == tid,
+                Functievervulling.component_id == Component.id,
+            )
+            .exists(),
         )
     # LI040 — BIV-drempel over de HOOGSTE van de drie assen ("de zwaarste as bepaalt de
     # zwaarte van het systeem"): een component blijft als MINSTENS ÉÉN as ≥ de drempel
@@ -495,6 +516,7 @@ async def lijst(
     biv_min: str | None = None, biv_ontbreekt: bool = False,
     klaarverklaring: str | None = None, afwijking: bool = False,
     ondersteunt_werk: bool | None = None,
+    zonder_bedrijfsfunctie: bool = False,
 ) -> tuple[list[dict], str | None]:
     """Server-side sorteerbare, **filterbare** keyset-lijst (ADR-017 + CD017).
 
@@ -537,6 +559,7 @@ async def lijst(
         zoek=zoek, componentrol=componentrol,
         biv_min=biv_min, biv_ontbreekt=biv_ontbreekt,
         klaarverklaring=klaarverklaring, afwijking=afwijking, ondersteunt_werk=ondersteunt_werk,
+        zonder_bedrijfsfunctie=zonder_bedrijfsfunctie,
     )
     if after:
         c_sort, c_order, c_isnull, c_waarde_str, c_id = decode_sort_cursor_nullable(after)

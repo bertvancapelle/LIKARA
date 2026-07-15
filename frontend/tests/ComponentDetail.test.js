@@ -42,15 +42,17 @@ vi.mock('@/api', () => ({
     },
     // ADR-035 — SignaleringBadge laadt bij mount (fail-soft).
     signalering: { badgeComponent: vi.fn(() => Promise.resolve({ kritiek: 0, aandacht: 0 })) },
-    // ADR-042 4b — ComponentProcessenSectie ("Waarvoor gebruiken we het") laadt bij mount.
-    procesvervullingen: {
-      lijst: vi.fn(() => Promise.resolve([])),
-      functies: vi.fn(() => Promise.resolve([])),
+    // ADR-043 gate 4 — ComponentBedrijfsfunctieSectie ("Waarvoor gebruiken we het") laadt bij mount.
+    functievervullingen: {
+      componentKoppelingen: vi.fn(() => Promise.resolve([])),
       maak: vi.fn(),
-      werkBij: vi.fn(),
       verwijder: vi.fn(),
+      zetOordeel: vi.fn(),
     },
-    processen: { lijst: vi.fn(() => Promise.resolve({ items: [], volgende_cursor: null })) },
+    bedrijfsfuncties: {
+      lijst: vi.fn(() => Promise.resolve({ items: [], volgende_cursor: null })),
+      haal: vi.fn(),
+    },
   },
 }))
 
@@ -395,17 +397,28 @@ describe('ComponentDetail', () => {
   })
 })
 
-describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', () => {
-  it('toont de vier blokken: wat is dit / wie is verantwoordelijk / waarvoor gebruiken we het', async () => {
+describe('ComponentDetail — herzien Overzicht: de blokken (ADR-042 4b)', () => {
+  it('toont de blokken: wat is dit / wie is verantwoordelijk (waarvoor = eigen tab)', async () => {
     const { w } = await mountDetail()
     expect(w.find('[data-testid="blok-wat-is-dit"]').exists()).toBe(true)
     expect(w.find('[data-testid="blok-verantwoordelijk"]').exists()).toBe(true)
-    expect(w.find('[data-testid="component-processen-sectie"]').exists()).toBe(true)
     // Blok 1 draagt de compacte metadata (type + rol + BIV zitten erin).
     const wat = w.find('[data-testid="blok-wat-is-dit"]')
     expect(wat.text()).toContain('Database')
     expect(wat.find('[data-testid="comp-rol"]').exists()).toBe(true)
     expect(wat.find('[data-testid="comp-biv"]').exists()).toBe(true)
+  })
+
+  // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een EIGEN tab "Bedrijfsfunctie",
+  // direct na Overzicht; de sectie leeft in dat panel (niet meer als blok onder Overzicht).
+  it('toont een eigen tab "Bedrijfsfunctie" met de bedrijfsfunctie-sectie in het panel', async () => {
+    const { w } = await mountDetail()
+    const tabtekst = w.find('[data-testid="detailtabs"]').exists()
+      ? w.find('[data-testid="detailtabs"]').text() : w.text()
+    expect(tabtekst).toContain('Bedrijfsfunctie')
+    const panel = w.find('#detailtabs-panel-bedrijfsfunctie')
+    expect(panel.exists()).toBe(true)
+    expect(panel.find('[data-testid="component-bedrijfsfunctie-sectie"]').exists()).toBe(true)
   })
 
   it('ADR-046: Levensfase en Bedoeling staan in dezelfde groep; het gat toont gedempt "nog niet vastgelegd"', async () => {
@@ -480,20 +493,21 @@ describe('ComponentDetail — herzien Overzicht: de vier blokken (ADR-042 4b)', 
   })
 })
 
-// LI035 succes-standaard — ook de regel-acties van ComponentProcessenSectie geven
-// de korte bevestiging (zelfde regel als de proces-zijde; zie meldingen.js).
-describe('ComponentProcessenSectie — succes-terugkoppeling', () => {
-  it('verwijderen van een koppelregel geeft een korte succes-toast', async () => {
-    api.procesvervullingen.lijst.mockResolvedValue([{
-      vervulling_id: 'pv1', applicatiefunctie: 'registreren', applicatiefunctie_label: 'Registreren',
-      toelichting: null, proces_id: 'ab', proces_naam: 'Aanvraag behandelen', proces_ouder_naam: 'Vergunningverlening',
+// LI035 succes-standaard — ook de regel-acties van ComponentBedrijfsfunctieSectie geven
+// de korte bevestiging (ADR-043 gate 4; zie meldingen.js).
+describe('ComponentBedrijfsfunctieSectie — succes-terugkoppeling', () => {
+  it('een koppeling weghalen geeft een korte succes-toast', async () => {
+    api.functievervullingen.componentKoppelingen.mockResolvedValue([{
+      vervulling_id: 'fv1', herkomst: 'grof', functie_id: 'f1', functie_naam: 'Vergunningverlening',
+      ouder_functie_id: null, ouder_naam: null, oordeel: null,
+      grof_totaal_plekken: 1, grof_geldt_op: 1, verdrongen_op: 0,
     }])
-    api.procesvervullingen.verwijder.mockResolvedValue(undefined)
+    api.functievervullingen.verwijder.mockResolvedValue(undefined)
     const { w } = await mountDetail()
-    await w.find('[data-testid="cps-verwijder-pv1"]').trigger('click')
-    await w.find('[data-testid="cps-verwijder-bevestig"]').trigger('click')
+    await w.find('[data-testid="cbf-verwijder-fv1"]').trigger('click')
+    await w.find('[data-testid="cbf-verwijder-bevestig"]').trigger('click')
     await flushPromises()
-    expect(api.procesvervullingen.verwijder).toHaveBeenCalledWith('pv1')
-    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Verwijderd')
+    expect(api.functievervullingen.verwijder).toHaveBeenCalledWith('fv1')
+    expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Koppeling weggehaald')
   })
 })

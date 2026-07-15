@@ -17,6 +17,7 @@ from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
 from schemas.functievervulling import (
+    ComponentKoppelingUit,
     FunctievervullingAanmaken,
     FunctievervullingUit,
     GeenSysteemAanmaken,
@@ -45,6 +46,17 @@ async def standen(
 ):
     """ADR-051 — de vier standen per plek + de gedeelde tellers (één afleiding, twee vensters)."""
     return await svc.plek_standen(session, _user.tenant_id)
+
+
+@router.get("/component/{component_id}", response_model=list[ComponentKoppelingUit])
+async def component_koppelingen(
+    component_id: uuid.UUID,
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.FUNCTIEVERVULLING, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-043 gate 4 (G2) — "waarvoor dient dit systeem": de koppelingen van één component,
+    gelezen uit de gedeelde leesregel (fijn verdringt grof), her-geïndexeerd op het component."""
+    return await svc.overzicht_voor_component(session, _user.tenant_id, component_id)
 
 
 @router.post("", response_model=FunctievervullingUit, status_code=201)

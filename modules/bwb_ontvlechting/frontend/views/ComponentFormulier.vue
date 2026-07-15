@@ -11,11 +11,12 @@
  * in het #footer-slot — scroll-gedrag en scroll-schaduw komen uit de Dialog-primitive
  * (preset-content is hét scroll-gebied); deze view bouwt géén eigen scroll-wrapper.
  *
- * Procesregels: bij AANMAKEN verzamelend (regels samenstellen met "+", kruisjes; ná het
- * component in één keer opgeslagen — faalt een regel, dan stáát het component en toont
- * een danger-banner de mislukte regels met "Opnieuw proberen"/"Sluiten"). Bij BEWERKEN
- * toont de sectie de bestaande regels direct-opslaand (ComponentProcessenSectie — zelfde
- * gedrag als het Overzicht, geen tweede semantiek).
+ * Bedrijfsfunctie-koppelingen (ADR-043 gate 4, G3): bij AANMAKEN verzamelend (grove
+ * koppelingen samenstellen met "+", kruisjes; ná het component in één keer opgeslagen —
+ * faalt een koppeling, dan stáát het component en toont een danger-banner de mislukte
+ * regels met "Opnieuw proberen"/"Sluiten"). Bij BEWERKEN toont de sectie de bestaande
+ * koppelingen direct-opslaand (ComponentBedrijfsfunctieSectie — zelfde bouwsteen als het
+ * Overzicht, incl. fijn verfijnen; geen tweede semantiek).
  *
  * Annuleren met gewijzigde velden vraagt bevestiging ("wijzigingen gaan verloren?").
  * Type-vergrendeling (SUBTYPE_HEEFT_DATA) en de veld-/servervalidaties zijn ongewijzigd.
@@ -26,13 +27,17 @@ import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import MeldingBanner from '@/components/MeldingBanner.vue'
 import { HOSTINGMODEL, LEVENSFASE, MIGRATIEPAD, NIVEAU, REGISTER_FOUT, label } from '../labels'
-import { maakProcesZoeker } from '../procesZoek'
-import ComponentProcessenSectie from './ComponentProcessenSectie.vue'
+import ComponentBedrijfsfunctieSectie from './ComponentBedrijfsfunctieSectie.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
-const { zoekFunctie: zoekProcessen, weergave: procesWeergave } = maakProcesZoeker(api)
+// ADR-043 gate 4 (G3) — bij aanmaken alvast koppelen aan bedrijfsfuncties (grof = vertrekpunt;
+// niet-vervallen functies zijn koppelbaar). Fijn verfijnen gebeurt op het detail (waar de plek leeft).
+const zoekBedrijfsfuncties = async (params = {}) => {
+  const res = await api.bedrijfsfuncties.lijst({ zoek: params.zoek || undefined, limit: 25 })
+  return { items: (res.items || []).filter((f) => !f.vervallen), volgende_cursor: res.volgende_cursor }
+}
 
 const props = defineProps({
   visible: { type: Boolean, required: true },
@@ -46,7 +51,6 @@ const bewerken = computed(() => !!props.id)
 const typeOpties = ref([])
 const rolOpties = ref([])
 const bivNiveaus = ref([])
-const functies = ref([]) // applicatiefunctie-opties (verzamel-procesregels bij aanmaken)
 const HOSTING_OPTIES = Object.keys(HOSTINGMODEL)
 const laden = ref(false)
 const bezig = ref(false)
@@ -102,11 +106,11 @@ function _toastFout(e) {
   toast.add({ severity: 'error', summary: 'Fout', detail, life: 5000 })
 }
 
-// ── Verzamel-procesregels (alleen bij AANMAKEN) ──────────────────────────────
-const procesRegels = ref([]) // [{ proces_id, proces_weergave, applicatiefunctie, functie_label, toelichting }]
-const regelProcesId = ref(null)
-const regelProces = ref(null) // het gekozen item (voor de weergave in het lijstje)
-const regelFunctie = ref('')
+// ── Verzamel-bedrijfsfunctiekoppelingen (alleen bij AANMAKEN; grof — G9 vertrekpunt) ──
+const bfRegels = ref([]) // [{ functie_id, functie_naam, oordeel, toelichting }]
+const regelFunctieId = ref(null)
+const regelFunctieItem = ref(null) // het gekozen item (voor de naam in het lijstje)
+const regelOordeel = ref('')
 const regelToelichting = ref('')
 const regelFout = ref(null)
 const regelPickerKey = ref(0)
@@ -115,37 +119,33 @@ const aangemaaktId = ref(null) // component staat al; retry slaat alleen nog reg
 
 function voegRegelToe() {
   regelFout.value = null
-  if (!regelProcesId.value || !regelFunctie.value) {
-    regelFout.value = 'Kies een proces én een applicatiefunctie.'
+  if (!regelFunctieId.value) {
+    regelFout.value = 'Kies een bedrijfsfunctie.'
     return
   }
-  const dubbel = procesRegels.value.some(
-    (r) => r.proces_id === regelProcesId.value && r.applicatiefunctie === regelFunctie.value,
-  )
-  if (dubbel) {
-    regelFout.value = 'Deze combinatie staat al in het lijstje.'
+  if (bfRegels.value.some((r) => r.functie_id === regelFunctieId.value)) {
+    regelFout.value = 'Deze bedrijfsfunctie staat al in het lijstje.'
     return
   }
-  procesRegels.value = [...procesRegels.value, {
-    proces_id: regelProcesId.value,
-    proces_weergave: procesWeergave(regelProces.value) || 'proces',
-    applicatiefunctie: regelFunctie.value,
-    functie_label: functies.value.find((f) => f.optie_sleutel === regelFunctie.value)?.label || regelFunctie.value,
+  bfRegels.value = [...bfRegels.value, {
+    functie_id: regelFunctieId.value,
+    functie_naam: regelFunctieItem.value?.naam || 'bedrijfsfunctie',
+    oordeel: regelOordeel.value || null,
     toelichting: regelToelichting.value.trim() || null,
   }]
-  regelProcesId.value = null
-  regelProces.value = null
-  regelFunctie.value = ''
+  regelFunctieId.value = null
+  regelFunctieItem.value = null
+  regelOordeel.value = ''
   regelToelichting.value = ''
   regelPickerKey.value += 1
 }
 function verwijderRegel(i) {
-  procesRegels.value = procesRegels.value.filter((_, idx) => idx !== i)
+  bfRegels.value = bfRegels.value.filter((_, idx) => idx !== i)
 }
 
 // ── Init + dirty-tracking (annuleren-bevestiging) ────────────────────────────
 let _schoneStand = ''
-const _snapshot = () => JSON.stringify(form) + `|regels:${procesRegels.value.length}`
+const _snapshot = () => JSON.stringify(form) + `|regels:${bfRegels.value.length}`
 const isGewijzigd = () => _snapshot() !== _schoneStand
 
 async function init() {
@@ -153,7 +153,7 @@ async function init() {
   Object.keys(fouten).forEach((k) => delete fouten[k])
   regelOpslaanFout.value = null
   aangemaaktId.value = null
-  procesRegels.value = []
+  bfRegels.value = []
   regelFout.value = null
   typeVergrendeld.value = false
   Object.assign(form, {
@@ -168,11 +168,6 @@ async function init() {
     typeOpties.value = opties.componenttype || []
     rolOpties.value = opties.componentrol_opties || []
     bivNiveaus.value = opties.biv_niveaus || []
-    if (!bewerken.value) {
-      try {
-        functies.value = await api.procesvervullingen.functies()
-      } catch { functies.value = [] }
-    }
     if (bewerken.value) {
       const c = await api.componenten.haal(props.id)
       typeVergrendeld.value = c.type_wijzigbaar === false
@@ -254,17 +249,18 @@ function _serverveldfouten(e) {
 
 async function _slaRegelsOp(componentId) {
   const mislukt = []
-  for (const regel of procesRegels.value) {
+  for (const regel of bfRegels.value) {
     try {
-      await api.procesvervullingen.maak({
+      await api.functievervullingen.maak({
         component_id: componentId,
-        proces_id: regel.proces_id,
-        applicatiefunctie: regel.applicatiefunctie,
+        functie_id: regel.functie_id,
+        ouder_functie_id: null, // grof — geldt overal (G9); fijn verfijnen gebeurt op het detail
+        oordeel: regel.oordeel,
         toelichting: regel.toelichting,
       })
     } catch (e) {
       if (e?.status === 401) throw e
-      mislukt.push({ regel, reden: e?.code === 'VERVULLING_BESTAAT' ? 'bestaat al' : (e?.message || 'mislukt') })
+      mislukt.push({ regel, reden: e?.status === 409 ? 'bestaat al' : (e?.message || 'mislukt') })
     }
   }
   return mislukt
@@ -285,16 +281,16 @@ async function opslaan() {
       resultaat = await api.componenten.maak(_payload())
       aangemaaktId.value = resultaat.id
     }
-    // Verzamelde procesregels ná het component opslaan (alleen aanmaken-pad).
-    if (!bewerken.value && procesRegels.value.length) {
+    // Verzamelde bedrijfsfunctiekoppelingen ná het component opslaan (alleen aanmaken-pad).
+    if (!bewerken.value && bfRegels.value.length) {
       const mislukt = await _slaRegelsOp(resultaat.id)
       if (mislukt.length) {
         // Component staat; geslaagde regels weg uit het lijstje, mislukte leesbaar tonen.
         const misluktSet = new Set(mislukt.map((m) => m.regel))
-        procesRegels.value = procesRegels.value.filter((r) => misluktSet.has(r))
+        bfRegels.value = bfRegels.value.filter((r) => misluktSet.has(r))
         regelOpslaanFout.value =
-          `Het component is aangemaakt, maar ${mislukt.length} proceskoppeling(en) konden niet worden ` +
-          `opgeslagen: ${mislukt.map((m) => `"${m.regel.functie_label}" in ${m.regel.proces_weergave} (${m.reden})`).join('; ')}. ` +
+          `Het component is aangemaakt, maar ${mislukt.length} bedrijfsfunctie-koppeling(en) konden niet worden ` +
+          `opgeslagen: ${mislukt.map((m) => `"${m.regel.functie_naam}" (${m.reden})`).join('; ')}. ` +
           'Probeer opnieuw of sluit — het component blijft bestaan.'
         return // overlay blijft open; Opslaan = alleen de resterende regels opnieuw
       }
@@ -405,61 +401,65 @@ function bevestigAnnuleren() {
             />
           </div>
 
-          <!-- Procesregels: aanmaken = verzamelend; bewerken = direct-opslaand (zelfde
-               semantiek als het Overzicht — de sectie is dezelfde bouwsteen). -->
+          <!-- Bedrijfsfunctie-koppeling: aanmaken = verzamelend (grof); bewerken = direct-
+               opslaand via dezelfde sectie-bouwsteen (ADR-043 gate 4, G2/G3). -->
           <template v-if="bewerken">
-            <ComponentProcessenSectie v-if="visible" :component-id="props.id" :component-naam="form.naam" />
+            <ComponentBedrijfsfunctieSectie v-if="visible" :component-id="props.id" :component-naam="form.naam" />
           </template>
           <div v-else class="flex flex-col gap-[var(--lk-space-sm)]" data-testid="regels-verzamelaar">
             <div class="flex items-center gap-[var(--lk-space-xs)]">
-              <span class="font-semibold">Vervult een rol in</span>
-              <VeldUitleg veld="applicatiefunctie" testid="uitleg-applicatiefunctie-form" />
+              <span class="font-semibold">Waarvoor gebruiken we het</span>
+              <VeldUitleg veld="bedrijfsfunctie" testid="uitleg-bedrijfsfunctie-form" />
             </div>
             <MeldingBanner v-if="regelOpslaanFout" soort="danger" :tekst="regelOpslaanFout" testid="regels-opslaanfout" />
-            <ul v-if="procesRegels.length" class="divide-y divide-[var(--lk-color-border)]" data-testid="regels-lijst">
-              <li v-for="(r, i) in procesRegels" :key="`${r.proces_id}-${r.applicatiefunctie}`" class="flex items-baseline gap-[var(--lk-space-sm)] py-[var(--lk-space-xs)]">
+            <ul v-if="bfRegels.length" class="divide-y divide-[var(--lk-color-border)]" data-testid="regels-lijst">
+              <li v-for="(r, i) in bfRegels" :key="r.functie_id" class="flex items-baseline gap-[var(--lk-space-sm)] py-[var(--lk-space-xs)]">
                 <span class="min-w-0 text-[length:var(--lk-text-sm)]">
-                  <em>{{ r.functie_label }}</em> in {{ r.proces_weergave }}
+                  <em class="not-italic font-medium">{{ r.functie_naam }}</em>
+                  <span class="text-[var(--lk-color-text-muted)]"> — geldt overal</span>
+                  <span v-if="r.oordeel" class="text-[var(--lk-color-text-muted)]"> ({{ r.oordeel === 'noodoplossing' ? 'noodoplossing' : 'werkt naar behoren' }})</span>
                   <span v-if="r.toelichting" class="text-[var(--lk-color-text-muted)]"> — {{ r.toelichting }}</span>
                 </span>
                 <button
                   type="button"
                   :data-testid="`regel-verwijder-${i}`"
-                  :aria-label="`Verwijder regel ${r.functie_label} in ${r.proces_weergave}`"
+                  :aria-label="`Verwijder koppeling met ${r.functie_naam}`"
                   class="ml-auto shrink-0 font-semibold text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)]"
                   @click="verwijderRegel(i)"
                 >×</button>
               </li>
             </ul>
             <div class="flex flex-wrap items-end gap-[var(--lk-space-sm)]">
-              <label class="flex min-w-[12rem] flex-1 flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-                <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Proces</span>
+              <label class="flex min-w-[14rem] flex-1 flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+                <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Bedrijfsfunctie</span>
                 <ZoekSelect
                   :key="regelPickerKey"
-                  v-model="regelProcesId"
-                  :zoek-functie="zoekProcessen"
-                  :weergave="procesWeergave"
-                  placeholder="Zoek een proces…"
-                  testid="regel-proces"
-                  @keuze="(p) => (regelProces = p)"
+                  v-model="regelFunctieId"
+                  :zoek-functie="zoekBedrijfsfuncties"
+                  :weergave="(f) => f?.naam ?? ''"
+                  placeholder="Zoek een bedrijfsfunctie…"
+                  testid="regel-bedrijfsfunctie"
+                  @keuze="(f) => (regelFunctieItem = f)"
                 />
               </label>
               <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-                <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Applicatiefunctie</span>
-                <select v-model="regelFunctie" data-testid="regel-functie" class="lk-veld">
-                  <option value="">— kies —</option>
-                  <option v-for="f in functies" :key="f.optie_sleutel" :value="f.optie_sleutel">{{ f.label }}</option>
+                <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Oordeel (optioneel)</span>
+                <select v-model="regelOordeel" data-testid="regel-oordeel" class="lk-veld">
+                  <option value="">nog niet beoordeeld</option>
+                  <option value="naar_behoren">werkt naar behoren</option>
+                  <option value="noodoplossing">noodoplossing</option>
                 </select>
               </label>
               <label class="flex min-w-[10rem] flex-1 flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
                 <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Toelichting</span>
                 <input v-model="regelToelichting" type="text" maxlength="500" data-testid="regel-toelichting" class="lk-veld" />
               </label>
-              <Button type="button" label="+" data-testid="regel-toevoegen" severity="secondary" aria-label="Voeg procesregel toe" @click="voegRegelToe" />
+              <Button type="button" label="+" data-testid="regel-toevoegen" severity="secondary" aria-label="Voeg bedrijfsfunctie-koppeling toe" @click="voegRegelToe" />
             </div>
             <span v-if="regelFout" role="alert" data-testid="regel-fout" class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-danger)]">{{ regelFout }}</span>
             <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
-              De regels worden na het aanmaken van het component in één keer opgeslagen.
+              Elke koppeling geldt overal ("het vertrekpunt"); verfijn later per plek op het systeem zelf.
+              De koppelingen worden na het aanmaken van het component in één keer opgeslagen.
             </p>
           </div>
         </div>
