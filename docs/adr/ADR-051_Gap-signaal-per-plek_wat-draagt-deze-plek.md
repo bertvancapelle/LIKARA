@@ -179,6 +179,26 @@ gesloten, motor generiek · **engine-invariant** (score blijft de enige lifecycl
 
 ---
 
+## Addendum LI042 — de kaart als derde venster op `plek_standen` (gate 4, besloten; bouw volgt)
+
+Gate 4 (ADR-043 §"Gate 4", besluit G8) voegt een **derde consument** toe aan de afleiding van dit ADR:
+de **bedrijfsfunctie-laan op de kaart**. Naast de boom-cue en de centrale werkvoorraad (besluit 5) toont
+de kaart-plek voortaan dezelfde vier standen (`gat` / `via_boven` / `hier` / `niets`) — de **OMHOOG-gap**:
+een plek is een gat als er op die plek zelf niets hangt, met de derde stand "ondersteund via een
+bovenliggende functie". **Dezelfde `plek_standen`-afleiding, een extra venster — geen tweede implementatie**
+(besluit 5 blijft de borging: bronscan-test laat een tweede afleiding falen).
+
+Bewust **niet** overgenomen: de bestaande proces-kaart-cue kijkt **omlaag** (gat érgens in de subboom
+eronder — `_procesZonderSysteem`). Dat is een **andere vraag** ("draagt iets ónder mij iets?" i.p.v. "draagt
+iets óp of bóven mij iets?") en past niet op de plek-cue van gate 3. De omlaag/roll-up-blik kan later een
+aparte overzichtslaag worden, maar is **niet** de cue op de plek.
+
+Randvoorwaarde uit ADR-043 besluit G7 (laan van **plekken**, niet van functies): omdat de kaart per plek
+één knoop tekent, mapt `plek_standen` er **1-op-1** op — precies de reden dat de teleenheid de plaatsing
+moet zijn (ADR-044 besluit 4). Status: **besloten (LI042), bouw nog niet gestart.**
+
+---
+
 ## Naschrift — over "zonder herbouw" (geen schuld)
 
 Het checkpoint meldde terecht dat `functievervulling` een schemastap nodig heeft om "geen systeem

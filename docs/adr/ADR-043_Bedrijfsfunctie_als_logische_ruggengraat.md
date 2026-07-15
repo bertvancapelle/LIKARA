@@ -195,6 +195,12 @@ Grond: het feitenrapport bedrijfsfunctie-as (V039). De besluiten in functionele 
    bij?" op, en de proces-ingangen op de kaart zouden doodlopen. **Model en code blijven intact**
    (`procesvervulling`, procesboom, diagram) — het is de verdieping die terugkomt zodra de functie het
    anker is.
+   > **Aangescherpt LI042 (zie §"Gate 4 — de bedrijfsfunctie-laan op de kaart"):** de proceslaan gáát
+   > van de kaart (conform dit besluit), maar **niet met een leeg gat** — een **bedrijfsfunctie-laan
+   > vervangt hem in dezelfde gate**. Oude lezing: "de proceslaan verdwijnt (de kaart heeft even geen
+   > waarvoor-laan)"; nieuwe lezing: "de proceslaan wordt vervangen door de functie-laan, zonder
+   > tussenperiode". De frontend-routes gaan nu wél weg (niet slechts verbergen); model/leeslaag/
+   > bouwstenen blijven (gate-4 besluit G6).
 
 **Vangrail-knopen — volgen het bestaande recept (vastgelegd, geen keuze):**
 - Bedrijfsfunctie = **eigen element-subtype** via het bestaande recept (shared-PK, FORCE RLS,
@@ -218,3 +224,103 @@ Grond: het feitenrapport bedrijfsfunctie-as (V039). De besluiten in functionele 
 
 Elke slice met engine-onaangeroerd-borging, browserverificatie vóór commit, en de gangbare
 gate-discipline.
+
+> **Fasering-actualisatie (LI042):** stap 5 ("kaart op functies") en stap 6 ("procesregister
+> verbergen") zijn in LI042 uitgewerkt tot de tien gate-4-besluiten hieronder. Stap 6 wordt
+> **verwijderen** (frontend-routes weg, niet slechts verbergen; backend slapend tot de laatste
+> slice) — zie §"Gate 4".
+
+---
+
+## Gate 4 — de bedrijfsfunctie-laan op de kaart (besloten LI042; bouw volgt)
+
+**Status:** Besloten (LI042) — **bouw nog niet gestart.** Status blijft *besloten / bouw volgt*;
+geen enkel besluit is "geïmplementeerd".
+**Datum:** 2026-07-15
+**Grond:** `docs/Feitenrapport-gate4-kaart-op-functies-V043.md` (feitencheckpoint, read-only) +
+`docs/Ontwerpcheckpoint-bedrijfsfunctie-laan-V043.md` (ontwerpcheckpoint, read-only) + besluiten Bert LI042.
+**Gerelateerd:** ADR-044 (meervoudige plaatsing — de teleenheid is de plek → besluit G7) ·
+ADR-049 (component-functie-koppeling: adres- en leesregel → de invariant + besluit G9) ·
+ADR-051 (gap-signaal per plek → besluit G8) · ADR-042 (procesregister — het herbruikte recept, gaat uit beeld).
+**Invariant (ongewijzigd):** score blijft de enige lifecycle-driver. Dit is registratie + read-only leeslaag;
+de engine wordt niet geraakt.
+
+Gate 4 sluit blok A af: de **logische kaart komt op bedrijfsfuncties te rusten** en het
+**procesregister verlaat de MVP-UI**. De besluiten staan hier als coherent geheel; de mechanismen
+waarop ze leunen leven in ADR-044/049/051 (kruisverwijzingen per besluit).
+
+### Ontwerpbesluiten
+
+- **G1 — De proceslaan verdwijnt van de kaart; een bedrijfsfunctie-laan vervangt hem, in dezelfde
+  gate.** Geen tussenperiode waarin de kaart de waarvoor-vraag niet beantwoordt. *Scherpt ADR-043
+  besluit 8 (LI039) aan* — zie de aanscherping-noot bij besluit 8 hierboven. De kaart-projectie
+  blijft een **read-only verrijking onder `ARCHITECTUUR.LEZEN`** (dezelfde entiteit, geen
+  scope-verbreding; feitencheckpoint §2.1) — de functie-laan erft die discipline 1-op-1.
+- **G2 — Koppelen kan vanuit het component.** Een registrerende sectie op componentdetail, op de kop
+  *"waarvoor gebruiken we het"* — de plek die vandaag door de proces-sectie (`ComponentProcessenSectie`)
+  bezet is; die maakt plaats. De consultant denkt vanuit het systeem én vanuit de functieboom; dezelfde
+  koppeling, meerdere ingangen (zie de invariant).
+- **G3 — Het formulier-subveld "Proces" wordt "Bedrijfsfunctie".** Koppelen kan al bij het aanmaken van
+  een systeem.
+- **G4 — Het veld is optioneel.** Een systeem zonder bedrijfsfunctie is geen fout, maar een **zichtbaar,
+  filterbaar registratiegat** (de werkvoorraad van de consultant). Dit is vandaag nergens zichtbaar
+  (geen registratiegaten-signaal, geen lijstfilter, geen badge — ontwerpcheckpoint §3.4); het volgt de
+  bestaande `*_ontbreekt`/`component_zonder_*`-patronen. *Consistent met* de "leeg ≠ fout, LIKARA verzint
+  niets"-lijn (LI040) en met de openstaande vraag over "één taal voor afwezigheid".
+- **G5 — Bestaande proces-registraties verdwijnen via reseed** (ontwikkelmodus, alléén testdata — géén
+  datamigratievraagstuk). De dev-seed vertelt voortaan het **functie-verhaal**, inclusief het
+  gate-3-verhaal (grof / fijn / geen-systeem / noodoplossing / het gat; OPVOLGPUNT L4). De seed vult de
+  functievervulling-as vandaag nog **niet** (ontwerpcheckpoint §5).
+- **G6 — De procesregister-UI en frontend-routes gaan geheel weg** (geen gebruikers, geen bookmarks,
+  geen redirect nodig). **Model, leeslaag en bouwstenen blijven staan** — de functie-as erft ze
+  (`Proces`/`Procesvervulling`-model, RLS, roll-up-service, `procesBoom.js`, `ProcesDiagram`, RBAC- en
+  audit-entiteiten). *"Verbergen is niet slopen" geldt voor het model, niet voor de route.*
+
+### Verdiepingsbesluiten (uit het ontwerpcheckpoint)
+
+- **G7 — De kaart-laan is een laan van PLEKKEN, niet van functies.** Een functie die op meerdere plekken
+  staat (GEMMA: 7 functies met 2-4 ouders), verschijnt **per plek**. *Reden:* de teleenheid van de kaart
+  moet gelijk zijn aan die van de werkvoorraad en de gap-cue — de **plaatsing** (ADR-044 besluit 4,
+  ADR-051) — zodat het overal één verhaal is. **Verworpen: laan van functies** (één knoop, alle lijnen
+  omhoog — de bestaande `ProcesDiagram`-aanpak, `ProcesDiagram.vue:112-118`): dan collapst een functie
+  die op de ene plek een systeem draagt en op de andere een gat tot één kleur — de per-plek-werkvoorraad
+  wordt oneerlijk. *Gevolg (bouwwerk, geen ontwerpkeuze meer):* er is een **nieuwe per-plek-layout** nodig;
+  `procesBoomLayout` is single-parent, `meervoudBoomStructuur` (DAG) bestaat al maar er is nog geen
+  meervoud-layout die één functie onder meerdere ouders positioneert (ontwerpcheckpoint §2.1).
+- **G8 — De kaart-plek toont de OMHOOG-gap (`plek_standen`, ADR-051), niet de omlaag/subboom-cue.** Een
+  plek is een gat als er **op die plek zelf** niets hangt (met de derde stand "ondersteund via een
+  bovenliggende functie"); dezelfde cue als de werkvoorraad — één afleiding, twee vensters (ADR-051
+  besluit 5). De **omlaag/roll-up-blik** (gat érgens in de subboom eronder — de proces-cue `_procesZonderSysteem`)
+  is een mógelijke latere overzichtslaag, **niet** de cue op de plek. *Legt vast in ADR-051-termen; daar
+  een addendum, van hieruit verwezen.*
+- **G9 — Vanuit het component koppelt de gebruiker één of meer functies, en per koppeling grof of fijn.**
+  Meerdere koppelingen per systeem is normaal. **Grof** = de hele functie (alle plekken tegelijk, "geldt
+  overal"); **fijn** = één plek. **Grof is het vertrekpunt/default** — óók vanuit het component, waar
+  boomcontext ontbreekt. **Fijn verdringt grof bij het lezen** (ADR-049 besluit 1; verdringing is een
+  verschijning, geen verwijdering). *Legt de component-ingang vast bovenop ADR-049; daar een addendum.*
+- **G10 — De proces-backend-endpoints blijven slapend** tot de functie-laan aantoonbaar geen proces-route
+  meer nodig heeft; opruimen gebeurt als **laatste slice**. De **frontend** gaat nu weg (G6). Reden: de
+  kaart-interacties `zoomInOpProces` en "Via proces" hangen vandaag aan `/processen` + `/procesvervullingen`
+  (feitencheckpoint §2.3); pas als hun functie-equivalent staat, is de proces-route dood.
+
+### Invariant — één feit, meerdere ingangen (niet-onderhandelbaar)
+
+De componentdetail-sectie (G2), het formulier-veld (G3) én de kaart-laan-edges (G1/G7) lezen **altijd de
+gedeelde leeslaag** — `dekking_overzicht` / `plek_standen`, **mét verdringing** — en **nooit** een verse
+rauwe `where component_id`-query. Eén gedeelde bouwsteen, geen `if` per scherm, geen consument die zelf
+rekent. Dit **generaliseert ADR-049 besluit 5** naar de nieuwe consumenten en sluit de tweede waarheid uit
+die het ontwerpcheckpoint blootlegde: een naïeve `lijst_voor_component` (zoals de proces-tegenhanger, die
+géén verdringing kent) zou *"geldt overal"* tonen terwijl op een plek een ánder systeem het grove antwoord
+verdringt. De richting *component → plekken* is een **her-indexering** van `dekking_overzicht` (dat draagt
+per plek al `componenten[]` + `verdrongen[]`), geen tweede afleiding. *(Vastgelegd in ADR-049-termen; daar
+het addendum, van hieruit verwezen.)*
+
+### Bouwvolgorde (slice-knip, indicatief)
+
+1. **Component-ingangen + werkvoorraad-gat** (G2/G3/G4) — omkeerbaar, raakt de kaart niet; browser per slice.
+2. **Kaart-swap** — proceslaan eruit, bedrijfsfunctie-laan (van plekken, G7/G8) erin — **atomair** (G1: geen
+   tussenperiode; de proceslaan zit op ~8 frontend-plekken vastgedraaid — verwijderen en terugplaatsen samen).
+3. **Proces-frontend-sloop + reseed + backend-opruim** (G5/G6/G10) — **laatste** (de onomkeerbare sloop komt
+   ná het bewijs dat de vervanger werkt).
+
+Elke slice met engine-onaangeroerd-borging, browserverificatie vóór commit, en de gangbare gate-discipline.

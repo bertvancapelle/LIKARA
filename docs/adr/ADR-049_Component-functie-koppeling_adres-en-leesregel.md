@@ -162,6 +162,32 @@ lifecycle-driver; dit is registratie + leeslaag).
 
 ---
 
+## Addendum LI042 — de component-ingang en de kaart-edges lezen de leesregel (gate 4, besloten; bouw volgt)
+
+Gate 4 (ADR-043 §"Gate 4") maakt besluit 5 van dit ADR concreet met **drie nieuwe consumenten** van de
+gedeelde afleiding: de **componentdetail-sectie** (koppelen vanuit het systeem, ADR-043 besluit G2), het
+**formulier-veld "Bedrijfsfunctie"** (G3) en de **kaart-laan-edges** (G1/G7). Alle drie lezen **altijd**
+`dekking_overzicht` / `plek_standen` — **mét verdringing** — en **nooit** een verse rauwe
+`where component_id`-query.
+
+**De tweede-waarheid-val, concreet.** De proces-tegenhanger `procesvervulling_service.lijst_voor_component`
+is een directe `where component_id`-query — dat kan bij proces, want proces kent **geen** verdringing (grof
+en fijn coëxisteren daar niet). Kopieer dat patroon naar de functie-as en je krijgt de ruwe rijen **zonder**
+de leesregel: het systeem toont *"ondersteunt Toezicht — geldt overal"* terwijl op plek *Milieu* een ánder
+systeem dat grove antwoord verdringt (besluit 1). Twee schermen, twee waarheden, uit de pas — de "3-van-19"-val
+(LI040). Dezelfde val geldt voor de **kaart-vervult-edges**: een edge op een verdrongen plek zou niet mogen
+verschijnen.
+
+**Vorm (geen tweede afleiding).** De richting *component → plekken* is een **her-indexering** van
+`dekking_overzicht`: die draagt per plek al `componenten[]` én `verdrongen[]` met `component_id` in elke entry
+— filter de plek-entries waar het component voorkomt. Dit **generaliseert besluit 5** ("de leesregel is één
+gedeelde bouwsteen, geen `if` per scherm") naar de nieuwe consumenten en is als **invariant** vastgelegd in
+ADR-043 §"Gate 4" (*één feit, meerdere ingangen*). Grof/fijn vanuit het component: **grof is de default**
+(ADR-043 besluit G9), fijn verdringt grof bij het lezen — ongewijzigd t.o.v. besluit 1. Status:
+**besloten (LI042), bouw nog niet gestart.**
+
+---
+
 ## Alternatieven overwogen
 
 1. **Verankeren aan `relatie.id`** (ADR-044's oorspronkelijke lijn) — **verworpen**: `relatie`
