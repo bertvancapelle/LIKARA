@@ -48,10 +48,10 @@ const LIFECYCLE_OPTIES = ['migratieklaar', 'in_inventarisatie', 'geblokkeerd', '
 // LI033b — 'gebruikt' ("organisatie gebruikt applicatie", org → applicatie) is een eigen ring, spiegel
 // van 'eigenaar'. Default AAN. Doet mee in de ego-kring (praatplaat) via `_burenVan` (alle actieve
 // ringen) — geen aparte impact-bedrading (IMPACT_RINGEN is met de Impact-verkenner afgeschaft).
-// LI036 slice 2 — ring 'processen' (hoofdprocessen + vervult-lijnen uit de subgraaf-projectie):
-// standaard AAN (niet in RING_DEFAULT_UIT), zichtbaar in alle drie de weergaven. Vooraan = de
-// "waarvoor"-laag, spiegel van de proceslaan bovenaan.
-const RINGEN = ['processen', 'applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikt', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
+// ADR-043 gate 4 slice 2 — ring 'bedrijfsfuncties' (de plek-projectie: functie-plekken + systeem→
+// plek-lijnen uit de subgraaf-verrijking): standaard AAN, zichtbaar in alle drie de weergaven.
+// Vooraan = de "waarvoor"-laag (verving de proceslaan, G1).
+const RINGEN = ['bedrijfsfuncties', 'applicaties', 'samenstelling', 'rollen', 'eigenaar', 'gebruikt', 'gebruikers', 'contracten', 'infrastructuur', 'organisatiestructuur']
 // ADR-024 — context-ring "Organisatiestructuur" (persoon-met-rol → afdeling → organisatie); standaard
 // UIT (zie ringAan), want context, niet de hoofdvraag van de kaart.
 const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
@@ -62,12 +62,12 @@ const RING_DEFAULT_UIT = new Set(['organisatiestructuur'])
 // ring-checkboxes. Geldt ALLEEN op de praatplaat en ALLEEN bij het BETREDEN (niet bij hercentreren of
 // re-render → een handmatig aangezette context-ring blijft staan). Het Overzicht houdt zijn eigen
 // startstand (`ringAan` hierboven: alles-behalve-`organisatiestructuur`).
-// LI036 — 'processen' hoort bij de kern ("waarvoor gebruiken we dit object"): de ring is besloten
-// standaard-aan in álle weergaven, dus de praatplaat-startstand zet hem niet uit.
-const RING_PRAATPLAAT_KERN = new Set(['processen', 'gebruikers', 'gebruikt', 'rollen', 'contracten', 'infrastructuur', 'applicaties'])
+// ADR-043 gate 4 — 'bedrijfsfuncties' hoort bij de kern ("waarvoor gebruiken we dit object"): de
+// ring is standaard-aan in álle weergaven, dus de praatplaat-startstand zet hem niet uit.
+const RING_PRAATPLAAT_KERN = new Set(['bedrijfsfuncties', 'gebruikers', 'gebruikt', 'rollen', 'contracten', 'infrastructuur', 'applicaties'])
 // ADR-031 — leesbare ring-namen. Backend levert ring='beheerorganisatie' → bij laden gemapt op 'rollen'.
 const RING_LABELS = {
-  processen: 'Processen', // LI036 slice 2 — hoofdprocessen + vervult-lijnen (de "waarvoor"-laag)
+  bedrijfsfuncties: 'Bedrijfsfuncties', // ADR-043 gate 4 — plek-projectie + systeem-lijnen (de "waarvoor"-laag)
   applicaties: 'Componenten',
   samenstelling: 'Samenstelling', // ADR-033 1b — "onderdeel van" (component↔component aggregatie)
   rollen: 'Rollen & beheer',
@@ -82,7 +82,7 @@ const RING_LABELS = {
 // volgorde (van boven naar beneden). De volgorde is gebruiker-herschikbaar (drag-drop) en wordt in
 // sessionStorage bewaard. Startvolgorde per LI036 slice 1: … → Contracten → Overig (Overig onderaan).
 const LANE_DEF = {
-  processen: { label: 'Processen', bg: '#fff7ed' }, // LI036 slice 2 — de "waarvoor"-laag, bovenaan
+  bedrijfsfuncties: { label: 'Bedrijfsfuncties', bg: '#fff7ed' }, // ADR-043 gate 4 — de "waarvoor"-laag, bovenaan
   rollen: { label: 'Rollen & beheer', bg: '#fef9c3' },
   gebruikers: { label: 'Gebruikers', bg: '#f0fdf4' },
   componenten: { label: 'Componenten', bg: '#eff6ff' },
@@ -90,7 +90,7 @@ const LANE_DEF = {
   overig: { label: 'Overig', bg: '#f8fafc' },
   contracten: { label: 'Contracten', bg: '#faf5ff' },
 }
-const DEFAULT_LANE_VOLGORDE = ['processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
+const DEFAULT_LANE_VOLGORDE = ['bedrijfsfuncties', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig']
 // LI019 1d-v6 — swimlane-grid: nodes wrappen per lane binnen een BEGRENSDE breedte, zodat één grote
 // lane (bv. 58 partijen) de andere lanes niet uitrekt en cy.fit() niet extreem uitzoomt (kernoorzaak B).
 const MAX_LANE_W = 1200 // max model-breedte voor het node-grid per lane
@@ -1536,57 +1536,41 @@ function _herkomstVelden(herkomst) {
   }
   return [...per.entries()].map(([naam, functies]) => ({ label: naam, waarde: functies.join(', ') || '—' }))
 }
-// De vervult-edges van een (deel)proces in de huidige subgraaf (bron = component, doel = proces).
-// LI037 fase 2 — HARDE guard op `relatietype`: de ring 'processen' draagt sinds fase 1 óók
-// `proces_hierarchie`-edges (deelproces→ouder); die tellen NOOIT mee als vervullers — anders zou
-// de "Vervuld door"-popup een deelproces als component tonen en de vervul-toggle proces-ids aan
-// de component-set toevoegen.
-const _vervulEdgesVan = (procesId) => grafEdges.value.filter(
-  (e) => e.relatietype === 'procesvervulling' && e.doel_id === procesId,
+// De systeem→plek-edges van een bedrijfsfunctie-plek in de huidige subgraaf (bron = component,
+// doel = plek-knoop). HARDE guard op `relatietype`: de ring 'bedrijfsfuncties' draagt óók
+// `functie_plaatsing`-edges (plek→ouder-plek); die tellen NOOIT mee als dragers.
+const _vervulEdgesVan = (plekId) => grafEdges.value.filter(
+  (e) => e.relatietype === 'functievervulling' && e.doel_id === plekId,
 )
-// LI037 fase 2 (ADR-034 besluit 6/A3) — proces-knopen ZONDER ondersteunend systeem in hun hele
-// subboom: een vervulling dekt óók de voorouders (een hoofdproces met vervulde deelprocessen is
-// géén gat — alleen takken waar écht niets onder hangt vallen op). Puur afgeleid uit de edges,
-// geen datavlag; LOS van de "Toon registratiegaps"-toggle (die blijft over relatie-loze knopen
-// gaan — een keten-deelproces hééft een hiërarchie-lijn). Cyclus-veilig (gedekt-guard).
-const _procesZonderSysteem = computed(() => {
-  const ids = new Set(grafNodes.value.filter((n) => n.element_type === 'proces').map((n) => n.id))
-  if (!ids.size) return ids
-  const ouderVan = {}
-  for (const e of grafEdges.value) {
-    if (e.relatietype === 'proces_hierarchie' && ids.has(e.bron_id)) ouderVan[e.bron_id] = e.doel_id
-  }
-  const gedekt = new Set()
-  for (const e of grafEdges.value) {
-    if (e.relatietype !== 'procesvervulling') continue
-    let cur = e.doel_id
-    while (cur != null && ids.has(cur) && !gedekt.has(cur)) {
-      gedekt.add(cur)
-      cur = ouderVan[cur]
-    }
-  }
-  return new Set([...ids].filter((id) => !gedekt.has(id)))
-})
-// De rustige popup-benoeming van dat gat (eerlijk-gaten-tonen, popupSamenvatting-lijn).
+// ADR-043 gate 4 (G8) — de gap-cue komt UIT de gedeelde leeslaag: de backend hangt `plek_stand`
+// (gat/via_boven/hier/niets) aan elke plek-knoop (uit `plek_standen`, server-side). De kaart LEEST
+// dat; hij rekent de dekking NIET zelf na (de invariant). 'gat' = niets op deze plek én niets
+// erboven (dashed); 'via_boven' = ondersteund via een bovenliggende functie (een derde kleur tussen
+// gat en groen — ADR-051 besluit 1). Herhaalt een plek zich (path-expansie), dan draagt elk
+// exemplaar dezelfde stand (de backend borgt die gelijke waarheid — G7 hard-grens 1).
+const _plekGat = computed(() =>
+  new Set(grafNodes.value.filter((n) => n.element_type === 'bedrijfsfunctie' && n.plek_stand === 'gat').map((n) => n.id)))
+const _plekViaBoven = computed(() =>
+  new Set(grafNodes.value.filter((n) => n.element_type === 'bedrijfsfunctie' && n.plek_stand === 'via_boven').map((n) => n.id)))
+// De rustige popup-benoeming van dat gat / half-antwoord (eerlijk-gaten-tonen, popupSamenvatting-lijn).
 const popupProcesGap = computed(() => {
   if (popupKind.value !== 'node') return false
   const n = nodePerId.value[detailId.value]
-  return !!(n && n.element_type === 'proces' && _procesZonderSysteem.value.has(n.id))
+  return !!(n && n.element_type === 'bedrijfsfunctie' && (n.plek_stand === 'gat' || n.plek_stand === 'via_boven'))
 })
-// De componenten die dit hoofdproces vervullen (voor de set-actie; dedup doet de set-functie).
-function _vervullendeComponenten(procesId) {
-  return _vervulEdgesVan(procesId)
+// De componenten die deze plek dragen (voor de set-actie; dedup doet de set-functie).
+function _vervullendeComponenten(plekId) {
+  return _vervulEdgesVan(plekId)
     .map((e) => nodePerId.value[e.bron_id])
     .filter(Boolean)
     .map((m) => ({ id: m.id, naam: m.naam, element_type: m.element_type }))
 }
-// "Vervuld door"-sectie van de proces-popup (verfijning besluit A): scanbare COMPONENTNAMEN,
-// met de herkomst (deelproces · functies) INKLAPBAAR per component (standaard dicht — detail op
-// aanvraag). Reactieve afleiding op de open popup (detailId), geen snapshot.
+// "Ondersteund door"-sectie van de plek-popup: scanbare COMPONENTNAMEN die deze plek dragen (het
+// antwoord ná verdringing — de backend tekent nooit een verdrongen systeem). Reactief op de open popup.
 const popupVervuldDoor = computed(() => {
   if (popupKind.value !== 'node') return []
   const n = nodePerId.value[detailId.value]
-  if (!n || n.element_type !== 'proces') return []
+  if (!n || n.element_type !== 'bedrijfsfunctie') return []
   return _vervulEdgesVan(n.id)
     .map((e) => {
       const comp = nodePerId.value[e.bron_id]
@@ -1687,12 +1671,10 @@ function _nodeVelden(et, d, n) {
       _veld('Omschrijving', d.omschrijving),
     ])
   }
-  if (et === 'proces') {
-    // LI036 slice 2 · stap 3 — basis-detail; de "Vervuld door"-uitsplitsing is een eigen
-    // (inklapbare) popup-sectie (`popupVervuldDoor`), niet een velden-muur in de dl.
-    return _velden([
-      _veld('Toelichting', d.toelichting),
-    ])
+  if (et === 'bedrijfsfunctie') {
+    // ADR-043 gate 4 — bedrijfsfunctie-plek-knoop: de inhoud is de "Ondersteund door"-sectie
+    // (`popupVervuldDoor`) + de gap-cue (`popupProcesGap`), geen velden-muur in de dl.
+    return _velden([])
   }
   if (et === 'partij') {
     const adres = [d.straat_huisnummer, d.postcode, d.plaats].filter(Boolean).join(', ') || null
@@ -1765,7 +1747,7 @@ async function openNodePopup(id) {
     // LI059 Slice 4 — applicatie ÍS een component; er is geen aparte /applicaties-haal meer.
     if (et === 'contract') d = await api.contracten.haal(id)
     else if (et === 'partij') d = await api.partijen.haal(id)
-    else if (et === 'proces') d = await api.processen.haal(id) // LI036 slice 2 — hoofdproces-knoop
+    else if (et === 'bedrijfsfunctie') d = n // plek-knoop: synthetisch path-id, geen fetch — node-data volstaat
     else d = await api.componenten.haal(id)
     if (popupKind.value !== 'node' || detailId.value !== id) return // intussen vervangen
     popupVelden.value = _nodeVelden(et, d, n)
@@ -1844,23 +1826,22 @@ async function openEdgePopup(edge) {
       // ADR-024 — hoort bij: bron (persoon/afdeling) → doel (afdeling/organisatie).
       popupTitel.value = 'Hoort bij'
       popupVelden.value = _velden([_veld('Onderdeel', bronNaam), _veld('Hoort bij', doelNaam)])
-    } else if (edge.relatietype === 'proces_hierarchie') {
-      // LI037 fase 2 — hiërarchie-lijn ("onderdeel van"): eigen popup-vorm — het kind is
-      // onderdeel van de ouder; NIET de vervult-vorm (dat is een andere relatie).
+    } else if (edge.relatietype === 'functie_plaatsing') {
+      // ADR-043 gate 4 — plek-hiërarchie-lijn ("onderdeel van"): de functie is onderdeel van de
+      // bovenliggende functie; NIET de ondersteunt-vorm (dat is een andere relatie).
       popupTitel.value = 'Onderdeel van'
       popupVelden.value = _velden([
-        _veld('Deelproces', bronNaam),
+        _veld('Functie', bronNaam),
         _veld('Onderdeel van', doelNaam),
       ])
-    } else if (edge.ring === 'processen') {
-      // LI036 slice 2 · stap 3 → LI037 — vervult-lijn: de bundel op het GEREGISTREERDE
-      // (deel)proces + de functie-uitsplitsing uit edge.herkomst; None/leeg → alleen de kop-velden.
-      popupTitel.value = 'Vervult'
+    } else if (edge.ring === 'bedrijfsfuncties') {
+      // ADR-043 gate 4 — systeem→plek-lijn: welk systeem ondersteunt déze bedrijfsfunctie-plek
+      // (het antwoord ná verdringing — de backend tekent nooit een verdrongen systeem).
+      popupTitel.value = 'Ondersteunt'
       popupVelden.value = _velden([
-        _veld('Component', bronNaam),
-        _veld('Proces', doelNaam),
-        edge.aantal > 1 ? { label: 'Koppelingen', waarde: `${edge.aantal}` } : null,
-      ]).concat(_herkomstVelden(edge.herkomst))
+        _veld('Systeem', bronNaam),
+        _veld('Bedrijfsfunctie', doelNaam),
+      ])
     } else if (edge.ring === 'gebruikers') {
       popupTitel.value = 'Gebruikt door'
       const gg = nodePerId.value[edge.doel_id]
@@ -1900,13 +1881,10 @@ function onNodeTap(id) {
   if (_tapId === id && _tapTimer) {
     clearTimeout(_tapTimer); _tapTimer = null; _tapId = null
     legendaTypeFilter.value = null // LI025 — dieper verkennen heft de legenda-dim op (schone focus)
-    // LI037 fase 4 — dubbelklik op een PROCES-knoop = bewuste INZOOM (set-inperking tot subboom +
-    // vervullers); de praatplaat-hercentrering hieronder blijft voor alle andere knopen.
+    // ADR-043 gate 4 — een bedrijfsfunctie-plek is geen component: dubbelklik hercentreert NIET
+    // (een plek-id is synthetisch, geen subgraaf-anker). Geen plek-inzoom in deze slice.
     const knoop = nodePerId.value[id]
-    if (knoop?.element_type === 'proces') {
-      zoomInOpProces(id)
-      return
-    }
+    if (knoop?.element_type === 'bedrijfsfunctie') return
     // ADR-040 F1 stap 2a — DUBBELklik = HERCENTREREN: dit component wordt het praatplaat-centrum
     // (concentric centraal + ego-kring). Zowel vanuit Overzicht als binnen de praatplaat.
     actieveSet.value = new Set([id])
@@ -1982,10 +1960,9 @@ const _pijlDataUri = (kleur) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M2 8h9M8 4l4 4-4 4" stroke="${kleur}" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`)
 const _PROCES_PIJL = _pijlDataUri('#475569')
 function _vormVoorType(n) {
-  // Proces = afgeronde rechthoek MET verloop-pijl (marker via CY_STYLE hieronder) — zelfde
-  // basissilhouet als component; de pijl is het onderscheid. (De eerdere pentagon schurkte te
-  // dicht tegen organisatie-hexagon/contract-tag aan.)
-  if (n.element_type === 'proces') return 'round-rectangle'
+  // Bedrijfsfunctie-plek = afgeronde rechthoek MET verloop-pijl (marker via CY_STYLE hieronder) —
+  // zelfde basissilhouet als component; de pijl is het onderscheid (ArchiMate BusinessFunction).
+  if (n.element_type === 'bedrijfsfunctie') return 'round-rectangle'
   if (n.element_type === 'gebruikersgroep') return 'octagon'        // groep/rol-badge
   if (n.element_type === 'contract') return 'tag'                   // label/"document"
   if (n.element_type === 'partij') return _AARD_VORM[n.soort] || 'round-rectangle'
@@ -2004,7 +1981,7 @@ const _AARD_LABEL = {
   externe_partij: 'Leverancier',
 }
 function _typeRegelVoor(n) {
-  if (n.element_type === 'proces') return 'Proces' // LI036 slice 2 — hoofdproces-knoop
+  if (n.element_type === 'bedrijfsfunctie') return 'Bedrijfsfunctie' // ADR-043 gate 4 — plek-knoop
   if (n.element_type === 'partij') return _AARD_LABEL[n.soort] || 'Partij'
   if (n.element_type === 'gebruikersgroep') return 'Gebruikersgroep'
   if (n.element_type === 'contract') return 'Contract'
@@ -2015,8 +1992,8 @@ function _typeRegelVoor(n) {
 // Legenda-glyphs: CSS-benaderingen van de Cytoscape-vormen (clip-path / border-radius). Neutrale
 // grijze vulling — kleur blijft voorbehouden aan status; deze glyphs tonen alléén de vorm→type-uitleg.
 const VORM_LEGENDA = [
-  // LI036 — proces: zelfde afgeronde rechthoek als component, met de witte verloop-pijl als onderscheid.
-  { label: 'Proces', stijl: { borderRadius: '3px', backgroundImage: `url("${_pijlDataUri('#ffffff')}")`, backgroundSize: '80%', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' } },
+  // ADR-043 gate 4 — bedrijfsfunctie: zelfde afgeronde rechthoek als component, met de witte verloop-pijl als onderscheid.
+  { label: 'Bedrijfsfunctie', stijl: { borderRadius: '3px', backgroundImage: `url("${_pijlDataUri('#ffffff')}")`, backgroundSize: '80%', backgroundRepeat: 'no-repeat', backgroundPosition: 'center' } },
   { label: 'Component', stijl: { borderRadius: '3px' } },
   { label: 'Infrastructuur', stijl: { borderRadius: '50% / 35%' } },
   { label: 'Contract', stijl: { clipPath: 'polygon(0 0,80% 0,100% 50%,80% 100%,0 100%)' } },
@@ -2044,9 +2021,9 @@ function toggleLegendaFilter(label) {
   legendaTypeFilter.value = legendaTypeFilter.value === label ? null : label
 }
 const _LEGENDA_MATCH = {
-  Proces: (n) => n.element_type === 'proces', // LI036 slice 2
-  // Component = de round-rectangle-glyph: alles wat geen proces/gg/contract/partij/technology is.
-  Component: (n) => n.element_type !== 'proces' && n.element_type !== 'gebruikersgroep' && n.element_type !== 'contract' && n.element_type !== 'partij' && n.laag !== 'technology',
+  Bedrijfsfunctie: (n) => n.element_type === 'bedrijfsfunctie', // ADR-043 gate 4
+  // Component = de round-rectangle-glyph: alles wat geen bedrijfsfunctie/gg/contract/partij/technology is.
+  Component: (n) => n.element_type !== 'bedrijfsfunctie' && n.element_type !== 'gebruikersgroep' && n.element_type !== 'contract' && n.element_type !== 'partij' && n.laag !== 'technology',
   Infrastructuur: (n) => n.laag === 'technology',
   Contract: (n) => n.element_type === 'contract',
   Gebruikersgroep: (n) => n.element_type === 'gebruikersgroep',
@@ -2130,7 +2107,7 @@ const {
 // "Overig", ook als `laag` ontbreekt of een componenttype geen application-laag-typing heeft (bug 1).
 function _laneVan(n) {
   const et = n.element_type
-  if (et === 'proces') return 'processen' // LI036 slice 2 — vóór de rest-tak (anders → componenten)
+  if (et === 'bedrijfsfunctie') return 'bedrijfsfuncties' // ADR-043 gate 4 — vóór de rest-tak (anders → componenten)
   if (et === 'gebruikersgroep') return 'gebruikers'
   if (et === 'contract') return 'contracten'
   if (et === 'partij') return 'rollen'
@@ -2153,14 +2130,14 @@ const zichtbareLanes = computed(() =>
 )
 // LI019 1d-v6 — per lane: de nodes (gesorteerd) + grid-afmetingen. Lane-hoogte schaalt met het
 // aantal rijen (nodes wrappen over LANE_COLS kolommen); lanes worden cumulatief gestapeld (`top`).
-// LI037 fase 2 (ADR-034 besluit 2) — boom-layout van de proceszone: rij = diepte (wortel boven),
-// kolommen gegroepeerd per boom (twee bomen lopen niet in elkaar over). Gedeelde pure module
-// (`procesBoom.js`) — de layout-samenval-test draait tegen DEZELFDE definitie (geen test-spiegel).
-// Buiten Lagen wordt dit niet gelezen; ring 'processen' uit → lege zone (instances vallen weg).
-const _procesBoom = computed(() => {
-  const ids = new Set(instanceProjectie.value.instances.filter((i) => i.baan === 'processen').map((i) => i.id))
+// ADR-043 gate 4 (G7) — boom-layout van de bedrijfsfunctie-plekzone: rij = diepte (wortel boven),
+// kolommen gegroepeerd per boom. De backend levert PATH-GEËXPANDEERDE plek-knopen (elke plek één
+// pad, één ouder) → de bestaande single-parent `procesBoomLayout` past 1-op-1 (geen nieuwe layout).
+// Gedeelde pure module (`procesBoom.js`) — de layout-samenval-test draait tegen DEZELFDE definitie.
+const _functiePlekBoom = computed(() => {
+  const ids = new Set(instanceProjectie.value.instances.filter((i) => i.baan === 'bedrijfsfuncties').map((i) => i.id))
   const hier = grafEdges.value
-    .filter((e) => e.relatietype === 'proces_hierarchie')
+    .filter((e) => e.relatietype === 'functie_plaatsing')
     .map((e) => ({ bron: e.bron_id, doel: e.doel_id }))
   return procesBoomLayout(ids, hier, (id) => nodePerId.value[id]?.naam || String(id))
 })
@@ -2173,10 +2150,10 @@ const laneLayout = computed(() => {
   let top = 0
   return zichtbareLanes.value.map((l, index) => {
     const nodes = (perLane[l.key] || []).slice().sort((a, b) => (a.node.naam || '').localeCompare(b.node.naam || ''))
-    // LI037 fase 2 — de proceszone is rij-per-diepte (boom), niet het wrap-grid; alle andere
-    // banen exact ongewijzigd (default-pad byte-identiek — de tak hangt alleen aan deze key).
-    const rows = l.key === 'processen' && nodes.length
-      ? _procesBoom.value.rijen
+    // ADR-043 gate 4 — de bedrijfsfunctie-plekzone is rij-per-diepte (boom), niet het wrap-grid;
+    // alle andere banen exact ongewijzigd (default-pad byte-identiek — de tak hangt aan deze key).
+    const rows = l.key === 'bedrijfsfuncties' && nodes.length
+      ? _functiePlekBoom.value.rijen
       : Math.max(1, Math.ceil(nodes.length / LANE_COLS))
     const height = Math.max(LANE_MIN_H, rows * NODE_H + 2 * LANE_PAD)
     const band = { key: l.key, label: l.label, bg: l.bg, aantal: l.aantal, leeg: nodes.length === 0, index, top, height, nodes }
@@ -2214,10 +2191,12 @@ function _nodeData(n) {
     // LI033 — grof-only ("nog niet verfijnd"): rustige node-markering (gestippelde rand). Alleen
     // aanwezig als de node in de grof-only-set zit (undefined → CY-selector `node[?grofOnly]` matcht niet).
     grofOnly: grofOnlyIds.value.has(n.id) ? true : undefined,
-    // LI037 fase 2 (besluit 6/A3) — "geen ondersteunend systeem": rustige rand-cue op een
-    // proces-knoop zonder vervulling in zijn hele subboom (CY-selector `node[?procesGap]`);
-    // altijd zichtbaar zolang de proces-ring aan staat, los van de registratiegaps-toggle.
-    procesGap: n.element_type === 'proces' && _procesZonderSysteem.value.has(n.id) ? true : undefined,
+    // ADR-043 gate 4 (G8) — de gap-cue op een plek-knoop, UIT `plek_stand` (server-side, de
+    // invariant): 'gat' = niets op deze plek én niets erboven (dashed rand, `node[?procesGap]`);
+    // 'via_boven' = ondersteund via een bovenliggende functie (een derde kleur, `node[?plekViaBoven]`).
+    // Altijd zichtbaar zolang de bedrijfsfunctie-ring aan staat, los van de registratiegaps-toggle.
+    procesGap: _plekGat.value.has(n.id) ? true : undefined,
+    plekViaBoven: _plekViaBoven.value.has(n.id) ? true : undefined,
     // LI037 fase 3d — het vroegere aparte `procesHerkomst`-accent is vervallen: de herkomst-
     // markering is voortaan uitsluitend de bestaande oranje selectie (hl-node).
   }
@@ -2241,10 +2220,10 @@ function _edgeData(e, i) {
   if (e.ring === 'applicaties') {
     const pijl = e.richting === 'tweerichting' || e.richting === 'bidirectioneel' ? '↔' : '→'
     label = ['koppeling', e.protocol ? String(e.protocol).toUpperCase() : null, pijl, e.aantal >= 2 ? `${e.aantal}×` : null].filter(Boolean).join(' · ')
-  } else if (e.ring === 'processen') {
-    // LI036 slice 2 · stap 3 — aantal-badge op de gebundelde vervult-lijn: exact het
-    // flow-bundel-patroon ("N×" in het edge-label; aantal 1 → geen badge).
-    label = [e.label || 'vervult', e.aantal >= 2 ? `${e.aantal}×` : null].filter(Boolean).join(' · ')
+  } else if (e.ring === 'bedrijfsfuncties') {
+    // ADR-043 gate 4 — de systeem→plek-lijn draagt "ondersteunt"; de plek-hiërarchie "onderdeel
+    // van". Geen N×-bundeling: elke edge is precies één systeem→plek of één plek→ouder-plek.
+    label = e.label || ''
   } else {
     // ADR-031 — rol-naam / 'gebruikt door' / 'valt onder' / 'draait op' uit de edge-data.
     label = e.label || ''
@@ -2262,7 +2241,7 @@ function _edgeData(e, i) {
 // (categorie via _laneVan; de componenten-baan hoort bij de 'applicaties'-ring). 'overig'
 // (categorieloos) heeft geen ring → altijd tonen onder de toggle — daar is niets uitgezet, en
 // stil verbergen zou een echte gap onzichtbaar maken.
-const _BAAN_RING = { processen: 'processen', rollen: 'rollen', gebruikers: 'gebruikers', componenten: 'applicaties', infrastructuur: 'infrastructuur', contracten: 'contracten' }
+const _BAAN_RING = { bedrijfsfuncties: 'bedrijfsfuncties', rollen: 'rollen', gebruikers: 'gebruikers', componenten: 'applicaties', infrastructuur: 'infrastructuur', contracten: 'contracten' }
 // LI020 → LI036 — definitieve node-set voor het canvas (IDENTIEK voor alle weergaven — Lagen is
 // enkel een andere layout, geen andere set). "Ring uit wint": zichtbaar is wat de AANstaande
 // ringen dragen — een knoop is zichtbaar als hij het ego-centrum of een set-lid is (bewuste
@@ -2489,10 +2468,10 @@ function _swimlanePositions() {
   const pos = {}
   for (const lane of laneLayout.value) {
     const { nodes, top } = lane
-    // LI037 fase 2 — proceszone als BOOM: rij = diepte, kolom uit de gedeelde boom-layout
-    // (gegroepeerd per hoofdproces), horizontaal gecentreerd rond 0 zoals de andere banen.
-    if (lane.key === 'processen' && nodes.length) {
-      const boom = _procesBoom.value
+    // ADR-043 gate 4 — bedrijfsfunctie-plekzone als BOOM: rij = diepte, kolom uit de gedeelde
+    // boom-layout (gegroepeerd per wortelfunctie), horizontaal gecentreerd rond 0 zoals de anderen.
+    if (lane.key === 'bedrijfsfuncties' && nodes.length) {
+      const boom = _functiePlekBoom.value
       const off = (boom.kolommen - 1) / 2
       nodes.forEach((n) => {
         const kol = boom.kolom.get(n.id) ?? 0
@@ -2668,10 +2647,10 @@ const CY_STYLE = [
       'padding-left': 16, 'padding-right': 16, 'padding-top': 9, 'padding-bottom': 9,
     },
   },
-  // LI036 slice 2 — proces: afgeronde rechthoek + VERLOOP-PIJL-marker (rechtsonder, in de padding-
-  // zone). Hoort bij de vorm-definitie (geen aparte overlay): dimt en schaalt mee met de knoop.
+  // ADR-043 gate 4 — bedrijfsfunctie-plek: afgeronde rechthoek + VERLOOP-PIJL-marker (rechtsonder,
+  // in de padding-zone). Hoort bij de vorm-definitie (geen aparte overlay): dimt en schaalt mee.
   {
-    selector: 'node[element_type = "proces"]',
+    selector: 'node[element_type = "bedrijfsfunctie"]',
     style: {
       'background-image': _PROCES_PIJL, 'background-width': 12, 'background-height': 12,
       'background-position-x': '96%', 'background-position-y': '90%', 'background-clip': 'none',
@@ -2689,12 +2668,13 @@ const CY_STYLE = [
   // rand-KLEUR blijft data(border) (lifecycle). Onderscheidbaar van de gestreepte externe-dataprovider;
   // selectie/highlight-regels hieronder winnen (staan later en zetten border-style terug op solid).
   { selector: 'node[?grofOnly]', style: { 'border-style': 'dotted', 'border-width': 3 } },
-  // LI037 fase 2 (besluit 6/A3) — proces zonder ondersteunend systeem: rustige gestreepte rand
-  // (zelfde eerlijkheids-cue-taal als grof-only/dataprovider; géén alarmkleur — de rand-KLEUR
-  // blijft data(border)). De popup benoemt het gat in woorden. Selectie/highlight-regels winnen.
+  // ADR-043 gate 4 (G8) — plek 'gat' (niets op deze plek én niets erboven): rustige gestreepte
+  // rand (zelfde eerlijkheids-cue-taal als grof-only/dataprovider; géén alarmkleur). De popup
+  // benoemt het gat in woorden. Selectie/highlight-regels winnen.
   { selector: 'node[?procesGap]', style: { 'border-style': 'dashed', 'border-width': 3 } },
-  // (LI037 fase 3d — het vroegere `node[?procesHerkomst]`-accent is vervallen: de herkomst-knoop
-  // van een proces-ingang draagt de bestaande oranje selectie-highlight, geen tweede rand-laag.)
+  // ADR-043 gate 4 (G8) — plek 'via_boven' (ondersteund via een bovenliggende functie — een derde
+  // stand tussen gat en groen, ADR-051 besluit 1): een eigen, rustige gestippelde cue.
+  { selector: 'node[?plekViaBoven]', style: { 'border-style': 'dotted', 'border-width': 3 } },
   {
     selector: 'edge',
     style: {
@@ -3527,7 +3507,6 @@ const typeLabel = (t) => humaniseer(t)
           :eigenaar-opties="[]"
           :set-grootte="actieveSetNodes.length"
           @voeg-componenten-toe="voegComponentenToeAanSet"
-          @open-proces="openViaProces"
           @open-view="openView"
           @toon-hele-landschap="toonHeleLandschap"
           @sluit="beginschermOpen = false"

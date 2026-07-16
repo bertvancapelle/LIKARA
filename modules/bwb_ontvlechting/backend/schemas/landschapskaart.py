@@ -50,6 +50,12 @@ class LandschapsNode(BaseModel):
     # organisatie, dus de vlag zou permanent False zijn.
     eigenaar_organisatie_id: UUID | None = None
     gebruikt_door_organisaties: list[UUID] = []
+    # ADR-043 gate 4 (G7/G8) — bedrijfsfunctie-plek-knoop (ring 'bedrijfsfuncties'): de
+    # onderliggende functie (voor naam/handle; het knoop-id is een path-uuid5 want één functie
+    # kan path-geëxpandeerd meermaals verschijnen) + de stand uit `plek_standen` (gat/via_boven/
+    # hier/niets) die de gap-cue voedt — read-only uit de gedeelde leeslaag, nooit hier berekend.
+    functie_id: UUID | None = None
+    plek_stand: str | None = None
 
 
 class ProcesHerkomstItem(BaseModel):

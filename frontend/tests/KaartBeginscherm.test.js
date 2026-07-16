@@ -195,22 +195,9 @@ describe('KaartBeginscherm', () => {
     expect(w.vm.zoekOpen).toBe(false) // en is nu gesloten
   })
 
-  // ── LI037 fase 3 — "Via proces"-ingang (ADR-034 besluit 4) ──
-  it('"Via proces": sectie aanwezig; treffer toont oudercontext; keuze emit het proces als geheel', async () => {
+  // ADR-043 gate 4 slice 2 — de "Via proces"-ingang is vervallen met de proceslaan (G1).
+  it('geen "Via proces"-ingang meer (proceslaan vervangen door de bedrijfsfunctie-laan)', async () => {
     const w = mountKB()
-    const picker = zs(w, 'kb-proces')
-    expect(picker).toBeTruthy()
-    // Identiteit-patroon: deelproces toont zijn ouder ("Bezwaar behandelen — Vergunningverlening").
-    const weergave = picker.props('weergave')
-    expect(weergave({ naam: 'Bezwaar behandelen', ouder_naam: 'Vergunningverlening' })).toBe('Bezwaar behandelen — Vergunningverlening')
-    expect(weergave({ naam: 'Vergunningverlening', ouder_naam: null })).toBe('Vergunningverlening')
-    // De zoekbron pagineert over processen.lijst en filtert soepel (client-side, zoekveld-norm).
-    const r = await picker.props('zoekFunctie')({ zoek: 'bezw' })
-    expect(api.processen.lijst).toHaveBeenCalled()
-    expect(r.items.map((p) => p.naam)).toEqual(['Bezwaar behandelen'])
-    // Keuze → het HELE proces gaat omhoog (de parent bouwt de ene handoff).
-    picker.vm.$emit('keuze', { id: 'bz', naam: 'Bezwaar behandelen', ouder_id: 'vv' })
-    await flushPromises()
-    expect(w.emitted('openProces')).toEqual([[{ id: 'bz', naam: 'Bezwaar behandelen', ouder_id: 'vv' }]])
+    expect(zs(w, 'kb-proces')).toBeFalsy()
   })
 })

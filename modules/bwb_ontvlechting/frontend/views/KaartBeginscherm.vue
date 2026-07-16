@@ -19,7 +19,6 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '@/api'
 import ZoekSelect from './ZoekSelect.vue'
 import { humaniseer } from '../labels'
-import { maakProcesZoeker } from '../procesZoek'
 
 const props = defineProps({
   opgeslagenViews: { type: Array, default: () => [] },
@@ -30,7 +29,7 @@ const props = defineProps({
   // Aantal componenten in de actieve set — voedt de "Toon op de kaart"-knop (label + disabled-staat).
   setGrootte: { type: Number, default: 0 },
 })
-const emit = defineEmits(['voegComponentenToe', 'openProces', 'openView', 'toonHeleLandschap', 'sluit'])
+const emit = defineEmits(['voegComponentenToe', 'openView', 'toonHeleLandschap', 'sluit'])
 
 // Gesloten enum-lijsten (≤10 vaste opties → native <select>, conform ZoekSelect-standaard).
 const LAAG_OPTIES = ['application', 'technology', 'business', 'implementation_migration']
@@ -107,13 +106,6 @@ const zoekEigenaars = (params = {}) => api.partijen.lijst({ ...params, aard: 'or
 // LI033b — de afdeling-sub-picker is hier vervallen (was dood: additief-subset op het beginscherm).
 // Afdeling-inzoom leeft op de afdeling-PartijDetail → "Toon op de landschapskaart".
 const zoekOrganisaties = (params = {}) => api.partijen.lijst({ ...params, aard: 'organisatie' })
-// LI037 fase 3 — "Via proces" (ADR-034 besluit 4): gedeelde proces-zoeker mét oudercontext
-// ("Besluit vastleggen — Aanvraag behandelen"); hoofd- én deelprocessen kiesbaar. De keuze gaat
-// als geheel omhoog (emit) — de parent bouwt de ENE proces-handoff en opent Lagen op de boom.
-const { zoekFunctie: zoekProcessen, weergave: procesWeergave } = maakProcesZoeker(api)
-function kiesProces(item) {
-  if (item?.id) emit('openProces', item)
-}
 
 function _emitComponenten(lijst, mapper) {
   const arr = Array.isArray(lijst) ? lijst : lijst?.items || []
@@ -321,12 +313,8 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
           <span>Organisatie</span>
           <ZoekSelect :zoek-functie="zoekOrganisaties" :weergave="(p) => p.naam" id-veld="id" placeholder="Zoek organisatie…" testid="kb-organisatie" @keuze="kiesOrganisatie" />
         </label>
-        <!-- LI037 fase 3 — "Via proces": kies een (deel)proces → de kaart opent in Lagen op de
-             volledige boom onder het hoofdproces, met de herkomst benoemd (ADR-034 besluit 4). -->
-        <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-          <span>Proces</span>
-          <ZoekSelect :zoek-functie="zoekProcessen" :weergave="procesWeergave" id-veld="id" placeholder="Zoek proces…" testid="kb-proces" @keuze="kiesProces" />
-        </label>
+        <!-- ADR-043 gate 4 slice 2 — de "Via proces"-ingang is vervallen met de proceslaan (G1);
+             de kaart opent op componenten/organisaties en toont de bedrijfsfunctie-laan als verrijking. -->
       </section>
 
       <!-- 3 — Opgeslagen views (gelijkwaardige ingang) -->

@@ -17,6 +17,7 @@ from sqlalchemy import String, and_, cast, column, func, or_, select, table, tru
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
+    Bedrijfsfunctie,
     Component,
     ComponentConfigDimensie,
     Contract,
@@ -25,8 +26,6 @@ from models.models import (
     Partij,
     PartijAard,
     Plateau,
-    Proces,
-    Procesvervulling,
     Relatie,
     RelatieKenmerkDimensie,
     Roltoewijzing,
@@ -35,10 +34,10 @@ from schemas.landschapskaart import (
     LandschapsEdge,
     LandschapskaartResponse,
     LandschapsNode,
-    ProcesHerkomstItem,
 )
-from services import applicatiefunctie_catalog as af_catalog
+from services import bedrijfsfunctie_service
 from services import componentconfig_catalog as comp_catalog
+from services import functievervulling_service
 from services import gebruikersgroep_service
 from services import relatiekenmerk_catalog as rk_catalog
 
@@ -491,137 +490,101 @@ async def haal_grafdata_op(
                 relatietype="leverancier", label="geleverd door", ring="contracten",
             ))
 
-    # ── Ring — Processen (LI036 slice 2 → LI037 fase 1): subboom-verrijkte proces-projectie ──
-    # Read-only VERRIJKING (zoals plateau_map/lev_map): gegeven de gescopede componenten leveren we
-    # het volledige proceslandschap ónder de geraakte hoofdprocessen — deelprocessen (en dieper) als
-    # EERSTE-KLAS knopen (óók zonder vervulling: de "geen ondersteunend systeem"-schakel komt mee),
-    # hiërarchie-edges kind→ouder binnen de subboom, en per (component, GEREGISTREERD proces) één
-    # gebundelde vervult-edge (`aantal` = regels van dat paar; `herkomst` = de functie-uitsplitsing).
-    # De vroegere samentrekking naar de wortel is hiermee VERVANGEN (ADR-034 §Proces-diepte,
-    # besluit 1/A1): de wortel komt via de hiërarchie-edges in beeld, niet meer als edge-doel —
-    # géén dubbele lijn component→deelproces én component→hoofdproces.
-    # ZELFDE roll-up-bron/-semantiek als `procesvervulling_service.rollup_voor_proces` en
-    # `proces_service.subboom` (procesvervulling + `ouder_id`-boom): omhoog geklommen naar de
-    # wortel, daarna dezelfde boom batch-gewijs omlaag bewandeld — één definitie, geen tweede bron.
-    # Omvang schaalt met de selectie (alleen bomen waarvan een tak geraakt wordt). Geen schema,
-    # geen scope_ids-verbreding (processen zijn verrijking, zoals plateau-info), engine onaangeroerd.
-    pv_rijen = (
-        await session.execute(
-            select(
-                Procesvervulling.component_id, Procesvervulling.proces_id,
-                Procesvervulling.applicatiefunctie,
-            )
-            .where(Procesvervulling.tenant_id == tid, _sc(Procesvervulling.component_id))
-            .order_by(Procesvervulling.component_id, Procesvervulling.id)
-        )
-    ).all()
-    # Dangling-guard (P4) vóór de boom-bepaling: alleen vervul-regels van componenten die als knoop
-    # meekomen tellen mee — zo trekt een buiten-beeld-component ook geen subboom naar binnen.
-    pv_rijen = [r for r in pv_rijen if r.component_id in comp_node]
-    if pv_rijen:
-        # Proces-info batch-iteratief bijladen t/m alle voorouders. Termineert altijd: alleen
-        # nog-niet-geprobeerde ids worden geladen (ook bij een cyclus of een wees-verwijzing).
-        proces_info: dict[uuid.UUID, tuple[str, uuid.UUID | None]] = {}
-        geprobeerd: set[uuid.UUID] = set()
-        te_laden = {r.proces_id for r in pv_rijen}
-        while te_laden:
-            geprobeerd |= te_laden
-            p_rijen = (
-                await session.execute(
-                    select(Proces.id, Proces.naam, Proces.ouder_id)
-                    .where(Proces.tenant_id == tid, Proces.id.in_(te_laden))
-                )
-            ).all()
-            te_laden = set()
-            for p in p_rijen:
-                proces_info[p.id] = (p.naam, p.ouder_id)
-                if p.ouder_id is not None and p.ouder_id not in geprobeerd:
-                    te_laden.add(p.ouder_id)
+    # ── Ring — Bedrijfsfuncties (ADR-043 gate 4, G7/G8): plek-projectie, path-expansie ──
+    # De proceslaan is HIERMEE VERVANGEN (ADR-043 G1). Read-only VERRIJKING rond de in-beeld
+    # componenten: welke bedrijfsfunctie-PLEK draagt welk systeem. Leest UITSLUITEND de gedeelde
+    # leesregel — `dekking_overzicht` (wie draagt de plek, MÉT verdringing: een verdrongen grof
+    # antwoord staat niet in `componenten` en wordt dus nooit als "gedekt" getekend — de invariant,
+    # ADR-049 besluit 5) en `plek_standen` (de vier standen die de gap-cue voeden, omhoog — G8).
+    # NOOIT een ruwe functievervulling-query hier (bronscan-test borgt dat).
+    # Path-expansie (G7): een functie/voorouder op meerdere plekken verschijnt PER PAD als eigen
+    # plek-knoop (deterministische uuid5 van het pad-namenspoor) — de kaart blijft een schone boom
+    # (hoogte=diepte). Twee exemplaren van dezelfde plek dragen dezelfde stand (één plek-waarheid).
+    # Geen scope_ids-verbreding (functies zijn verrijking, zoals plateau-info), engine onaangeroerd.
+    dekking = await functievervulling_service.dekking_overzicht(session, tid)
+    if dekking:
+        standen = await functievervulling_service.plek_standen(session, tid)
+        stand_van = {(p["functie_id"], p["ouder_functie_id"]): p["stand"] for p in standen["plekken"]}
+        # De plaatsings-hiërarchie (ADR-044: de boom leeft in aggregation-plaatsingen). Canonieke
+        # structuurbron — dezelfde die de leeslaag intern gebruikt; geen tweede definitie.
+        paren = await bedrijfsfunctie_service._plaatsings_paren(session, tid)  # (ouder, kind)
+        ouders_van: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for ouder, kind in paren:
+            ouders_van.setdefault(kind, []).append(ouder)
 
-        # Cyclus-veilige klim naar de wortel (visited-set — een traversal mag nooit hangen, B3-les).
-        # Bij een (via direct SQL geconstrueerde) ouder-lus geldt het eerste her-bezochte proces als
-        # pseudo-wortel: deterministisch, geen hang. Memoized per proces.
-        wortel_cache: dict[uuid.UUID, uuid.UUID] = {}
-        def _wortel(pid: uuid.UUID) -> uuid.UUID:
-            bezocht: set[uuid.UUID] = set()
-            cur = pid
-            while True:
-                if cur in wortel_cache:
-                    w = wortel_cache[cur]
-                    break
-                if cur in bezocht:
-                    w = cur  # cyclus in de data → niet hangen
-                    break
-                bezocht.add(cur)
-                info = proces_info.get(cur)
-                ouder = info[1] if info else None
-                if ouder is None:
-                    w = cur
-                    break
-                cur = ouder
-            for b in bezocht:
-                wortel_cache[b] = w
-            return w
+        # Dangling-guard (spiegel van de oude proces-projectie): een plek telt alleen als een
+        # IN-BEELD component haar draagt — het antwoord NÁ verdringing (nooit een verdrongen
+        # antwoord). Grof dekt elke plek van de functie; fijn alleen zijn eigen plek — beide komen
+        # als aparte dekking-entries mee.
+        dragers_op_plek: dict[tuple[uuid.UUID, uuid.UUID | None], list[uuid.UUID]] = {}
+        touched: set[uuid.UUID] = set()
+        for d in dekking:
+            in_beeld = [c["component_id"] for c in d["componenten"] if c["component_id"] in comp_node]
+            if in_beeld:
+                dragers_op_plek[(d["functie_id"], d["ouder_functie_id"])] = in_beeld
+                touched.add(d["functie_id"])
 
-        # Geraakte hoofdproces-wortels → de VOLLEDIGE subboom eronder, batch-iteratief omlaag
-        # (BFS per niveau, visited-set) — de spiegel van het omhoog-laden hierboven; exact de
-        # `proces_service.subboom`-semantiek, set-breed gebatcht (geen N+1, geen hang bij cycli).
-        wortels = {_wortel(r.proces_id) for r in pv_rijen}
-        subboom_ids: set[uuid.UUID] = set(wortels)
-        frontier: set[uuid.UUID] = set(wortels)
-        while frontier:
-            k_rijen = (
-                await session.execute(
-                    select(Proces.id, Proces.naam, Proces.ouder_id)
-                    .where(Proces.tenant_id == tid, Proces.ouder_id.in_(frontier))
-                )
-            ).all()
-            frontier = set()
-            for k in k_rijen:
-                proces_info[k.id] = (k.naam, k.ouder_id)
-                if k.id not in subboom_ids:
-                    subboom_ids.add(k.id)
-                    frontier.add(k.id)
+        if touched:
+            # Naam-resolutie voor alle betrokken functies (verrijking, geen leesregel).
+            betrokken = set(touched)
+            for kind, ouders in ouders_van.items():
+                betrokken.add(kind)
+                betrokken.update(ouders)
+            naam_van: dict[uuid.UUID, str] = {}
+            for r in (await session.execute(
+                select(Bedrijfsfunctie.id, Bedrijfsfunctie.naam)
+                .where(Bedrijfsfunctie.tenant_id == tid, Bedrijfsfunctie.id.in_(betrokken))
+            )).all():
+                naam_van[r.id] = r.naam
 
-        # Proces-nodes: élk subboom-lid eerste-klas (óók zonder vervulling — de ondersteuningsloze
-        # schakel is juist het punt); gesorteerd voor een deterministische respons.
-        for pid in sorted(subboom_ids, key=str):
-            p_info = proces_info.get(pid)
-            nodes.append(LandschapsNode(
-                id=pid, naam=p_info[0] if p_info else f"proces {str(pid)[:8]}",
-                element_type="proces", laag="business", archimate_element="business_process",
-            ))
-        # Hiërarchie-edges kind→ouder binnen de subboom (de wortel zelf draagt er geen — bij een
-        # pseudo-wortel uit een datacyclus voorkomt dat een edge-lus; de boom blijft tekenbaar).
-        for pid in sorted(subboom_ids, key=str):
-            p_info = proces_info.get(pid)
-            ouder = p_info[1] if p_info else None
-            if pid not in wortels and ouder is not None and ouder in subboom_ids:
-                edges.append(LandschapsEdge(
-                    bron_id=pid, doel_id=ouder, relatietype="proces_hierarchie",
-                    label="onderdeel van", ring="processen",
-                ))
+            # Path-expansie: alle wortel→touched-functie-paden (DAG, cyclus-veilig via `bezocht`).
+            # Elke knoop op zo'n pad wordt een plek-knoop in díé context; de context = het pad.
+            paden: list[list[uuid.UUID]] = []
 
-        af_labels = await af_catalog.labels(session)
-        # Vervult-edges op het GEREGISTREERDE (deel)proces, gebundeld per (component, proces):
-        # meerdere functies van hetzelfde paar = één lijn met `aantal` + functie-uitsplitsing.
-        bundel: dict[tuple[uuid.UUID, uuid.UUID], dict] = {}
-        for r in pv_rijen:
-            b = bundel.setdefault((r.component_id, r.proces_id), {"aantal": 0, "functies": set(), "herkomst": []})
-            b["aantal"] += 1
-            b["functies"].add(r.applicatiefunctie)
-            p_info = proces_info.get(r.proces_id)
-            b["herkomst"].append(ProcesHerkomstItem(
-                proces_id=r.proces_id,
-                proces_naam=p_info[0] if p_info else None,
-                applicatiefunctie_label=af_catalog.resolveer_een(r.applicatiefunctie, af_labels),
-            ))
-        for (cid, pid), b in bundel.items():
-            enkel = next(iter(b["functies"])) if len(b["functies"]) == 1 else None
-            edges.append(LandschapsEdge(
-                bron_id=cid, doel_id=pid, relatietype="procesvervulling",
-                label=(af_catalog.resolveer_een(enkel, af_labels) if enkel else None) or "vervult",
-                ring="processen", aantal=b["aantal"], herkomst=b["herkomst"],
-            ))
+            def _paden_naar(functie: uuid.UUID, staart: list[uuid.UUID], bezocht: frozenset) -> None:
+                ouders = [o for o in ouders_van.get(functie, []) if o not in bezocht]
+                if not ouders:
+                    paden.append([functie, *staart])  # wortel (of cyclus-stop) → compleet pad
+                    return
+                for o in sorted(ouders, key=str):
+                    _paden_naar(o, [functie, *staart], bezocht | {functie})
+
+            for tf in sorted(touched, key=str):
+                _paden_naar(tf, [], frozenset())
+
+            _NS = uuid.UUID("00000000-0000-0000-0000-0000000000f4")  # vaste namespace voor plek-uuid5
+
+            def _plek_id(prefix) -> uuid.UUID:
+                return uuid.uuid5(_NS, ">".join(str(x) for x in prefix))
+
+            geplaatst: set[tuple] = set()  # ontdubbel gedeelde pad-prefixen tussen paden
+            for pad in paden:
+                for i, functie in enumerate(pad):
+                    prefix = tuple(pad[: i + 1])
+                    if prefix in geplaatst:
+                        continue
+                    geplaatst.add(prefix)
+                    ouder = pad[i - 1] if i > 0 else None
+                    nodes.append(LandschapsNode(
+                        id=_plek_id(prefix),
+                        naam=naam_van.get(functie, f"functie {str(functie)[:8]}"),
+                        element_type="bedrijfsfunctie", laag="business",
+                        archimate_element="business_function",
+                        functie_id=functie, plek_stand=stand_van.get((functie, ouder)),
+                    ))
+                    if i > 0:
+                        edges.append(LandschapsEdge(
+                            bron_id=_plek_id(prefix), doel_id=_plek_id(pad[:i]),
+                            relatietype="functie_plaatsing", label="onderdeel van",
+                            ring="bedrijfsfuncties",
+                        ))
+                    # Systeem→plek-edge alleen waar een in-beeld component déze plek draagt (het
+                    # antwoord ná verdringing — nooit een verdrongen antwoord; de invariant).
+                    for cid in dragers_op_plek.get((functie, ouder), []):
+                        edges.append(LandschapsEdge(
+                            bron_id=cid, doel_id=_plek_id(prefix),
+                            relatietype="functievervulling", label="ondersteunt",
+                            ring="bedrijfsfuncties",
+                        ))
 
     return LandschapskaartResponse(nodes=nodes, edges=edges)

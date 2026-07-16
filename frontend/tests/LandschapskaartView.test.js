@@ -606,11 +606,11 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v3 — lane verslepen herschikt de volgorde en persisteert in sessionStorage', async () => {
     const w = await mountSwimlane()
-    // LI036 — startvolgorde: Processen bovenaan (slice 2); … → Contracten → Overig (Overig onderaan).
-    expect(w.vm.laneVolgorde).toEqual(['processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig'])
-    w.vm._herschikLane('contracten', 'rollen') // contracten naar de positie van rollen (na de proceslaan)
+    // ADR-043 gate 4 — startvolgorde: Bedrijfsfuncties bovenaan; … → Contracten → Overig (onderaan).
+    expect(w.vm.laneVolgorde).toEqual(['bedrijfsfuncties', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'contracten', 'overig'])
+    w.vm._herschikLane('contracten', 'rollen') // contracten naar de positie van rollen (na de functie-laan)
     await flushPromises()
-    expect(w.vm.laneVolgorde[0]).toBe('processen') // LI036 — proceslaan blijft bovenaan
+    expect(w.vm.laneVolgorde[0]).toBe('bedrijfsfuncties') // ADR-043 gate 4 — de functie-laan blijft bovenaan
     expect(w.vm.laneVolgorde[1]).toBe('contracten')
     expect(w.vm.laneVolgorde[2]).toBe('rollen')
     // Direct opgeslagen (geen aparte bewaar-knop).
@@ -647,7 +647,7 @@ describe('LandschapskaartView v3', () => {
 
   it('LI019 1d-v2 — lanevolgorde + verberg-lege hersteld uit sessionStorage', async () => {
     sessionStorage.setItem('lk-state', JSON.stringify({
-      laneVolgorde: ['contracten', 'processen', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
+      laneVolgorde: ['contracten', 'bedrijfsfuncties', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
       verbergLegeLanes: true,
     }))
     const { w } = await mountView()
@@ -655,12 +655,12 @@ describe('LandschapskaartView v3', () => {
     expect(w.vm.verbergLegeLanes).toBe(true)
   })
 
-  it('LI036 — een legacy-volgorde zónder proceslaan valt terug op de default (processen bovenaan)', async () => {
+  it('ADR-043 gate 4 — een legacy-volgorde zónder functie-laan valt terug op de default (bedrijfsfuncties bovenaan)', async () => {
     sessionStorage.setItem('lk-state', JSON.stringify({
       laneVolgorde: ['contracten', 'rollen', 'gebruikers', 'componenten', 'infrastructuur', 'overig'],
     }))
     const { w } = await mountView()
-    expect(w.vm.laneVolgorde[0]).toBe('processen')
+    expect(w.vm.laneVolgorde[0]).toBe('bedrijfsfuncties')
   })
 
   // ── LI036 slice 1 — "Lagen" als derde weergave (zelfde set, zelfde stijlbron, zelfde interactie) ──
@@ -932,681 +932,136 @@ describe('LandschapskaartView v3', () => {
     })
   })
 
-  // ── LI036 slice 2 — proceslaan + ring "Processen" ──
-  describe('LI036 slice 2 — proceslaan + ring Processen', () => {
-    // LI037 fase 1-datavorm: de VOLLEDIGE subboom als knopen (incl. de ondersteuningsloze
-    // schakel pr4), hiërarchie-edges kind→ouder, en vervult-edges op het GEREGISTREERDE
-    // (deel)proces — twee bomen (Vergunningverlening 3 niveaus + Burgerzaken 2 niveaus).
-    const PROCES_GRAF = () => ({
+  // ── ADR-043 gate 4 slice 2 — bedrijfsfunctie-plek-laan (verving de proceslaan) ──
+  describe('ADR-043 gate 4 — bedrijfsfunctie-plek-laan + ring Bedrijfsfuncties', () => {
+    // Backend-datavorm: PATH-GEEXPANDEERDE plek-knopen (element_type 'bedrijfsfunctie', één ouder
+    // per knoop), systeem->plek-edges ('functievervulling'), plek-hiërarchie ('functie_plaatsing')
+    // en `plek_stand` per knoop (gat/via_boven/hier). 'Toezicht' staat onder twee domeinen → twee
+    // plek-knopen (fa/fb) met dezelfde functie_id 'tz' en dezelfde stand (path-expansie, G7).
+    const FUNCTIE_GRAF = () => ({
       nodes: [
         { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
         { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'pr1', naam: 'Vergunningverlening', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-        { id: 'pr2', naam: 'Aanvraag behandelen', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-        { id: 'pr3', naam: 'Besluit vastleggen', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-        { id: 'pr4', naam: 'Bezwaar behandelen', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-        { id: 'pr5', naam: 'Burgerzaken', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-        { id: 'pr6', naam: 'Verhuizing verwerken', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
+        { id: 'w1', naam: 'Domein A', element_type: 'bedrijfsfunctie', laag: 'business', archimate_element: 'business_function', functie_id: 'da', plek_stand: 'gat', blokkades_open: 0 },
+        { id: 'w2', naam: 'Domein B', element_type: 'bedrijfsfunctie', laag: 'business', archimate_element: 'business_function', functie_id: 'db', plek_stand: 'gat', blokkades_open: 0 },
+        { id: 'fa', naam: 'Toezicht', element_type: 'bedrijfsfunctie', laag: 'business', archimate_element: 'business_function', functie_id: 'tz', plek_stand: 'hier', blokkades_open: 0 },
+        { id: 'fb', naam: 'Toezicht', element_type: 'bedrijfsfunctie', laag: 'business', archimate_element: 'business_function', functie_id: 'tz', plek_stand: 'hier', blokkades_open: 0 },
+        { id: 'ch', naam: 'Inspectie', element_type: 'bedrijfsfunctie', laag: 'business', archimate_element: 'business_function', functie_id: 'ins', plek_stand: 'via_boven', blokkades_open: 0 },
       ],
       edges: [
         { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties' },
-        { bron_id: 'a1', doel_id: 'pr2', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 2,
-          herkomst: [
-            { proces_id: 'pr2', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Registreren' },
-            { proces_id: 'pr2', proces_naam: 'Aanvraag behandelen', applicatiefunctie_label: 'Raadplegen' },
-          ] },
-        { bron_id: 'a2', doel_id: 'pr3', relatietype: 'procesvervulling', label: 'Registreren', ring: 'processen', aantal: 1,
-          herkomst: [{ proces_id: 'pr3', proces_naam: 'Besluit vastleggen', applicatiefunctie_label: 'Registreren' }] },
-        { bron_id: 'a2', doel_id: 'pr6', relatietype: 'procesvervulling', label: 'Registreren', ring: 'processen', aantal: 1,
-          herkomst: [{ proces_id: 'pr6', proces_naam: 'Verhuizing verwerken', applicatiefunctie_label: 'Registreren' }] },
-        { bron_id: 'pr2', doel_id: 'pr1', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
-        { bron_id: 'pr3', doel_id: 'pr2', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
-        { bron_id: 'pr4', doel_id: 'pr1', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
-        { bron_id: 'pr6', doel_id: 'pr5', relatietype: 'proces_hierarchie', label: 'onderdeel van', ring: 'processen' },
+        { bron_id: 'a1', doel_id: 'fa', relatietype: 'functievervulling', label: 'ondersteunt', ring: 'bedrijfsfuncties' },
+        { bron_id: 'a1', doel_id: 'fb', relatietype: 'functievervulling', label: 'ondersteunt', ring: 'bedrijfsfuncties' },
+        { bron_id: 'fa', doel_id: 'w1', relatietype: 'functie_plaatsing', label: 'onderdeel van', ring: 'bedrijfsfuncties' },
+        { bron_id: 'fb', doel_id: 'w2', relatietype: 'functie_plaatsing', label: 'onderdeel van', ring: 'bedrijfsfuncties' },
+        { bron_id: 'ch', doel_id: 'fa', relatietype: 'functie_plaatsing', label: 'onderdeel van', ring: 'bedrijfsfuncties' },
       ],
     })
-    async function mountProces() {
-      zetGraf(PROCES_GRAF())
+    async function mountFunctie() {
+      zetGraf(FUNCTIE_GRAF())
       const { w } = await mountView()
       return w
     }
 
-    it('(a+b) proces-knoop valt in de eigen proceslaan; de laan staat bovenaan', async () => {
-      const w = await mountProces()
-      expect(w.vm._laneVan({ element_type: 'proces', laag: 'business' })).toBe('processen')
+    it('plek-knoop valt in de bedrijfsfunctie-laan; de laan staat bovenaan', async () => {
+      const w = await mountFunctie()
+      expect(w.vm._laneVan({ element_type: 'bedrijfsfunctie', laag: 'business' })).toBe('bedrijfsfuncties')
       w.vm.toonLagen()
       await flushPromises()
-      expect(w.vm.laneBanden[0].key).toBe('processen')
-      const inst = w.vm.instanceProjectie.instances.find((i) => i.logischId === 'pr1')
-      expect(inst.baan).toBe('processen')
-      // (d) processen blijven tagloos (geen rol-instance-expansie).
-      expect(inst.rollen).toEqual([])
-      expect(inst.id).toBe('pr1') // identiteits-instance, geen expansie
+      expect(w.vm.laneBanden[0].key).toBe('bedrijfsfuncties')
+      const inst = w.vm.instanceProjectie.instances.find((i) => i.logischId === 'fa')
+      expect(inst.baan).toBe('bedrijfsfuncties')
+      expect(inst.rollen).toEqual([]) // tagloos, geen rol-expansie
+      expect(inst.id).toBe('fa')
     })
 
-    it('(c) ring "Processen" default aan; uit → proces-knoop + vervult-lijn weg ("ring uit wint"), aan → terug', async () => {
-      const w = await mountProces()
-      expect(w.vm.ringAan.has('processen')).toBe(true) // default aan (niet in RING_DEFAULT_UIT)
-      expect(getekendeIds(w)).toContain('pr1')
-      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'processen')).toBe(true)
-      await w.find('[data-testid="lk-ring-processen"]').trigger('change') // ring UIT
+    it('ring "Bedrijfsfuncties" default aan; uit -> plek-knopen + lijnen weg ("ring uit wint"), aan -> terug', async () => {
+      const w = await mountFunctie()
+      expect(w.vm.ringAan.has('bedrijfsfuncties')).toBe(true)
+      expect(getekendeIds(w)).toContain('fa')
+      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'bedrijfsfuncties')).toBe(true)
+      await w.find('[data-testid="lk-ring-bedrijfsfuncties"]').trigger('change')
       await flushPromises()
-      expect(getekendeIds(w)).not.toContain('pr1') // alleen-via-processen-ring → knoop weg
-      // LI037 — de HELE keten verdwijnt: ook deelprocessen, de gap-schakel en de hiërarchie-lijnen.
-      expect(getekendeIds(w)).not.toContain('pr2')
-      expect(getekendeIds(w)).not.toContain('pr4')
-      expect(w.vm.zichtbareEdges.some((e) => e.relatietype === 'proces_hierarchie')).toBe(false)
-      expect(w.vm.zichtbareEdges.some((e) => e.ring === 'processen')).toBe(false)
-      await w.find('[data-testid="lk-ring-processen"]').trigger('change') // weer AAN
+      expect(getekendeIds(w)).not.toContain('fa')
+      expect(getekendeIds(w)).not.toContain('w1')
+      expect(w.vm.zichtbareEdges.some((e) => e.relatietype === 'functie_plaatsing')).toBe(false)
+      await w.find('[data-testid="lk-ring-bedrijfsfuncties"]').trigger('change')
       await flushPromises()
-      expect(getekendeIds(w)).toContain('pr1')
+      expect(getekendeIds(w)).toContain('fa')
     })
 
-    it('(e) proces zichtbaar in Overzicht én Lagen (geen weergave-conditie)', async () => {
-      const w = await mountProces()
-      expect(getekendeIds(w)).toContain('pr1') // Overzicht
-      w.vm.toonLagen()
-      await flushPromises()
-      expect(getekendeIds(w)).toContain('pr1') // Lagen
-      w.vm.toonOverzicht()
-      await flushPromises()
-      expect(getekendeIds(w)).toContain('pr1')
+    it('plek zichtbaar in Overzicht én Lagen (geen weergave-conditie)', async () => {
+      const w = await mountFunctie()
+      expect(getekendeIds(w)).toContain('fa')
+      w.vm.toonLagen(); await flushPromises()
+      expect(getekendeIds(w)).toContain('fa')
+      w.vm.toonOverzicht(); await flushPromises()
+      expect(getekendeIds(w)).toContain('fa')
     })
 
-    it('proces-knoop: afgeronde rechthoek + verloop-pijl-marker, type-regel "Proces", popup + doorklik', async () => {
-      const w = await mountProces()
-      const pr = w.vm.grafNodes.find((n) => n.id === 'pr1')
-      const d = w.vm._nodeData(pr)
-      // LI036 — proces = round-rectangle; het onderscheid met de component-rechthoek is de
-      // verloop-pijl-marker in de gedeelde stijlbron (CY_STYLE-selector op element_type).
+    it('plek-knoop: afgeronde rechthoek + verloop-pijl-marker, type-regel "Bedrijfsfunctie"', async () => {
+      const w = await mountFunctie()
+      const n = w.vm.grafNodes.find((x) => x.id === 'fa')
+      const d = w.vm._nodeData(n)
       expect(d.shape).toBe('round-rectangle')
-      const marker = w.vm.CY_STYLE.find((r) => r.selector === 'node[element_type = "proces"]')
-      expect(marker).toBeTruthy()
-      expect(marker.style['background-image']).toContain('data:image/svg+xml')
-      // Geen tweede type deelt de round-rectangle zónder onderscheid: alle andere vormen wijken af.
-      const vormen = ['gebruikersgroep', 'contract'].map((et) => w.vm._vormVoorType({ element_type: et }))
-      vormen.push(w.vm._vormVoorType({ element_type: 'partij', soort: 'organisatie' }))
-      vormen.push(w.vm._vormVoorType({ element_type: 'partij', soort: 'persoon' }))
-      vormen.push(w.vm._vormVoorType({ element_type: 'partij', soort: 'externe_partij' }))
-      vormen.push(w.vm._vormVoorType({ element_type: 'database', laag: 'technology' }))
-      expect(vormen).not.toContain('round-rectangle')
-      expect(d.label).toContain('\nProces')
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      expect(api.processen.haal).toHaveBeenCalledWith('pr1')
-      expect(w.vm.popupKind).toBe('node')
-      expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Vergunningverlening')
-      expect(w.find('[data-testid="lk-popup-velden"]').text()).toContain('Primair proces')
-      expect(w.vm.popupActies.some((a) => a.label === 'Open proces →')).toBe(true)
+      const marker = w.vm.CY_STYLE.find((r) => r.selector === 'node[element_type = "bedrijfsfunctie"]')
+      expect(marker && marker.style['background-image']).toContain('data:image/svg+xml')
+      expect(d.label).toContain('\nBedrijfsfunctie')
     })
 
-    // ── LI037 fase 2 — proceszone als boom + guards ──
-    it('LI037 (boom) — rij = diepte, bomen gegroepeerd naast elkaar, distinct + deterministisch', async () => {
-      const w = await mountProces()
-      w.vm.toonLagen()
-      await flushPromises()
+    it('boom-layout: rij = diepte (wortel boven), distinct + deterministisch', async () => {
+      const w = await mountFunctie()
+      w.vm.toonLagen(); await flushPromises()
       const pos = w.vm._swimlanePositions()
-      // Rij = diepte: wortel boven, elk niveau een rij lager; gelijke diepte = gelijke rij.
-      expect(pos.pr1.y).toBeLessThan(pos.pr2.y)
-      expect(pos.pr2.y).toBeLessThan(pos.pr3.y)
-      expect(pos.pr4.y).toBe(pos.pr2.y)
-      expect(pos.pr5.y).toBe(pos.pr1.y)
-      expect(pos.pr6.y).toBe(pos.pr2.y)
-      // Groepering per boom: de Burgerzaken-boom (alfabetisch eerst) staat volledig links van de
-      // Vergunningverlening-boom — geen overloop.
-      const boomV = ['pr1', 'pr2', 'pr3', 'pr4'].map((id) => pos[id].x)
-      const boomB = ['pr5', 'pr6'].map((id) => pos[id].x)
-      expect(Math.max(...boomB)).toBeLessThan(Math.min(...boomV))
-      // Distinct + deterministisch (twee aanroepen identiek).
-      const ids = ['pr1', 'pr2', 'pr3', 'pr4', 'pr5', 'pr6']
+      expect(pos.w1.y).toBeLessThan(pos.fa.y)   // wortel boven kind
+      expect(pos.fa.y).toBeLessThan(pos.ch.y)   // kind boven kleinkind
+      const ids = ['w1', 'w2', 'fa', 'fb', 'ch']
       const sig = ids.map((id) => `${pos[id].x},${pos[id].y}`)
-      expect(new Set(sig).size).toBe(ids.length)
+      expect(new Set(sig).size).toBe(ids.length) // alle posities distinct
       const pos2 = w.vm._swimlanePositions()
-      expect(ids.map((id) => `${pos2[id].x},${pos2[id].y}`)).toEqual(sig)
-      // De andere banen blijven het wrap-grid (a1/a2 in de componenten-baan, één rij).
-      expect(pos.a1.y).toBe(pos.a2.y)
+      expect(ids.map((id) => `${pos2[id].x},${pos2[id].y}`)).toEqual(sig) // deterministisch
     })
 
-    it('LI037 (cue) — "geen ondersteunend systeem": subboom-afgeleid, rand + popup, los van de gaps-toggle', async () => {
-      const w = await mountProces()
-      const node = (id) => w.vm.grafNodes.find((n) => n.id === id)
-      expect(w.vm.toonRegistratiegaps).toBe(false) // de cue hangt hier bewust NIET aan
-      expect(w.vm._nodeData(node('pr4')).procesGap).toBe(true) // Bezwaar behandelen: niets eronder
-      expect(w.vm._nodeData(node('pr2')).procesGap).toBeUndefined() // eigen vervulling
-      expect(w.vm._nodeData(node('pr1')).procesGap).toBeUndefined() // gedekt via zijn deelprocessen
-      expect(w.vm._nodeData(node('pr5')).procesGap).toBeUndefined() // gedekt via pr6
-      // Eigen rustige CY-randstijl (geen alarmkleur — border-kleur blijft data(border)).
-      const stijl = w.vm.CY_STYLE.find((r) => r.selector === 'node[?procesGap]')
-      expect(stijl).toBeTruthy()
-      expect(stijl.style['border-style']).toBe('dashed')
-      // De popup benoemt het gat in woorden; een gedekt proces niet.
-      await w.vm.openNodePopup('pr4')
-      await flushPromises()
-      expect(w.find('[data-testid="lk-popup-geen-systeem"]').exists()).toBe(true)
-      await w.vm.openNodePopup('pr2')
-      await flushPromises()
-      expect(w.find('[data-testid="lk-popup-geen-systeem"]').exists()).toBe(false)
+    it('een functie op meerdere plekken verschijnt per plek met DEZELFDE stand (G7)', async () => {
+      const w = await mountFunctie()
+      const fa = w.vm.grafNodes.find((x) => x.id === 'fa')
+      const fb = w.vm.grafNodes.find((x) => x.id === 'fb')
+      expect(fa.functie_id).toBe('tz')
+      expect(fb.functie_id).toBe('tz')
+      expect(fa.plek_stand).toBe(fb.plek_stand) // consistente cue over herhalingen
+      const doelen = new Set(w.vm.grafEdges.filter((e) => e.relatietype === 'functievervulling' && e.bron_id === 'a1').map((e) => e.doel_id))
+      expect(doelen.has('fa') && doelen.has('fb')).toBe(true)
     })
 
-    it('LI037 (guard) — hiërarchie-lijnen tellen nooit als vervuller; de toggle voegt geen proces toe', async () => {
-      const w = await mountProces()
-      // pr1 draagt ALLEEN hiërarchie-edges (pr2/pr4 wijzen ernaar) → geen vervullers, actie inert.
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      expect(w.vm.popupVervuldDoor).toEqual([])
-      expect(w.vm.popupVervulActie.modus).toBe('geen')
-      // pr2: alléén de échte component; de toggle voegt a1 toe en nooit een proces-id.
-      await w.vm.openNodePopup('pr2')
-      await flushPromises()
-      expect(w.vm.popupVervuldDoor.map((c) => c.naam)).toEqual(['Zaaksysteem'])
-      await w.find('[data-testid="lk-popup-vervul"]').trigger('click')
-      await flushPromises()
-      expect(w.vm.actieveSet.has('a1')).toBe(true)
-      expect([...w.vm.actieveSet].some((id) => String(id).startsWith('pr'))).toBe(false)
+    it('gap-cue UIT plek_stand: gat = dashed-cue, via_boven = eigen cue, hier = geen', async () => {
+      const w = await mountFunctie()
+      expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'w1')).procesGap).toBe(true) // gat
+      expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'ch')).plekViaBoven).toBe(true) // via_boven
+      const hier = w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'fa'))
+      expect(hier.procesGap).toBeUndefined()
+      expect(hier.plekViaBoven).toBeUndefined()
     })
 
-    // ── LI037 fase 3 — proces-ingang (één gedeeld handoff, ADR-034 besluit 4) ──
-    // Eigen mount ZONDER de strategie-A-hele-landschap-laad (die zou de handoff-weergave overschrijven;
-    // in de echte flow komt de gebruiker binnen via het handoff, niet via "toon het hele landschap").
-    async function mountProcesHandoff() {
-      zetGraf(PROCES_GRAF())
-      const { w } = await mountView({ heleLandschap: false })
-      return w
-    }
-
-    it('LI037 (handoff) — proces-variant opent in LAGEN met de herkomst benoemd; consume-once', async () => {
-      neemKaartHandoff.mockReturnValueOnce({
-        componentIds: ['a1'],
-        weergave: 'lagen',
-        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr3', herkomstNaam: 'Besluit vastleggen' },
-      })
-      const w = await mountProcesHandoff()
-      expect(w.vm.weergave).toBe('lagen') // niet de praatplaat-dwang van ?center
-      expect(w.vm.actieveSet.has('a1')).toBe(true)
-      expect(w.vm.beginschermOpen).toBe(false)
-      const marker = w.find('[data-testid="lk-proces-herkomst"]')
-      expect(marker.text()).toContain('Proceslandschap: Vergunningverlening')
-      expect(marker.text()).toContain('via Besluit vastleggen')
-      // 3b/3d (herzien) — GEDIMD MET FOCUS: de herkomst-knoop is de actieve (oranje) selectie
-      // (de bestaande enkelklik-mechaniek dimt al het niet-directe) en wordt gecentreerd.
-      expect(w.vm.geselecteerdNodeId).toBe('pr3')
-      expect(w.vm._selectieZonderDim).toBe(null) // dim ACTIEF (geen onderdrukking bij een deelproces)
-      expect(w.vm._edgeGehighlight({ bron_id: 'a2', doel_id: 'pr3' })).toBe(true)
-      expect(w.vm._centreerNaLayoutId).toBe('pr3') // one-shot; geconsumeerd in _naLayout (echte cy)
-      // Wisbaar met × — selectie én dim-focus weg (plaat neutraal).
-      await w.find('[data-testid="lk-proces-herkomst-wis"]').trigger('click')
-      expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
-      expect(w.vm.geselecteerdNodeId).toBe(null)
-      // Consume-once: een volgende mount zonder handoff springt niet (default-mock → null).
-      const w2 = await mountProcesHandoff()
-      expect(w2.vm.weergave).toBe('overzicht')
-      expect(w2.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
+    it('plek-popup: geen fetch (synthetisch id), "Ondersteund door" toont het dragende systeem; gat benoemd', async () => {
+      const w = await mountFunctie()
+      await w.vm.openNodePopup('fa')
+      await flushPromises()
+      expect(api.processen.haal).not.toHaveBeenCalled()
+      expect(w.vm.popupKind).toBe('node')
+      expect(w.vm.popupVervuldDoor.map((c) => c.naam)).toContain('Zaaksysteem')
+      await w.vm.openNodePopup('w1')
+      await flushPromises()
+      expect(w.vm.popupProcesGap).toBe(true) // een gat-plek benoemt zijn gat
     })
 
-    it('LI037 (handoff) — hoofdproces-ingang: boom in Lagen, ZONDER aparte deelproces-herkomst', async () => {
-      neemKaartHandoff.mockReturnValueOnce({
-        componentIds: ['a1', 'a2'],
-        weergave: 'lagen',
-        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: null, herkomstNaam: null },
-      })
-      const w = await mountProcesHandoff()
-      expect(w.vm.weergave).toBe('lagen')
-      const marker = w.find('[data-testid="lk-proces-herkomst"]')
-      expect(marker.text()).toContain('Proceslandschap: Vergunningverlening')
-      expect(marker.text()).not.toContain('via')
-      // 3d (herzien) — hoofdproces-ingang: de wortel is de GESELECTEERDE (oranje) knoop en wordt
-      // gecentreerd, maar ZONDER dim (de hele boom blijft zichtbaar): de zonder-dim-onderdrukking
-      // staat op precies deze selectie.
-      expect(w.vm.geselecteerdNodeId).toBe('pr1')
-      expect(w.vm._selectieZonderDim).toBe('pr1') // selectie-highlight zonder dim (schone splitsing)
-      expect(w.vm._centreerNaLayoutId).toBe('pr1')
-      // Geen dim → geen "Toon hele landschap"-knop in de popup van de wortel (niets op te heffen).
-      await w.vm.openNodePopup('pr1')
+    it('edge-popup: systeem->plek = "Ondersteunt", plek-hiërarchie = "Onderdeel van"', async () => {
+      const w = await mountFunctie()
+      await w.vm.openEdgePopup({ bron_id: 'a1', doel_id: 'fa', relatietype: 'functievervulling', ring: 'bedrijfsfuncties', label: 'ondersteunt' })
       await flushPromises()
-      expect(w.find('[data-testid="lk-popup-toon-landschap"]').exists()).toBe(false)
-      // Chip-× wist de ingang-selectie mee (levensduur = die van de chip).
-      await w.find('[data-testid="lk-proces-herkomst-wis"]').trigger('click')
-      expect(w.vm.geselecteerdNodeId).toBe(null)
-      expect(w.vm._selectieZonderDim).toBe(null)
-      // 3d — het blauwe accent bestaat niet meer: geen CY-laag en geen data-veld.
-      expect(w.vm.CY_STYLE.some((r) => r.selector === 'node[?procesHerkomst]')).toBe(false)
-      const node = (id) => w.vm.grafNodes.find((n) => n.id === id)
-      expect('procesHerkomst' in w.vm._nodeData(node('pr1'))).toBe(false)
-    })
-
-    it('LI037-3b (weg terug) — "Toon hele landschap" in de herkomst-popup heft de dim op; accent + chip blijven', async () => {
-      neemKaartHandoff.mockReturnValueOnce({
-        componentIds: ['a1'],
-        weergave: 'lagen',
-        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr3', herkomstNaam: 'Besluit vastleggen' },
-      })
-      const w = await mountProcesHandoff()
-      // De knop hoort alléén in de popup van de HERKOMST-knoop (niet bij een ander proces).
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      expect(w.find('[data-testid="lk-popup-toon-landschap"]').exists()).toBe(false)
-      await w.vm.openNodePopup('pr3')
-      await flushPromises()
-      const knop = w.find('[data-testid="lk-popup-toon-landschap"]')
-      expect(knop.exists()).toBe(true)
-      await knop.trigger('click')
-      await flushPromises()
-      // 3d — alléén de dim gaat weg: de herkomst blijft de geselecteerde (oranje) knoop tot de
-      // gebruiker elders klikt; de chip blijft de herkomst benoemen.
-      expect(w.vm.geselecteerdNodeId).toBe('pr3')
-      expect(w.vm._selectieZonderDim).toBe('pr3') // dim onderdrukt voor precies deze selectie
-      expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(true)
-      // Niets meer op te heffen → de knop is weg.
-      expect(w.find('[data-testid="lk-popup-toon-landschap"]').exists()).toBe(false)
-      // Een eigen klik elders = normale enkelklik-semantiek: selectie verspringt, dim weer normaal.
-      w.vm.inspecteerNode('pr1')
-      await flushPromises()
-      expect(w.vm.geselecteerdNodeId).toBe('pr1')
-      expect(w.vm._selectieZonderDim).toBe(null)
-    })
-
-    it('LI037-3d (combi) — gap-cue + oranje selectie op één knoop: selectie wint zolang hij staat, gap-info blijft in de popup', async () => {
-      neemKaartHandoff.mockReturnValueOnce({
-        componentIds: ['a1'],
-        weergave: 'lagen',
-        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr4', herkomstNaam: 'Bezwaar behandelen' },
-      })
-      const w = await mountProcesHandoff()
-      const pr4 = w.vm.grafNodes.find((n) => n.id === 'pr4')
-      // De gap-cue (fase 2) blijft in de data; de herkomst is de actieve selectie (dim-focus).
-      expect(w.vm._nodeData(pr4).procesGap).toBe(true)
-      expect(w.vm.geselecteerdNodeId).toBe('pr4')
-      // Bestaande stijl-regel: zolang de knoop geselecteerd is wint hl-node (solid oranje) van de
-      // gap-dash; verspringt de selectie, dan is de dashed gap-rand weer zichtbaar. De popup
-      // benoemt het gat áltijd in woorden — de informatie raakt nooit zoek.
-      const selectors = w.vm.CY_STYLE.map((r) => r.selector)
-      expect(selectors.indexOf('node.hl-node')).toBeGreaterThan(selectors.indexOf('node[?procesGap]'))
-      await w.vm.openNodePopup('pr4')
-      await flushPromises()
-      expect(w.find('[data-testid="lk-popup-geen-systeem"]').exists()).toBe(true)
-    })
-
-    it('LI037 (via proces) — beginscherm-keuze bouwt dezelfde payload en opent Lagen; "Begin opnieuw" wist de markering', async () => {
-      api.processen.haal.mockImplementation(async (id) => ({
-        pr4: { id: 'pr4', naam: 'Bezwaar behandelen', ouder_id: 'pr1' },
-        pr1: { id: 'pr1', naam: 'Vergunningverlening', ouder_id: null },
-      }[id]))
-      api.processen.rollup.mockResolvedValue([{ component_id: 'a1' }, { component_id: 'a2' }])
-      api.procesvervullingen.lijst.mockResolvedValue([{ component_id: 'a1' }])
-      const w = await mountProces()
-      await w.vm.openViaProces({ id: 'pr4' })
-      await flushPromises()
-      // Boom-vervullers (rollup ∪ wortel-eigen, dedup) als set; Lagen; herkomst = het deelproces.
-      expect(api.processen.rollup).toHaveBeenCalledWith('pr1')
-      expect(api.procesvervullingen.lijst).toHaveBeenCalledWith({ proces_id: 'pr1' })
-      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
-      expect(w.vm.weergave).toBe('lagen')
-      expect(w.find('[data-testid="lk-proces-herkomst"]').text()).toContain('via Bezwaar behandelen')
-      expect(w.vm.beginschermOpen).toBe(false)
-      // 3b — deelproces-keuze op het beginscherm opent óók gedimd-met-focus op de herkomst.
-      expect(w.vm.geselecteerdNodeId).toBe('pr4')
-      // "Begin opnieuw" = volledige reset, incl. de herkomstmarkering én de dim-focus.
-      w.vm.wisSet()
-      await flushPromises()
-      expect(w.vm.procesIngang).toBe(null)
-      expect(w.vm.geselecteerdNodeId).toBe(null)
-    })
-
-    it('LI037 (via proces) — boom zonder ondersteunende systemen: rustige melding, geen lege kaart', async () => {
-      api.processen.haal.mockResolvedValue({ id: 'px', naam: 'Leeg proces', ouder_id: null })
-      api.processen.rollup.mockResolvedValue([])
-      api.procesvervullingen.lijst.mockResolvedValue([])
-      const w = await mountProces()
-      const setVoor = new Set(w.vm.actieveSet)
-      await w.vm.openViaProces({ id: 'px' })
-      await flushPromises()
-      expect([...w.vm.actieveSet]).toEqual([...setVoor]) // set onaangeroerd
-      expect(w.vm.weergave).toBe('overzicht') // geen weergavesprong
-      expect(w.find('[data-testid="lk-proces-herkomst"]').exists()).toBe(false)
-    })
-
-    // ── LI037 fase 4 — dubbelklik-inzoom (SET-inperking + history-terugweg; ≠ de fase-3-dim) ──
-    it('LI037-f4 (inzoom) — dubbelklik-inzoom perkt de plaat in tot subboom + vervullers (voorouder-keten als plek-context)', async () => {
-      api.processen.rollup.mockImplementation(async (id) => (id === 'pr2' ? [{ component_id: 'a2' }] : []))
-      api.procesvervullingen.lijst.mockImplementation(async (p = {}) => (p.proces_id === 'pr2' ? [{ component_id: 'a1' }] : []))
-      const w = await mountProces()
-      w.vm.toonLagen()
-      await flushPromises()
-      expect(getekendeIds(w)).toContain('pr5') // breed vertrekpunt: beide bomen in beeld
-      await w.vm.zoomInOpProces('pr2')
-      await flushPromises()
-      // Set = vervullers van de HELE subboom via dezelfde leespaden als de ingang (één roll-up-bron).
-      expect(api.processen.rollup).toHaveBeenCalledWith('pr2')
-      expect(api.procesvervullingen.lijst).toHaveBeenCalledWith({ proces_id: 'pr2' })
-      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
-      expect(w.vm.procesInzoom).toBe('pr2')
-      expect(w.vm.weergave).toBe('lagen')
-      // Plaat: de subboom (pr2+pr3) + de voorouder-keten als plek-context (pr1); de rest van het
-      // proceslandschap is écht WEG — geen dim (pr4-sibling en de Burgerzaken-boom verdwijnen).
-      const ids = getekendeIds(w)
-      expect(ids).toContain('pr2')
-      expect(ids).toContain('pr3')
-      expect(ids).toContain('pr1')
-      expect(ids).not.toContain('pr4')
-      expect(ids).not.toContain('pr5')
-      expect(ids).not.toContain('pr6')
-      expect(w.vm.geselecteerdNodeId).toBe(null) // inzoom dimt niet (dat is de fase-3-ingang)
-      expect(w.vm._centreerNaLayoutId).toBe('pr2') // inzoom-wortel in beeld via het stop-pad
-    })
-
-    it('LI037-f4 (dieper + terug) — processtap-inzoom is kleiner; "← Terug" herstelt exact de vorige staten', async () => {
-      api.processen.rollup.mockImplementation(async (id) => (id === 'pr2' ? [{ component_id: 'a2' }] : []))
-      api.procesvervullingen.lijst.mockImplementation(async (p = {}) =>
-        (p.proces_id === 'pr2' ? [{ component_id: 'a1' }] : p.proces_id === 'pr3' ? [{ component_id: 'a2' }] : []))
-      const w = await mountProces()
-      w.vm.toonLagen()
-      await flushPromises()
-      // Set-vertrekpunt (zoals na een ingang): terug-over-de-HELE-LANDSCHAP-grens is een bestaande,
-      // gedocumenteerde beperking (de heleLandschap-vlag reist niet mee in de history —
-      // _herstelToestand); de inzoom-terugweg wordt hier dus op een set-staat geborgd.
-      w.vm.voegComponentenToeAanSet([{ id: 'a1' }, { id: 'a2' }])
-      await flushPromises()
-      expect(getekendeIds(w)).toContain('pr5') // breed set-vertrekpunt: beide bomen in beeld
-      await w.vm.zoomInOpProces('pr2')
-      await flushPromises()
-      await w.vm.zoomInOpProces('pr3')
-      await flushPromises()
-      expect([...w.vm.actieveSet]).toEqual(['a2']) // kleiner dan de pr2-inzoom
-      expect(w.vm.procesInzoom).toBe('pr3')
-      const ids = getekendeIds(w)
-      expect(ids).toContain('pr3')
-      expect(ids).toContain('pr2') // keten als plek-context
-      expect(ids).not.toContain('pr4')
-      // Terug = de BESTAANDE history (geen apart mechanisme): eerst de pr2-inzoom terug…
-      expect(w.vm.kanTerug).toBe(true)
-      w.vm.terugInHistorie()
-      await flushPromises()
-      expect(w.vm.procesInzoom).toBe('pr2')
-      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
-      // …en dan het brede set-vertrekpunt (geen inperking meer; de Burgerzaken-boom is er weer).
-      w.vm.terugInHistorie()
-      await flushPromises()
-      expect(w.vm.procesInzoom).toBe(null)
-      expect([...w.vm.actieveSet].sort()).toEqual(['a1', 'a2'])
-      expect(getekendeIds(w)).toContain('pr5')
-    })
-
-    it('LI037-f4 (leeg) — inzoom op een proces zonder systemen: melding, plaat onaangeroerd', async () => {
-      api.processen.rollup.mockResolvedValue([])
-      api.procesvervullingen.lijst.mockResolvedValue([])
-      const w = await mountProces()
-      w.vm.toonLagen()
-      await flushPromises()
-      const setVoor = [...w.vm.actieveSet]
-      await w.vm.zoomInOpProces('pr4')
-      await flushPromises()
-      expect(w.vm.procesInzoom).toBe(null)
-      expect([...w.vm.actieveSet]).toEqual(setVoor)
-      expect(getekendeIds(w)).toContain('pr5') // niets ingeperkt
-    })
-
-    it('LI037-f4 (ingang↔inzoom) — dubbelklik ná een dim-ingang zoomt écht in; "← Terug" keert naar de gedimde ingang-staat', async () => {
-      neemKaartHandoff.mockReturnValueOnce({
-        componentIds: ['a1'],
-        weergave: 'lagen',
-        procesIngang: { wortelId: 'pr1', wortelNaam: 'Vergunningverlening', herkomstId: 'pr3', herkomstNaam: 'Besluit vastleggen' },
-      })
-      api.processen.rollup.mockResolvedValue([])
-      api.procesvervullingen.lijst.mockImplementation(async (p = {}) => (p.proces_id === 'pr3' ? [{ component_id: 'a2' }] : []))
-      const w = await mountProcesHandoff()
-      expect(w.vm.geselecteerdNodeId).toBe('pr3') // fase-3-ingang: dim-focus actief
-      await w.vm.zoomInOpProces('pr3')
-      await flushPromises()
-      // Echte inzoom: set ingeperkt, GEEN dim; de chip blijft de herkomst benoemen.
-      expect(w.vm.procesInzoom).toBe('pr3')
-      expect(w.vm.geselecteerdNodeId).toBe(null)
-      expect([...w.vm.actieveSet]).toEqual(['a2'])
-      expect(w.vm.procesIngang?.herkomstNaam).toBe('Besluit vastleggen')
-      // "← Terug" → exact de gedimde ingang-staat (selectie + set + geen inperking).
-      w.vm.terugInHistorie()
-      await flushPromises()
-      expect(w.vm.procesInzoom).toBe(null)
-      expect(w.vm.geselecteerdNodeId).toBe('pr3')
-      expect([...w.vm.actieveSet]).toEqual(['a1'])
-    })
-
-    it('LI037 (popup) — hiërarchie-lijn → "Onderdeel van"; vervult-lijn → "Vervult" op het geregistreerde proces', async () => {
-      const w = await mountProces()
-      const hier = w.vm.grafEdges.find((e) => e.relatietype === 'proces_hierarchie' && e.bron_id === 'pr2')
-      await w.vm.openEdgePopup(hier)
+      expect(w.vm.popupTitel).toBe('Ondersteunt')
+      await w.vm.openEdgePopup({ bron_id: 'fa', doel_id: 'w1', relatietype: 'functie_plaatsing', ring: 'bedrijfsfuncties', label: 'onderdeel van' })
       await flushPromises()
       expect(w.vm.popupTitel).toBe('Onderdeel van')
-      const velden = Object.fromEntries(w.vm.popupVelden.map((v) => [v.label, v.waarde]))
-      expect(velden['Deelproces']).toBe('Aanvraag behandelen')
-      expect(velden['Onderdeel van']).toBe('Vergunningverlening')
-      const vervult = w.vm.grafEdges.find((e) => e.relatietype === 'procesvervulling' && e.bron_id === 'a1')
-      await w.vm.openEdgePopup(vervult)
-      await flushPromises()
-      expect(w.vm.popupTitel).toBe('Vervult')
-      const v2 = Object.fromEntries(w.vm.popupVelden.map((v) => [v.label, v.waarde]))
-      expect(v2['Proces']).toBe('Aanvraag behandelen')
-      expect(v2['Component']).toBe('Zaaksysteem')
-    })
-  })
-
-  // ── LI036 slice 2 · stap 3 — aantal-badge + herkomst + "voeg vervullende componenten toe" ──
-  describe('LI036 slice 2 stap 3 — badge/herkomst/set-actie', () => {
-    const STAP3_GRAF = () => ({
-      nodes: [
-        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'a2', naam: 'DMS', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'pr1', naam: 'Vergunningverlening', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-        // Ongerelateerd aan pr1 (wel vervuller van pr2) — voor de ongedaan-maken-/per-proces-tests.
-        { id: 'x-vrij', naam: 'Vrij Systeem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'concept', blokkades_open: 0 },
-        { id: 'pr2', naam: 'Burgerzaken', element_type: 'proces', laag: 'business', archimate_element: 'business_process', blokkades_open: 0 },
-      ],
-      edges: [
-        { bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties', richting: 'eenrichting', protocol: 'rest' },
-        // LI037 fase-1-datavorm: de bundel staat op het GEREGISTREERDE proces; herkomst = de
-        // functie-uitsplitsing van dat éne paar (geen herkomst uit andere processen meer).
-        { bron_id: 'a1', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 2,
-          herkomst: [
-            { proces_id: 'pr1', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Registreren' },
-            { proces_id: 'pr1', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Raadplegen' },
-          ] },
-        { bron_id: 'a2', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'Archiveren', ring: 'processen', aantal: 1,
-          herkomst: [{ proces_id: 'pr1', proces_naam: 'Vergunningverlening', applicatiefunctie_label: 'Archiveren' }] },
-        { bron_id: 'x-vrij', doel_id: 'pr2', relatietype: 'procesvervulling', label: 'Registreren', ring: 'processen', aantal: 1,
-          herkomst: [{ proces_id: 'pr2', proces_naam: 'Burgerzaken', applicatiefunctie_label: 'Registreren' }] },
-      ],
-    })
-    async function mountStap3() {
-      zetGraf(STAP3_GRAF())
-      const { w } = await mountView()
-      return w
-    }
-
-    it('(a) vervult-lijn aantal>1 → badge "N×" in het label (flow-patroon); aantal 1 → geen badge', async () => {
-      const w = await mountStap3()
-      const bundel = w.vm._edgeData({ bron_id: 'a1', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'vervult', ring: 'processen', aantal: 3 }, 0)
-      expect(bundel.label).toBe('vervult · 3×')
-      const enkel = w.vm._edgeData({ bron_id: 'a2', doel_id: 'pr1', relatietype: 'procesvervulling', label: 'Archiveren', ring: 'processen', aantal: 1 }, 1)
-      expect(enkel.label).toBe('Archiveren')
-      // (d) geen regressie op de flow-label-opbouw.
-      const flow = w.vm._edgeData({ bron_id: 'a1', doel_id: 'a2', relatietype: 'flow', label: 'koppeling', ring: 'applicaties', richting: 'eenrichting', protocol: 'rest', aantal: 1 }, 2)
-      expect(flow.label).toBe('koppeling · REST · →')
-    })
-
-    it('(b) proces-popup: scanbare componentnamen; herkomst inklapbaar per component (dicht by default)', async () => {
-      const w = await mountStap3()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      // Kop + namen scanbaar; géén herkomst-muur in de dl-velden.
-      expect(w.find('[data-testid="lk-popup-vervuld"]').text()).toContain('Vervuld door: 2 componenten')
-      expect(w.vm.popupVelden.some((v) => v.label === 'Vervuld door')).toBe(false)
-      const namen = w.vm.popupVervuldDoor.map((c) => c.naam)
-      expect(namen).toEqual(['DMS', 'Zaaksysteem'])
-      // Herkomst per component (LI037: de functie-uitsplitsing van dít paar), achter een
-      // <details> (standaard dicht).
-      const zaak = w.find('[data-testid="lk-popup-vervuld-a1"]')
-      expect(zaak.element.tagName).toBe('DETAILS')
-      expect(zaak.element.open).toBe(false)
-      const zaakData = w.vm.popupVervuldDoor.find((c) => c.id === 'a1')
-      expect(zaakData.herkomst).toEqual([
-        { label: 'Vergunningverlening', waarde: 'Registreren, Raadplegen' },
-      ])
-      // Uitklappen toont de herkomst-regels van díe component.
-      zaak.element.open = true
-      await flushPromises()
-      expect(zaak.text()).toContain('Vergunningverlening · Registreren, Raadplegen')
-    })
-
-    it('(b3) herkomst None/leeg → alleen de componentnaam, geen uitklap', async () => {
-      const g = STAP3_GRAF()
-      g.edges[2].herkomst = null // DMS-edge zonder herkomst
-      zetGraf(g)
-      const { w } = await mountView()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const dms = w.find('[data-testid="lk-popup-vervuld-a2"]')
-      expect(dms.element.tagName).toBe('P') // platte naam, geen <details>
-      expect(dms.text()).toBe('DMS')
-    })
-
-    it('(b2) vervult-lijn-popup toont de herkomst van díe bundel, gegroepeerd per deelproces', async () => {
-      const w = await mountStap3()
-      const edge = w.vm.grafEdges.find((e) => e.ring === 'processen' && e.bron_id === 'a1')
-      await w.vm.openEdgePopup(edge)
-      await flushPromises()
-      const per = Object.fromEntries(w.vm.popupVelden.map((v) => [v.label, v.waarde]))
-      expect(w.vm.popupTitel).toBe('Vervult')
-      expect(per['Component']).toBe('Zaaksysteem')
-      expect(per['Proces']).toBe('Vergunningverlening') // LI037 — de bundel staat op het geregistreerde proces
-      expect(per['Koppelingen']).toBe('2')
-      expect(per['Vergunningverlening']).toBe('Registreren, Raadplegen')
-    })
-
-    it('(c) vervul-toggle: toevoegen mét highlight → live om naar "− Verwijder"; alleen de groep eruit; weergave blijft', async () => {
-      const w = await mountStap3()
-      w.vm.toonLagen()
-      await flushPromises()
-      // Randgeval-default: a1 zat al (los van dit proces) in de set → telt mee in de groep.
-      w.vm.voegComponentenToeAanSet([{ id: 'a1' }])
-      // Plus een ongerelateerd set-lid dat NOOIT geraakt mag worden.
-      w.vm.voegComponentenToeAanSet([{ id: 'x-vrij' }])
-      await flushPromises()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const knop = () => w.find('[data-testid="lk-popup-vervul"]')
-      expect(knop().text()).toBe('+ Voeg vervullende componenten toe (1)') // alleen a2 ontbreekt nog
-      await knop().trigger('click')
-      await flushPromises()
-      expect(w.vm.actieveSet.has('a1')).toBe(true)
-      expect(w.vm.actieveSet.has('a2')).toBe(true)
-      // Highlight van de verandering: het bestaande selectie-pad staat op het proces → het
-      // vervul-web (incl. de toegevoegde knopen) licht op.
-      expect(w.vm.geselecteerdNodeId).toBe('pr1')
-      expect(w.vm._edgeGehighlight({ bron_id: 'a1', doel_id: 'pr1' })).toBe(true)
-      // 2a — geen weergavesprong.
-      expect(w.vm.weergave).toBe('lagen')
-      // LIVE omgeklapt naar de verwijder-modus (zonder heropenen).
-      expect(knop().text()).toBe('− Verwijder vervullende componenten')
-      expect(knop().attributes('disabled')).toBeUndefined()
-      // HERZIEN BESLUIT — verwijderen = ongedaan maken van déze knop: alléén a2 (door de knop
-      // toegevoegd) gaat weg; a1 (zat er al vóór de klik) en x-vrij (ongerelateerd) blijven.
-      await knop().trigger('click')
-      await flushPromises()
-      expect(w.vm.actieveSet.has('a1')).toBe(true)
-      expect(w.vm.actieveSet.has('a2')).toBe(false)
-      expect(w.vm.actieveSet.has('x-vrij')).toBe(true)
-      expect(w.vm.weergave).toBe('lagen')
-      // Toggle terug naar toevoegen, met de resterende telling (alleen a2 ontbreekt).
-      expect(knop().text()).toBe('+ Voeg vervullende componenten toe (1)')
-    })
-
-    it('(c1b) gemeld geval: set={A} → +3 → verwijder → exact terug naar {A} (niet leeg)', async () => {
-      const w = await mountStap3()
-      w.vm.voegComponentenToeAanSet([{ id: 'a1' }]) // vertrekpunt (het "Zaaksysteem"-geval)
-      await flushPromises()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const knop = () => w.find('[data-testid="lk-popup-vervul"]')
-      await knop().trigger('click') // voegt de ontbrekende vervullers toe
-      await flushPromises()
-      await knop().trigger('click') // ongedaan maken
-      await flushPromises()
-      expect([...w.vm.actieveSet]).toEqual(['a1']) // het vertrekpunt blijft — geen lege plaat
-    })
-
-    it('(c1c) alles zat er al vóór de knop → geen verwijder-modus (niets om ongedaan te maken)', async () => {
-      const w = await mountStap3()
-      w.vm.voegComponentenToeAanSet([{ id: 'a1' }, { id: 'a2' }]) // gebruiker had beide al
-      await flushPromises()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const knop = w.find('[data-testid="lk-popup-vervul"]')
-      expect(knop.text()).toBe('+ Voeg vervullende componenten toe (0)')
-      expect(knop.attributes('disabled')).toBeDefined()
-      expect(knop.attributes('title')).toBe('Alle vervullende componenten staan al in beeld')
-    })
-
-    it('(c1d) handmatig één knop-toevoeging weghalen → telling/modus kloppen; daarna ongedaan-maken raakt alleen knop-toevoegingen', async () => {
-      const w = await mountStap3()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const knop = () => w.find('[data-testid="lk-popup-vervul"]')
-      await knop().trigger('click') // voegt a1 + a2 toe (beide knop-toevoegingen)
-      await flushPromises()
-      w.vm.toggleSet('a2') // handmatig één toegevoegde weghalen
-      await flushPromises()
-      expect(knop().text()).toBe('+ Voeg vervullende componenten toe (1)') // terug naar toevoegen, juiste rest
-      await knop().trigger('click') // a2 opnieuw via de knop
-      await flushPromises()
-      expect(knop().text()).toBe('− Verwijder vervullende componenten')
-      await knop().trigger('click')
-      await flushPromises()
-      expect([...w.vm.actieveSet]).toEqual([]) // beide waren knop-toevoegingen → beide ongedaan
-    })
-
-    it('(c1e) per proces bijgehouden: X ongedaan maken laat de toevoeging van Y staan', async () => {
-      const w = await mountStap3()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const knop = () => w.find('[data-testid="lk-popup-vervul"]')
-      await knop().trigger('click') // pr1 → a1 + a2 erbij
-      await flushPromises()
-      await w.vm.openNodePopup('pr2')
-      await flushPromises()
-      await knop().trigger('click') // pr2 → x-vrij erbij
-      await flushPromises()
-      expect(w.vm.actieveSet.has('x-vrij')).toBe(true)
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      await knop().trigger('click') // pr1 ongedaan maken
-      await flushPromises()
-      expect(w.vm.actieveSet.has('a1')).toBe(false)
-      expect(w.vm.actieveSet.has('a2')).toBe(false)
-      expect(w.vm.actieveSet.has('x-vrij')).toBe(true) // pr2's toevoeging blijft
-      await w.vm.openNodePopup('pr2')
-      await flushPromises()
-      expect(knop().text()).toBe('− Verwijder vervullende componenten') // pr2-administratie intact
-    })
-
-    it('(c2) toggle heen-en-terug herstelt de set-staat exact', async () => {
-      const w = await mountStap3()
-      await w.vm.openNodePopup('pr1')
-      await flushPromises()
-      const voor = [...w.vm.actieveSet].sort()
-      await w.find('[data-testid="lk-popup-vervul"]').trigger('click') // toevoegen
-      await flushPromises()
-      await w.find('[data-testid="lk-popup-vervul"]').trigger('click') // verwijderen
-      await flushPromises()
-      expect([...w.vm.actieveSet].sort()).toEqual(voor)
-    })
-
-    it('(d) component-popup (niet-proces) toont géén herkomst-sectie en géén vervul-knop', async () => {
-      const w = await mountStap3()
-      await w.vm.openNodePopup('a1')
-      await flushPromises()
-      expect(w.find('[data-testid="lk-popup-vervuld"]').exists()).toBe(false)
-      expect(w.find('[data-testid="lk-popup-vervul"]').exists()).toBe(false)
-      expect(w.vm.popupVervuldDoor).toEqual([])
-      expect(w.vm.popupVervulActie).toBe(null)
     })
   })
 
