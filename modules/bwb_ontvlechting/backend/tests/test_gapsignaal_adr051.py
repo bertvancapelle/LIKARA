@@ -175,6 +175,41 @@ async def _ruim(s, ids):
 
 
 @integratie
+def test_gg_signaal_leest_bron_niet_doel_live():
+    """feitcheck-serving-richting — de gg-signalering leest de serving op **bron=component**
+    (ADR-023, gedeelde richting-bron). Een component MÉT gebruikersgroep valt uit
+    `component_zonder_gebruikersgroep` én draagt geen `component_zonder_gebruikersgroep`-badge; een
+    component ZÓNDER valt er wél in. Deze test faalt zodra iemand de lezing terugdraait naar
+    `doel_id` (dan vlagt élk component onterecht)."""
+    from services import registratiegaten_service as rgs
+
+    _SIG = "component_zonder_gebruikersgroep"
+
+    async def _flow(s):
+        ids = []
+        try:
+            met = await _component(s, "SR Met gg")
+            zonder = await _component(s, "SR Zonder gg")
+            ids += [met, zonder]
+            gg = await _serving_gg(s, met)   # serving bron=component → doel=gebruikersgroep
+            ids.append(gg)
+            lijst = {r["id"] for r in await rgs.component_zonder_gebruikersgroep(s, _TID)}
+            badge_met = await rgs.badge_voor_component(s, _TID, met)
+            badge_zonder = await rgs.badge_voor_component(s, _TID, zonder)
+            return met, zonder, lijst, badge_met, badge_zonder
+        finally:
+            await _ruim(s, ids)
+
+    met, zonder, lijst, badge_met, badge_zonder = asyncio.run(_run(_flow))
+    # Component MÉT gebruikersgroep: niet in de signaallijst, geen gg-badge.
+    assert met not in lijst
+    assert _SIG not in badge_met["signalen"]
+    # Component ZÓNDER: wél in de signaallijst, wél gg-badge.
+    assert zonder in lijst
+    assert _SIG in badge_zonder["signalen"]
+
+
+@integratie
 def test_check_precies_een_van_beide_op_db_niveau():
     from sqlalchemy import text
     from sqlalchemy.exc import IntegrityError

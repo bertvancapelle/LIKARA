@@ -31,6 +31,7 @@ from models.models import (
     Relatie,
     Roltoewijzing,
 )
+from services import gebruikersgroep_service
 
 # Lichtgewicht handle op de engine-tabel (shared-PK: component_profiel.id == component.id) — leest
 # lifecycle_status zonder ComponentProfiel te importeren, zodat de engine-borging groen blijft.
@@ -198,11 +199,12 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
             )
         )
     ).first() is None
+    # De gg-lezing gebruikt de gedeelde richting-bron (serving met bron=component, ADR-023) — nooit
+    # doel_id (dat leest de relatie achterstevoren; feitcheck-serving-richting).
     geen_gg = (
         await session.execute(
             select(Relatie.id).where(
-                Relatie.tenant_id == tid, Relatie.relatietype == "serving",
-                Relatie.doel_id == component_id,
+                gebruikersgroep_service.serving_van_component_where(tid, component_id)
             )
         )
     ).first() is None
@@ -261,11 +263,13 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
 
 # ── Slice 2 — aandacht-signalen (alle puur SELECT) ───────────────────────────────────────────────
 async def component_zonder_gebruikersgroep(session: AsyncSession, tenant_id) -> list[dict]:
-    """Componenten zonder serving-relatie van een gebruikersgroep (doel=component)."""
+    """Componenten zonder gebruikersgroep — via de gedeelde richting-bron (serving met bron=component,
+    ADR-023). NOOIT doel_id (dat leest de relatie achterstevoren → elk component vlagt onterecht;
+    feitcheck-serving-richting)."""
     tid = _tenant_uuid(tenant_id)
     geen_serving = ~exists(
         select(Relatie.id).where(
-            Relatie.tenant_id == tid, Relatie.relatietype == "serving", Relatie.doel_id == Component.id
+            gebruikersgroep_service.serving_van_component_where(tid, Component.id)
         )
     )
     stmt = (

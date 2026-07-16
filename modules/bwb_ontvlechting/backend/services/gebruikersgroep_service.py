@@ -16,7 +16,7 @@ Optioneel. De read geeft `afdeling_id` + de geresolveerde partij-naam (`afdeling
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, delete, distinct, func, or_, select
+from sqlalchemy import and_, delete, distinct, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -162,27 +162,43 @@ async def _applicaties_van(session: AsyncSession, tid: uuid.UUID, ids: list) -> 
     return {r.doel_id: r.bron_id for r in rijen}
 
 
+def serving_van_component_where(tid, component_col):
+    """DE richting-bron (ADR-023, één plek) voor "heeft dit component een gebruikersgroep?".
+
+    De component-kant van een `serving` is ALTIJD de **bron** (component → gebruikersgroep);
+    `maak_aan` (deze module) is de ÉNIGE serving-creator en zet altijd `bron=component,
+    doel=gebruikersgroep`. Geeft de WHERE die een serving selecteert waarvan de bron `component_col`
+    is — `Component.id` voor een correlated (sub)query/lijst, of één literal component-id voor de
+    enkel-id-ingang. **Nooit `doel_id`**: dat leest de relatie achterstevoren, waardoor élk component
+    onterecht als "zonder gebruikersgroep" vlagt (feitcheck-serving-richting). Alle lezers (deze
+    module + registratiegaten badge/lijst) delen deze ene clausule, zodat de richting niet opnieuw
+    kan driften."""
+    return and_(
+        Relatie.tenant_id == tid, Relatie.relatietype == _SERVING, Relatie.bron_id == component_col
+    )
+
+
 async def componenten_met_gebruikersgroep(session: AsyncSession, tenant_id, component_ids) -> set:
     """ADR-043 gate 4 — welke van deze componenten dragen ≥1 gebruikersgroep? Batch, read-only.
 
-    Leest de BESTAANDE serving-relatie (component = `bron` → gebruikersgroep = `doel`, ADR-023) —
-    dezelfde relatie/richting als `lijst`/`_applicaties_van`, geen tweede query-conventie. De
-    `Gebruikersgroep`-join is redundant: `maak_aan` (deze module) is de ÉNIGE serving-creator en zet
-    altijd `bron=component, doel=gebruikersgroep`, dus `serving met bron=component` betekent per
-    definitie een gebruikersgroep. Geeft de subset van `component_ids` mét ≥1 zulke serving. Lege
-    input ⇒ lege set."""
+    Leunt op de gedeelde richting-bron `serving_van_component_where` (component = `bron` →
+    gebruikersgroep = `doel`, ADR-023) — dezelfde ene clausule die de registratiegaten-badge en
+    -signaallijst gebruiken; geen tweede query-conventie. Geeft de subset van `component_ids` mét
+    ≥1 zulke serving. Lege input ⇒ lege set."""
     tid = _tenant_uuid(tenant_id)
     ids = {c for c in (component_ids or ()) if c is not None}
     if not ids:
         return set()
     rijen = (
         await session.execute(
-            select(Relatie.bron_id).where(
-                Relatie.tenant_id == tid, Relatie.relatietype == _SERVING, Relatie.bron_id.in_(ids)
-            ).distinct()
+            select(Component.id).where(
+                Component.tenant_id == tid,
+                Component.id.in_(ids),
+                exists(select(Relatie.id).where(serving_van_component_where(tid, Component.id))),
+            )
         )
     ).all()
-    return {r.bron_id for r in rijen}
+    return {r.id for r in rijen}
 
 
 def _escape_like(term: str) -> str:
