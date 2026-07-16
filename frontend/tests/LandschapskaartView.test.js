@@ -1033,13 +1033,19 @@ describe('LandschapskaartView v3', () => {
       expect(doelen.has('fa') && doelen.has('fb')).toBe(true)
     })
 
-    it('gap-cue UIT plek_stand: gat = dashed-cue, via_boven = eigen cue, hier = geen', async () => {
+    it('gap-cue UIT plek_stand (werk-lezing): gat = dashed-cue, via_boven = eigen cue, hier = geen', async () => {
       const w = await mountFunctie()
+      // Kaart-lezing slice A — de rand-stijl-cues leven onder de WERK-lezing (in status/domein neutraal).
+      w.vm.lezing = 'werk'
       expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'w1')).procesGap).toBe(true) // gat
       expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'ch')).plekViaBoven).toBe(true) // via_boven
       const hier = w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'fa'))
       expect(hier.procesGap).toBeUndefined()
       expect(hier.plekViaBoven).toBeUndefined()
+      // Neutraliseer-model: buiten de werk-lezing dragen dezelfde plekken géén rand-stijl-cue.
+      w.vm.lezing = 'status'
+      expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'w1')).procesGap).toBeUndefined()
+      expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'ch')).plekViaBoven).toBeUndefined()
     })
 
     it('plek-popup: geen fetch (synthetisch id), "Ondersteund door" toont het dragende systeem; gat benoemd', async () => {
@@ -2004,6 +2010,31 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-legenda-paneel"]').exists()).toBe(true)
   })
 
+  it('kaart-lezing slice A — meebewegende legenda toont alleen de codering van de ACTIEVE lezing', async () => {
+    const { w } = await mountView()
+    if (!w.find('[data-testid="lk-legenda-paneel"]').exists()) {
+      await w.find('[data-testid="lk-legenda-toggle"]').trigger('click'); await flushPromises()
+    }
+    // Default = status → status-sectie; geen domein-/werk-sectie.
+    expect(w.find('[data-testid="lk-legenda-status"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda-domein"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-legenda-werk"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-legenda-status"]').text()).toContain('status')
+    // Domein-lezing → domein-sectie; de status-sectie is WEG (het kleurOpDomein-gat is dicht).
+    w.vm.lezing = 'domein'; await flushPromises()
+    expect(w.find('[data-testid="lk-legenda-domein"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda-status"]').exists()).toBe(false)
+    const domeinTekst = w.find('[data-testid="lk-legenda-domein"]').text()
+    expect(domeinTekst).toContain('domein')
+    expect(domeinTekst).not.toContain('status')
+    // Werk-lezing → werk-sectie (rand-cues).
+    w.vm.lezing = 'werk'; await flushPromises()
+    expect(w.find('[data-testid="lk-legenda-werk"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-legenda-werk"]').text()).toContain('werk')
+    // Vorm-sectie blijft in élke lezing (vorm valt buiten de lezingen).
+    expect(w.find('[data-testid="lk-legenda-vorm"]').exists()).toBe(true)
+  })
+
   // ── "Organisaties in beeld"-balk (LI053) — bestuurt UITSLUITEND de organisatie-overlay ──
   // Org-nodes + hun (org-gebonden) gebruikersgroepen; componenten worden nooit geraakt.
   const _scopeGraf = () => ({
@@ -2905,13 +2936,18 @@ describe('LandschapskaartView v3', () => {
   })
 
   describe('ADR-028 — rol/BIV-filter + randbehandeling', () => {
-    it('externe_dataprovider krijgt de rol-rand in de node-data; overige nodes niet', async () => {
+    it('externe_dataprovider krijgt de rol-rand in de node-data (werk-lezing); overige nodes niet', async () => {
       const { w } = await mountView()
+      // Kaart-lezing slice A — de rol-rand is een WERK-cue (in status/domein neutraal).
+      w.vm.lezing = 'werk'
       const extern = w.vm._nodeData({ id: 'x', naam: 'BRP', element_type: 'applicatie', laag: 'application', componentrol: 'externe_dataprovider' })
       expect(extern.rol).toBe('externe_dataprovider')
       // een interne applicatie of een context-node draagt geen rol-rand
       expect(w.vm._nodeData({ id: 'y', naam: 'Intern', element_type: 'applicatie', componentrol: 'interne_applicatie' }).rol).toBe(null)
       expect(w.vm._nodeData({ id: 'k1', naam: 'Contract X', element_type: 'contract', laag: 'business' }).rol).toBe(null)
+      // Neutraliseer-model: buiten de werk-lezing draagt de dataprovider géén rol-rand.
+      w.vm.lezing = 'status'
+      expect(w.vm._nodeData({ id: 'x', naam: 'BRP', element_type: 'applicatie', laag: 'application', componentrol: 'externe_dataprovider' }).rol).toBe(null)
     })
 
     it('rol-filter: app-component mét andere rol valt weg; context-nodes zijn exempt', async () => {
@@ -2974,8 +3010,11 @@ describe('LandschapskaartView v3', () => {
       const { w } = await mountView()
       const k = w.vm._huidigeKijk()
       ;['ringAan', 'fTypes', 'fLev', 'fHost', 'fLc', 'fRol', 'bivB', 'bivI', 'bivV', 'diepte',
-        'kleurOpDomein', 'groepeerPerOrg', 'laneVolgorde', 'verbergLegeLanes', 'toonRegistratiegaps']
+        'groepeerPerOrg', 'laneVolgorde', 'verbergLegeLanes', 'toonRegistratiegaps']
         .forEach((key) => expect(k).toHaveProperty(key))
+      // Kaart-lezing slice A — de lezing is session-state (lk-state), NIET de standaardkijk-voorkeur.
+      expect(k).not.toHaveProperty('kleurOpDomein')
+      expect(k).not.toHaveProperty('lezing')
       // Momentkeuze mag er NOOIT in zitten.
       ;['set', 'actieveSet', 'ego', 'egoStartId', 'weergave', 'zoek', 'sel', 'scopeOrgs', 'focus']
         .forEach((key) => expect(k[key]).toBeUndefined())
@@ -3019,12 +3058,14 @@ describe('LandschapskaartView v3', () => {
 
     it('mount past de opgeslagen standaardkijk toe bij een verse start (geen lk-state)', async () => {
       api.voorkeuren.haalAlle.mockResolvedValueOnce([
-        { voorkeur_sleutel: 'kaart_kijkfilter', waarde: { ringAan: ['applicaties'], kleurOpDomein: true }, updated_at: 'x' },
+        { voorkeur_sleutel: 'kaart_kijkfilter', waarde: { ringAan: ['applicaties'] }, updated_at: 'x' },
       ])
       const { w } = await mountView()
       expect(w.vm.ringAan.has('applicaties')).toBe(true)
       expect(w.vm.ringAan.has('eigenaar')).toBe(false) // niet in de opgeslagen set
-      expect(w.vm.kleurOpDomein).toBe(true)
+      // Kaart-lezing slice A — de lezing zit NIET in de standaardkijk-voorkeur (session-state);
+      // een verse start zonder lk-state houdt de default-lezing 'status'.
+      expect(w.vm.lezing).toBe('status')
     })
   })
 

@@ -120,6 +120,10 @@ const SELECTIE_RAND = '#f59e0b'
 const DIM_NODE_OPACITY = 0.35
 // Deterministische domeinkleuren (border in "kleur op domein"-modus).
 const DOMEIN_PALET = ['#2563eb', '#d97706', '#0891b2', '#7c3aed', '#16a34a', '#db2777', '#65a30d', '#dc2626']
+// Neutrale, UNIFORME tint voor de niet-actieve kleur-kanalen (kaart-lezing, slice A): één grijs over
+// álle nodes → geen per-node-variatie die als status/domein te lezen valt. Bewust true-grey (géén
+// slate — dat lijkt op de lifecycle-tinten `concept`/`null`).
+const NEUTRAAL = { bg: '#e5e7eb', border: '#9ca3af' }
 
 // ── State ───────────────────────────────────────────────────────────────────────
 const nodes = ref([])
@@ -207,7 +211,10 @@ function toonLagen() {
 }
 const detailId = ref(null)
 const opbouwModus = ref(true) // geheel-model: true=insluiten (begint leeg), false=afpellen (begint vol)
-const kleurOpDomein = ref(false)
+// KAART-LEZING (slice A, ADR-043) — één actieve lezing; de actieve claimt zijn kleur-kanaal, de rest
+// wordt neutraal. Session-persistent via lk-state (NIET de voorkeur-laag — ADR-041 is een latere stap).
+const LEZING_OPTIES = [{ key: 'werk', label: 'Werk' }, { key: 'status', label: 'Status' }, { key: 'domein', label: 'Domein' }]
+const lezing = ref('status')
 const diepte = ref(1) // 1 = directe buren (ego); 2 = ook indirecte applicatie-buren (één hop dieper)
 
 const containerRef = ref(null)
@@ -480,7 +487,7 @@ function _bivVoldoet(waarde, minSleutel) {
 
 // ── LI034 / ADR-041 — persoonlijke STANDAARDKIJK (kaart-kijkfilter) ──────────────────────────────
 // Eén persoonlijke voorkeur (sleutel `kaart_kijkfilter`, slice-1-voorkeur-laag): het GEHEEL van hoe je
-// kijkt — ringen + filters + diepte + kleur + groepeer + lane-opties. NOOIT de MOMENTKEUZE (welke set/
+// kijkt — ringen + filters + diepte + groepeer + lane-opties. NOOIT de MOMENTKEUZE (welke set/
 // centrum/weergave/zoekterm/scope je nú bekijkt). Toegepast bij een verse kaart-start en bij "Begin
 // opnieuw"; in-sessie herladen behoudt het werk (lk-state wint).
 const _KIJK_SLEUTEL = 'kaart_kijkfilter'
@@ -490,7 +497,7 @@ const kijkBezig = ref(false)
 const _KALE_KIJK = () => ({
   ringAan: RINGEN.filter((r) => !RING_DEFAULT_UIT.has(r)),
   fTypes: [], fLev: [], fHost: [], fLc: [], fRol: [], bivB: '', bivI: '', bivV: '',
-  diepte: 1, kleurOpDomein: false, groepeerPerOrg: true,
+  diepte: 1, groepeerPerOrg: true,
   laneVolgorde: [...DEFAULT_LANE_VOLGORDE], verbergLegeLanes: false, toonRegistratiegaps: false,
 })
 // Het GEHEEL van de huidige kijk (kijk-variabelen; géén momentkeuze).
@@ -499,7 +506,7 @@ const _huidigeKijk = () => ({
   fTypes: [...filterTypes.value], fLev: [...filterLeveranciers.value], fHost: [...filterHosting.value],
   fLc: [...filterLifecycle.value], fRol: [...filterRollen.value],
   bivB: filterBivB.value, bivI: filterBivI.value, bivV: filterBivV.value,
-  diepte: diepte.value, kleurOpDomein: kleurOpDomein.value, groepeerPerOrg: groepeerPerOrg.value,
+  diepte: diepte.value, groepeerPerOrg: groepeerPerOrg.value,
   laneVolgorde: [...laneVolgorde.value], verbergLegeLanes: verbergLegeLanes.value,
   toonRegistratiegaps: toonRegistratiegaps.value,
 })
@@ -509,7 +516,7 @@ const _kijkSig = (k) => JSON.stringify({
   fTypes: [...(k.fTypes || [])].sort(), fLev: [...(k.fLev || [])].sort(), fHost: [...(k.fHost || [])].sort(),
   fLc: [...(k.fLc || [])].sort(), fRol: [...(k.fRol || [])].sort(),
   bivB: k.bivB || '', bivI: k.bivI || '', bivV: k.bivV || '',
-  diepte: k.diepte ?? 1, kleurOpDomein: !!k.kleurOpDomein, groepeerPerOrg: k.groepeerPerOrg !== false,
+  diepte: k.diepte ?? 1, groepeerPerOrg: k.groepeerPerOrg !== false,
   laneVolgorde: k.laneVolgorde || [], verbergLegeLanes: !!k.verbergLegeLanes, toonRegistratiegaps: !!k.toonRegistratiegaps,
 })
 // Actief zodra de huidige kijk afwijkt van de opgeslagen standaard (of er nog geen standaard is).
@@ -530,7 +537,6 @@ function _pasKijkToe(k) {
   if (typeof k.bivI === 'string') filterBivI.value = k.bivI
   if (typeof k.bivV === 'string') filterBivV.value = k.bivV
   if (k.diepte === 1 || k.diepte === 2) diepte.value = k.diepte
-  if (typeof k.kleurOpDomein === 'boolean') kleurOpDomein.value = k.kleurOpDomein
   if (typeof k.groepeerPerOrg === 'boolean') groepeerPerOrg.value = k.groepeerPerOrg
   if (Array.isArray(k.laneVolgorde)) {
     const geldig = k.laneVolgorde.filter((x) => LANE_DEF[x])
@@ -2165,13 +2171,18 @@ const laneLayout = computed(() => {
 const laneBanden = computed(() => laneLayout.value)
 function _nodeData(n) {
   const isGG = n.element_type === 'gebruikersgroep'
-  // KLEUR = STATUS (ongewijzigd): lifecycle-tint (of GG-vast/domeinkleur). Vorm staat hier los van.
-  let bg = isGG ? GG_STYLE.bg : lcStyle(n.lifecycle_status).bg
+  // KAART-LEZING (slice A) — de ACTIEVE lezing claimt zijn kleur-kanaal; de andere kanalen worden
+  // neutraal (één uniforme tint over álle nodes → geen per-node-variatie die als betekenis leest):
+  // status → VULLING = lifecycle-tint; domein → RAND-KLEUR = domeinkleur; werk → RAND-STIJL (cues,
+  // in de return hieronder). GG houdt zijn vaste identiteitskleur (context-node, geen lezing). Vorm/
+  // selectie/dim/blokkade-label blijven buiten de lezingen.
+  const L = lezing.value
+  let bg = isGG
+    ? GG_STYLE.bg
+    : L === 'status' ? lcStyle(n.lifecycle_status).bg : NEUTRAAL.bg
   let border = isGG
     ? GG_STYLE.border
-    : kleurOpDomein.value && n.domein
-      ? domeinKleur.value[n.domein]
-      : lcStyle(n.lifecycle_status).border
+    : L === 'domein' && n.domein ? domeinKleur.value[n.domein] : NEUTRAAL.border
   // ADR-033 — geen automatische oranje rand; oranje = uitsluitend de selectie (runtime hl-node).
   // VORM = TYPE (vorm-per-type-slice): via de ene gedeelde bron `_vormVoorType` (graph + swimlane).
   // TYPE-LABEL voor ÁLLE typen als tweede tekstsignaal naast de vorm; GG toont ook het ledental.
@@ -2187,16 +2198,14 @@ function _nodeData(n) {
     element_type: n.element_type, laag: n.laag, soort: n.soort,
     // ADR-028 — randbehandeling: alléén externe dataproviders krijgen een afwijkende (gestippelde)
     // rand (CY-selector node[rol="externe_dataprovider"]). Andere rollen dragen géén randsignaal.
-    rol: n.componentrol === 'externe_dataprovider' ? 'externe_dataprovider' : null,
-    // LI033 — grof-only ("nog niet verfijnd"): rustige node-markering (gestippelde rand). Alleen
-    // aanwezig als de node in de grof-only-set zit (undefined → CY-selector `node[?grofOnly]` matcht niet).
-    grofOnly: grofOnlyIds.value.has(n.id) ? true : undefined,
-    // ADR-043 gate 4 (G8) — de gap-cue op een plek-knoop, UIT `plek_stand` (server-side, de
-    // invariant): 'gat' = niets op deze plek én niets erboven (dashed rand, `node[?procesGap]`);
-    // 'via_boven' = ondersteund via een bovenliggende functie (een derde kleur, `node[?plekViaBoven]`).
-    // Altijd zichtbaar zolang de bedrijfsfunctie-ring aan staat, los van de registratiegaps-toggle.
-    procesGap: _plekGat.value.has(n.id) ? true : undefined,
-    plekViaBoven: _plekViaBoven.value.has(n.id) ? true : undefined,
+    // KAART-LEZING (slice A) — de rand-stijl-cues (werk) verschijnen UITSLUITEND in de werk-lezing;
+    // in status/domein blijven de randen effen (neutraliseer-model). Slice B ordent de cue-INHOUD
+    // later (de vijf plek-standen als één oplopende reeks + de niet-stand-cues van rand-stijl afhalen);
+    // slice A toont ze as-is: externe_dataprovider · grof-only · plek-gat · plek-via_boven.
+    rol: L === 'werk' && n.componentrol === 'externe_dataprovider' ? 'externe_dataprovider' : null,
+    grofOnly: L === 'werk' && grofOnlyIds.value.has(n.id) ? true : undefined,
+    procesGap: L === 'werk' && _plekGat.value.has(n.id) ? true : undefined,
+    plekViaBoven: L === 'werk' && _plekViaBoven.value.has(n.id) ? true : undefined,
     // LI037 fase 3d — het vroegere aparte `procesHerkomst`-accent is vervallen: de herkomst-
     // markering is voortaan uitsluitend de bestaande oranje selectie (hl-node).
   }
@@ -2724,6 +2733,9 @@ function _bewaarKaartState() {
       egoStartId: egoStartId.value,
       ringAan: [...ringAan.value],
       groepeerPerOrg: groepeerPerOrg.value,
+      // KAART-LEZING (slice A) — session-persistent (zoals de overige lk-state), NIET de cross-device
+      // voorkeur-laag (ADR-041 "onthoud als mijn standaard" is een latere additieve stap).
+      lezing: lezing.value,
     }))
   } catch { /* sessionStorage niet beschikbaar — negeren */ }
 }
@@ -2746,6 +2758,10 @@ function _herstelKaartState() {
   if (typeof s.toonRegistratiegaps === 'boolean') toonRegistratiegaps.value = s.toonRegistratiegaps
   if (Array.isArray(s.ringAan)) ringAan.value = new Set(s.ringAan.filter((r) => RINGEN.includes(r)))
   if (typeof s.groepeerPerOrg === 'boolean') groepeerPerOrg.value = s.groepeerPerOrg
+  // KAART-LEZING (slice A) — herstel de lezing; legacy lk-state (vóór slice A) droeg alleen een
+  // `kleurOpDomein`-boolean → map die eenmalig naar de domein-lezing.
+  if (['werk', 'status', 'domein'].includes(s.lezing)) lezing.value = s.lezing
+  else if (s.kleurOpDomein === true) lezing.value = 'domein'
   // egoStartId herstellen (de subgraaf-fetch laadt die node mee als hij nog bestaat).
   if (s.egoStartId) egoStartId.value = s.egoStartId
   return true  // in-sessie state hersteld → standaardkijk NIET toepassen (herladen behoudt het werk)
@@ -2907,7 +2923,7 @@ function _planRedraw() {
 watch(
   [
     () => getekendeNodes.value.map((n) => n.id).join('|'), // de werkelijk getekende node-set
-    zichtbareEdges, modus, weergave, kleurOpDomein, groepeerPerOrg, verbergLegeLanes, laneVolgorde, toonRegistratiegaps,
+    zichtbareEdges, modus, weergave, lezing, groepeerPerOrg, verbergLegeLanes, laneVolgorde, toonRegistratiegaps,
   ],
   () => {
     if (_herstellen) _hertekenNu() // hang-fix: synchroon (buiten de coalesce)
@@ -3302,20 +3318,42 @@ const typeLabel = (t) => humaniseer(t)
                 <span class="inline-block h-3.5 w-3.5 shrink-0 bg-[var(--lk-color-text-muted)]" :style="v.stijl" aria-hidden="true"></span>{{ v.label }}
               </button>
             </div>
-            <!-- Kleur = status -->
-            <div data-testid="lk-legenda-status" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+            <!-- MEEBEWEGENDE LEZING-LEGENDA (slice A): toont ALLEEN de codering van de ACTIEVE lezing —
+                 dicht het `kleurOpDomein`-gat (legenda en kaart vertellen altijd hetzelfde verhaal). -->
+            <!-- status → Kleur = status (lifecycle-tinten) -->
+            <div v-if="lezing === 'status'" data-testid="lk-legenda-status" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
               <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Kleur = status</p>
               <span v-for="lc in LIFECYCLE_OPTIES.concat(['null'])" :key="lc" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
                 <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: lcStyle(lc).bg, border: `1px solid ${lcStyle(lc).border}` }"></span>{{ lc === 'null' ? 'geen profiel' : typeLabel(lc) }}
               </span>
-              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">⚠ Open blokkade(s)</span>
             </div>
-            <!-- ADR-028 — Rand = rol (externe dataprovider) -->
-            <div data-testid="lk-legenda-rol" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
-              <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Rand = rol</p>
+            <!-- domein → Kleur = domein (rand-kleur; domeinen in beeld) -->
+            <div v-else-if="lezing === 'domein'" data-testid="lk-legenda-domein" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+              <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Kleur = domein</p>
+              <span v-for="d in domeinOpties" :key="d" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+                <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: '#e5e7eb', border: `2px solid ${domeinKleur[d]}` }" aria-hidden="true"></span>{{ typeLabel(d) }}
+              </span>
+              <span v-if="!domeinOpties.length" class="text-[length:var(--lk-text-sm)] italic text-[var(--lk-color-text-muted)]">Geen domein in beeld</span>
+            </div>
+            <!-- werk → Rand-stijl = werk (bestaande cues; slice B ordent de inhoud later) -->
+            <div v-else data-testid="lk-legenda-werk" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+              <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Rand = werk</p>
               <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
                 <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dashed border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Externe dataprovider
               </span>
+              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+                <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dotted border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Nog niet verfijnd
+              </span>
+              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+                <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dashed border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Plek zonder systeem
+              </span>
+              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+                <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dotted border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Ondersteund via bovenliggende functie
+              </span>
+            </div>
+            <!-- Blokkade-cue: label-signaal, buiten de lezingen → ALTIJD zichtbaar. -->
+            <div data-testid="lk-legenda-blokkade" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
+              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">⚠ Open blokkade(s)</span>
             </div>
           </div>
         </div>
@@ -3360,7 +3398,19 @@ const typeLabel = (t) => humaniseer(t)
           <!-- LI036 — de vroegere geparkeerde layout-wisselaar (Radiaal↔Swimlanes, v-if="false") is
                vervangen door de derde optie "Lagen" op de weergave-schakelaar in de topbar. -->
           <button type="button" data-testid="lk-centreer" class="rounded-[var(--lk-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--lk-text-sm)] shadow-[var(--lk-shadow-sm)]" @click="centreer">⊡ Centreer</button>
-          <button type="button" data-testid="lk-kleur-domein" :aria-pressed="kleurOpDomein" :class="['rounded-[var(--lk-radius-btn)] px-2 py-1 text-[length:var(--lk-text-sm)] shadow-[var(--lk-shadow-sm)]', kleurOpDomein ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white/90']" @click="kleurOpDomein = !kleurOpDomein">Kleur op domein</button>
+          <!-- KAART-LEZING (slice A): werk / status / domein — één actief; claimt zijn kleur-kanaal, de rest neutraal. -->
+          <div class="flex items-center gap-1 rounded-[var(--lk-radius-btn)] bg-white/90 px-1 py-0.5 shadow-[var(--lk-shadow-sm)]" role="group" aria-label="Kaart-lezing" data-testid="lk-lezing">
+            <span class="pl-1 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">Toon:</span>
+            <button
+              v-for="opt in LEZING_OPTIES"
+              :key="opt.key"
+              type="button"
+              :data-testid="`lk-lezing-${opt.key}`"
+              :aria-pressed="lezing === opt.key"
+              :class="['rounded-[var(--lk-radius-btn)] px-2 py-0.5 text-[length:var(--lk-text-sm)]', lezing === opt.key ? 'bg-[var(--lk-color-primary)] text-white font-semibold' : 'text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+              @click="lezing = opt.key"
+            >{{ opt.label }}</button>
+          </div>
           <!-- Fullscreen-overlay (in-app): één toggle — vergroten ingebed, verkleinen in de overlay. -->
           <button type="button" :data-testid="fullscreen ? 'lk-fullscreen-sluit' : 'lk-fullscreen-open'" :aria-pressed="fullscreen" class="rounded-[var(--lk-radius-btn)] bg-white/90 px-2 py-1 text-[length:var(--lk-text-sm)] shadow-[var(--lk-shadow-sm)]" @click="toggleFullscreen">{{ fullscreen ? '✕ Verkleinen' : '⛶ Vergroten' }}</button>
         </div>
