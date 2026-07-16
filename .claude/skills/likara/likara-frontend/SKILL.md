@@ -965,7 +965,9 @@ bewezen architectuur") is daarmee ACHTERHAALD:
   ont-reactiveer (`shallowRef` + bevroren snapshots); scherm álle afgeleide watchers
   (incl. de filter-watch) af met de `_herstellen`-guard. Zoom/pan blijven buiten de
   geschiedenis; een scope-/filter-/selectie-wijziging is wél een toestand.
-- **Vorm-per-type via één gedeelde knoop-stijlbron.** Vorm = wat het is, kleur = status.
+- **Vorm-per-type via één gedeelde knoop-stijlbron.** Vorm = wat het is; kleur toont de
+  **actieve kaart-lezing** (default: status) — **niet absoluut status** [herzien LI042], want de
+  kaart kan de kleur-lezing wisselen (werk/status/domein, zie §Signaal-kanalen · kaart-kleur-lezing).
   `_vormVoorType` (op element_type + partij-aard + infra-laag) voedt `_nodeData.shape`,
   gelezen door alle weergaven (incl. de Lagen-banen) — geen tweede definitie. **Harde
   contrast-eis:** tekstkleur altijd via luminantie (`_txtColor`) op de werkelijke
@@ -983,9 +985,15 @@ bewezen architectuur") is daarmee ACHTERHAALD:
   selectie; gebruik = `gebruikt_door_organisaties` overlapt); niets aangevinkt → alles
   (nooit leeg). Gewone filters/ringen werken daarbinnen door. Registratiegaten (component
   zonder eigenaar; gebruik via organisatieloze groep) eerlijk tonen, niet wegpoetsen.
-- **Uitklapbare legenda** (canvas-overlay): standaard ingeklapt, secties "Vorm = type" +
-  "Kleur = status", voorkeur in sessionStorage (try/catch). Glyphs zijn CSS-benaderingen
-  van de Cytoscape-vormen — herkenbaar volstaat.
+- **Uitklapbare legenda** (canvas-overlay): standaard ingeklapt, een "Vorm = type"-sectie +
+  een **"Kleur ="-sectie die de ACTIEVE lezing toont** (werk/status/domein), voorkeur in
+  sessionStorage (try/catch). Glyphs zijn CSS-benaderingen van de Cytoscape-vormen —
+  herkenbaar volstaat.
+- **Legenda beweegt mee met het kanaal (P3, LI042).** Verandert een switch/voorkeur de
+  betekenis van een kaart-kanaal, dan toont de legenda wat de kleuren in de *actieve lezing*
+  betekenen — **kleur zónder meebewegende legenda-uitleg is het anti-patroon.** Bekend gat: het
+  `kleurOpDomein`-gat (de rand wisselt naar domein terwijl de legenda "Kleur = status" blijft
+  zeggen). De legenda is een KIJK-uitleg, geen invoerregel (likara-ux §Voorkeur = KIJKFILTER).
 
 ## Kaart-vertrekpunt = zoeken, niet "alles tonen" (LI021, schaalarchitectuur)
 
@@ -1284,7 +1292,8 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   stijlbron (`_nodeData`) — identiek uiterlijk per constructie.
 - **Rol-tag-accent = eigen laag, gedeelde dim-staat.** De rol-tag (kleur + kort woord:
   gebruikt/levert/beheert/eigenaar) is een HTML-pill-overlay ónder de instance — een
-  APARTE laag naast vorm(=type/aard), vulling(=lifecycle) en rand(=selectie/blokkade);
+  APARTE laag naast vorm(=type/aard), vulling(=lifecycle) en rand(=selectie/blokkade — op de
+  kaart draagt de rand tevens de kaart-kleur-lezing werk/domein, §Signaal-kanalen · kaart-kleur-lezing);
   één kleurbron (`ROL_TAG`) voor node-tag én popup. De tag **deelt de dim-staat van zijn
   knoop**: `updateRolTags` leest `hasClass('lk-dim')` van het cy-element (de ene dim-
   eigenaar `_pasDim` eindigt met de tag-sync; `DIM_NODE_OPACITY` is de ene opacity-bron
@@ -1381,6 +1390,14 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   `vervallenIds` (solid warning + ⚠) zijn EIGEN props — nooit twee betekenissen door één
   kanaal; combinatie = gestippeld in warning-kleur. Altijd kleur + icoon + tekst. Reden: beide
   toestanden kunnen tegelijk waar zijn; een gedeeld kanaal kan er maar één vertellen.
+- **Kaart-kleur-lezing: één leidende lezing, één render-kanaal (P1, LI042).** De kaart kent drie
+  kleur-lezingen; de **ACTIEVE lezing leidt één render-kanaal, de andere kleur-kanalen
+  neutraliseren** (neutraal/uit) — nooit twee betekenissen tegelijk op één knoop. Vaste toewijzing:
+  **werk → rand-STIJL, status → VULLING, domein → rand-KLEUR.** De **selectie-rand (amber) wint in
+  elke lezing** en blijft altijd zichtbaar (selectie is geen lezing maar interactie-staat). Dit is de
+  kaart-invulling van de kanaal-scheidingsregel hierboven; de legenda beweegt mee (§Uitklapbare
+  legenda). "Welk kanaal bezet ik?" hoort als checkvraag vóór elke vorm-keuze (likara-werkprotocol
+  §Adversariële checkvraag · UI-/vorm-toepassing).
 - **Lege uitkomst ≠ fout — de aanbodStaat-vorm (BedrijfsfunctieLijst, inleesdialoog).** Eén
   enum-ref (`'laden'|'fout'|'leeg'|'ok'`), op precies één plek per pad gezet; de template
   vertakt er exclusief op. 'Fout' (aanroep faalde → rood) en 'leeg' (aanroep slaagde, niets →

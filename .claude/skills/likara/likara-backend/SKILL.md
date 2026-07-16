@@ -579,6 +579,12 @@ Service + route voor de per-gebruiker voorkeur-laag (`gebruiker_voorkeur`, zie l
   groeperen, die kunnen botsen. Dubbele engine-borging (import-afwezigheid + live
   geen-mutatie via tellingen vóór/na) blijft per lees-slice verplicht:
   `test_rollup_adr042.py`.
+  - **Gate-4-exemplaren onder ditzelfde recept (ADR-043/049/051)** — géén nieuw principe:
+    `dekking_overzicht` en `plek_standen` (leesregel **"fijn verdringt grof bij lezen"** — het fijne
+    antwoord op een plek verdringt het grove tijdens het LEZEN, nooit weggeschreven), en de
+    **gebruikersgroep-keten van brok 1** (component → `serving` → gebruikersgroep ⇒ afgeleide
+    `heeft_gebruikersgroep`-vlag, batch, read-only, één pass — geen tweede query-conventie; voedt de
+    5e stand `werkvoorraad`). Zelfde dubbele engine-borging per lees-slice: `test_gapsignaal_adr051.py`.
 - **Audit-dekking is ORM-dekking (mechanisme-feit)**: de centrale audit hangt op de
   `before_flush`/`after_flush`-Session-hooks (`app/core/audit.py`) en ziet dus ALLEEN
   ORM-mutaties — een `session.execute(insert/update/delete(...))` (core) passeert het

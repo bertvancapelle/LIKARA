@@ -106,6 +106,22 @@ erop bouwt**, mits ze aantoonbaar **één geheel** zijn (samen ontworpen, samen 
 **stash als vangnet** is. Anders: eerst committen. (Deze sessie: een backend-slice bleef ongecommit
 tot de layout-fix die hij onthulde — ze landden samen in één commit.)
 
+### Parallelle read-only sporen in een eigen worktree (LI042)
+
+Aansluitend op — niet in strijd met — de root-commit-discipline (CLAUDE.md → Commit-discipline;
+CONTRIBUTING.md sectie 7: **één commit per opdracht, sequentieel, één taak per schone werktree**).
+Die discipline blijft **ongewijzigd** voor alles wat muteert.
+
+- Een **read-only** leesopdracht (feitenopname, checkpoint, dekkingsscan — die **niets** muteert en
+  **niet** commit) mag **parallel** draaien in een **tweede terminal met een eigen worktree**.
+- **Voorwaarde: een ándere worktree dan een lopende bouw.** Deelt het read-spoor de werktree van een
+  lopende bouw, dan leest het een **tussenstand** mee (half-gebouwde code, ongecommitte slices) — dat
+  besmet de feitenopname. Eigen worktree = schone, gecommitte grond om tegen te lezen.
+- **Bouw en commit blijven strikt sequentieel**, één taak per schone worktree — parallellisme geldt
+  **uitsluitend** voor het lezen. Een read-spoor dat een wijziging blijkt te willen: stoppen en als
+  eigen `START:` in de bouw-worktree inplannen.
+- Dit is tevens de kiem van het latere **meer-personen-model** (meerdere lezers naast één bouwer).
+
 ---
 
 ## Gate-discipline (CC)
@@ -158,6 +174,14 @@ relatietype-classificatie (aggregation draagt zowel GEMMA-grond als component-sa
 de component-samenstelling, i.p.v. stil een classificatie kiezen. Stoppen op een onbeslisbare
 classificatie is correct gedrag, geen vertraging (Gate-werkwijze: "bij twijfel stoppen").
 
+**UI-/vorm-toepassing (checkpoint-vóór-vorm, LI042).** De checkvraag geldt óók vóór een
+**visuele/vorm-keuze**, niet alleen bij backend/schema: check read-only of het render-kanaal/
+mechanisme dat je wilt gebruiken **vrij** is — is de kleur al bezet, is de rand al bezet, bestaat er
+al een filter-pad? Leg nooit een tweede betekenis op een bezet kanaal zonder dat eerst vast te
+stellen. De kanaal-lijst van de kaart (likara-frontend §Signaal-kanalen · kaart-kleur-lezing:
+werk→rand-stijl, status→vulling, domein→rand-kleur, selectie→amber-rand) **ís** de concrete
+checkvraag voor UI-ontwerp.
+
 ### Herijk de fasering als stappen niet los toetsbaar blijken
 
 Klein-houden is een **middel, geen doel**. Als een gate niet zelfstandig in de browser te beoordelen
@@ -183,6 +207,28 @@ groene tests. De regel is niet nieuw — dit is opnieuw bewijs dat de browserche
 niet: een groene test zag "knop verborgen bij magBewerken=false", maar niet dat verwijderen een
 **ánder** recht eist dan bewerken (medewerker zag de knop en kreeg pas een 403 in de dialoog).
 Bij elke slice die rol-gating raakt bevat het draaiboek stappen als medewerker én als beheerder.
+
+## Tool-cadans richting productie (LI042 — vaste stappen)
+
+Vaste slash-commando-cadans naast de gate-werkwijze. **Alle vier zijn user-triggered: Bert typt ze
+zelf; CC kan ze niet zelf aanroepen** (CC mag ze wél voorstellen). Namen/functies geverifieerd tegen
+de echte CC-setup (LI042).
+
+**Sessiestart** (na ZIP-ingest + skills-read, vóór de eerste bouw) — rapport-only, fixt niets zonder
+bevestiging:
+- **`/doctor`** — health van de CC-installatie + **volledige checkup** die issues kan fixen (leest de
+  settings-bestanden, kan CLAUDE.md trimmen/migreren, ongebruikte extensies uitzetten).
+  ⚠ **`/checkup` bestaat NIET als apart commando** — de "full checkup"-functie zit ín `/doctor`.
+
+**Pre-commit** (ná de browsercheck, vóór `AKKOORD: commit`) — het net onder de browserverificatie;
+de browsercheck blijft het echte sluitpunt (§Browsercheck vóór commit):
+- **`/security-review`** — **smal**: scant de diff op het security-oppervlak (RLS/rol/Keycloak/
+  auth/validatie), kan fixes voorstellen.
+- **`/code-review ultra`** — **breed**: cloud-hosted multi-agent review van de branch/PR (logica,
+  edge-cases, kwaliteit). `ultra` is het effort-niveau, geen apart commando; `/ultrareview` is de
+  **deprecated alias** ervan. Billed. **Richting productie is `/code-review ultra` een vaste
+  pre-commit-stap, niet alleen bij gates** — nu er echte tenant-data in beeld komt, weegt de
+  grondigheid zwaarder dan de snelheid.
 
 ## Geen schuld laten ontstaan (LI032)
 
