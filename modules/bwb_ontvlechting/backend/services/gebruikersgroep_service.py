@@ -162,6 +162,29 @@ async def _applicaties_van(session: AsyncSession, tid: uuid.UUID, ids: list) -> 
     return {r.doel_id: r.bron_id for r in rijen}
 
 
+async def componenten_met_gebruikersgroep(session: AsyncSession, tenant_id, component_ids) -> set:
+    """ADR-043 gate 4 — welke van deze componenten dragen ≥1 gebruikersgroep? Batch, read-only.
+
+    Leest de BESTAANDE serving-relatie (component = `bron` → gebruikersgroep = `doel`, ADR-023) —
+    dezelfde relatie/richting als `lijst`/`_applicaties_van`, geen tweede query-conventie. De
+    `Gebruikersgroep`-join is redundant: `maak_aan` (deze module) is de ÉNIGE serving-creator en zet
+    altijd `bron=component, doel=gebruikersgroep`, dus `serving met bron=component` betekent per
+    definitie een gebruikersgroep. Geeft de subset van `component_ids` mét ≥1 zulke serving. Lege
+    input ⇒ lege set."""
+    tid = _tenant_uuid(tenant_id)
+    ids = {c for c in (component_ids or ()) if c is not None}
+    if not ids:
+        return set()
+    rijen = (
+        await session.execute(
+            select(Relatie.bron_id).where(
+                Relatie.tenant_id == tid, Relatie.relatietype == _SERVING, Relatie.bron_id.in_(ids)
+            ).distinct()
+        )
+    ).all()
+    return {r.bron_id for r in rijen}
+
+
 def _escape_like(term: str) -> str:
     """LIKE/ILIKE-wildcard-escaping (volgorde \\ → % → _), zoals de andere zoek-endpoints (CD017)."""
     return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

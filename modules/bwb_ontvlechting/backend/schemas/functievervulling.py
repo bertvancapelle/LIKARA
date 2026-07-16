@@ -90,6 +90,9 @@ class DekkingComponent(BaseModel):
     componenttype_label: str
     toelichting: str | None = None
     oordeel: str | None = None  # naar_behoren / noodoplossing / None (nog niet beoordeeld)
+    # ADR-043 gate 4 brok 1 — draagt dit dekkende systeem ≥1 gebruikersgroep? (afgeleid uit de
+    # serving-leeslaag; voedt de 'werkvoorraad'-stand). Read-only, nooit opgeslagen.
+    heeft_gebruikersgroep: bool = False
 
 
 class FunctievervullingUit(BaseModel):

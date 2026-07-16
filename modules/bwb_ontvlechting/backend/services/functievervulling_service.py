@@ -39,6 +39,7 @@ from models.models import (
 from app.core.tenant_context import huidige_actor
 from services import actor_resolutie
 from services import componentconfig_catalog as cc_catalog
+from services import gebruikersgroep_service
 from services.errors import NietGevonden, OngeldigeRegistratie, RegistratieConflict
 
 _ENTITEIT = "functievervulling"
@@ -379,6 +380,13 @@ async def dekking_overzicht(session: AsyncSession, tenant_id) -> list[dict]:
     if not rijen:
         return []
 
+    # ADR-043 gate 4 brok 1 — welke dekkende componenten dragen ≥1 gebruikersgroep? Uit de gedeelde
+    # serving-leeslaag (gebruikersgroep_service), batch, read-only — nooit weggeschreven. Voedt de
+    # 5e stand 'werkvoorraad' in `plek_standen` (systeem gedekt, gebruiker onbekend).
+    _met_gg = await gebruikersgroep_service.componenten_met_gebruikersgroep(
+        session, tid, {r.component_id for r in rijen if r.component_id is not None}
+    )
+
     def _entry(r) -> dict:
         return {
             "vervulling_id": r.id,
@@ -388,6 +396,7 @@ async def dekking_overzicht(session: AsyncSession, tenant_id) -> list[dict]:
             "componenttype_label": cc_catalog.resolveer_een(r.componenttype, type_labels),
             "toelichting": r.toelichting,
             "oordeel": r.oordeel.value if r.oordeel is not None else None,
+            "heeft_gebruikersgroep": r.component_id in _met_gg,
         }
 
     grof_per_functie: dict = {}          # functie_id -> [entry]      (component-koppelingen)
@@ -577,13 +586,14 @@ async def overzicht_voor_component(session: AsyncSession, tenant_id, component_i
 
 
 async def plek_standen(session: AsyncSession, tenant_id) -> dict:
-    """ADR-051 besluit 1/5 — de VIER standen per plek, uit dezelfde afleiding als `dekking_overzicht`
-    (één bron, twee vensters). Read-only, nooit opgeslagen.
+    """ADR-051 besluit 1/5 + ADR-043 gate 4 — de VIJF standen per plek, uit dezelfde afleiding als
+    `dekking_overzicht` (één bron, twee vensters). Read-only, nooit opgeslagen.
 
     Per plek (functie + ouder): draagt de plek zelf een antwoord (via de leesregel), dan is de stand
-    'hier' (component) of 'niets' (bevinding). Zo niet, en draagt een BOVENLIGGENDE functie een
-    component-koppeling, dan 'via_boven' (de omhoog-cue — een derde stand tussen gat en groen). Anders
-    'gat'. ⚠ Dit kijkt OMHOOG (hangt er iets bóven mij?), niet omlaag zoals de proces-gap-cue.
+    'hier'/'werkvoorraad' (component: volledig belegd vs. gebruikersgroep ontbreekt — gate 4 brok 1)
+    of 'niets' (bevinding). Zo niet, en draagt een BOVENLIGGENDE functie een component-koppeling, dan
+    'via_boven' (de omhoog-cue — tussen gat en groen). Anders 'gat'. ⚠ Dit kijkt OMHOOG (hangt er iets
+    bóven mij?), niet omlaag zoals de proces-gap-cue.
 
     Geeft: `{plekken: [{functie_id, ouder_functie_id, stand, via_functie_id?}], tellers: {...}}` —
     de boom-cue leest `plekken`, de centrale signalering leest dezelfde lijst + `tellers`."""
@@ -630,7 +640,7 @@ async def plek_standen(session: AsyncSession, tenant_id) -> dict:
         if f not in kinderen_met_ouder:
             plekken.add((f, None))
 
-    tellers = {"gat": 0, "via_boven": 0, "hier": 0, "niets": 0, "zonder_oordeel": 0}
+    tellers = {"gat": 0, "via_boven": 0, "hier": 0, "werkvoorraad": 0, "niets": 0, "zonder_oordeel": 0}
     uit: list[dict] = []
     for functie_id, ouder_id in plekken:
         d = per_plek.get((functie_id, ouder_id))
@@ -638,7 +648,11 @@ async def plek_standen(session: AsyncSession, tenant_id) -> dict:
         if d and d["herkomst"] == "geen_systeem":
             stand = "niets"
         elif d:  # 'grof' of 'fijn' → een component draagt deze plek
-            stand = "hier"
+            # ADR-043 gate 4 brok 1 — STRENG: draagt ≥1 dekkend systeem géén gebruikersgroep, dan is
+            # de plek 'werkvoorraad' (systeem bekend, gebruiker niet). Pas als ÁLLE dekkende systemen
+            # een gebruikersgroep dragen is de plek volledig belegd → 'hier'. Puur een split binnen de
+            # 'hier'-tak; 'niets'/'via_boven'/'gat' blijven onaangeroerd (geen herordening).
+            stand = "werkvoorraad" if any(not c.get("heeft_gebruikersgroep") for c in d["componenten"]) else "hier"
             if any(c.get("oordeel") is None for c in d["componenten"]):
                 tellers["zonder_oordeel"] += 1
         else:

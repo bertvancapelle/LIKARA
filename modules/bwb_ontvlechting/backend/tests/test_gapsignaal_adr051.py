@@ -5,8 +5,9 @@ Offline: model (geen_systeem + oordeel + de twee CHECKs + de geen-systeem-indexe
 
 Live (skip-if-no-DB): de "precies één van beide"-CHECK op DB-niveau (geen van beide / allebei /
 oordeel-op-bevinding geweigerd); registreer geen-systeem + de coëxistentie-guards; zet/wis oordeel;
-de VIER standen (gat · via_boven · hier · niets) uitputtend + de OMHOOG-cue met terugval.
-Live-tests ruimen hun element-rijen op (finally).
+de VIJF standen (gat · via_boven · hier · werkvoorraad · niets) uitputtend + de OMHOOG-cue met
+terugval + de hier/werkvoorraad-split (gebruikersgroep aanwezig vs. ontbreekt — ADR-043 gate 4
+brok 1) + de leeslaag-vlag `heeft_gebruikersgroep`. Live-tests ruimen hun element-rijen op (finally).
 """
 import asyncio
 import inspect
@@ -63,11 +64,12 @@ def test_rbac_geen_systeem_oordeel_verwijderen():
 
 
 def test_plek_standen_afleiding_leeft_in_de_service():
-    """ADR-051 besluit 5 — de vier standen + de omhoog-cue worden in de service afgeleid (één bron)."""
+    """ADR-051 besluit 5 + ADR-043 gate 4 — de vijf standen + de omhoog-cue worden in de service
+    afgeleid (één bron)."""
     from services import functievervulling_service as fvs
 
     src = inspect.getsource(fvs.plek_standen)
-    for kern in ("via_boven", "_dichtstbijzijnde_dragers", "via_aantal", "gat", "niets", "hier"):
+    for kern in ("via_boven", "_dichtstbijzijnde_dragers", "via_aantal", "gat", "niets", "hier", "werkvoorraad"):
         assert kern in src
 
 
@@ -150,6 +152,19 @@ async def _plek(s, ouder, kind):
     from models.models import Relatie
     s.add(Relatie(tenant_id=uuid.UUID(_TID), bron_id=ouder, doel_id=kind, relatietype="aggregation", kenmerken={}))
     await s.commit()
+
+
+async def _serving_gg(s, component_id):
+    """ADR-043 gate 4 brok 1 — geef `component_id` een gebruikersgroep via de BESTAANDE serving-
+    relatie (bron=component → doel=gebruikersgroep, ADR-023) — dezelfde relatie/richting die
+    `componenten_met_gebruikersgroep` leest. Retourneert het gebruikersgroep-element-id (opruimen)."""
+    from models.models import Element, ElementType, Relatie
+    gg = Element(tenant_id=uuid.UUID(_TID), element_type=ElementType.gebruikersgroep)
+    s.add(gg); await s.flush()
+    s.add(Relatie(tenant_id=uuid.UUID(_TID), bron_id=component_id, doel_id=gg.id,
+                  relatietype="serving", kenmerken={}))
+    await s.commit()
+    return gg.id
 
 
 async def _ruim(s, ids):
@@ -253,10 +268,11 @@ def test_vier_standen_en_omhoog_cue_live():
         ids = []
         try:
             comp = await _component(s, "ST Component")
+            gg = await _serving_gg(s, comp)          # gg aanwezig → gedekte plekken blijven 'hier'
             top = await _functie(s, "ST Top")        # wortel
             mid = await _functie(s, "ST Mid")
             laag = await _functie(s, "ST Laag")
-            ids += [comp, top, mid, laag]
+            ids += [comp, gg, top, mid, laag]
             await _plek(s, top, mid)                 # plek (mid, top)
             await _plek(s, mid, laag)                # plek (laag, mid)
 
@@ -346,3 +362,51 @@ def test_omhoog_cue_plek_specifiek_en_gelijke_afstand_telt_live():
     # Gelijke afstand, twee dragers: telling, geen willekeurige naam.
     assert per[(g, q)]["stand"] == "via_boven"
     assert per[(g, q)]["via_functie_id"] is None and per[(g, q)]["via_aantal"] == 2
+
+
+@integratie
+def test_hier_vs_werkvoorraad_split_en_leeslaag_live():
+    """ADR-043 gate 4 brok 1 — een gedekte plek is 'hier' als ÁLLE dekkende systemen een
+    gebruikersgroep dragen, en 'werkvoorraad' zodra ≥1 dekkend systeem er géén draagt (streng).
+    Plus de leeslaag-vlag `heeft_gebruikersgroep` per component in `dekking_overzicht`."""
+    from services import functievervulling_service as svc
+
+    async def _flow(s):
+        ids = []
+        try:
+            comp_met = await _component(s, "WV Met")
+            gg = await _serving_gg(s, comp_met)
+            comp_zonder = await _component(s, "WV Zonder")
+            root = await _functie(s, "WV Root")
+            fa = await _functie(s, "WV A")   # alleen comp_met  → hier
+            fb = await _functie(s, "WV B")   # alleen comp_zonder → werkvoorraad
+            fc = await _functie(s, "WV C")   # beide → werkvoorraad (streng: één zonder gg volstaat)
+            ids += [comp_met, gg, comp_zonder, root, fa, fb, fc]
+            await _plek(s, root, fa)         # plekken (fa,root) (fb,root) (fc,root)
+            await _plek(s, root, fb)
+            await _plek(s, root, fc)
+            await svc.maak_aan(s, _TID, comp_met, fa, None)
+            await svc.maak_aan(s, _TID, comp_zonder, fb, None)
+            await svc.maak_aan(s, _TID, comp_met, fc, None)
+            await svc.maak_aan(s, _TID, comp_zonder, fc, None)
+
+            r = await svc.plek_standen(s, _TID)
+            per = {(p["functie_id"], p["ouder_functie_id"]): p for p in r["plekken"]}
+            dekking = await svc.dekking_overzicht(s, _TID)
+            gg_per_comp = {}
+            for d in dekking:
+                for c in d["componenten"]:
+                    gg_per_comp[c["component_id"]] = c["heeft_gebruikersgroep"]
+            return per, r["tellers"], gg_per_comp, (root, fa, fb, fc, comp_met, comp_zonder)
+        finally:
+            await _ruim(s, ids)
+
+    per, tellers, gg_per_comp, (root, fa, fb, fc, comp_met, comp_zonder) = asyncio.run(_run(_flow))
+    # De split: volledig belegd → 'hier'; ≥1 systeem zonder gg → 'werkvoorraad'.
+    assert per[(fa, root)]["stand"] == "hier"
+    assert per[(fb, root)]["stand"] == "werkvoorraad"
+    assert per[(fc, root)]["stand"] == "werkvoorraad"   # streng: één zonder gg volstaat
+    assert tellers["hier"] >= 1 and tellers["werkvoorraad"] >= 2
+    # De leeslaag-vlag per component (read-only, uit de serving-relatie).
+    assert gg_per_comp[comp_met] is True
+    assert gg_per_comp[comp_zonder] is False
