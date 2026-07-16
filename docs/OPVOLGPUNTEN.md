@@ -208,6 +208,20 @@ G4-3. **Audit-ketenbreuk in de dev-`audit_log` (data-conditie, niet-blokkerend).
    niet code; audit is append-only. **Geen code-regressie.** Status: **opschonen/herzien wanneer
    relevant** (bv. verse dev-DB of keten-herstart) — niet als nieuwe breuk lezen.
 
+G4-4. **Dode proces-handoff-tak op de kaart na de bedrijfsfunctie-plek-laan-swap (LI043).** **Gebruiker:**
+   vanaf proces-detail zet "Bekijk op kaart" nog de chip **"Proceslandschap: X"** en landt op een proceslaan
+   die na slice 2 (`095491b`) niet meer op de kaart rendert — een doodlopend pad zolang het procesregister
+   nog zichtbaar is. **Wat nog leeft (`LandschapskaartView.vue`):** de proces-handoff-tak `openViaProces` /
+   `procesIngang` / `toonHeleBoom` / `wisProcesIngang` / `procesInzoom` / `zoomInOpProces` + de chip-banner
+   "Proceslandschap: X" + de `onMounted` mount-handoff-tak (~regel 2793), gevoed door de "Bekijk op kaart"-
+   handoff op proces-detail/-lijst (`zetKaartHandoff`). **Besluit (LI043):** adresseren in de
+   **proces-register-afbouw (sloop-stap binnen gate 4)**, in één keer samen met de proces-schermen die de
+   handoff voeden. **Niet** als losse halve patch: alleen de chip weghalen maakt de "Bekijk op kaart"-knop op
+   proces-detail doodlopend; de tak schoon verwijderen vraagt tóch de proces-schermen aan te raken — en dat
+   ís de sloop-stap. Eén sloop, niet twee. **Verband:** G10 (backend proces-endpoints blijven slapend —
+   slice 3); `docs/Feitenrapport-gate4-slice3-sloop-en-seed-V043.md` §1a (Groep B: "samen met ProcesDetail/
+   ProcesLijst slopen, niet los"). Status: **geparkeerd — meenemen in de gate-4 sloop-stap (slice 3)**.
+
 C1. **Contract-registratie — leeslaag + spiegelsignaal (notitie klaar, besluit open).** Bron:
    `docs/Analyse-contractregistratie-V040.md`. Kernpunten:
    - **A1** = afgeleide **contract-afloop-status** als leeslaag (loopt / verloopt / verlopen),
