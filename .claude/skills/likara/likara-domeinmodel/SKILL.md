@@ -9,7 +9,7 @@ description: >
   ankerpunten, en harde architectuurregels. De HOE (implementatiepatronen) staat
   in likara-db en likara-backend; dit bestand beschrijft het WAT.
 stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026/043
-bijgewerkt: V042
+bijgewerkt: V043
 ---
 
 # LIKARA Domeinmodel — Kaart
@@ -666,7 +666,7 @@ verifieer bij twijfel daar.**
 | `component_zonder_eigenaar` | `eigenaar_organisatie_id IS NULL` | 🔴 Kritiek |
 | `component_zonder_verantwoordelijke` | geen `roltoewijzing` op component | 🔴 Kritiek |
 | `biv_classificatie_onvolledig` (ADR-028) | ≥1 van `biv_{beschikbaarheid,integriteit,vertrouwelijkheid}` IS NULL | 🔴 Kritiek |
-| `component_zonder_gebruikersgroep` | geen serving-relatie van gg naar component | 🟡 Aandacht |
+| `component_zonder_gebruikersgroep` | geen serving-relatie van component (bron) naar gebruikersgroep (doel) | 🟡 Aandacht |
 | `component_geisoleerd` | geen flow-relaties | 🟡 Aandacht |
 | `contract_zonder_component` | geen association van component naar contract | 🟡 Aandacht |
 | `gebruiksfeit_zonder_verfijning` (ADR-036) | grof gebruiksfeit zónder afdeling-verfijning eronder | 🟡 Aandacht |
