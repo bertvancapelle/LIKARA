@@ -142,6 +142,89 @@ L7. **De css-build-poort draait pas bij de closeout, niet vóór een commit.** D
     elke regel) meestal niets meer — afweging voor Bert: dempen/weglaten of laten
     staan. Status: **open — afweging Bert**.
 
+### Nieuw uit LI042 (2026-07-15) — vervolg ná gate 4 (kaart-swap staat; slice 3 volgt)
+
+> Beide punten zijn **vervolg ná gate 4** — niet nu inplannen (eerst slice 2 + 3
+> committen, tree schoon). Richting/wens, geen besluit; geen ADR. Vóór de bouw hoort
+> telkens een read-only feitencheckpoint (waar haakt het aan, kleinste vorm, echte impact).
+
+G4-1. **Kaart: filter- en detailkolom auto-hide met hover + pin (zelfstandige UX-slice).**
+   Het Lagen-scherm is vol: de linker filterkolom + de rechter detail/actieve-set-kolom nemen
+   samen veel breedte, waardoor de kaart in het midden smaller is dan nodig. *(Lost "de
+   kolommen nemen breedte" op — NIET "de kaart zelf is druk"; dat laatste is een aparte vraag
+   die scope-keuze A raakt.)* **Model (besloten met Bert, LI042):** default = **los/ingeklapt**
+   (elke kolom klapt in tot een smalle rand/tab; kaart standaard volle breedte); **hover brengt
+   terug** (hover over de rand → open; muis weg → dicht); **pin = vast** (per kolom een pin die
+   'm vast openzet; pin los → terug naar hover). Twee kolommen, elk apart pinbaar → vier
+   werkstanden. **Niet-onderhandelbaar voor een niet-broze hover-ervaring:** (a) **sluitvertraging**
+   — kolom blijft een fractie open nadat de muis de rand verlaat (naar een dropdown net buiten
+   de rand bewegen zonder het paneel te verliezen); (b) **open-drempel** — openen pas na een kort
+   moment hover (geen knipperend paneel bij diagonaal langs-scheren); (c) **de ingeklapte
+   filterrand verraadt een actief filter** (stip/teller "N filters actief") — de ingeklapte stand
+   mag NOOIT verbergen dát er gefilterd wordt (anders snapt de gebruiker niet waarom de kaart
+   weinig knopen toont). **Scope-grens:** pin-stand leeft **binnen de sessie**; onthouden-over-
+   sessies is een aparte persistentie-vraag (raakt de bewaarde-staat-discipline) → **apart
+   geparkeerd**, niet in de eerste vorm. Zelfstandige UX-slice, **los van gate 4** (raakt
+   kaart-layout, niet de laan-logica of leeslaag); oppakken ná gate 4 als eigen taak.
+   Status: **richting besloten (model), bouw geparkeerd — ná gate 4**.
+
+G4-1b. **Pin-stand onthouden over sessies (afgeparkeerd van G4-1).** De vast-gepinde
+   kolomstand persisteren over sessies/apparaten heen — raakt de bewaarde-staat-/voorkeur-laag
+   (kijkfilter, niet invoerregel; ADR-041-lijn). Bewust uit de eerste vorm van G4-1 gehouden om
+   de UX-slice klein te houden. Status: **geparkeerd — pas ná G4-1 wegen**.
+
+G4-2. **Bron-verwijzing op objecten — VERWIJZEN, geen documentopslag.** Een registratie in
+   LIKARA is vandaag een bewering zonder spoor naar haar onderbouwing; er is geen manier om aan
+   te geven **waar meer detail te vinden is**. Gewenst: een object verwijst naar waar de
+   bron/meer info staat. **Kern — nadrukkelijk verwijzen, NIET opslaan:** LIKARA slaat **geen
+   documenten** op (wordt geen DMS — de gemeente heeft er al één); het draagt alleen het **adres**
+   van waar meer staat (een bestand, maar net zo goed een link naar een systeem, pagina of
+   specifiek item). **Vorm (licht — dit is bijna de hele waarde):** een verwijzing = **adres
+   (URL/pad) + soort (document/systeem/pagina/ticket/…) + label** ("Beheerdocument zaaksysteem
+   §3"), uniform ongeacht het doel; **hangt aan een object**, zichtbaar in context (bv. blok
+   "Bronnen & meer info" op het applicatiedetail — geen losse bijlagenbak); klik = open het adres
+   (nieuw tabblad). **LIKARA controleert de inhoud niet** — het is "wat de registrant opgaf als
+   bron", geen geverifieerd feit; het staat ernáást de bewering, niet vermengd. Doodlopende
+   links/verplaatste docs zijn geen LIKARA-probleem; toegang tot het doel regelt het doelsysteem
+   (veiliger dan documenten binnenhalen — LIKARA beheert geen rechten op gevoelige stukken).
+   **Rolgrens (bestaand patroon):** toevoegen/corrigeren = registratiefeit (medewerker+); bekijken
+   = iedereen die het object mag zien. **Bewust NIET in de eerste vorm:** previews,
+   link-geldigheidscontrole, categorieën, versies (kern eerst: adres + soort + label, in context,
+   medewerker beheert). **Samenhang:** tegenhanger van de import/wizard-horizon — import vult
+   vánuit een bron, de verwijzing laat de gebruiker terug náár de bron; herkomst en verwijzing =
+   twee kanten van dezelfde eerlijkheid. **Startpunt-advies:** begin bij **alleen de applicatie**
+   (één object-type, één scherm) — ~80% van de waarde; later additief naar koppeling/
+   verantwoordelijkheid/plek. "Meteen aan alles" is de generieke eindvorm maar groter (raakt de
+   gedeelde element-structuur + meerdere schermen). **Positie:** zelfstandig (geen externe bron,
+   geen AI, geen tweede referentiemodel nodig) → mogelijk eerder oppakbaar dan de wizard-horizon.
+   Status: **richting/wens — ná gate 4; read-only feitencheckpoint vóór de bouw**.
+
+### Sluitprotocol LI042 (2026-07-16) — afsluitpunten
+
+G4-3. **Audit-ketenbreuk in de dev-`audit_log` (data-conditie, niet-blokkerend).** Twee live-tests
+   in `test_audit_capture_live.py` (`test_keten_verifieert_over_echte_rijen` +
+   `test_gelijktijdige_appends_blijven_lineair_geen_fork`) verifiëren de héle geaccumuleerde keten
+   (89k+ rijen) en falen op een breuk-rij van **2026-07-14** (vorige sessie). Ze lezen DB-inhoud,
+   niet code; audit is append-only. **Geen code-regressie.** Status: **opschonen/herzien wanneer
+   relevant** (bv. verse dev-DB of keten-herstart) — niet als nieuwe breuk lezen.
+
+C1. **Contract-registratie — leeslaag + spiegelsignaal (notitie klaar, besluit open).** Bron:
+   `docs/Analyse-contractregistratie-V040.md`. Kernpunten:
+   - **A1** = afgeleide **contract-afloop-status** als leeslaag (loopt / verloopt / verlopen),
+     head-neutraal, exact het `plek_standen`-patroon (afgeleide stand uit bestaande feiten, nooit
+     wegschrijven — likara-backend §Afgeleide-leeslaag-recept).
+   - **A2** = spiegelsignaal **"component zonder contract"** (registratiegat, zoals "zonder
+     bedrijfsfunctie").
+   - **B1** = verantwoordelijkheid/toelichting op contract (skills LI038 — besloten, niet gebouwd).
+   - Bedrag/administratie bewust **buiten scope**. Bouwen **ná** gate 4. Besluit docs-vastleggen/ADR
+     staat open. Status: **richting/wens — besluit + read-only feitencheckpoint vóór de bouw**.
+
+T1. **Tool-cadans actief per volgende sessie (vastgelegd in likara-werkprotocol).** Sessiestart
+   `/doctor` (health + volledige checkup); pre-commit `/security-review` (smal) + `/code-review ultra`
+   (breed; `/ultrareview` = deprecated alias), met `/code-review ultra` verzwarend naar **vaste
+   pre-commit-stap** richting productie. Alle user-triggered (CC kan ze niet zelf starten). Status:
+   **actief — geen bouwpunt, borging-in-gedrag**.
+
 ### Nieuw uit LI040 (2026-07-13) — ADR-045 "ondersteunt werk"
 
 1. **"Geweerd tonen mét reden" — evaluatiepunt in echt gebruik.** ADR-045 besluit 3
@@ -1376,6 +1459,28 @@ Feitenrapport (LI041) + uitvoering in slices S1–S8 + de DB-triggerfunctie (S7,
   schema-rakende rename was de audit-triggerfunctie (S7).
 - DB-rol `cd_admin` **bewust niet hernoemd** (geen runtime-gebruik; alleen var-naam in fixtures, opgeschoond in S1).
 - Vangrail-greps (`compliman|cm_|Eraneos`) en historie (migratie 0010, changelog) ongemoeid gebleven.
+
+---
+
+## Horizon na MVP — bron-gedreven opvoeren (denk/ontwikkelrichting)
+
+> ⚠ **Horizon, geen backlogtaak.** Ligt nadrukkelijk **ná blok A / na de MVP-gates** en vergt
+> eerst haalbaarheidsonderzoek. Geen ADR (nog geen besluit; richting, geen keuze). Vastgelegd
+> LI042 (2026-07-15).
+
+Kern: **de consultant bevestigt in plaats van invoert.** "Dit is een Zaakregistratiecomponent"
+→ LIKARA doet uit gestandaardiseerde bronnen een voorzet (bedrijfsfuncties, standaarden,
+betrokkenen); de mens vinkt aan, stelt bij, verwijdert. Drempel omlaag, curatie overeind.
+Vier denklijnen: (1) AI-ondersteunde vulling — voorstel-generator, nooit auto-koppelen, LLM-
+bevraging bewust buiten scope; (2) bronnen-import — scheid extractie (ArchiMate/catalogus) van
+deductie (spreadsheets/documenten), elk resultaat draagt bron + zekerheid, output altijd een
+voorstel-tot-import; (3) GEMMA Softwarecatalogus als **bron**, geen concurrent (mist juist de
+bedrijfsfunctie-as); (4) de opvoer-wizard — vier bevestig-stappen, grotendeels zonder AI, leeg
+blijft eerlijk leeg.
+
+**Volledige notitie (denklijnen, grenzen, haalbaarheidsvragen, fasering):**
+`docs/horizon/Horizon-bron-gedreven-opvoeren.md` — eigen notitie omdat dit een geborgde
+gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een backlog.
 
 ---
 

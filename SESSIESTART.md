@@ -1,6 +1,6 @@
-# SESSIESTART — LIKARA V042
+# SESSIESTART — LIKARA V043
 
-**Datum**: 2026-07-14
+**Datum**: 2026-07-16
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle likara-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V042 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V043 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V042
+# SESSIE_BRIEFING.md — LIKARA V043
 
-**Gegenereerd**: 2026-07-14
+**Gegenereerd**: 2026-07-16
 
 ---
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V042 |
+| Build | V043 |
 | Datum | July 2026 |
-| Commit | 6d1b3fc |
-| Tests | backend 1122 (2 skipped) / frontend 93 files, 1219 groen |
-| TST-rapport | TST-V042-Validatierapport.md |
+| Commit | e0ff6d1 |
+| Tests | backend 1130 passed / 2 skipped / 2 failed (pre-existing audit-keten, geen regressie) |
+| TST-rapport | TST-V043-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,111 +64,118 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
+e0ff6d1 [bwb_ontvlechting] LI042 gate 4 brok 1: leeslaag heeft_gebruikersgroep + 5e stand werkvoorraad — ADR-043
+4e9f238 [frontend][backend] LI042 gate 4 slice 1 — koppelen vanuit het component + werkvoorraad-gat — ADR-043
+c7147d6 [docs] LI042 gate 4 vastlegging — feiten/ontwerp-checkpoints + ADR-043 §Gate 4 + ADR-049/051 addenda
+254f905 [docs] Sessie-afsluiting LI041 — build V042: TST + skills-frontmatter + NEXT_SESSION/OPVOLGPUNTEN/PROJECTGEHEUGEN
 6d1b3fc [frontend] LI041: het oordeel staat waar het over gaat — veldnorm-fix — ADR-051
-8cb3bcb [skills] LI041: de vorm bepaalt nooit de betekenis — kernregel + checkvraag + rollengrens — ADR-049/050/051
-78ffd5e LI041: gate 3 — het gap-signaal per plek (ADR-051)
-a5f8473 [docs] ADR-051 — gap-signaal per plek: wat draagt deze plek? (gate 3 stap 1)
-8c2bf00 [docs] Feitenrapport gate 3 — het gap-signaal per plek (read-only checkpoint)
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# NEXT_SESSION.md — LIKARA V042
+# NEXT_SESSION.md — LIKARA V043
 
-**Gegenereerd**: 2026-07-14
-**Vorige build**: V042
+**Gegenereerd**: 2026-07-16
+**Vorige build**: V043
 **Branch**: master
-**Laatste commit**: `6d1b3fc` (veldnorm-fix) · daarvóór `8cb3bcb` skills · `78ffd5e` gate 3 · `980587b` gate 2a + rollengrens · `8c2bf00`/`a5f8473` feitenrapport + ADR-051
+**Laatste commit (code)**: `e0ff6d1` gate 4 brok 1 (leeslaag `heeft_gebruikersgroep` + 5e stand
+`werkvoorraad`) · daarvóór `254f905` sessie-afsluiting LI041 · `6d1b3fc` veldnorm-fix
 
-> **Sessie LI041 — Blok A voor tweederde af: de consultant kan nu koppelen én zijn werkvoorraad zien.**
+> **Sessie LI042 — het fundament onder de bedrijfsfunctie-kaart, plus de patronen verankerd.**
 >
-> Wat LI041 heeft opgeleverd (gebruikerstaal):
-> - **Gate 2 (ADR-049) — de consultant hangt een systeem aan een bedrijfsfunctie**, grof
->   (*"ons handhavingssysteem ondersteunt Toezicht"* — geldt overal) of fijn (*"maar in Milieu
->   doen we het met de inspectie-app"* — op díé plek). Fijn verdringt grof **bij het lezen**; het
->   grove antwoord blijft bestaan en wordt weer leesbaar zodra je het fijne weghaalt. Eén gedeelde
->   leesregel (`dekking_overzicht`), geen `if` per scherm. `980587b`.
-> - **Gate 3 (ADR-051) — het gap-signaal per plek.** Vier standen: *nog geen systeem · ondersteund
->   via een bovenliggende functie (hier niet bevestigd) · hier draait dit · hier draait niets —
->   vastgesteld.* Plus een oordeel op elke koppeling (*naar behoren / noodoplossing / nog niet
->   beoordeeld*). Twee vensters (de boom-cue + de centrale werkvoorraad) uit één afleiding
->   (`plek_standen`). `78ffd5e`.
-> - **De rollengrens verschoven (ADR-050) — wie registreert, corrigeert.** Een registratie-feit
->   (een uitspraak) neemt de medewerker terug; een landschapsobject vernietigt de beheerder; de
->   modelinhoud verbouwt niemand. Structureel via `verwijder_actie()`, niet per route. Onderweg
->   geland, buiten het oorspronkelijke plan — ontstaan uit de vraag *"is een consultant een
->   beheerder of een gebruiker?"* Sloot en passant een beschermingsgat: de modelinhoud stond open
->   via het generieke relatie-endpoint (achterdeur) — nu gedicht.
-> - **De patronen verankerd (skills):** één kernregel *"de vorm bepaalt nooit de betekenis"* (drie
->   gezichten, i.p.v. drie losse regels) · de adversariële checkvraag vóór de bouw · de
->   rollengrens · de bronscan-norm · de stale LI037-verwijder-regel herschreven. `8cb3bcb`.
-> - **Eén veldnorm-schending gedicht:** de gate-3 oordeel-select overruled `.lk-veld` om in de
->   actie-strook te passen. Het oordeel staat nu waar het over gaat — de leeslaag-zin is klikbaar,
->   drie keuzes op volle grootte. `6d1b3fc`.
->
-> Tests: backend **1122 (2 skipped)** / frontend **93 files, 1219** groen; TST:
-> `TST-V042-Validatierapport.md` (**0 kritieken**). Migratie-head **0070**.
+> Wat LI042 heeft opgeleverd (gebruikerstaal):
+> - **Gate 4 slice 1 + herstel (gecommit, vorige sessie-einde):** koppelen vanuit het component,
+>   met "Bedrijfsfunctie" als eigen tabblad op componentdetail + het werkvoorraad-gat "systeem
+>   zonder bedrijfsfunctie".
+> - **Gate 4 slice 2 (kaart-swap — GEBOUWD, NIET gecommit):** de proceslaan is vervangen door de
+>   bedrijfsfunctie-laan van plekken (path-expansie: een functie op meerdere plekken verschijnt
+>   per plek). Backend + frontend af, tests groen. Blijft bewust ongecommit — zie stap 1.
+> - **Gate 4 brok 1 (datalaag — `e0ff6d1`, gecommit + gepusht):** de leeslaag weet nu per dekkend
+>   systeem óf het een gebruikersgroep draagt (`heeft_gebruikersgroep`, afgeleid uit de bestaande
+>   serving-relatie), en de plek kent een **5e stand `werkvoorraad`**: systeem bekend, gebruiker
+>   nog niet. Streng criterium — één dekkend systeem zonder gebruikersgroep maakt de plek al
+>   werkvoorraad. Geen schema, head blijft 0070.
+> - **Skill-vastlegging (7 punten, deze afsluiting gecommit):** kleur = de *actieve* kaart-lezing
+>   (niet absoluut status); één lezing → één render-kanaal; afgeleide-stand-exemplaren onder het
+>   bestaande recept; meebewegende legenda + het `kleurOpDomein`-gat; checkpoint-vóór-vorm;
+>   parallelle read-only worktrees; tool-cadans (`/doctor` · `/security-review` · `/code-review ultra`).
 
 ---
 
-## Volgende stappen — Blok A afmaken (gate 4), dan blok B
+## Top-5 prioriteiten volgende sessie
 
-> Bouwvolgorde ongewijzigd (herzien LI040→LI041): **de gates van de bedrijfsfunctie-as vóór het
-> uitstapspoor.** Gate 2 + 3 zijn af; gate 4 is het sluitstuk van blok A.
+1. **Werktree ontwarren — eerst, randvoorwaarde voor alles (DC016).** Slice 2 (kaart-swap) apart
+   committen: `modules/.../services/landschapskaart_service.py`, `schemas/landschapskaart.py`, de
+   twee `.vue` (`KaartBeginscherm`, `LandschapskaartView`), de twee frontend-tests, en de bij
+   slice-2 horende assertie in `test_landschapskaart_proces.py` (`plek_stand == "werkvoorraad"`).
+   Daarna een schone tree. De skills + afsluit-docs zijn deze sessie al gecommit (disjunct).
 
-### Blok A — de MVP-belofte (nog één gate)
-- **Gate 1 — referentiemodel inlezen** ✅ (gate 1b)
-- **Gate 2 — koppelen (ADR-049)** ✅ `980587b`
-- **Gate 3 — het gap-signaal per plek (ADR-051)** ✅ `78ffd5e`
-- **Gate 4 — VOLGENDE: de kaart rust op functies; het procesregister uit de MVP-UI (ADR-043).**
-  Het veld *"PROCES"* in het componentformulier wordt een **bedrijfsfunctie**; het procesregister
-  wordt **verborgen, niet verwijderd** (n≥2 — de LI038-bouw wordt hergebruikt). **Hierna is de
-  logische kaart de MVP.**
+2. **Serving-richting-bug fixen (eigen kleine slice, mét richtingtest).** `registratiegaten_service`
+   leest de serving-relatie op `doel_id == Component.id` (`component_zonder_gebruikersgroep`
+   :264-268 en `badge_voor_component` :201-205) — **tegengesteld** aan de énige serving-creator
+   (`gebruikersgroep_service.maak_aan`: bron=component → doel=gebruikersgroep). Vlagt vrijwel elk
+   component onterecht als "zonder gebruikersgroep". Fix in de **gedeelde lezing**, niet in de
+   consumer. Herstelt het signaal waar brok 1 én brok 2 op leunen.
 
-  ⚠ **Begin met een read-only checkpoint** vóór er iets verandert:
-  - Wat leest de kaart vandaag, en waar hangt het procesregister in de UI?
-  - Wat raakt het **verbergen** van het procesregister — welke schermen/routes/tests?
-  - **Niet verwijderen wat de kaart nodig heeft:** de kaart-lagenweergave gebruikt
-    `ARCHITECTUUR.LEZEN` (proces-projectie als read-only subgraaf-verrijking). Verbergen ≠ slopen.
+3. **Gate 4 brok 2 (kaartlaag)** — op nu-betrouwbaar fundament. Ontwerp deze sessie vastgelegd +
+   read-only geverifieerd (kanaal-isolatie): lezing-dropdown (**werk / status / domein** — één
+   kanaal per lezing, rest neutraliseren; "Kleur op domein" gaat op in de dropdown), zachte
+   thema-bewuste canvas-zweem als modus-hint, meebewegende legenda per lezing, de 5e stand
+   `werkvoorraad` als eigen rand-stijl-cue, en de stand-filter (nieuw filterpad op bestaande
+   `plek_stand`-node-data). Geen schema verwacht (head 0070).
 
-### Blok B — het uitstapspoor (ADR-046), ná blok A
-Ongewijzigd t.o.v. LI040: stuk 3 (stand per gebruiker + Gebruik/Gebruikersgroepen één laag) →
-stuk 5 (het liegende `component_zonder_gebruikersgroep`-signaal) → stuk 4 (tranche). Details en
-ontwerpeisen: OPVOLGPUNTEN §"Nieuw uit LI040".
+4. **Gate 4 brok 3 (seed-verhaal)** — dev-seed vertelt alle 5 standen op een verse DB, incl. een
+   systeem mét én één zónder gebruikersgroep op **dezelfde** plek (streng werkvoorraad-criterium)
+   en de meervoudig-geplaatste-functie-casus. Seed volgt het gebruikersverhaal, tests volgen de
+   seed. (**8 organisaties** in de seed, niet 4 — feitenrapport gate-4 slice-3.)
 
-### Direct oppakbaar (klein, uit LI041 — OPVOLGPUNTEN L1–L7)
-- ⭐ **L1** — een component verwijderen zou moeten vertellen wat er meegaat (ontwerpbesluit Bert:
-  spiegel vs. weigering; urgenter sinds ADR-050 verwijderen breder neerlegt).
-- **L2** — de guard-dekkingstest ontbreekt (modelinhoud-bescherming leunt op een afspraak).
-- **L4** — de dev-seed vertelt het gate-3-verhaal niet (verse DB → gate 3 onzichtbaar).
-- **L7** — de css-build-poort naar de per-commit-groencheck halen (liet een schending landen).
-
-### Staande werkafspraken (ongewijzigd + LI041)
-- Startregel: uitsluitend op `START: [naam]`; `AKKOORD: commit` exclusief door Bert in CC, letterlijk.
-- **De vorm bepaalt nooit de betekenis** (kernregel LI041): geen tabel-/endpoint-/typefeit als
-  bevoegdheids-/oordeelsregel; geen stille keuze; het scherm zwijgt nooit over wat het weet.
-- **Adversariële checkvraag vóór de bouw**: waar een ontwerp een niet-besloten keuze maakt (tiebreak,
-  categorie, vertrekpunt), stel eerst een read-only checkvraag — bouw niet door op een aanname die
-  zich voordoet als een besluit.
-- UX-first; browserverificatie is het sluitpunt (assert op zichtbare tekst); één taak per schone
-  worktree; meten vóór besluiten; leeg ≠ fout maar wél vindbaar; fix in de bouwsteen met een scan
-  die bijt.
+5. **Contract-spoor** (ná gate 4) — zie Openstaande beslissingen; notitie klaar, besluit open.
 
 ---
 
-## Stand
+## Openstaande beslissingen
 
-| Veld | Waarde |
-|------|--------|
-| Build | V042 |
-| Datum | 2026-07-14 |
-| Tests | backend 1122 (2 skipped) / frontend 93 files, 1219 groen |
-| Migratie-head | 0070_adr051_gapsignaal |
-| TST-rapport | TST-V042-Validatierapport.md |
-| Kritieke bevindingen | 0 |
-| Skills | zes likara-skills bijgewerkt (LI041 — kernregel + checkvraag + rollengrens + bronscan-norm) |
+- **Contract-analyse (notitie klaar, geen besluit).** Kernpunten:
+  - **A1** = afgeleide contract-afloop-status als **leeslaag** (loopt / verloopt / verlopen —
+    head-neutraal, exact het `plek_standen`-patroon).
+  - **A2** = spiegelsignaal "component zonder contract".
+  - **B1** = verantwoordelijkheid/toelichting op contract (skills LI038 — besloten, niet gebouwd).
+  - Bedrag/administratie bewust **buiten scope**. Bouwen **ná** gate 4. Besluit docs-vastleggen/ADR
+    staat open. Bron: `docs/Analyse-contractregistratie-V040.md`.
+
+---
+
+## Bekende risico's en aandachtspunten
+
+- **Audit-ketenbreuk in de dev-`audit_log`** (rij van 2026-07-14, vorige sessie). Twee live-tests
+  in `test_audit_capture_live.py` falen omdat ze de héle geaccumuleerde keten (89k+ rijen) lezen —
+  **pre-existing data-conditie, geen code-regressie**. Opschonen/herzien wanneer relevant.
+- **Werktree verstrengeld** tot stap 1 is gedraaid (slice 2 bewust ongecommit).
+
+---
+
+## Technische schuld
+
+- Serving-richting-bug (stap 2 hierboven) — zolang open, is elk gebruikersgroep-signaal onbetrouwbaar.
+- De dubbele registratiegaten-lezing (badge + overzicht) leunt op een afspraak; fix in de gedeelde
+  lezing borgt beide.
+
+---
+
+## Geleerde patronen deze sessie
+
+Verwerkt in de likara-skills (deze afsluiting gecommit):
+- **kleur = de actieve lezing**, niet absoluut status (frontend — herziening).
+- **één lezing, één render-kanaal** (frontend — P1); **meebewegende legenda + `kleurOpDomein`-gat**
+  (frontend — P3).
+- **afgeleide stand uit bestaande feiten, nooit wegschrijven** — gate-4-exemplaren onder het
+  bestaande recept (backend — P2).
+- **checkpoint-vóór-vorm** (werkprotocol — P4); **parallelle read-only worktrees** (werkprotocol —
+  P5); **tool-cadans richting productie** (werkprotocol — P7).
+
+De kennis leeft in de skills — geen memory-duplicaat.
 
 
 ---
@@ -177,6 +184,6 @@ ontwerpeisen: OPVOLGPUNTEN §"Nieuw uit LI040".
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V042"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V043"
 4. Wacht op START: [naam] van Bert
 

@@ -5,21 +5,45 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V042 · 2026-07-14
-- **Commit:** LI041-commits (`8c2bf00`/`a5f8473` feitenrapport + ADR-051 · `980587b`
-  gate 2a + rollengrens · `78ffd5e` gate 3 · `8cb3bcb` skills · `6d1b3fc` veldnorm-fix)
-  + afsluitcommit (TST + docs + build) volgt.
-- **Tests:** backend 1122 (2 skipped) · frontend 93 files, 1219 groen · 0 kritieken
-- **Migratie-head:** `0070_adr051_gapsignaal` (0069 functievervulling · 0070 gap-signaal:
-  component_id nullable + geen_systeem + oordeel, XOR-CHECK)
-- **TST-rapport:** `docs/TST-V042-Validatierapport.md` (0 kritieken; geen nieuwe migratie
-  deze afsluiting — skills + frontend-fix raken het schema niet)
-- **Dev-DB:** GEMMA-model intact; gate-2/3-registratie via de live gate-tests bewezen. ⚠ De
-  dev-seed zaait nog géén koppelingen/bevinding/noodoplossing → gate 3 is op een verse DB
-  onzichtbaar (OPVOLGPUNTEN L4).
-- **Bekende ruis:** dubbeltap-timer-tests blijven belastinggevoelig (geen regressie).
+- **Build:** V043 · 2026-07-16
+- **Commit:** `e0ff6d1` gate 4 brok 1 (leeslaag `heeft_gebruikersgroep` + 5e stand `werkvoorraad`) ·
+  daarvóór `254f905` sessie-afsluiting LI041 · `6d1b3fc` veldnorm-fix. Afsluitcommit LI042 (skills
+  7-punts + afsluit-docs + build) volgt in deze afsluiting.
+- **Tests:** backend **1130 passed, 2 skipped, 2 failed** (de 2 failures zijn pre-existing
+  audit-keten-tests over de dev-`audit_log` — geen regressie) · 0 kritieken.
+- **Migratie-head:** `0070_adr051_gapsignaal` — **geen schema-wijziging deze sessie** (brok 1 is
+  read-only afgeleid; head ongewijzigd).
+- **TST-rapport:** `docs/TST-V043-Validatierapport.md` (0 kritieken).
+- **Dev-DB:** GEMMA-model intact. ⚠ De dev-seed vertelt het gate-4-verhaal (5 standen, mét/zonder
+  gebruikersgroep, meervoud-plek) nog NIET → gepland als **gate 4 brok 3** (seed-verhaal).
+- **Bekende ruis:** dev-`audit_log`-ketenbreuk (rij 2026-07-14) laat 2 live-tests falen (data,
+  geen code); dubbeltap-timer-tests belastinggevoelig (geen regressie).
+- **Werktree:** gate 4 slice 2 (kaart-swap) blijft **bewust ongecommit** — ontwarren is stap 1
+  volgende sessie (DC016).
 
-## Deze sessie (LI041 — koppelen, gap-signaal, rollengrens) — AFGEROND
+## Deze sessie (LI042 — gate 4 brok 1 + skill-vastlegging) — AFGEROND
+
+**Kern: het fundament onder de bedrijfsfunctie-kaart, plus de patronen verankerd.**
+
+- **Gate 4 brok 1 (datalaag, `e0ff6d1`):** de leeslaag kent per dekkend systeem `heeft_gebruikersgroep`
+  (afgeleid uit de bestaande serving-relatie component→gebruikersgroep, batch, read-only — géén tweede
+  query-conventie) en de plek een **5e stand `werkvoorraad`**: systeem bekend, gebruiker nog niet.
+  **Streng criterium** — één dekkend systeem zonder gebruikersgroep maakt de plek al werkvoorraad. Geen
+  schema, head 0070. Borging `test_gapsignaal_adr051.py` (split + leeslaag-vlag).
+- **Gate 4 slice 1 + herstel (vorig sessie-einde gecommit):** koppelen vanuit het component,
+  "Bedrijfsfunctie" als eigen tabblad + werkvoorraad-gat "systeem zonder bedrijfsfunctie".
+- **Gate 4 slice 2 (kaart-swap — GEBOUWD, ongecommit):** proceslaan → bedrijfsfunctie-plek-laan met
+  path-expansie. Tests groen. Blijft staan voor de ontwarring volgende sessie.
+- **Skill-vastlegging (7 punten, deze afsluiting gecommit):** kleur = de *actieve* kaart-lezing (niet
+  absoluut status — herziening) · één lezing → één render-kanaal (P1) · afgeleide-stand-exemplaren
+  onder het bestaande recept (P2) · meebewegende legenda + `kleurOpDomein`-gat (P3) · checkpoint-vóór-
+  vorm (P4) · parallelle read-only worktrees (P5) · tool-cadans `/doctor`·`/security-review`·
+  `/code-review ultra` (P7). Geverifieerd tegen de echte CC-setup; geen dubbele waarheid.
+- **Read-only geverifieerd (voor brok 2/3):** kanaal-isolatie werk/status/domein; sloop-grens; 8
+  organisaties in de seed (feitenrapport gate-4 slice-3). Serving-richting-bug in `registratiegaten`
+  ontdekt en gemeld (fix = stap 2 volgende sessie).
+
+## Vorige sessie (LI041 — koppelen, gap-signaal, rollengrens) — AFGEROND
 
 **Kern: blok A voor tweederde af** — de consultant kan nu een systeem aan een bedrijfsfunctie
 hangen (gate 2) en per plek zijn werkvoorraad zien (gate 3); onderweg verschoof de rollengrens.
