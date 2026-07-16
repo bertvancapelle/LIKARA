@@ -84,6 +84,34 @@ L7. **De css-build-poort draait pas bij de closeout, niet vóór een commit.** D
    per lijst een eigen kleine slice (endpoint-telling via het gedeelde-filterwaarheid-
    patroon van `component_service.tel` + chips-bedrading + tests). Status: **open**.
 
+0b. **Signalering-scherm wordt de werkvoorraad-als-checklist — één UX-slice (browsercheck LI043).**
+   **Aanleiding:** de browsercheck van de serving-fix (`bae58b2`) legde bloot dat het Signalering-scherm
+   nu een lange scroll-lijst is, gegroepeerd **per signaal**: één systeem dat meerdere gaten mist staat
+   meerdere keren, verspreid; nergens een overzicht "hoe staat systeem X ervoor". De consultant werkt juist
+   **per systeem**. Vier samenhangende bevindingen — één principe (*een signaal is overal klikbaar naar zijn
+   betekenis én naar de plek waar je het dicht*) — **samen bouwen, ná gate 4**:
+   1. **Groeperen per systeem i.p.v. per signaal.** Eén regel per systeem met zijn openstaande gaten als
+      labels ernaast, **elk label gekleurd naar ernst** (rood = kritiek, amber = aandacht); kritiek-eerst
+      gesorteerd. Bovenaan een **klikbare telstrook per signaaltype** ("3 zonder eigenaar · 7 zonder
+      verantwoordelijke · …") die als filter werkt — zo blijft de campagne-lens bestaan zonder een tweede
+      volledig per-signaal-scherm vooruit te bouwen (geen dubbele weergave).
+   2. **Oplichten bij binnenkomst.** Klik op een signaal → detailscherm scrollt naar het betreffende blok en
+      **accentueert het kort** (rustige, zelf-uitdovende rand/gloed; **ernst-gekleurd** = de aangeklikte
+      ernst; navigatie-hint, geen tweede oordeel op het blok). Toegankelijk: het blok krijgt kort focus (niet
+      alleen kleur). Vereist een **expliciete koppeling signaaltype → detailblok**; wijst een signaal naar
+      een blok dat er niet is, dan land je rustig bovenaan zonder mislukte scroll. Structureel één gedeeld
+      "licht-dit-blok-op-na-binnenkomst"-mechanisme dat elk detailscherm erft, niet per sectie nagebouwd.
+   3. **Badges/indicatoren klikbaar naar hun betekenis.** De detailkop-indicatoren (bv. de rode blokkade-bol
+      "1") en component-badges bieden nu **geen route** naar wat ze betekenen of waar je het gat dicht — een
+      signaal zonder uitgang. Kern-informatie hoort niet stil in een bol/tooltip (LI039: geen kern in
+      tooltip; LI034/LI039: geen doodlopend pad). Eén keer structureel oplossen, niet per plek.
+   4. **Draaiboek-les (procesdiscipline).** Een browsercheck wijst naar de plek waar het signaal **echt
+      leeft** (Signalering-lijst / componentenlijst), niet naar een detailkop-badge die er niet zo staat —
+      de LI043-fout in het serving-fix-draaiboek. Verankert de bestaande browsercheck-regel (LI032/LI035).
+   **Verband:** raakt `SignaleringView.vue`, `SignaleringBadge`, `registratiegaten_service.overzicht()`
+   (read-only afgeleid, geen engine-poort, geen schema); sluit aan op de resultaatregel-/afwezigheidstaal-
+   lijn (0/0a, LI040). Status: **open — één UX-slice, bouwen ná gate 4**.
+
 1. **Dev-seed moet het ADR-046-verhaal vertellen.** Stuk 1 (LI040-bouw): de
    levensfasen zijn gezaaid (Zaaksysteem=uitfaseren, ZAC=in ontwikkeling, 4× in
    productie, 13× bewust leeg). De tranches/standen-seed volgt bij stuk 3/4.
