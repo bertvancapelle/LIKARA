@@ -201,6 +201,17 @@ G4-1b. **Pin-stand onthouden over sessies (afgeparkeerd van G4-1).** De vast-gep
    (kijkfilter, niet invoerregel; ADR-041-lijn). Bewust uit de eerste vorm van G4-1 gehouden om
    de UX-slice klein te houden. Status: **geparkeerd — pas ná G4-1 wegen**.
 
+G4-1c. **Kaart-lezing zit in sessie-state, filters in de voorkeur-laag — asymmetrie, bij de "onthoud
+   als mijn standaard"-slice gelijktrekken (LI043).** **Bevinding (slice-A-gate-rapport):** de kaart-lezing
+   (werk/status/domein, `ac9db21`) leeft in de sessie-`lk-state`, terwijl de kaart-**filters** in de
+   **voorkeur-laag** persisteren (server-persistent per gebruiker). Het oude `kleurOpDomein` zat óók in de
+   voorkeur-laag; slice A haalde de lezing bewust naar sessie-state om de slice klein te houden. Gevolg: een
+   opgeslagen standaardkijk draagt de kleur-lezing niet meer — een lichte asymmetrie. **Besluit (LI043):** de
+   kleur-lezing is bij uitstek een **vaste bril** (ADR-041: "hoe ik altijd kijk" — kleur-op-domein staat er
+   letterlijk als voorbeeld); bij de "onthoud als mijn standaard"-slice voor de kaart hoort de lezing
+   **naast de filters in de voorkeur-laag** — additief, geen herbouw. Tot dan blijft de lezing een
+   momentkeuze in de sessie-state. Status: **geparkeerd — meenemen bij de kaart-voorkeur-slice (ADR-041)**.
+
 G4-2. **Bron-verwijzing op objecten — VERWIJZEN, geen documentopslag.** Een registratie in
    LIKARA is vandaag een bewering zonder spoor naar haar onderbouwing; er is geen manier om aan
    te geven **waar meer detail te vinden is**. Gewenst: een object verwijst naar waar de
@@ -249,6 +260,26 @@ G4-4. **Dode proces-handoff-tak op de kaart na de bedrijfsfunctie-plek-laan-swap
    ís de sloop-stap. Eén sloop, niet twee. **Verband:** G10 (backend proces-endpoints blijven slapend —
    slice 3); `docs/Feitenrapport-gate4-slice3-sloop-en-seed-V043.md` §1a (Groep B: "samen met ProcesDetail/
    ProcesLijst slopen, niet los"). Status: **geparkeerd — meenemen in de gate-4 sloop-stap (slice 3)**.
+
+G4-5. **Domein-lezing op de kaart toont nog een placeholder — afleiden uit de bedrijfsfunctie-as (samen
+   met brok 3, LI043).** **Bevinding (feitcheck `feitcheck-domein-bron`):** de kaart-domein-lezing (slice A,
+   `ac9db21`) kleurt op `LandschapsNode.domein`, maar dat veld is een **componenttype-proxy** — het schema
+   zegt letterlijk "componenttype-label · proxy voor functioneel domein" (`schemas/landschapskaart.py:21`;
+   `landschapskaart_service.py:237`). Er is **geen** `component.domein`-kolom en **geen**
+   `Bedrijfsfunctie.domein`. Gevolg: alle 16 applicaties resolven naar één waarde "Applicatie" → de lezing
+   onderscheidt niets. De vier displays die `n.domein` tonen (kaart-kleur+legenda, zoek-string, node-popup,
+   detail-paneel) tonen daardoor allemaal "Applicatie" als domein. **Besluit (LI043):** het domein van een
+   component wordt **afgeleid uit de bedrijfsfunctie(s)** waar het onder hangt (component → functievervulling
+   → omhoog door de aggregation-boom → wortel = domein) — read-only leeslaag, **geen schema, geen eigen
+   `component.domein`-kolom** (dat zou een tweede waarheid naast de functie-as zijn); hergebruikt gate 4.
+   **Bouwen samen met brok 3 (seed-verhaal):** nu draagt slechts **3/19** componenten een functievervulling;
+   een afgeleide domein-lezing zou tot brok 3 voor 16/19 leeg zijn → brok 3 vult de component→functie-
+   koppelingen, de afgeleide domein-lezing landt daarbovenop. **Open keuze bij de bouw (niet nu):** welke
+   **boomlaag** is "het domein"? Gevonden zijn **8** GEMMA-wortels (Belastingoplegging · Bewaking · Klant- en
+   keteninteractie · Ondersteuning · Ontwikkeling · Regievoering · Sturing · Uitvoering); een herkenbaardere
+   domein-laag (sociaal domein / publieksdiensten / fysieke leefomgeving / veiligheid) zit vermoedelijk een
+   laag dieper. Plus **meervoud** — een component onder meerdere domeinen → alle tonen, nooit stil één kiezen
+   (LI041-kernregel, ADR-044). Status: **geparkeerd — bouwen samen met brok 3**.
 
 C1. **Contract-registratie — leeslaag + spiegelsignaal (notitie klaar, besluit open).** Bron:
    `docs/Analyse-contractregistratie-V040.md`. Kernpunten:
