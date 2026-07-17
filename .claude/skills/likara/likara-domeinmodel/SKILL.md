@@ -54,6 +54,22 @@ implementation migration work packages.
 > in data/API/RBAC/audit. De convergente creatie-kern is `component_service.maak_applicatie_component`.
 > (Historie: t/m V027 was `applicatie` een shared-PK-subtype van `component` — ADR-021.)
 
+### Terminologie: component · type · applicatie (VERPLICHT — code, UI én PNA)
+
+Deze begrippen werden herhaaldelijk door elkaar gehaald. De canonieke discipline:
+
+- **Component** is het overkoepelende begrip. Elk component heeft een **type** (componenttype:
+  Applicatie · Database · Infrastructuur/`server_compute` · … — de bestaande `componenttype`-waarden).
+- Een component van het type **Applicatie** noemen we een **applicatie** — maar het is en **blijft een
+  component** (`element_type='component'`, `componenttype='applicatie'`; zie de LI059-noot hierboven).
+- **"Systeem" is GEEN term in het model** en wordt **niet** als synoniem gebruikt — niet in code, niet in
+  UI-taal, niet in PNA-communicatie. Waar "systeem" bedoeld wordt als een ding in het landschap: schrijf
+  **component** (of **applicatie** als het specifiek het type Applicatie betreft).
+- **Uitzonderingen** (blijven staan): "systeem" als aanduiding van **LIKARA/de engine zelf** ("het systeem
+  leidt de keten nooit zelf af"), de technische term **"systeem-sleutel"** (built-in catalogus-sleutel), en
+  **eigennamen** van componenten die het woord bevatten (Zaaksysteem, Financieel systeem, HR-systeem) — dat
+  zijn namen, geen begripsgebruik.
+
 **Partitietest**: `test_archimate_fase_a` / `test_archimate_fase_d` bewaken dat
 `ELEMENT_ARCHIMATE_TYPING`, `ELEMENT_TYPEN_VIA_COMPONENTTYPE` en (als die leeg is)
 `ELEMENT_TYPEN_NOG_NIET_GEREALISEERD` samen de volledige `element_type_enum`
@@ -858,7 +874,7 @@ Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzi
   stand (gebruiksrelatie, stuk 3) · tranche (stuk 4) · registratiestatus (ongewijzigd).
 - **Een feit staat op het niveau waar het wáár is.** "Het zaaksysteem wordt uitgefaseerd" is
   onwaar zodra drie van de vier gemeenten blijven — de uitstap-stand is een feit van de
-  GEBRUIKSRELATIE (organisatie × component), niet van het systeem (ADR-046 besluit 3; landt in
+  GEBRUIKSRELATIE (organisatie × component), niet van het component (ADR-046 besluit 3; landt in
   stuk 3 op `organisatiegebruik`).
 - **Afgeleide uitkomsten worden nooit opgeslagen** (generalisatie van de readiness-regel):
   zwaarte ("nog 3 gebruikers") wordt GETELD op het grove feit, nooit geregistreerd — een
