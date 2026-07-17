@@ -2,7 +2,7 @@
 name: likara-frontend
 description: Frontend-patronen voor LIKARA (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V042
+bijgewerkt: V043
 ---
 
 # LIKARA Frontend Skill
@@ -1323,9 +1323,12 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   wortels dragen geen connector-kolom — de wortel-lus zaait een lege lijnen-prefix).
 - **Cytoscape-kleur zonder CSS-var-resolutie.** Cytoscape resolvet geen CSS-custom-properties
   (`var(--…)` = invalide-color-warning) → waar een cy-stijl een UI-kleur moet spiegelen is een
-  **concrete hex** nodig, mét commentaar welk token de hex spiegelt (bv. `#64748b` =
-  `--lk-color-text-muted`, edge-labelkleur) — **token-drift is een bekend aandachtspunt**.
-  Vermijd een losse hex waar het via node-data/klassen kan (de `_nodeData`-stijlbron).
+  concrete waarde nodig. **Waar die kleur uit één gedeelde bron moet komen (LI043): resolve het
+  `--lk-`-token op tekenmoment** (`getComputedStyle`, bv. `standKaartKleur(stand)` → `standCodering`)
+  i.p.v. een tweede hex te kopiëren — dan blijft de bron enkelvoudig en is **token-drift onmogelijk**
+  (er is géén dark-mode; elk token heeft één vaste waarde, dus de geresolvede waarde is stabiel). Een
+  losse hex mét token-commentaar (bv. `#64748b` = `--lk-color-text-muted`) blijft acceptabel waar géén
+  gedeelde bron speelt. Vermijd een losse hex waar het via node-data/klassen kan (`_nodeData`-stijlbron).
 
 ## LI038-patronen (useSleepbaar, ZoekSelect-filter-slot, proces-only diagram)
 
@@ -1406,6 +1409,13 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   ⚠ **Tekst-regel — geen gedeelde bouwsteen; converge bij het tweede geval (n≥2).** Het
   patroon is per scherm gebouwd; een volgend scherm met lijst + foutpad kan de overlap-bug
   opnieuw maken (OPVOLGPUNT: toestandsbouwsteen).
+- **Eén bron voor PRESENTATIE, niet alleen data (LI043).** De KERNLES ("een regel houdt pas als een
+  gedeelde bouwsteen hem afdwingt", werkprotocol) geldt net zo hard voor **presentatie**: een
+  label/kleur/icoon/legenda-tekst leeft op precies één plek en álle vensters erven ervan — bv.
+  `standCodering` (lijst-pill + kaart + legenda) en `VELD_LABELS`/`veldLabel` (het beoordelings-
+  veldlabel op 6 plekken). **Een single-source/sentinel-test is verplicht onderdeel**: hij zet de bron
+  tijdelijk op een sentinel en bewijst dat elke plek meebeweegt — en **breekt zodra iemand het opnieuw
+  hardcodet**. (Zo is het `kleurOpDomein`-gat en het "veldnaam verloopt"-gat structureel dichtgezet.)
 - **Boom-diagram links→rechts + haakse lijnen — BESLOTEN, NOG NIET GEBOUWD (vervangt huidige
   gedraging).** De huidige `procesBoomLayout` is top-down en het diagram tekent bij meervoud
   ÁLLE plaatsings-lijnen (ProcesDiagram:112-115). Het besloten ontwerp: links→rechts, haakse

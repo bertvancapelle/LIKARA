@@ -114,6 +114,13 @@ koppelen maar niet ontkoppelen, en een beheerder beide.
 > De tenant-dev-accounts (`medewerker-test`, `beheerder-test`, …; wachtwoord
 > `changeme_dev`) staan in de tabel hieronder — die stond hier al en is niet gewijzigd.
 
+### 4d. De Landschapskaart openen (LI043)
+
+Sidebar → **BWB-ontvlechting** → **Landschapskaart**. De kaart **opent op het verkenningsscherm**
+(zoeken/instap), níét op de volledige graaf — dat is bewust (schaalarchitectuur, LI021). Klik
+**"Of toon het hele landschap"** om de kaart te vullen. Pas dán zijn de lezingen (Werk/Beoordelingsstatus/
+Domein), de stand-kleuren en de meebewegende legenda zichtbaar.
+
 ---
 
 ## Testgebruikers en rollen

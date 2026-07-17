@@ -1,7 +1,7 @@
 ---
 name: likara-ux
 description: Interaction-design-denkmethode voor LIKARA. Verplicht te raadplegen bij ELKE frontend-rakende slice (nieuw scherm, nieuwe sectie, nieuwe actie) — door zowel CC als claude.ai. Borgt dat een functie de UI logisch en compleet houdt voor de gebruiker: geen lege lijsten zonder route naar de actie, actie op de plek waar de gebruiker hem verwacht, terminologie vanuit de gebruiker. Dit is GEEN stijl-/visuele skill (dat is likara-frontend); dit gaat over of het scherm doet wat de gebruiker verwacht.
-bijgewerkt: V042
+bijgewerkt: V043
 ---
 
 # LIKARA UX / Interaction-Design Skill
@@ -342,6 +342,21 @@ score-mutatie, geen lifecycle-driver. De gebruiker beslist; LIKARA signaleert.
 Elk signaal heeft een directe doorkliklink; geen in-line bewerking in het
 signaleringsscherm.
 
+### Plek-stand-kleurtaal (LI043) — een aparte as
+
+De **plek-standen** (bedrijfsfunctie-plek, gate 4) dragen een eigen vaste kleurtaal, uit één bron
+(`standCodering`), consistent over **lijst-pill + kaart + legenda**:
+
+- **amber** (`--lk-color-warning`) = er ligt **werk** — `gat` én `werkvoorraad` (onderscheiden door tekst, niet kleur)
+- **groen** (`--lk-color-success`) = **hier draait** een systeem
+- **blauw** (`--lk-color-primary-700`) = **gedekt via** een bovenliggende functie
+- **grijs** (`--lk-color-text-muted`) = **bewust niets** (een afgerond besluit)
+
+⚠ **Niet verwarren met andere kleur-assen.** Dit is een ándere as dan (a) de Signalering-ernst hierboven
+(🔴 kritiek / 🟡 aandacht) en (b) de **Beoordelingsstatus/lifecycle**-tinten op de kaart (`LC_STYLE`:
+groen = migratieklaar, blauw = in_inventarisatie). Die bestaande conventies blijven eigenstandig; de
+plek-stand-kleurtaal overschrijft ze niet. "Consistent over vensters" geldt alleen bínnen de plek-stand-context.
+
 ## LI024 — Aanvullende UX-patronen
 
 ### Draggable overlays
@@ -464,6 +479,13 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   het feit read-only zichtbaar) en verwijderen — verwijderen áltijd met bevestiging
   waarin de regel léésbaar staat ("*registreren* in Vergunningverlening — Zaaksysteem
   verwijderen?"). Nooit een kaal ×-kruisje op een registratie-feit.
+- **Aandacht schaalt met gewicht — bevestiging = auditeerbaar wilsbesluit (LI043).** Niet elke
+  handeling verdient dezelfde drempel: overal bevestigen traint weg-klikken én vervuilt het audit-spoor
+  met betekenisloze bevestigingen. Een **ijkpunt** hoort bij handelingen die **werk terugzetten of iets
+  vernietigen** en **benoemt het gevolg** ("deze plek komt hierdoor terug op je werklijst") — het is een
+  verantwoordingsmoment (wie · wanneer · welk getoond gevolg · bewust akkoord). Lichte, triviaal-
+  omkeerbare, additieve handelingen (koppelen, gebruikersgroep tóevoegen) krijgen géén drempel. Het uit
+  te voeren werk staat in **OPVOLGPUNTEN L1a** (niet hier dupliceren).
 - **Weigeringen en fouten zijn zichtbaar, nooit alléén kleur.** MeldingBanner: kleur +
   icoon + tekst, bóven de invoervelden (leesvolgorde vóór het te corrigeren veld), met
   scroll-vangnet; de melding verdwijnt zodra de invoer wijzigt. Een 409 "bestaat al" is
@@ -622,12 +644,15 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
 
 ## LI040 — leegte, oordelen, filters en de detailkop (gevalideerd)
 
-- **Leeg ≠ fout, en LIKARA verzint nooit een antwoord.** Een default die als oordeel oogt
+- **Leeg ≠ fout, én leeg ≠ een ingevulde waarde/oordeel (LI043).** Een default die als oordeel oogt
   ("Onbekend", "Midden") is erger dan leegte: niet te onderscheiden van een echt oordeel — en
-  precies op de kolommen waarop een bestuurder sorteert. Velden waar afwezigheid betekenis heeft
-  zijn **nullable zonder default**; afwezigheid toont **gedempt** als **"nog niet vastgelegd"**,
-  nooit rood. LIKARA doet nooit zelf de uitspraak (ook de seed niet). *(Migraties 0067/0068;
-  ADR-046 addendum A, vormkeuze B.)*
+  precies op de kolommen waarop een bestuurder sorteert. **Dat geldt óók voor een afgeleide/proxy-
+  waarde en een placeholder-sentinel**: presenteer die nooit alsof het een echt ingevuld antwoord is.
+  Bewijs LI043: de domein-lezing toonde het componenttype-label ("Applicatie") als wás het een domein
+  (proxy → schijnwaarde); BIV "niet geclassificeerd" mag niet als "in orde" lezen. Velden waar
+  afwezigheid betekenis heeft zijn **nullable zonder default**; afwezigheid toont **gedempt** als
+  **"nog niet vastgelegd"**, nooit rood. LIKARA doet nooit zelf de uitspraak (ook de seed niet).
+  *(Migraties 0067/0068; ADR-046 addendum A, vormkeuze B.)*
 - **Eén taal voor afwezigheid** in de hele applicatie. ⚠ OPENSTAAND (OPVOLGPUNTEN 0a): er zijn
   nu nog vijf woorden — "nog niet vastgelegd" · "Niet geclassificeerd" (BIV) · "nog niet
   geregistreerd" (eigenaar/rollen) · "n.v.t." · "—". Keuze is aan Bert; niet zelf gladstrijken.
