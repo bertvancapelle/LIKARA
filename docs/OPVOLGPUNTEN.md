@@ -28,6 +28,39 @@ L1. ⭐ **Een component verwijderen zou moeten vertellen wat er meegaat.** Wie e
    laag voor laag ontmantelen, zoals organisatiegebruik)? En: bij élk landschapsobject of
    alleen bij een grote cascade? (Suggestie: de bestaande read-only `impact_analyse`,
    `component_service.py:841`, als bevestigstap.) Status: **open — ontwerpbesluit Bert**.
+L1a. ⭐ **IJkpunt als auditeerbaar wilsbesluit bij werk-terugzettende/vernietigende handelingen
+   (LI043, feitcheck `feitcheck-werkvoorraad-ijkpunten`).** **Principe (Bert):** een handeling die
+   **werk terugzet op de werklijst of iets vernietigt** toont een ijkpunt dat **het gevolg benoemt**
+   ("deze plek komt hierdoor terug op je werklijst"). De bevestiging is een **verantwoordingsmoment**,
+   terug te lezen in de audit: **wie · wanneer · welke handeling · welk getoond gevolg · bewust
+   akkoord**. Het onderscheid dat nu ontbreekt — tussen "het systeem veranderde" (automatische
+   mutatie-logging, ADR-006) en "een mens koos dit welbewust, met kennis van de gevolgen" — is precies
+   wat dit vastlegt. **Selectieve lijn (bewust, niet strikt-overal):** vooruitgang — werk **afronden**
+   (component→functie koppelen, gebruikersgroep tóevoegen, "bewust niets" vastleggen, functie plaatsen)
+   — blijft **licht, geen ijkpunt**. Het ijkpunt hoort bij **werk terugzetten of vernietigen**
+   (ontkoppelen, "bewust niets" terugtrekken, gebruikersgroep verwijderen, component verwijderen).
+   Reden: overal bevestigen traint weg-klikken én vervuilt het audit-spoor met betekenisloze
+   bevestigingen — dan verdrinkt het besluit dat ertoe doet. Aandacht schaalt met gewicht. **Eén
+   gedeeld mechanisme:** het ijkpunt én de audit-trigger komen uit één bouwsteen
+   (`BevestigVerwijderDialog` is de kandidaat — dekt al ontkoppelen/haalWeg/functie-verwijder), zodat
+   geen impactvolle handeling ongemerkt langs het spoor glipt en de klonen
+   (koppel/plaats/geenSysteem/gg-verwijder/component-verwijder als losse `Dialog`) daarnaartoe migreren
+   (staat al als note bij de bouwsteen; zie ook de 11-klonen-migratie in het LI035-blok). **Het
+   scherpste concrete gat (feitcheck):** **gebruikersgroep verwijderen** kantelt een plek `hier →
+   werkvoorraad` (zet werk terug de consultant-lijst op) én gooit gg-gegevens weg, maar de bevestiging
+   is generiek ("deze gebruikersgroep definitief verwijderen?") en **benoemt het werkvoorraad-gevolg
+   niet**. Dit is het eerste dat het principe moet dichten. Rijkste referentie voor "toon wát verandert":
+   component-verwijderen (ADR-022 Fase C) toont al een impact-telling — maar bespoke, niet als gedeelde
+   bouwsteen (generaliseert L1 hierboven). **Correct géén ijkpunt (bevestigd, niet aanraken):** de
+   koppeling-oordeel-dropdown (kantelt de stand niet — kwalificatie binnen een al-gedekte plek) en
+   veld-edits die geen stand kantelen. **Te verifiëren read-only vóór de bouw (niet nu aannemen):**
+   (1) kan de huidige automatische mutatie-logging (ADR-006, before/after_flush + hash-keten) de
+   **"bevestigde intentie"** al dragen (mens-koos-bewust vs. systeem-muteerde), of moet daar iets bij —
+   en zo ja, wat minimaal? (2) kan `BevestigVerwijderDialog` de **audit-trigger + het getoonde-gevolg**
+   huisvesten zonder per-plek maatwerk? **Reikwijdte:** ~8 kantelende handelingen over 3 views
+   (BedrijfsfunctieLijst · GebruikersgroepSectie · ComponentDetail); één gedeelde bouwsteen kan ze
+   bedienen. Status: **post-MVP governance-verankering; sluit aan op het top-6 "destructieve bevestiging
+   toont wat verwijderd wordt" (L1) en de bevestig-dialoog-migratie. Geen bouw nu.**
 L2. **De bescherming van de modelinhoud leunt op een afspraak, niet op een test.**
    `MODELINHOUD_BESCHERMD` staat nu op twee mutatiepaden (`bedrijfsfunctie_service` +
    `relatie_service._weiger_modelinhoud`), maar er is **geen test die bewijst dat élk**
