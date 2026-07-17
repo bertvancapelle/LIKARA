@@ -27,26 +27,31 @@
 
 ## Top-5 prioriteiten volgende sessie
 
-1. **Gate 4 restant / ADR-046-stubs — de resterende MVP-gate-stappen.** Ná de nu-voltooide kaart-lezing:
-   levensfase / bedoeling (`migratiepad`) / uitstap-stand (stuk 3, `organisatiegebruik`) / tranche (stuk 4).
-   Dit is de laatste MVP-laag op de bedrijfsfunctie-as. Volgorde + afhankelijkheden: OPVOLGPUNTEN
-   (LI040/LI041-blokken, ADR-046).
+> **PNA-advies volgorde (kernafweging): waarde vóór fundament.** Lever eerst wat de consultant voelt (het
+> open-punten-overzicht), en leg het fundament (de beoordelingsgrondslag) eronder wanneer het overzicht
+> erom vraagt — niet andersom. Ervoor bouwen is het Drimmelen-/receding-horizon-patroon (maanden norm vóór
+> de eerste waarde). Afwijking t.o.v. de vorige ordening: het overzicht schuift vóór de gate-4-restant.
 
-2. **Open-punten-overzicht per component (kan EERDER, ongewogen).** Het overzicht "alles wat dit systeem
-   nog nodig heeft" (Dit moet nog / Dit zou netjes zijn, met route) kan al landen op de **bestaande
-   ophaalbare** bronnen (checklist nee/deels + `signalering.badgeComponent`) — de weging komt later. Ontwerp
-   (mockup) eerst. Grond: OPVOLGPUNTEN LI043-blok + feitcheck `feitcheck-open-punten-bronnen`.
+1. **Open-punten-overzicht per component (ongewogen) — EERST.** *Grootste gebruikerswinst voor de kleinste
+   bouw:* dit is waar de consultant deze sessie het hardst "de weg kwijt" bleek (vier tabbladen, twee badges,
+   geen verhaal). Kan **nú** al — de bronnen zijn ophaalbaar (checklist nee/deels + `signalering.badgeComponent`;
+   `feitcheck-open-punten-bronnen`) — en is browser-aftekenbaar op de bestaande data. Start met een **mockup**
+   (Bert beslist het scherpst op beeld); de bronnen-inventaris ligt er al. Grond: OPVOLGPUNTEN LI043-blok.
 
-3. **Beoordelingsgrondslag (groot post-MVP ontwerpspoor) — het fundament onder (2).** Tenant-configureerbare
-   waarde-norm; "moet/netjes" volgt eruit; degradeert netjes (werkt ongewogen). Verankerd in OPVOLGPUNTEN
-   (LI043-blok, item 1). Ontwerp/ADR vóór bouw; raakt vermoedelijk schema (nieuw model/catalogus).
+2. **Beoordelingsgrondslag — DAARNA, niet ervoor.** *Groot, schema-rakend fundament.* Het overzicht werkt
+   ongewogen prima; de grondslag is **verrijking (weging), geen voorwaarde**. Overzicht = waarde, grondslag =
+   scherpte. Verankerd in OPVOLGPUNTEN (LI043-blok, item 1). Ontwerp/ADR vóór bouw; raakt vermoedelijk schema.
 
-4. **De twee B2-bevindingen — koppelen aan de beoordelingsgrondslag.** (a) Op de kaart delen gat en
-   werkvoorraad dezelfde amber (onderscheid leest via lijst-pill/hover) — herzien of dat volstaat; (b) de
-   lezingen Werk/Status/Domein zijn niet symmetrisch (Werk draagt de stand-kleuren, de andere niet). Beide
-   pas herzien wanneer de beoordelingsgrondslag er is; niet los oplossen.
+3. **De twee B2-bevindingen — GEKOPPELD aan de grondslag, niet los.** *Ze veranderen van betekenis zodra
+   "werk" tegen een grondslag gewogen wordt — nu herijken = dubbel werk.* (a) gat en werkvoorraad delen op de
+   kaart dezelfde amber; (b) de lezingen Werk/Status/Domein zijn niet symmetrisch. Herzien mét (2), niet ervoor.
 
-5. **Contract-spoor** (ná gate 4) — zie Openstaande beslissingen; notitie klaar, besluit open.
+4. **Gate-4-restant / ADR-046-stubs — NA het overzicht.** *Zonder het open-punten-inzicht produceren ze "een
+   IT-lijst i.p.v. een governance-feit"; het overzicht geeft ze context.* levensfase / bedoeling (`migratiepad`)
+   / uitstap-stand (stuk 3, `organisatiegebruik`) / tranche (stuk 4) — de laatste MVP-laag op de
+   bedrijfsfunctie-as. Afhankelijkheden: OPVOLGPUNTEN (LI040/LI041-blokken, ADR-046).
+
+5. **Contract-spoor** (ná gate 4) — zoals gepland; zie Openstaande beslissingen. Notitie klaar, besluit open.
 
 ---
 
