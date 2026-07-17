@@ -899,7 +899,7 @@ describe('BedrijfsfunctieLijst — ADR-051 gate 3: standen + oordeel + bevinding
     ], tellers: {} })
     const w = await mountLijst()
     expect(w.find('[data-testid="functie-stand-gat-pr"]').text()).toContain('nog niet vastgelegd waarmee dit werk gedaan wordt')
-    expect(w.find('[data-testid="functie-stand-viaboven-bs"]').text()).toBe('ondersteund via Primair — hier niet bevestigd')
+    expect(w.find('[data-testid="functie-stand-viaboven-bs"]').text()).toContain('ondersteund via Primair')
   })
 
   it('via-boven bij meerdere dragers op gelijke afstand: telling i.p.v. een willekeurige naam', async () => {
@@ -907,16 +907,41 @@ describe('BedrijfsfunctieLijst — ADR-051 gate 3: standen + oordeel + bevinding
       { functie_id: 'bs', ouder_functie_id: null, stand: 'via_boven', via_functie_id: null, via_aantal: 3 },
     ], tellers: {} })
     const w = await mountLijst()
-    expect(w.find('[data-testid="functie-stand-viaboven-bs"]').text()).toBe('ondersteund via 3 bovenliggende functies — hier niet bevestigd')
+    expect(w.find('[data-testid="functie-stand-viaboven-bs"]').text()).toContain('ondersteund via 3 bovenliggende functies')
   })
 
-  it('"hier draait niets — vastgesteld" is een bevinding, zichtbaar anders dan een gat', async () => {
+  it('"bewust niets" is een bevinding, zichtbaar anders dan een gat', async () => {
     api.functievervullingen.dekking.mockResolvedValue([
       { functie_id: 'bs', ouder_functie_id: null, herkomst: 'geen_systeem', componenten: [], verdrongen: [], bevinding_id: 'bev1', grof_totaal_plekken: null, grof_geldt_op: null },
     ])
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [
+      { functie_id: 'bs', ouder_functie_id: null, stand: 'niets', via_functie_id: null, via_aantal: 0 },
+    ], tellers: {} })
     const w = await mountLijst()
-    expect(w.find('[data-testid="functie-stand-niets-bs"]').text()).toContain('Hiervoor wordt niets gebruikt — vastgesteld')
+    expect(w.find('[data-testid="functie-stand-niets-bs"]').text()).toContain('hier wordt bewust niets gebruikt')
     expect(w.find('[data-testid="functie-stand-gat-bs"]').exists()).toBe(false)
+  })
+
+  it('slice B1 (G4-6) — werkvoorraad (systeem zónder gebruikersgroep) leest ANDERS dan hier', async () => {
+    const _comp = (id, naam) => ({ vervulling_id: `v-${id}`, component_id: id, component_naam: naam, componenttype: 'applicatie', componenttype_label: 'Applicatie', oordeel: null })
+    api.functievervullingen.dekking.mockResolvedValue([
+      { functie_id: 'pr', ouder_functie_id: null, herkomst: 'grof', componenten: [_comp('c1', 'Zaaksysteem')], verdrongen: [], bevinding_id: null, grof_totaal_plekken: 1, grof_geldt_op: 1 },
+      { functie_id: 'bs', ouder_functie_id: null, herkomst: 'grof', componenten: [_comp('c2', 'DMS')], verdrongen: [], bevinding_id: null, grof_totaal_plekken: 1, grof_geldt_op: 1 },
+    ])
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [
+      { functie_id: 'pr', ouder_functie_id: null, stand: 'hier', via_functie_id: null, via_aantal: 0 },
+      { functie_id: 'bs', ouder_functie_id: null, stand: 'werkvoorraad', via_functie_id: null, via_aantal: 0 },
+    ], tellers: {} })
+    const w = await mountLijst()
+    // hier = groene "hier draait"; werkvoorraad = amber "systeem bekend, gebruiker nog niet".
+    expect(w.find('[data-testid="functie-stand-hier-pr"]').text()).toContain('hier draait')
+    const wv = w.find('[data-testid="functie-stand-werkvoorraad-bs"]')
+    expect(wv.exists()).toBe(true)
+    expect(wv.text()).toContain('systeem bekend, gebruiker nog niet vastgelegd')
+    // De kernfix: werkvoorraad vermomt zich NIET meer als "hier draait".
+    expect(wv.text()).not.toContain('hier draait')
+    // De namen blijven leesbaar op beide scanlagen.
+    expect(w.find('[data-testid="functie-dekking-comp-bs--c2"]').text()).toBe('DMS')
   })
 
   it('koppelen met oordeel "noodoplossing" stuurt het oordeel mee; de plek oogt niet volwaardig', async () => {
@@ -954,11 +979,14 @@ describe('BedrijfsfunctieLijst — ADR-051 correctie: twee lagen + taal', () => 
   const _dek = (comps) => [{ functie_id: 'bs', ouder_functie_id: null, herkomst: 'grof', componenten: comps, verdrongen: [], bevinding_id: null, grof_totaal_plekken: 1, grof_geldt_op: 1 }]
   const _c = (id, naam, oordeel = null) => ({ vervulling_id: `v-${id}`, component_id: id, component_naam: naam, componenttype: 'applicatie', componenttype_label: 'Applicatie', oordeel })
 
-  it('scanlaag draagt de namen ("Gedaan met"); het oordeel staat ÉÉN keer (leeslaag), niet dubbel', async () => {
+  it('scanlaag: ernst-pill (hier) + namen; het oordeel staat ÉÉN keer (leeslaag), niet dubbel', async () => {
     api.functievervullingen.dekking.mockResolvedValue(_dek([_c('c1', 'Zaaksysteem', 'noodoplossing')]))
+    api.functievervullingen.standen.mockResolvedValue({ plekken: [
+      { functie_id: 'bs', ouder_functie_id: null, stand: 'hier', via_functie_id: null, via_aantal: 0 },
+    ], tellers: {} })
     const w = await mountLijst()
-    // Scanlaag: de naam (waarmee).
-    expect(w.find('[data-testid="functie-dekking-bs"]').text()).toContain('Gedaan met:')
+    // Scanlaag: de ernst-pill (hier=groen) leidt; de naam (waarmee) volgt — beide leesbaar.
+    expect(w.find('[data-testid="functie-stand-hier-bs"]').text()).toContain('hier draait')
     expect(w.find('[data-testid="functie-dekking-comp-bs--c1"]').text()).toBe('Zaaksysteem')
     // Leeslaag: het oordeel — precies ÉÉN informatieve weergave (geen dubbel).
     expect(w.findAll('[data-testid="functie-oordeel-bs--c1"]').length).toBe(1)

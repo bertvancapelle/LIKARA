@@ -37,6 +37,7 @@ import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import MeldingBanner from '@/components/MeldingBanner.vue'
 import RijActies from '@/components/RijActies.vue'
+import { STAND_CODERING, standPillStyle } from '../standCodering'
 import { meervoudBoomStructuur } from '../procesBoom'
 import ProcesDiagram from './ProcesDiagram.vue'
 import ZoekSelect from './ZoekSelect.vue'
@@ -148,16 +149,26 @@ const standenPerPlek = computed(() => {
   return m
 })
 const standVoorRij = (rij) => standenPerPlek.value.get(_dekkingSleutel(rij.functie.id, rij.ouderId)) || null
-// De omhoog-cue in gebruikerstaal — de naam komt van de dichtstbijzijnde dragende voorouder
-// (via_functie_id, door de boom opgezocht in naamVanId); bij meerdere op gelijke afstand telt
-// de backend ze (via_aantal) en noemen we géén willekeurige naam.
-function viaTekst(p) {
-  if (!p) return ''
-  if (p.via_functie_id) return `ondersteund via ${naamVanId(p.via_functie_id)} — hier niet bevestigd`
-  return `ondersteund via ${p.via_aantal} bovenliggende functies — hier niet bevestigd`
-}
 // Plek-sleutel voor de leesregel-lookup: functie + ouder ('' = wortel/grof). Spiegelt exact
 // de backend-sleutel (functie_id, ouder_functie_id) — de boom KIEST hier niets, ze zoekt op.
+// ── Slice B1 (G4-6) — de ernst-pill per plek, UIT één bron (`standCodering`). De lijst LEEST de
+// stand (`standVoorRij`) + de dekking; kleur/tekst/icoon komen uit de codering, nergens inline. Zo
+// worden `hier` (groen) en `werkvoorraad` (amber) eindelijk onderscheiden. De pill draagt een KORTE
+// marker; de dragende componenten blijven ernaast leesbaar (scanlaag), het oordeel in de leeslaag.
+function standPill(rij) {
+  const s = standVoorRij(rij)
+  if (!s || !STAND_CODERING[s.stand]) return null
+  const c = STAND_CODERING[s.stand]
+  const voorouder = s.via_functie_id ? naamVanId(s.via_functie_id) : null
+  return {
+    stand: s.stand,
+    // testid-conventie: `via_boven` → `viaboven` (spiegelt de bestaande tests).
+    testStand: s.stand === 'via_boven' ? 'viaboven' : s.stand,
+    icoon: c.icoon,
+    tekst: c.lijstTekst({ voorouder, viaAantal: s.via_aantal }),
+    style: standPillStyle(s.stand),
+  }
+}
 const _dekkingSleutel = (functieId, ouderId) => `${functieId}|${ouderId ?? ''}`
 const dekkingPerPlek = computed(() => {
   const m = new Map()
@@ -1110,8 +1121,15 @@ onMounted(() => {
                  rij (.lk-rij-acties). "Component" i.p.v. "systeem" — klopt óók voor een fileshare. -->
             <template v-if="dekkingVoorRij(rij) && dekkingVoorRij(rij).componenten.length">
               <!-- Scanlaag: waarmee wordt dit werk gedaan -->
-              <p class="pl-7 text-[length:var(--lk-text-sm)]" :data-testid="`functie-dekking-${rij.plek}`">
-                <span class="text-[var(--lk-color-text-muted)]">Gedaan met: </span>
+              <p class="pl-7 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[length:var(--lk-text-sm)]" :data-testid="`functie-dekking-${rij.plek}`">
+                <!-- Slice B1 (G4-6) — de ernst-pill onderscheidt `hier` (groen) van `werkvoorraad`
+                     (amber): een systeem zónder gebruikersgroep vermomt zich niet meer als "af". -->
+                <span
+                  v-if="standPill(rij)"
+                  :data-testid="`functie-stand-${standPill(rij).testStand}-${rij.plek}`"
+                  :style="standPill(rij).style"
+                  class="inline-flex items-center gap-1 rounded-[var(--lk-radius-badge)] border px-1.5 text-[length:var(--lk-text-xs)] font-medium"
+                ><span aria-hidden="true">{{ standPill(rij).icoon }}</span>{{ standPill(rij).tekst }}</span>
                 <template v-for="(c, i) in dekkingVoorRij(rij).componenten" :key="c.vervulling_id">
                   <span v-if="i" aria-hidden="true"> · </span>
                   <span
@@ -1163,34 +1181,26 @@ onMounted(() => {
             <!-- ADR-051 gate 3 — de plek-standen die géén eigen koppeling zijn: 'niets' (bevinding),
                  'via_boven' (omhoog-cue), 'gat'. De boom LEEST de server-stand; ze beslist niets zelf.
                  Rustig — dit is werkvoorraad, geen fout; gescheiden van het amber vervallen-signaal. -->
+            <!-- Slice B1 (G4-6) — de plek-standen zonder eigen koppeling (gat · via_boven · niets)
+                 als ernst-pill uit de gedeelde codering (amber · blauw · grijs). De boom LEEST de
+                 server-stand; ze codeert niets zelf. `niets` houdt zijn weghalen-actie. -->
             <p
-              v-if="!(dekkingVoorRij(rij) && dekkingVoorRij(rij).componenten.length)"
-              class="pl-7 text-[length:var(--lk-text-sm)]"
+              v-if="!(dekkingVoorRij(rij) && dekkingVoorRij(rij).componenten.length) && standPill(rij)"
+              class="pl-7 flex items-center gap-2 text-[length:var(--lk-text-sm)]"
               :data-testid="`functie-stand-${rij.plek}`"
             >
-              <template v-if="dekkingVoorRij(rij) && dekkingVoorRij(rij).herkomst === 'geen_systeem'">
-                <span
-                  class="rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-text-muted)] px-1.5 text-[length:var(--lk-text-xs)] font-medium text-[var(--lk-color-text)]"
-                  :data-testid="`functie-stand-niets-${rij.plek}`"
-                >Hiervoor wordt niets gebruikt — vastgesteld</span>
-                <button
-                  v-if="magBewerken"
-                  type="button"
-                  class="lk-rij-acties ml-2 text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)] hover:underline"
-                  :data-testid="`functie-bevinding-weg-${rij.plek}`"
-                  @click="openOntkoppel(rij, { vervulling_id: dekkingVoorRij(rij).bevinding_id, component_naam: 'niets' }, 'geen_systeem')"
-                >weghalen</button>
-              </template>
               <span
-                v-else-if="standVoorRij(rij) && standVoorRij(rij).stand === 'via_boven'"
-                class="text-[var(--lk-color-text-muted)]"
-                :data-testid="`functie-stand-viaboven-${rij.plek}`"
-              >{{ viaTekst(standVoorRij(rij)) }}</span>
-              <span
-                v-else-if="standVoorRij(rij) && standVoorRij(rij).stand === 'gat'"
-                class="rounded-[var(--lk-radius-badge)] border border-dashed border-[var(--lk-color-text-muted)] px-1.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
-                :data-testid="`functie-stand-gat-${rij.plek}`"
-              >nog niet vastgelegd waarmee dit werk gedaan wordt</span>
+                :data-testid="`functie-stand-${standPill(rij).testStand}-${rij.plek}`"
+                :style="standPill(rij).style"
+                class="inline-flex items-center gap-1 rounded-[var(--lk-radius-badge)] border px-1.5 text-[length:var(--lk-text-xs)] font-medium"
+              ><span aria-hidden="true">{{ standPill(rij).icoon }}</span>{{ standPill(rij).tekst }}</span>
+              <button
+                v-if="standPill(rij).stand === 'niets' && magBewerken"
+                type="button"
+                class="lk-rij-acties text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)] hover:underline"
+                :data-testid="`functie-bevinding-weg-${rij.plek}`"
+                @click="openOntkoppel(rij, { vervulling_id: dekkingVoorRij(rij).bevinding_id, component_naam: 'niets' }, 'geen_systeem')"
+              >weghalen</button>
             </p>
             <!-- LI041 — de verdringing benoemt zichzelf: op een verfijnde plek blijft het grove
                  antwoord LEESBAAR, gedempt (leeslaag, geen scanlaag) en zónder eigen actie (de
