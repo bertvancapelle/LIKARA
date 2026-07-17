@@ -31,6 +31,7 @@ import {
   MIGRATIEPAD,
   NIVEAU,
   label,
+  veldLabel,
 } from '../labels'
 
 const route = useRoute()
@@ -136,7 +137,7 @@ const heeftFilters = computed(
 const filterChips = computed(() => {
   const chips = []
   if (filterStatus.value.length)
-    chips.push({ sleutel: 'status', label: 'Status', waarde: filterStatus.value.map(lifecycleLabel).join(', ') })
+    chips.push({ sleutel: 'status', label: veldLabel('lifecycle_status'), waarde: filterStatus.value.map(lifecycleLabel).join(', ') })
   if (filterType.value)
     chips.push({ sleutel: 'type', label: 'Type', waarde: typeOpties.value.find((o) => o.optie_sleutel === filterType.value)?.label || filterType.value })
   if (filterLaag.value) chips.push({ sleutel: 'laag', label: 'Laag', waarde: laagLabel(filterLaag.value) })
@@ -441,7 +442,7 @@ onMounted(async () => {
       class="mb-[var(--lk-space-md)] flex flex-wrap items-end gap-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]"
     >
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Status</span>
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">{{ veldLabel('lifecycle_status') }}</span>
         <!-- Multi-select dropdown (zelfde stijl als Type/Laag/Hosting); meervoudige
              selectie behouden (filterStatus blijft een array → server-side IN). -->
         <MultiSelectDropdown
@@ -761,7 +762,7 @@ onMounted(async () => {
           <span v-else data-testid="bedoeling-leeg" class="text-[var(--lk-color-text-muted)]">nog niet vastgelegd</span>
         </template>
       </Column>
-      <Column header="Status" sort-field="lifecycle_status" sortable>
+      <Column :header="veldLabel('lifecycle_status')" sort-field="lifecycle_status" sortable>
         <template #body="{ data }">
           <Tag v-if="data.lifecycle_status" :value="lifecycleLabel(data.lifecycle_status)" :severity="lifecycleSeverity(data.lifecycle_status)" />
           <span v-else data-testid="status-leeg">—</span>

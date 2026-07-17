@@ -5,6 +5,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/store/auth'
 import { standKaartKleur } from '@modules/bwb_ontvlechting/frontend/standCodering'
+import { VELD_LABELS } from '@modules/bwb_ontvlechting/frontend/labels'
 
 // Cytoscape gemockt (via de frontend-wrapper): de graaf-rendering is een side-effect;
 // de panelen zijn de testbare laag.
@@ -181,6 +182,25 @@ describe('LandschapskaartView v3', () => {
     expect(_ids.length).toBe(3)
     expect(_ids).toContain('p1') // organisatie als vertrekpunt
     expect(_ids).not.toContain('k1') // contract niet
+  })
+
+  it('LI043 single source — de kaart-plekken lezen het beoordelings-veldlabel UIT de bron', async () => {
+    // De bron (VELD_LABELS) tijdelijk op een sentinel; popup + filter + zijpaneel volgen mee.
+    // Zou een plek het label opnieuw hardcoden ("Status"/"Lifecycle"), dan breekt deze test.
+    const origineel = VELD_LABELS.lifecycle_status
+    try {
+      VELD_LABELS.lifecycle_status = 'BRON_SENTINEL_KAART'
+      const { w } = await mountView()
+      // 1) kaart-filter (altijd gerenderd in de filterbalk) leest de bron
+      expect(w.text()).toContain('BRON_SENTINEL_KAART')
+      // 2) kaart-popup: het veldlabel in de velden-dl leest dezelfde bron (prefill uit node-data;
+      // de detail-fetch faalt zacht in deze test → de prefill mét het veld blijft staan)
+      await w.vm.openNodePopup('a1')
+      await flushPromises()
+      expect(w.find('[data-testid="lk-popup-velden"]').text()).toContain('BRON_SENTINEL_KAART')
+    } finally {
+      VELD_LABELS.lifecycle_status = origineel // gedeelde module-singleton — altijd herstellen
+    }
   })
 
   it('ADR-040 — de weergave volgt de handeling; de modus-adapter volgt de weergave', async () => {

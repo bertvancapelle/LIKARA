@@ -13,6 +13,7 @@ vi.mock('@/api', () => ({
 import { api } from '@/api'
 import { Column, DataTable } from '@/primevue'
 import ComponentLijst from '@modules/bwb_ontvlechting/frontend/views/ComponentLijst.vue'
+import { VELD_LABELS } from '@modules/bwb_ontvlechting/frontend/labels'
 import { useAuthStore } from '@/store/auth'
 
 function maakRouter() {
@@ -544,10 +545,32 @@ describe('ComponentLijst', () => {
     expect(sorteerbaar).toEqual(
       // ADR-046 — Levensfase is een echte, server-side sorteerbare kolom (v2n NULLS-LAST).
       // LI040 — Bedoeling is een echte, server-side sorteerbare kolom (naast Levensfase).
-      expect.arrayContaining(['Naam', 'Type', 'Eigenaar', 'Hosting', 'Complexiteit', 'Prioriteit', 'Levensfase', 'Bedoeling', 'Status']),
+      // LI043 — het beoordelings-veldlabel is "Beoordelingsstatus" (uit VELD_LABELS, was "Status").
+      expect.arrayContaining(['Naam', 'Type', 'Eigenaar', 'Hosting', 'Complexiteit', 'Prioriteit', 'Levensfase', 'Bedoeling', 'Beoordelingsstatus']),
     )
     expect(sorteerbaar).toHaveLength(9)
     expect(sorteerbaar).not.toContain('Laag')
+  })
+
+  it('LI043 single source — de drie lijst-plekken lezen het beoordelings-veldlabel UIT de bron', async () => {
+    // De bron (VELD_LABELS) tijdelijk op een sentinel; elke plek die 'm via `veldLabel` leest volgt mee.
+    // Zou een plek het label opnieuw hardcoden ("Status"), dan breekt deze test.
+    const origineel = VELD_LABELS.lifecycle_status
+    try {
+      VELD_LABELS.lifecycle_status = 'BRON_SENTINEL'
+      api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+      const w = await mountLijst()
+      // 1) kolomkop (Column-header-prop)
+      expect(w.findAllComponents(Column).map((c) => c.props('header'))).toContain('BRON_SENTINEL')
+      // 2) filter-kop (altijd gerenderd in de filterbalk)
+      expect(w.text()).toContain('BRON_SENTINEL')
+      // 3) filterchip (verschijnt zodra het statusfilter actief is)
+      w.vm.filterStatus = ['concept']
+      await flushPromises()
+      expect(w.vm.filterChips.find((c) => c.sleutel === 'status').label).toBe('BRON_SENTINEL')
+    } finally {
+      VELD_LABELS.lifecycle_status = origineel // gedeelde module-singleton — altijd herstellen
+    }
   })
 
   it('sorteren behoudt een actief filter', async () => {

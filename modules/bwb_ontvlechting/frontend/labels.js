@@ -119,9 +119,11 @@ export const VELD_LABELS = {
   naam: 'Naam',
   omschrijving: 'Omschrijving',
   beschrijving: 'Beschrijving',
-  // ADR-046 — 'Levensfase' is nu het echte `levensfase`-veld; de engine-status heet in
-  // de UI overal 'Status' (registratiestatus) — hier niet langer 'Levensfase' noemen.
-  lifecycle_status: 'Registratiestatus',
+  // ADR-046 — 'Levensfase' is het echte `levensfase`-veld; de engine-status heet in de UI
+  // overal 'Beoordelingsstatus' (LI043 naam-fix: was verwarrend "Lifecycle"/"Status", botste
+  // met Levensfase). Dit is de ÉNE bron — elke tonende plek leest `veldLabel('lifecycle_status')`,
+  // nooit een hardcoded literal.
+  lifecycle_status: 'Beoordelingsstatus',
   levensfase: 'Levensfase',
   status: 'Status',
   reden: 'Reden',
@@ -141,6 +143,11 @@ export const VELD_LABELS = {
   mantelcontract_id: 'Mantelcontract',
   leverancier_id: 'Leverancier',
 }
+
+// Het Nederlandse veldlabel voor een veldnaam — de ÉNE bron (VELD_LABELS), met humanize-fallback
+// zodat een nieuwe veldnaam nooit "leeg" toont. Gebruik dit i.p.v. een hardcoded literal, zodat een
+// veldnaam maar op één plek leeft (LI043).
+export const veldLabel = (naam) => VELD_LABELS[naam] ?? humaniseer(naam)
 
 // `checklist_compleet` is transient (ADR-013 B4) en wordt nooit als ruststatus
 // getoond; valt via de humanize-fallback op een generiek label terug.

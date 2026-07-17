@@ -21,7 +21,7 @@ import { neemKaartHandoff } from '@/composables/kaartHandoff'
 import { useSleepbaar } from '@/composables/useSleepbaar'
 import { procesBoomLayout } from '../procesBoom'
 import { bouwProcesKaartHandoff } from '../procesKaartIngang'
-import { humaniseer } from '../labels'
+import { humaniseer, veldLabel } from '../labels'
 import { STAND_CODERING, STAND_LEGENDA, standKaartKleur } from '../standCodering'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 import KaartBeginscherm from './KaartBeginscherm.vue'
@@ -1640,7 +1640,7 @@ function klikVervulActie() {
 function _nodePrefill(n) {
   return _velden([
     _veld('Type', n.element_type ? typeLabel(n.element_type) : null),
-    _veld('Status', n.lifecycle_status ? typeLabel(n.lifecycle_status) : null),
+    _veld(veldLabel('lifecycle_status'), n.lifecycle_status ? typeLabel(n.lifecycle_status) : null),
     // ADR-046 — levensfase op de node (kaart-signaal; None = nog niet vastgelegd → weggelaten).
     _veld('Levensfase', n.levensfase ? typeLabel(n.levensfase) : null),
     _veld('Domein', n.domein ? typeLabel(n.domein) : null),
@@ -1653,7 +1653,7 @@ function _nodePrefill(n) {
 function _nodeVelden(et, d, n) {
   if (et === 'applicatie') {
     return _velden([
-      _veld('Status', d.lifecycle_status ? typeLabel(d.lifecycle_status) : null),
+      _veld(veldLabel('lifecycle_status'), d.lifecycle_status ? typeLabel(d.lifecycle_status) : null),
       // ADR-046 — twee vragen, twee velden: Levensfase (feit) + Bedoeling (migratiepad).
       _veld('Levensfase', d.levensfase ? typeLabel(d.levensfase) : null),
       _veld('Eigenaar-organisatie', d.eigenaar_organisatie_naam),
@@ -1694,7 +1694,7 @@ function _nodeVelden(et, d, n) {
   // infrastructuur/generiek component
   return _velden([
     _veld('Type', d.componenttype_label),
-    _veld('Status', d.lifecycle_status ? typeLabel(d.lifecycle_status) : null),
+    _veld(veldLabel('lifecycle_status'), d.lifecycle_status ? typeLabel(d.lifecycle_status) : null),
     _veld('Eigenaar-organisatie', d.eigenaar_organisatie_naam),
     _veld('Hostingmodel', d.hostingmodel ? typeLabel(d.hostingmodel) : null),
     _veld('Beschrijving', d.beschrijving),
@@ -3142,15 +3142,15 @@ const typeLabel = (t) => humaniseer(t)
           />
         </label>
         <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-          <span class="font-semibold">Lifecycle</span>
+          <span class="font-semibold">{{ veldLabel('lifecycle_status') }}</span>
           <ZoekMultiSelect
             v-model="filterLifecycle"
             :zoek-functie="zoekLifecycle"
             :weergave="(o) => o.label"
             id-veld="sleutel"
             :chip-label="(v) => typeLabel(v)"
-            :vaste-optie="{ sleutel: ZONDER, label: 'Zonder lifecycle' }"
-            placeholder="Zoek lifecycle…"
+            :vaste-optie="{ sleutel: ZONDER, label: 'Zonder beoordelingsstatus' }"
+            placeholder="Zoek beoordelingsstatus…"
             testid="lk-filter-lifecycle"
           />
         </label>
@@ -3614,7 +3614,7 @@ const typeLabel = (t) => humaniseer(t)
               <p><span class="text-[var(--lk-color-text-muted)]">Domein:</span> {{ detailNode.domein || '—' }}</p>
               <p><span class="text-[var(--lk-color-text-muted)]">Leverancier:</span> {{ detailNode.leverancier_naam || '—' }}</p>
               <p><span class="text-[var(--lk-color-text-muted)]">Hosting:</span> {{ detailNode.hosting_model ? typeLabel(detailNode.hosting_model) : '—' }}</p>
-              <p><span class="text-[var(--lk-color-text-muted)]">Lifecycle:</span> <span class="inline-block rounded px-1" :style="{ background: lcStyle(detailNode.lifecycle_status).bg }">{{ detailNode.lifecycle_status ? typeLabel(detailNode.lifecycle_status) : '—' }}</span></p>
+              <p><span class="text-[var(--lk-color-text-muted)]">{{ veldLabel('lifecycle_status') }}:</span> <span class="inline-block rounded px-1" :style="{ background: lcStyle(detailNode.lifecycle_status).bg }">{{ detailNode.lifecycle_status ? typeLabel(detailNode.lifecycle_status) : '—' }}</span></p>
               <!-- ADR-046 — levensfase van het component (één waarheid; vervangt de
                    plateau-dispositie). Ontbrekend = gedempt "nog niet vastgelegd". -->
               <p data-testid="lk-detail-levensfase">
