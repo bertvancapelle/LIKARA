@@ -19,8 +19,6 @@ const HERKOMST_LABELS = {
   'partij-lijst': 'Partijen',
   'component-lijst': 'Componenten',
   'contract-lijst': 'Contracten',
-  'proces-lijst': 'Processen',
-  'proces-detail': 'Proces',
   dashboard: 'Dashboard',
   blokkades: 'Blokkades',
   auditlog: 'Auditlog',

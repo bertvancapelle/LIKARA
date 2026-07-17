@@ -71,7 +71,6 @@ beforeEach(() => {
   api.contracten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
   api.partijen.lijst.mockResolvedValue({ items: [], volgende_cursor: null })  // leden-overzicht (default leeg)
   api.partijen.componentenViaContract.mockResolvedValue([]) // LI019 — leverancier-componenten (default leeg)
-  api.partijen.processen.mockResolvedValue([]) // ADR-042 slice 5 — afgeleid procesbeeld (default leeg)
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -101,25 +100,6 @@ describe('PartijDetail', () => {
     api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie_eenheid', scope: null, organisatie_id: 'o1' }))
     const { w } = await mountDetail()
     expect(w.find('[data-testid="detail-scope"]').exists()).toBe(false)
-  })
-
-  // ADR-042 slice 5 — het afgeleide procesbeeld hoort alléén op een zuivere organisatie
-  // (daar wonen eigendom + gebruiksregistratie); elders is de sectie ruis.
-  it('toont de "Processen"-sectie alleen op een zuivere organisatie', async () => {
-    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie', scope: 'intern' }))
-    const { w } = await mountDetail()
-    expect(w.find('[data-testid="partij-processen-sectie"]').exists()).toBe(true)
-    expect(api.partijen.processen).toHaveBeenCalledWith('p1')
-  })
-
-  it('toont de "Processen"-sectie NIET op een externe partij of afdeling', async () => {
-    api.partijen.haal.mockResolvedValue(_partij({ aard: 'externe_partij', scope: 'extern' }))
-    const { w } = await mountDetail()
-    expect(w.find('[data-testid="partij-processen-sectie"]').exists()).toBe(false)
-
-    api.partijen.haal.mockResolvedValue(_partij({ aard: 'organisatie_eenheid', scope: null, organisatie_id: 'o1' }))
-    const { w: afdeling } = await mountDetail()
-    expect(afdeling.find('[data-testid="partij-processen-sectie"]').exists()).toBe(false)
   })
 
   it('toont de alleen-lezen "Rollen op objecten"-sectie (ADR-024 slice 2b)', async () => {

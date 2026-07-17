@@ -126,14 +126,6 @@ async function uitloggen() {
           >
             Bedrijfsfuncties
           </router-link>
-          <!-- ADR-042 — procesregister (welke processen raakt het?). -->
-          <router-link
-            :to="{ name: 'proces-lijst' }"
-            data-testid="nav-processen"
-            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
-          >
-            Processen
-          </router-link>
           <router-link
             :to="{ name: 'partij-lijst' }"
             data-testid="nav-partijen"
