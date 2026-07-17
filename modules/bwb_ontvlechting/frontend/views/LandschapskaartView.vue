@@ -22,6 +22,7 @@ import { useSleepbaar } from '@/composables/useSleepbaar'
 import { procesBoomLayout } from '../procesBoom'
 import { bouwProcesKaartHandoff } from '../procesKaartIngang'
 import { humaniseer } from '../labels'
+import { STAND_CODERING, STAND_LEGENDA, standKaartKleur } from '../standCodering'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 import KaartBeginscherm from './KaartBeginscherm.vue'
 
@@ -1548,17 +1549,13 @@ function _herkomstVelden(herkomst) {
 const _vervulEdgesVan = (plekId) => grafEdges.value.filter(
   (e) => e.relatietype === 'functievervulling' && e.doel_id === plekId,
 )
-// ADR-043 gate 4 (G8) — de gap-cue komt UIT de gedeelde leeslaag: de backend hangt `plek_stand`
-// (gat/via_boven/hier/niets) aan elke plek-knoop (uit `plek_standen`, server-side). De kaart LEEST
-// dat; hij rekent de dekking NIET zelf na (de invariant). 'gat' = niets op deze plek én niets
-// erboven (dashed); 'via_boven' = ondersteund via een bovenliggende functie (een derde kleur tussen
-// gat en groen — ADR-051 besluit 1). Herhaalt een plek zich (path-expansie), dan draagt elk
-// exemplaar dezelfde stand (de backend borgt die gelijke waarheid — G7 hard-grens 1).
-const _plekGat = computed(() =>
-  new Set(grafNodes.value.filter((n) => n.element_type === 'bedrijfsfunctie' && n.plek_stand === 'gat').map((n) => n.id)))
-const _plekViaBoven = computed(() =>
-  new Set(grafNodes.value.filter((n) => n.element_type === 'bedrijfsfunctie' && n.plek_stand === 'via_boven').map((n) => n.id)))
-// De rustige popup-benoeming van dat gat / half-antwoord (eerlijk-gaten-tonen, popupSamenvatting-lijn).
+// ADR-043 gate 4 (G8) — de stand komt UIT de gedeelde leeslaag: de backend hangt `plek_stand`
+// (gat/via_boven/hier/werkvoorraad/niets) aan elke plek-knoop (uit `plek_standen`, server-side). De
+// kaart LEEST dat; hij rekent de dekking NIET zelf na (de invariant). Herhaalt een plek zich (path-
+// expansie), dan draagt elk exemplaar dezelfde stand (de backend borgt die gelijke waarheid — G7
+// hard-grens 1). Slice B2 (LI043): de stand wordt op de kaart als KLEUR getoond (uit `standCodering`,
+// `_nodeData`-vulling onder de werk-lezing), niet meer als rand-stijl.
+// De rustige popup-benoeming van een gat / half-antwoord (eerlijk-gaten-tonen, popupSamenvatting-lijn).
 const popupProcesGap = computed(() => {
   if (popupKind.value !== 'node') return false
   const n = nodePerId.value[detailId.value]
@@ -2177,9 +2174,16 @@ function _nodeData(n) {
   // in de return hieronder). GG houdt zijn vaste identiteitskleur (context-node, geen lezing). Vorm/
   // selectie/dim/blokkade-label blijven buiten de lezingen.
   const L = lezing.value
+  // KAART-LEZING (slice A) VULLING: status → lifecycle-tint; werk → stand-kleur uit de GEDEELDE bron
+  // (`standCodering`, slice B2/optie A: het token op tekenmoment geresolved voor het canvas — dezelfde
+  // kleur als de lijst-pill, één bron). Alle vijf standen dragen kleur; niet-plek-nodes blijven neutraal.
+  const _standKleur = L === 'werk' && n.plek_stand && STAND_CODERING[n.plek_stand]
+    ? standKaartKleur(n.plek_stand)
+    : null
   let bg = isGG
     ? GG_STYLE.bg
-    : L === 'status' ? lcStyle(n.lifecycle_status).bg : NEUTRAAL.bg
+    : L === 'status' ? lcStyle(n.lifecycle_status).bg
+    : _standKleur || NEUTRAAL.bg
   let border = isGG
     ? GG_STYLE.border
     : L === 'domein' && n.domein ? domeinKleur.value[n.domein] : NEUTRAAL.border
@@ -2198,14 +2202,13 @@ function _nodeData(n) {
     element_type: n.element_type, laag: n.laag, soort: n.soort,
     // ADR-028 — randbehandeling: alléén externe dataproviders krijgen een afwijkende (gestippelde)
     // rand (CY-selector node[rol="externe_dataprovider"]). Andere rollen dragen géén randsignaal.
-    // KAART-LEZING (slice A) — de rand-stijl-cues (werk) verschijnen UITSLUITEND in de werk-lezing;
-    // in status/domein blijven de randen effen (neutraliseer-model). Slice B ordent de cue-INHOUD
-    // later (de vijf plek-standen als één oplopende reeks + de niet-stand-cues van rand-stijl afhalen);
-    // slice A toont ze as-is: externe_dataprovider · grof-only · plek-gat · plek-via_boven.
+    // KAART-LEZING — Werk-cues verschijnen UITSLUITEND in de werk-lezing; in status/domein blijven de
+    // randen effen (neutraliseer-model). Slice B2 (LI043): de VIJF plek-standen dragen voortaan KLEUR
+    // (de `bg` hierboven, uit de gedeelde bron), niet langer een rand-stijl-reeks — daarom vervallen de
+    // plek-gat/plek-via_boven rand-cues hier. De niet-plek-stand Werk-cues blijven rand-stijl:
+    // externe_dataprovider · grof-only (identiteit/herkomst, geen plek-stand).
     rol: L === 'werk' && n.componentrol === 'externe_dataprovider' ? 'externe_dataprovider' : null,
     grofOnly: L === 'werk' && grofOnlyIds.value.has(n.id) ? true : undefined,
-    procesGap: L === 'werk' && _plekGat.value.has(n.id) ? true : undefined,
-    plekViaBoven: L === 'werk' && _plekViaBoven.value.has(n.id) ? true : undefined,
     // LI037 fase 3d — het vroegere aparte `procesHerkomst`-accent is vervallen: de herkomst-
     // markering is voortaan uitsluitend de bestaande oranje selectie (hl-node).
   }
@@ -2677,13 +2680,9 @@ const CY_STYLE = [
   // rand-KLEUR blijft data(border) (lifecycle). Onderscheidbaar van de gestreepte externe-dataprovider;
   // selectie/highlight-regels hieronder winnen (staan later en zetten border-style terug op solid).
   { selector: 'node[?grofOnly]', style: { 'border-style': 'dotted', 'border-width': 3 } },
-  // ADR-043 gate 4 (G8) — plek 'gat' (niets op deze plek én niets erboven): rustige gestreepte
-  // rand (zelfde eerlijkheids-cue-taal als grof-only/dataprovider; géén alarmkleur). De popup
-  // benoemt het gat in woorden. Selectie/highlight-regels winnen.
-  { selector: 'node[?procesGap]', style: { 'border-style': 'dashed', 'border-width': 3 } },
-  // ADR-043 gate 4 (G8) — plek 'via_boven' (ondersteund via een bovenliggende functie — een derde
-  // stand tussen gat en groen, ADR-051 besluit 1): een eigen, rustige gestippelde cue.
-  { selector: 'node[?plekViaBoven]', style: { 'border-style': 'dotted', 'border-width': 3 } },
+  // ADR-043 gate 4 (G8) — de plek-standen (gat/via_boven/hier/werkvoorraad/niets) dragen sinds slice B2
+  // (LI043) KLEUR als vulling (uit `standCodering`, in `_nodeData` onder de werk-lezing), niet meer een
+  // rand-stijl-reeks. De vroegere `node[?procesGap]`/`node[?plekViaBoven]` rand-cues zijn daarmee vervallen.
   {
     selector: 'edge',
     style: {
@@ -3335,20 +3334,19 @@ const typeLabel = (t) => humaniseer(t)
               </span>
               <span v-if="!domeinOpties.length" class="text-[length:var(--lk-text-sm)] italic text-[var(--lk-color-text-muted)]">Geen domein in beeld</span>
             </div>
-            <!-- werk → Rand-stijl = werk (bestaande cues; slice B ordent de inhoud later) -->
+            <!-- werk → Kleur = stand (B2, LI043): de vier ernst-regels UIT de gedeelde bron (STAND_LEGENDA);
+                 swatch via var(token) — DOM resolvet dezelfde token die de node op canvas resolvet, dus
+                 legenda en kaart lopen niet uiteen. Daaronder de twee resterende rand-cues (geen plek-stand). -->
             <div v-else data-testid="lk-legenda-werk" class="mt-[var(--lk-space-sm)] flex flex-col gap-1 border-t border-[var(--lk-color-border)] pt-[var(--lk-space-sm)]">
-              <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Rand = werk</p>
-              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+              <p class="text-[length:var(--lk-text-xs)] font-semibold text-[var(--lk-color-text-muted)]">Kleur = stand</p>
+              <span v-for="rij in STAND_LEGENDA" :key="rij.ernst" :data-testid="`lk-legenda-stand-${rij.ernst}`" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
+                <span class="inline-block h-3 w-3 shrink-0 rounded-full" :style="{ background: `var(${rij.token})` }" aria-hidden="true"></span>{{ rij.tekst }}
+              </span>
+              <span class="mt-1 flex items-center gap-2 text-[length:var(--lk-text-sm)]">
                 <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dashed border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Externe dataprovider
               </span>
               <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
                 <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dotted border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Nog niet verfijnd
-              </span>
-              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
-                <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dashed border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Plek zonder systeem
-              </span>
-              <span class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
-                <span class="inline-block h-3.5 w-3.5 shrink-0 rounded-sm border-[2px] border-dotted border-[var(--lk-color-text-muted)]" aria-hidden="true"></span>Ondersteund via bovenliggende functie
               </span>
             </div>
             <!-- Blokkade-cue: label-signaal, buiten de lezingen → ALTIJD zichtbaar. -->

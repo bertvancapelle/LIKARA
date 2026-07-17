@@ -4,6 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/store/auth'
+import { standKaartKleur } from '@modules/bwb_ontvlechting/frontend/standCodering'
 
 // Cytoscape gemockt (via de frontend-wrapper): de graaf-rendering is een side-effect;
 // de panelen zijn de testbare laag.
@@ -1033,19 +1034,45 @@ describe('LandschapskaartView v3', () => {
       expect(doelen.has('fa') && doelen.has('fb')).toBe(true)
     })
 
-    it('gap-cue UIT plek_stand (werk-lezing): gat = dashed-cue, via_boven = eigen cue, hier = geen', async () => {
+    it('stand-kleur UIT de gedeelde bron (werk-lezing, B2/optie A): kleur = enige bron; buiten werk neutraal', async () => {
+      // Optie A: de kaart resolvet het stand-token op tekenmoment. base.css laadt niet in happy-dom, dus
+      // zetten we de tokens op documentElement zodat de resolve een concrete waarde teruggeeft (§3).
+      document.documentElement.style.setProperty('--lk-color-warning', '#ba7517')
+      document.documentElement.style.setProperty('--lk-color-success', '#1d9e75')
+      document.documentElement.style.setProperty('--lk-color-primary-700', '#185fa5')
       const w = await mountFunctie()
-      // Kaart-lezing slice A — de rand-stijl-cues leven onder de WERK-lezing (in status/domein neutraal).
       w.vm.lezing = 'werk'
-      expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'w1')).procesGap).toBe(true) // gat
-      expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'ch')).plekViaBoven).toBe(true) // via_boven
-      const hier = w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'fa'))
-      expect(hier.procesGap).toBeUndefined()
-      expect(hier.plekViaBoven).toBeUndefined()
-      // Neutraliseer-model: buiten de werk-lezing dragen dezelfde plekken géén rand-stijl-cue.
-      w.vm.lezing = 'status'
+      const bgVan = (id) => w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === id)).bg
+      // De GEDEELDE bron is de enige kleurbron: node-bg === standKaartKleur(stand), geen inline kaart-kleur.
+      expect(bgVan('w1')).toBe(standKaartKleur('gat'))        // amber
+      expect(bgVan('ch')).toBe(standKaartKleur('via_boven'))  // blauw
+      expect(bgVan('fa')).toBe(standKaartKleur('hier'))       // groen
+      // gat + werkvoorraad delen dezelfde amber (beide ernst=werk) — bevestigd besluit.
+      expect(standKaartKleur('gat')).toBe(standKaartKleur('werkvoorraad'))
+      // De plek-stand rand-cues zijn vervangen door kleur — geen procesGap/plekViaBoven-vlag meer.
       expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'w1')).procesGap).toBeUndefined()
       expect(w.vm._nodeData(w.vm.grafNodes.find((n) => n.id === 'ch')).plekViaBoven).toBeUndefined()
+      // Neutraliseer-model: buiten de werk-lezing dragen dezelfde plekken géén stand-kleur.
+      w.vm.lezing = 'status'
+      expect(bgVan('w1')).not.toBe(standKaartKleur('gat'))
+      expect(bgVan('ch')).not.toBe(standKaartKleur('via_boven'))
+    })
+
+    it('Werk-legenda toont de vier ernst-regels UIT de gedeelde bron (B2)', async () => {
+      const w = await mountFunctie()
+      w.vm.legendaOpen = true
+      w.vm.lezing = 'werk'
+      await flushPromises()
+      // De vier ernst-regels met de bron-teksten (STAND_LEGENDA) — legenda en kaart uit één bron.
+      expect(w.find('[data-testid="lk-legenda-stand-werk"]').text()).toContain('nog vast te leggen')
+      expect(w.find('[data-testid="lk-legenda-stand-in_orde"]').text()).toContain('hier draait een systeem')
+      expect(w.find('[data-testid="lk-legenda-stand-gedekt"]').text()).toContain('gedekt via een bovenliggende functie')
+      expect(w.find('[data-testid="lk-legenda-stand-besluit"]').text()).toContain('hier wordt bewust niets gebruikt')
+      // Meebewegend: onder status toont de legenda de status-codering, niet de stand-regels.
+      w.vm.lezing = 'status'
+      await flushPromises()
+      expect(w.find('[data-testid="lk-legenda-status"]').exists()).toBe(true)
+      expect(w.find('[data-testid="lk-legenda-stand-werk"]').exists()).toBe(false)
     })
 
     it('plek-popup: geen fetch (synthetisch id), "Ondersteund door" toont het dragende systeem; gat benoemd', async () => {

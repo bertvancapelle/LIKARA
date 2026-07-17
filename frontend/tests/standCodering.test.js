@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { STAND_CODERING, standPillStyle } from '@modules/bwb_ontvlechting/frontend/standCodering'
+import { STAND_CODERING, STAND_LEGENDA, standPillStyle, standKaartKleur } from '@modules/bwb_ontvlechting/frontend/standCodering'
 
 // Slice B1 (G4-6) — de ENE bron voor "plek-stand → presentatie". Bewijst dat de mapping compleet
 // is en dat de vijf standen hun ernst-kleur/tekst dragen; lijst (B1) én kaart/legenda (B2) erven dit.
@@ -48,5 +48,31 @@ describe('standCodering — de ene bron voor de vijf plek-standen', () => {
     expect(s.borderColor).toBe('var(--lk-color-warning)')
     expect(s.background).toContain('color-mix')
     expect(standPillStyle('onbekend')).toEqual({})
+  })
+
+  // ── Slice B2 (optie A) — één kleur-literal (het token); kaart en pill derven eruit ──
+  it('token is de enige kleur-literal; `kleur` (var) derft eruit', () => {
+    for (const stand of STANDEN) {
+      const c = STAND_CODERING[stand]
+      expect(c.token).toMatch(/^--lk-color-/)
+      expect(c.kleur).toBe(`var(${c.token})`) // geen tweede definitie — kleur = var(token)
+    }
+  })
+
+  it('standKaartKleur resolvet HETZELFDE token naar een canvas-waarde (optie A)', () => {
+    document.documentElement.style.setProperty('--lk-color-warning', '#ba7517')
+    expect(standKaartKleur('gat')).toBe('#ba7517')
+    expect(standKaartKleur('werkvoorraad')).toBe('#ba7517') // beide amber → hetzelfde token
+    expect(standKaartKleur('onbekend')).toBe(null)
+  })
+
+  it('STAND_LEGENDA: vier ernst-regels, amber gedeeld, token/tekst uit de bron', () => {
+    expect(STAND_LEGENDA).toHaveLength(4) // vijf standen, maar de twee amber delen één regel
+    expect(STAND_LEGENDA.map((r) => r.ernst)).toEqual(['werk', 'in_orde', 'gedekt', 'besluit'])
+    // Tokens/teksten uit dezelfde bron als de standen — geen parallelle definitie.
+    expect(STAND_LEGENDA.find((r) => r.ernst === 'werk').token).toBe(STAND_CODERING.gat.token)
+    expect(STAND_LEGENDA.find((r) => r.ernst === 'in_orde').token).toBe(STAND_CODERING.hier.token)
+    expect(STAND_LEGENDA.find((r) => r.ernst === 'gedekt').tekst).toBe(STAND_CODERING.via_boven.legendaTekst)
+    expect(STAND_LEGENDA.find((r) => r.ernst === 'besluit').tekst).toBe(STAND_CODERING.niets.legendaTekst)
   })
 })
