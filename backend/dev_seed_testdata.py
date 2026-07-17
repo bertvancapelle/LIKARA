@@ -82,8 +82,7 @@ from services import (  # noqa: E402
     organisatiegebruik_service,
     partij_service,
     bedrijfsfunctie_service,
-    proces_service,
-    procesvervulling_service,
+    functievervulling_service,
     relatie_service,
     roltoewijzing_service,
 )
@@ -910,7 +909,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         "organisaties", "leveranciers", "ketenpartners", "burgers", "afdelingen", "personen",
         "applicaties", "contracten", "associaties", "flows", "roltoewijzingen",
         "scores", "organisatiegebruik", "gebruikersgroepen",
-        "processen", "procesvervullingen",
+        "functievervullingen",
         "referentiemodellen", "bedrijfsfuncties",
     )}
 
@@ -1541,72 +1540,6 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         await session.commit()
         telling["verantwoordelijken"] = gevuld  # run 1: 3 · run 2: 0 (het idempotentie-bewijs)
 
-    # ── 15. Processen + procesvervullingen (ADR-042; verdiept LI037 fase 0) ──
-    # Twee herkenbare procesboompjes (Vergunningverlening → Aanvraag behandelen;
-    # Burgerzaken → Verhuizing verwerken) + koppelregels op bestaande componenten met de
-    # GEMMA-startset-functies. Bewust: (a) één koppelregel op een NIET-applicatie
-    # ("Shared DB-server", componenttype database — bewijst component-breed), (b) één
-    # component met TWEE functies in hetzelfde proces (Zaaksysteem in "Aanvraag behandelen"
-    # — bewijst losse, apart verwijderbare regels), (c) LI037: één boom van DRIE niveaus
-    # (Vergunningverlening → Aanvraag behandelen → processtap "Besluit vastleggen") mét
-    # vervulling op dat derde niveau (diepte = rijhoogte is browserverifieerbaar, ADR-034),
-    # en (d) LI037: één deelproces BEWUST zonder ondersteunend systeem ("Bezwaar
-    # behandelen" — de "geen ondersteunend systeem"-cue moet ergens te zien zijn).
-    # Idempotent: skip-op-naam (proces) resp. skip-op-tripel (vervulling).
-    from models.models import Proces as _Proces
-    from schemas.proces import ProcesCreate
-
-    proces_id_map = {r.naam: r.id for r in (await session.execute(select(_Proces))).scalars().all()}
-
-    async def _proces(naam, ouder_naam=None, toelichting=None):
-        if naam in proces_id_map:
-            return proces_id_map[naam]
-        obj = await proces_service.maak_aan(session, tid, ProcesCreate(
-            naam=naam, toelichting=toelichting,
-            ouder_id=proces_id_map[ouder_naam] if ouder_naam else None,
-        ))
-        proces_id_map[naam] = obj["id"]
-        telling["processen"] += 1
-        return obj["id"]
-
-    await _proces("Vergunningverlening", toelichting="Bedrijfsproces: vergunningaanvragen van intake tot besluit.")
-    await _proces("Aanvraag behandelen", "Vergunningverlening", "Werkproces: beoordelen en besluiten op een vergunningaanvraag.")
-    # LI037 (c) — derde niveau: processtap onder het werkproces (de plek in de boom ís het niveau).
-    await _proces("Besluit vastleggen", "Aanvraag behandelen", "Processtap: het besluit formeel vastleggen en bekendmaken.")
-    # LI037 (d) — bewust ONDERSTEUNINGSLOOS deelproces (géén procesvervulling seeden; toont de
-    # "geen ondersteunend systeem"-cue op de kaart).
-    await _proces("Bezwaar behandelen", "Vergunningverlening", "Werkproces: behandelen van bezwaren tegen een vergunningbesluit.")
-    await _proces("Burgerzaken", toelichting="Bedrijfsproces: burgerzaken-dienstverlening (BRP-gebonden).")
-    await _proces("Verhuizing verwerken", "Burgerzaken", "Werkproces: verwerken van een binnengemeentelijke verhuizing.")
-
-    # Component-lookup over ALLE typen (app_id bevat alleen applicaties; de DB-server niet).
-    comp_id_map = {c.naam: c.id for c in (await session.execute(select(Component))).scalars().all()}
-    vervullingen = [
-        # (component-naam, proces-naam, applicatiefunctie, toelichting)
-        ("Zaaksysteem", "Aanvraag behandelen", "registreren", "Zaakdossier van de aanvraag."),
-        ("Zaaksysteem", "Aanvraag behandelen", "raadplegen", None),  # tweede functie, zelfde paar
-        ("DMS", "Aanvraag behandelen", "archiveren", "Besluitdocumenten archiveren."),
-        # LI037 (c) — vervulling op PROCESSTAP-niveau (niveau 3): het formele besluit wordt in
-        # het DMS geregistreerd. ("Bezwaar behandelen" krijgt bewust géén regel — LI037 (d).)
-        ("DMS", "Besluit vastleggen", "registreren", "Formele vastlegging van het besluit."),
-        ("Vergunningensysteem", "Vergunningverlening", "ondersteunen", "Vakapplicatie vergunningproces (grof niveau)."),
-        ("Burgerzaken-suite", "Verhuizing verwerken", "registreren", None),
-        ("BRP", "Verhuizing verwerken", "gegevens_leveren", "Persoonsgegevens bij verhuizing."),
-        # Component-breed: een niet-applicatie (database) vervult een rol in een proces.
-        ("Shared DB-server", "Vergunningverlening", "ondersteunen", "Databaseplatform onder het zaak-/vergunningdomein."),
-    ]
-    for comp_naam, proces_naam, functie, toel in vervullingen:
-        comp_id = comp_id_map.get(comp_naam)
-        if comp_id is None:
-            continue  # component niet in deze seed-stand — geen harde afhankelijkheid
-        try:
-            await procesvervulling_service.maak_aan(
-                session, tid, comp_id, proces_id_map[proces_naam], functie, toel
-            )
-            telling["procesvervullingen"] += 1
-        except RegistratieConflict:
-            pass  # idempotent: het tripel bestaat al
-
     # ── 16. Bedrijfsfunctie-as — het ÉCHTE GEMMA-model via de échte import (gate 1b) ──
     # Besloten (LI039 gate 1b): de dev-seed leest het echte GEMMA-bestand in — 297
     # functies, 5 lagen, de 7 meervoudige plaatsingen. De verzonnen demoboom is weg.
@@ -1708,6 +1641,73 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             ),
         )
         telling["bedrijfsfuncties"] += 1
+
+    # ── 17. Bedrijfsfunctie-verhaal (ADR-051 gate 4 brok 3) — de vijf plek-standen één keer scherp ──
+    # Dun-maar-representatief (LI043): hier · werkvoorraad · via_boven · gat · niets + meervoud
+    # (ADR-044) + domein-breedte. Component→functie via de facade; de functie via haar GEMMA-
+    # bronsleutel (naam is niet uniek). Structurele geldigheid (blad voor het gat, ouder-met-kinderen
+    # voor via_boven, géén gekoppelde voorouder boven de "hier"-plekken) is read-only geverifieerd
+    # (kandidaten-check LI043). Idempotent: skip op KOPPELING_BESTAAT/BEVINDING_BESTAAT.
+    from models.models import Bedrijfsfunctie as _Bf17
+
+    _func_op_sleutel = {
+        r.bron_sleutel: r.id for r in (await session.execute(
+            select(_Bf17.bron_sleutel, _Bf17.id)
+            .where(_Bf17.tenant_id == tid, _Bf17.bron_sleutel.isnot(None)))).all()
+    }
+
+    def _fid(sleutel):
+        fid = _func_op_sleutel.get(sleutel)
+        if fid is None:
+            raise RuntimeError(f"seed-verhaal: GEMMA-functie {sleutel} niet gevonden — is de import (16) gedraaid?")
+        return fid
+
+    # Domein-breedte: geef deze systemen een gebruikersgroep → schoon "hier" (niet werkvoorraad),
+    # zodat DMS+BRP het ÉNE heldere werkvoorraad-voorbeeld blijft. Idempotent op bestaande serving.
+    _al_gg = {
+        r.bron_id for r in (await session.execute(
+            select(Relatie.bron_id).where(Relatie.tenant_id == tid, Relatie.relatietype == "serving"))).all()
+    }
+    for _app in ("Sociaal domein suite", "Omgevingsloket", "Reisdocumenten"):
+        _aid = app_id.get(_app)
+        if _aid and _aid not in _al_gg:
+            await gebruikersgroep_service.maak_aan(session, tid, GebruikersgroepCreate(
+                applicatie_id=_aid, organisatie_id=partij_id["Gemeente Tiel"], afdeling_id=None,
+                aantal_gebruikers=20))
+            telling["gebruikersgroepen"] += 1
+
+    # (component, functie-bronsleutel) — grof (ouder=None). Zaaksysteem=hier · DMS+BRP=werkvoorraad-
+    # plek (BRP zonder gg) · Klantportaal=via_boven (4 kinderen onder Klantenservice) · Burgerzaken-
+    # suite=meervoud (Identiteitvaststelling, 3 plekken) · 3× domein-breedte (schoon hier).
+    _verhaal = [
+        ("Zaaksysteem",          "id-6b35af73-734b-11e5-1099-005056a83192"),
+        ("DMS",                  "id-6f9c9d87-b7cf-4ddb-b8d6-dd94699df24a"),
+        ("BRP",                  "id-6f9c9d87-b7cf-4ddb-b8d6-dd94699df24a"),
+        ("Klantportaal",         "id-3a00e208-a8bb-48f6-aabd-c9f402bc8df8"),
+        ("Burgerzaken-suite",    "id-4222a2f5-7cf1-4887-9272-ced628765ccf"),
+        ("Sociaal domein suite", "id-920b527e-5d3a-11e5-1099-005056a83192"),
+        ("Omgevingsloket",       "id-173177ab-9277-4146-ad60-24159bb6b974"),
+        ("Reisdocumenten",       "id-3668255a-275b-4c9a-9b61-f4a475600ed0"),
+    ]
+    for _comp, _sleutel in _verhaal:
+        _cid = app_id.get(_comp)
+        if _cid is None:
+            continue  # component niet in deze seed-stand — geen harde afhankelijkheid
+        try:
+            await functievervulling_service.maak_aan(session, tid, _cid, _fid(_sleutel), None)
+            telling["functievervullingen"] += 1
+        except RegistratieConflict:
+            pass  # idempotent: de koppeling bestaat al
+
+    # niets — "hier draait geen systeem" (bevinding) op Toezicht en handhaving veiligheidsdomein:
+    # veiligheid wordt vaak door politie/veiligheidsregio ingevuld — de gemeente doet 't niet zelf.
+    try:
+        await functievervulling_service.registreer_geen_systeem(
+            session, tid, _fid("id-73b339b1-aa26-4282-8556-a497956efd7d"), None,
+            toelichting="Veiligheidsdomein wordt door de veiligheidsregio/politie ingevuld — geen eigen systeem.")
+        telling["functievervullingen"] += 1
+    except RegistratieConflict:
+        pass  # idempotent: de bevinding bestaat al
 
     return telling
 
