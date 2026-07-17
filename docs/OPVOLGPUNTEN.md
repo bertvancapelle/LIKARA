@@ -212,6 +212,23 @@ G4-1c. **Kaart-lezing zit in sessie-state, filters in de voorkeur-laag — asymm
    **naast de filters in de voorkeur-laag** — additief, geen herbouw. Tot dan blijft de lezing een
    momentkeuze in de sessie-state. Status: **geparkeerd — meenemen bij de kaart-voorkeur-slice (ADR-041)**.
 
+G4-1d. **Kaart valt bij een niet-resolvende herstelde selectie terug op "Geen componenten" i.p.v. het
+   beginscherm (LI043).** **Bevinding (diagnose `diagnose-kaart-regressie-heellandschap`, browser-bevestigd):**
+   na `docker compose down -v` + reseed houdt een overlevende browser-tab de sessionStorage-`lk-state` vast.
+   `_herstelKaartState` (`LandschapskaartView.vue:2737`) herstelt de opgeslagen `actieveSet` **zonder
+   bestaanscheck**; na de reset zijn alle ids nieuw, dus de herstelde set bevat uitsluitend dode ids → mount
+   doet `POST /subgraaf([dode ids])` → 200 OK met 0 nodes → `nodes.value = []` → "Geen componenten in deze
+   selectie". **Geen regressie van slice 2/A** (git-blame weerlegt dat: het laad-pad is niet geraakt, weken
+   oud); **de kaart werkt** (verse/incognito tab toont "toon hele landschap" correct). **Besluit (LI043):**
+   kleine, gerichte **hardening** — `_herstelKaartState` mag een `actieveSet` niet blind herstellen; laat
+   niet-resolvende ids vallen, of val bij een 0-respons op een herstelde set **terug op het beginscherm**
+   i.p.v. een doodlopend "Geen componenten" (zelfde geen-doodlopend-pad-principe, LI034/LI039). **Test-gat
+   (mee te nemen bij de fix):** geen test mount met een `lk-state` waarvan de set-ids 0 teruggeven uit
+   subgraaf; regressietest = herstel een set van niet-bestaande ids → assert nette terugval (beginscherm /
+   lege set), niet "Geen componenten" (groene suite ≠ werkende kaart, LI035/LI041 — mocks gaven subgraaf
+   altijd data). **Ernst: laag** — trigger is dev-only (`down -v` met overlevende tab); niet blokkerend voor
+   slice B (laad-pad ongemoeid). Status: **geparkeerd — kleine hardening, eigen slice**.
+
 G4-2. **Bron-verwijzing op objecten — VERWIJZEN, geen documentopslag.** Een registratie in
    LIKARA is vandaag een bewering zonder spoor naar haar onderbouwing; er is geen manier om aan
    te geven **waar meer detail te vinden is**. Gewenst: een object verwijst naar waar de
@@ -280,6 +297,27 @@ G4-5. **Domein-lezing op de kaart toont nog een placeholder — afleiden uit de 
    domein-laag (sociaal domein / publieksdiensten / fysieke leefomgeving / veiligheid) zit vermoedelijk een
    laag dieper. Plus **meervoud** — een component onder meerdere domeinen → alle tonen, nooit stil één kiezen
    (LI041-kernregel, ADR-044). Status: **geparkeerd — bouwen samen met brok 3**.
+
+G4-6. **Slice B verbreed — de vijf plek-standen als één ernst-taal in lijst én kaart (gedeelde codering,
+   LI043).** **Aanleiding (mockup goedgekeurd):** in de Bedrijfsfuncties-lijst valt "nog niet vastgelegd
+   waarmee dit werk gedaan wordt" nu weg — het herhaalt zich in dezelfde grijstint bij elke functie, dus de
+   consultant ziet niet dat daar werk ligt. Oplossing: geef **elke stand zijn ernst-kleur**, consistent —
+   niet één label rood. **Ontwerp (belegd):** één **gedeelde ernst-codering** (bron voor kleur + icoon +
+   tekst per stand) die **lijst én kaart** erven — "één feit, meerdere ingangen", geen twee talen die uit de
+   pas lopen:
+   - **er ligt werk → amber:** `gat` ("nog niet vastgelegd waarmee dit werk gedaan wordt") én `werkvoorraad`
+     ("systeem bekend, gebruiker nog niet vastgelegd") — beide amber, eigen icoon/tekst zodat het soort werk
+     leesbaar blijft.
+   - **hier draait iets → groen:** `hier` ("hier draait: {systeem}").
+   - **gedekt via boven → blauw:** `via_boven` ("ondersteund via {bovenliggende functie}") — informatief,
+     geen werk.
+   - **bewust niets → grijs/rustig:** `niets` ("hier wordt bewust niets gebruikt") — een afgerond besluit,
+     omrand en gelabeld zodat het niet leest als leeg.
+   **Scope-verbreding t.o.v. de oorspronkelijke slice B:** slice B was "de vijf standen als rand-cue op de
+   **kaart**"; het wordt "**de vijf standen zichtbaar als één ernst-taal in beide vensters** (lijst + kaart),
+   uit één gedeelde codering". De lijst toont de standen-pills (mockup); de kaart dezelfde standen als
+   rand/kleur uit diezelfde bron. **Verband:** voedt óók de stand-filter (slice C — alleen filteren op
+   zichtbare standen, LI043-besluit D). Status: **besloten — bouwen als (verbrede) slice B**.
 
 C1. **Contract-registratie — leeslaag + spiegelsignaal (notitie klaar, besluit open).** Bron:
    `docs/Analyse-contractregistratie-V040.md`. Kernpunten:
