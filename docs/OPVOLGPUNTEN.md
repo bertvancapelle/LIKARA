@@ -7,6 +7,64 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI043 (2026-07-17) — beoordelingsgrondslag & open-punten-overzicht
+
+1. ⭐ **Beoordelingsgrondslag — tenant-configureerbare waarde-norm + gewogen open-punten-overzicht per
+   component.** Groot **post-MVP** ontwerpspoor (in LI043 gegroeid van "waar zet ik Lifecycle" naar een
+   fundament — mag niet vervlakken).
+   - **Kernidee (Bert):** niet LIKARA of de code bepaalt wat "juist ingevuld" is, maar **de tenant stelt een
+     beoordelingsgrondslag vast** — een norm waartegen een component wordt gewogen. Het **open-punten-
+     overzicht** per component (dat de smalle beoordelings-"wegwijzer" vervangt) toont dan of de **juiste**
+     dingen zijn ingevuld, gewogen tegen die norm.
+   - **De grondslag is een waarde-norm, niet alleen aanwezigheid.** Per veld: welke **waarden** tellen als
+     juist — niet "is het veld gevuld", maar bv. "BIV moet **geclassificeerd** zijn (niet 'niet
+     geclassificeerd')", "eigenaar bekend", "levensfase bekend vóór migratie". Reden: een aanwezigheids-lat
+     laat het gevaarlijkste geval door — een veld gevuld met een placeholder (BIV = "niet geclassificeerd")
+     oogt in orde maar is een gat dat zich voordoet als ingevuld. De norm gaat over de waarde.
+   - **Twee losgekoppelde momenten (weerlegt de drempel-zorg):** *invullen* — de consultant voert vanaf minuut
+     één systemen op, koppelt, doorloopt checklists; gaat door ongeacht de grondslag. *Wegen* — pas wanneer de
+     organisatie wil weten "hebben we de *juiste* dingen ingevuld", meet het overzicht tegen de grondslag.
+     Apart moment; blokkeert het invullen **niet**. De grondslag is geen poort vooraf, maar een lat ernaast.
+   - **Incrementeel + degradeert netjes (houdt de drempel laag — LIKARA's kernbelofte, anti-Drimmelen):** de
+     grondslag hoeft niet in één keer compleet. De tenant begint met een paar regels en breidt uit wanneer ze
+     eraan toe zijn. Het overzicht **werkt óók zonder grondslag**: dan toont het de open punten **ongewogen**
+     (gewoon "leeg / staat op nee"), zoals de bestaande signalen nu. Zodra de grondslag er is, krijgt datzelfde
+     overzicht **gewicht** ("deze afwijking telt, want jullie hebben dit veld verplicht gesteld"). Waardevol
+     zonder, scherper mét — geen harde afhankelijkheid, geen big-bang-inrichting. Kandidaat: een **verstandige
+     default-grondslag** meeleveren (op basis van de bestaande kritiek/aandacht-splitsing: eigenaar/
+     verantwoordelijke/BIV), zodat een nieuwe tenant vanaf minuut één weegt zonder iets in te richten, en pas
+     aanpast wanneer gewenst.
+   - **Het open-punten-overzicht (vervangt de smalle wegwijzer):** bij het openen van een component ziet de
+     consultant in één beeld **alles wat dit systeem nog nodig heeft**, uit al zijn bronnen, gesplitst in
+     **"Dit moet nog"** en **"Dit zou netjes zijn"**, elk punt met de **route ernaartoe**. De
+     beoordelingsstatus (lifecycle) is daarbinnen **één bron**, niet het hele verhaal.
+   - **Bronnen — al ophaalbaar (feitcheck `feitcheck-open-punten-bronnen`, geen leeg-omhulsel-risico):**
+     Checklist nee/deels → open punt (route `?tab=checklist&markeer=<code>`) — **lifecycle-blokkerend**;
+     registratiegaten via `signalering.badgeComponent` (geen eigenaar · geen verantwoordelijke · BIV
+     onvolledig = kritiek; geen gebruikersgroep · geïsoleerd · geen bedrijfsfunctie = aandacht); component-
+     eigen lege velden (levensfase/bedoeling/beschrijving) — triviaal ophaalbaar (null), maar "leeg ≠ fout"
+     (LI040) → alleen als de grondslag ze eist; Impact-tab: géén open-punt-bron.
+   - **Moet/netjes volgt uit de grondslag (lost de impasse op):** de indeling is **niet** een vaste code-regel
+     maar het **gevolg van de tenant-grondslag** — staat een veld/waarde op de grondslag → afwijking is
+     "moet"; staat het er niet op → "netjes" of ongewogen. Onderscheid dat de grondslag moet kunnen
+     uitdrukken: **lifecycle-blokkerend** (checklist nee/deels → voedt de engine → `geblokkeerd`) vs.
+     **registratie-kritiek** (eigenaar/BIV → voedt de engine NIET). Een component kan `migratieklaar` zijn én
+     tóch een kritiek registratiegat hebben — het overzicht/de grondslag moet dat eerlijk kunnen tonen zonder
+     tegenstrijdigheid.
+   - **Te ontdubbelen (feitcheck):** `component_zonder_verantwoordelijke` (kritiek) en
+     `object_zonder_roltoewijzing` (aandacht) vuren uit dezelfde `geen_rol`-conditie — één feit, twee sleutels
+     → als **één** punt tonen.
+   - **Openstaande ontwerpvragen (bij de uitwerking, niet nu):** waar leeft de grondslag (per tenant — nieuw
+     model / catalogus, raakt schema)? · vorm van een norm-regel per veld (aanwezig / waarde-uitsluiting /
+     waarde-in-set)? · ordening van het overzicht (platte lijst per groep met herkomst-label per regel =
+     lichter, vs. nesting naar herkomst = mogelijk te veel voor "één oogopslag")? · de grensgevallen als
+     default (geen gebruikersgroep / geïsoleerd / geen bedrijfsfunctie — moet of netjes in de meegeleverde
+     default-grondslag)?
+   - **Verband:** vervangt het smalle wegwijzer-idee; bouwt op de checklist-/registratiegaten-signalen die er
+     al zijn; raakt de "Lifecycle → Beoordelingsstatus"-hernoeming (aparte, kleine fix — mag vooruit).
+   - **Status:** groot **post-MVP** ontwerpspoor. Het open-punten-overzicht kan desgewenst **eerder** op de
+     bestaande (ongewogen) signalen landen en later de weging krijgen; de grondslag zelf is het fundament.
+
 ### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
 
 > ⚠ **Bouwvolgorde LI041 HERZIEN (besluit Bert, naloper op de afsluiting):** de gates
