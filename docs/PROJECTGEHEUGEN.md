@@ -5,91 +5,67 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V043 · 2026-07-16
-- **Commit:** `e0ff6d1` gate 4 brok 1 (leeslaag `heeft_gebruikersgroep` + 5e stand `werkvoorraad`) ·
-  daarvóór `254f905` sessie-afsluiting LI041 · `6d1b3fc` veldnorm-fix. Afsluitcommit LI042 (skills
-  7-punts + afsluit-docs + build) volgt in deze afsluiting.
-- **Tests:** backend **1130 passed, 2 skipped, 2 failed** (de 2 failures zijn pre-existing
-  audit-keten-tests over de dev-`audit_log` — geen regressie) · 0 kritieken.
-- **Migratie-head:** `0070_adr051_gapsignaal` — **geen schema-wijziging deze sessie** (brok 1 is
-  read-only afgeleid; head ongewijzigd).
-- **TST-rapport:** `docs/TST-V043-Validatierapport.md` (0 kritieken).
-- **Dev-DB:** GEMMA-model intact. ⚠ De dev-seed vertelt het gate-4-verhaal (5 standen, mét/zonder
-  gebruikersgroep, meervoud-plek) nog NIET → gepland als **gate 4 brok 3** (seed-verhaal).
-- **Bekende ruis:** dev-`audit_log`-ketenbreuk (rij 2026-07-14) laat 2 live-tests falen (data,
-  geen code); dubbeltap-timer-tests belastinggevoelig (geen regressie).
-- **Werktree:** gate 4 slice 2 (kaart-swap) blijft **bewust ongecommit** — ontwarren is stap 1
-  volgende sessie (DC016).
+- **Build:** V044 · 2026-07-17
+- **Commit:** `9b322b6` naam-fix "Beoordelingsstatus" · `6d41dbf` slice B2 · `972df21` slice B1 ·
+  `ac9db21` slice A · `bd60085` brok 3 seed · `bae58b2` serving-fix · `095491b` slice 2. Afsluitcommit
+  LI043 (TST + NEXT_SESSION + PROJECTGEHEUGEN + build) volgt in deze afsluiting.
+- **Tests:** backend **1133 passed, 2 skipped, 0 failed** (80 platform + 1053 module) · frontend
+  **95 files / 1222 passed** · `vite build` ✅ · 0 kritieken.
+- **Migratie-head:** `0070_adr051_gapsignaal` — **geen schema-wijziging deze sessie** (alle kaart-lezing
+  is frontend + read-only afgeleid; head ongewijzigd).
+- **TST-rapport:** `docs/TST-V044-Validatierapport.md` (0 kritieken).
+- **Dev-DB:** GEMMA-model intact. De dev-seed vertelt nu **wél** het gate-4-verhaal (5 standen, mét/zonder
+  gebruikersgroep, meervoud-plek) — brok 3 geland.
+- **Audit-keten OPGELOST:** de 2 V043-live-tests (`test_audit_capture_live.py`) **slagen nu** (8 passed);
+  de data-conditie in de dev-`audit_log` is weg (reseed). Geen pre-existing failure meer.
+- **Werktree:** **schoon** — alle LI043-bouw is per opdracht apart geland (één opdracht per commit).
 
-## Deze sessie (LI042 — gate 4 brok 1 + skill-vastlegging) — AFGEROND
+## Deze sessie (LI043 — gate 4 kaart-lezing + naam-fix + borging) — AFGEROND
 
-**Kern: het fundament onder de bedrijfsfunctie-kaart, plus de patronen verankerd.**
+**Kern: de bedrijfsfunctie-kaart is nu leesbaar; de beoordelingsstatus heeft een naam.**
+
+- **Gate 4 kaart-lezing compleet (slice 2 → A → B1 → B2).** `095491b` proceslaan → bedrijfsfunctie-plek-
+  laan (path-expansie). `ac9db21` slice A: lezing **werk/status/domein** + neutraliseer-model (één kanaal
+  actief, rest neutraal) + meebewegende legenda. `972df21` slice B1: gedeelde **`standCodering`** + ernst-
+  pills in de lijst. `6d41dbf` slice B2: dezelfde stand-kleuren op de **kaart** + legenda, uit die éne bron
+  (optie A — token op tekenmoment geresolved, `standKaartKleur`). Lijst ↔ kaart identiek: amber = werk ·
+  groen = draait · blauw = via boven · grijs = besluit. Geen schema.
+- **Serving-richting-fix (`bae58b2`).** "Systeem zonder gebruikersgroep" las de serving-relatie
+  achterstevoren (`doel_id`) → vlagde vrijwel elk component; nu bron=component (gedeelde richting-bron),
+  mét richtingtest. Herstelt het signaal waarop brok 1/2 leunen.
+- **Brok 3 dev-seed (`bd60085`).** Verse DB vertelt alle vijf standen (incl. plek mét én zónder
+  gebruikersgroep); proces-seed verwijderd.
+- **Naam-fix "Beoordelingsstatus" (`9b322b6`).** Het verwarrende "Lifecycle"/"Status"-veld (botste met
+  Levensfase) heet overal **Beoordelingsstatus**, structureel uit de `VELD_LABELS`-registry — één bron,
+  sentinel-getest (breekt bij herhaald hardcoden).
+- **Borging:** `38b02eb` domeinmodel-terminologie (component/type/applicatie; "systeem" geen synoniem) ·
+  `d76e06a` gg-signaalrichting · `5c4e479` **zes sessiepatronen** (presentatie-single-source · canvas-token ·
+  plek-stand-kleurtaal · bediening · leeg-is-geen-oordeel · aandacht-schaalt-met-gewicht) in frontend/ux +
+  LOKAAL-TESTEN. Skills frontend/ux/domeinmodel op V043-frontmatter.
+- **Ontwerpspoor verankerd:** `8937e95` **beoordelingsgrondslag + open-punten-overzicht** (groot post-MVP) ·
+  `5d9b04f` L1a ijkpunt-wilsbesluit · G4-1d/G4-4/G4-5/0b opvolgpunten.
+
+## Vorige sessie (LI042 — gate 4 brok 1 + skill-vastlegging) — AFGEROND
 
 - **Gate 4 brok 1 (datalaag, `e0ff6d1`):** de leeslaag kent per dekkend systeem `heeft_gebruikersgroep`
-  (afgeleid uit de bestaande serving-relatie component→gebruikersgroep, batch, read-only — géén tweede
-  query-conventie) en de plek een **5e stand `werkvoorraad`**: systeem bekend, gebruiker nog niet.
-  **Streng criterium** — één dekkend systeem zonder gebruikersgroep maakt de plek al werkvoorraad. Geen
-  schema, head 0070. Borging `test_gapsignaal_adr051.py` (split + leeslaag-vlag).
-- **Gate 4 slice 1 + herstel (vorig sessie-einde gecommit):** koppelen vanuit het component,
-  "Bedrijfsfunctie" als eigen tabblad + werkvoorraad-gat "systeem zonder bedrijfsfunctie".
-- **Gate 4 slice 2 (kaart-swap — GEBOUWD, ongecommit):** proceslaan → bedrijfsfunctie-plek-laan met
-  path-expansie. Tests groen. Blijft staan voor de ontwarring volgende sessie.
-- **Skill-vastlegging (7 punten, deze afsluiting gecommit):** kleur = de *actieve* kaart-lezing (niet
-  absoluut status — herziening) · één lezing → één render-kanaal (P1) · afgeleide-stand-exemplaren
-  onder het bestaande recept (P2) · meebewegende legenda + `kleurOpDomein`-gat (P3) · checkpoint-vóór-
-  vorm (P4) · parallelle read-only worktrees (P5) · tool-cadans `/doctor`·`/security-review`·
-  `/code-review ultra` (P7). Geverifieerd tegen de echte CC-setup; geen dubbele waarheid.
-- **Read-only geverifieerd (voor brok 2/3):** kanaal-isolatie werk/status/domein; sloop-grens; 8
-  organisaties in de seed (feitenrapport gate-4 slice-3). Serving-richting-bug in `registratiegaten`
-  ontdekt en gemeld (fix = stap 2 volgende sessie).
-
-## Vorige sessie (LI041 — koppelen, gap-signaal, rollengrens) — AFGEROND
-
-**Kern: blok A voor tweederde af** — de consultant kan nu een systeem aan een bedrijfsfunctie
-hangen (gate 2) en per plek zijn werkvoorraad zien (gate 3); onderweg verschoof de rollengrens.
-
-- **Gate 2 (ADR-049, `980587b`):** koppelen grof (*"geldt overal"*) of fijn (*"alleen hier"*,
-  per plek — geadresseerd via functie + ouder-functie, niet `relatie.id`). Fijn verdringt grof
-  **bij het lezen** (leeslaag, nooit opgeslagen); het grove blijft bestaan en wordt weer leesbaar
-  bij weghalen. Eén gedeelde afleiding `dekking_overzicht`, bronscan-geborgd tegen een tweede
-  implementatie. Tabel `functievervulling` (migratie 0069).
-- **Gate 3 (ADR-051, `78ffd5e`):** vier standen per plek (nog geen · via-boven-cue · hier draait
-  dit · niets vastgesteld) + een oordeel op de koppeling (naar behoren / noodoplossing / leeg).
-  `functievervulling` draagt nu óók "geen systeem — vastgesteld" (component_id nullable +
-  geen_systeem, **XOR-CHECK**; migratie 0070). Twee vensters (boom-cue + centrale werkvoorraad)
-  uit één afleiding `plek_standen`. De omhoog-cue **telt** dragende voorouders i.p.v. er stil één
-  te kiezen (`_dichtstbijzijnde_dragers` → `(aantal, enige)`).
-- **Rollengrens (ADR-050, `980587b`):** wie registreert, corrigeert — een registratie-feit neemt
-  de medewerker terug (`WIJZIGEN`), een landschapsobject vernietigt de beheerder (`VERWIJDEREN`),
-  de modelinhoud verbouwt niemand. Structureel via `verwijder_actie()` + frozensets, niet per
-  route (borging `test_rollengrens_adr050`). Sloot en passant het beschermingsgat: de modelinhoud
-  stond open via het generieke relatie-endpoint (achterdeur) — nu `_weiger_modelinhoud`.
-- **Skills (`8cb3bcb`):** één kernregel *"de vorm bepaalt nooit de betekenis"* (drie gezichten,
-  i.p.v. drie losse regels) · de adversariële checkvraag vóór de bouw · de rollengrens · de
-  bronscan-norm · de stale LI037-verwijder-regel herschreven naar een categorie.
-- **Veldnorm-fix (`6d1b3fc`):** de gate-3 oordeel-select overruled `.lk-veld` (css-poort rood
-  sinds `78ffd5e`); het oordeel wordt nu vanaf de klikbare leeslaag-zin bediend, drie keuzes op
-  volle grootte, geen override. Norm niet versoepeld (scan bijt).
-- **Vorige sessie:** LI040 (ADR-045/046 — levensfase/bedoeling/uitstap; leegte-lijn; vier
-  bouwstenen; 38 patronen → 7 skills). Volledig in `TST-V041` + git-historie.
+  (read-only afgeleid) en de plek een 5e stand `werkvoorraad` (streng criterium). Geen schema, head 0070.
+- **Gate 4 slice 1 (vorig sessie-einde):** koppelen vanuit het component, "Bedrijfsfunctie"-tabblad +
+  werkvoorraad-gat "systeem zonder bedrijfsfunctie".
+- **Skill-vastlegging (7 punten):** kleur = de actieve kaart-lezing · één lezing → één render-kanaal ·
+  afgeleide-stand onder het bestaande recept · meebewegende legenda + `kleurOpDomein`-gat · checkpoint-
+  vóór-vorm · parallelle read-only worktrees · tool-cadans. Volledig in `TST-V043` + git-historie.
+- **Daarvóór:** LI041 (gate 2 koppelen + gate 3 vier standen + rollengrens ADR-050) · LI040 (ADR-045/046).
 
 ## Prioriteiten volgende sessie (zie NEXT_SESSION.md)
 
-> Bouwvolgorde ongewijzigd: de gates van de bedrijfsfunctie-as vóór het uitstapspoor.
-> Gate 2 + 3 zijn af; **gate 4 is het sluitstuk van blok A.**
+> Blok A (bedrijfsfunctie-as) is qua kaart-lezing af; het restant is de laatste MVP-laag + het
+> post-MVP-ontwerpspoor.
 
-1. **Gate 4 — de kaart rust op functies; procesregister uit de MVP-UI (ADR-043).** Het
-   "PROCES"-veld in het componentformulier wordt een bedrijfsfunctie; het procesregister
-   wordt verborgen, niet verwijderd. ⚠ **Begin read-only:** wat leest de kaart, wat raakt
-   het verbergen — en **niet slopen wat de kaart nodig heeft** (`ARCHITECTUUR.LEZEN`).
-2. **Blok B — uitstapspoor (ADR-046):** stuk 3 (stand per gebruiker + Gebruik/
-   Gebruikersgroepen één laag) → stuk 5 (liegend signaal) → stuk 4 (tranche).
-3. **Klein uit LI041 (OPVOLGPUNTEN L1–L7):** ⭐ L1 — verwijderen vertelt wat er meegaat
-   (ontwerpbesluit Bert) · L2 — guard-dekkingstest ontbreekt · L4 — dev-seed vertelt gate 3
-   niet · L7 — css-poort naar de per-commit-check.
-4. **Opruimwerk (blok D):** sentinels (0a) · resultaatregel-uitrol (0) · fantoom-ADR-sweep
-   047+048 (8) · identiteitskopieën server-side (7) · spook-gebruik (4) · platform_init-lokaal
-   (11a).
+1. **Gate 4 restant / ADR-046-stubs** — levensfase / bedoeling / uitstap-stand (stuk 3) / tranche (stuk 4).
+2. **Open-punten-overzicht per component** — kan EERDER ongewogen landen (bronnen zijn al ophaalbaar); mockup eerst.
+3. **Beoordelingsgrondslag** — het post-MVP-fundament onder (2); ontwerp/ADR, raakt vermoedelijk schema.
+4. **De twee B2-bevindingen** (amber gat/werkvoorraad; niet-symmetrische lezingen) — koppelen aan (3).
+5. **Contract-spoor** (ná gate 4) — notitie klaar, besluit open.
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.

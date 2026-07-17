@@ -1,58 +1,50 @@
-# NEXT_SESSION.md — LIKARA V043
+# NEXT_SESSION.md — LIKARA V044
 
-**Gegenereerd**: 2026-07-16
-**Vorige build**: V043
+**Gegenereerd**: 2026-07-17
+**Vorige build**: V044
 **Branch**: master
-**Laatste commit (code)**: `e0ff6d1` gate 4 brok 1 (leeslaag `heeft_gebruikersgroep` + 5e stand
-`werkvoorraad`) · daarvóór `254f905` sessie-afsluiting LI041 · `6d1b3fc` veldnorm-fix
+**Laatste commit (code)**: `9b322b6` naam-fix "Beoordelingsstatus" · daarvóór `6d41dbf` slice B2 ·
+`972df21` slice B1 · `ac9db21` slice A · `bd60085` brok 3 seed · `bae58b2` serving-fix
 
-> **Sessie LI042 — het fundament onder de bedrijfsfunctie-kaart, plus de patronen verankerd.**
+> **Sessie LI043 — de bedrijfsfunctie-kaart is nu leesbaar; de beoordelingsstatus heeft een naam.**
 >
-> Wat LI042 heeft opgeleverd (gebruikerstaal):
-> - **Gate 4 slice 1 + herstel (gecommit, vorige sessie-einde):** koppelen vanuit het component,
->   met "Bedrijfsfunctie" als eigen tabblad op componentdetail + het werkvoorraad-gat "systeem
->   zonder bedrijfsfunctie".
-> - **Gate 4 slice 2 (kaart-swap — GEBOUWD, NIET gecommit):** de proceslaan is vervangen door de
->   bedrijfsfunctie-laan van plekken (path-expansie: een functie op meerdere plekken verschijnt
->   per plek). Backend + frontend af, tests groen. Blijft bewust ongecommit — zie stap 1.
-> - **Gate 4 brok 1 (datalaag — `e0ff6d1`, gecommit + gepusht):** de leeslaag weet nu per dekkend
->   systeem óf het een gebruikersgroep draagt (`heeft_gebruikersgroep`, afgeleid uit de bestaande
->   serving-relatie), en de plek kent een **5e stand `werkvoorraad`**: systeem bekend, gebruiker
->   nog niet. Streng criterium — één dekkend systeem zonder gebruikersgroep maakt de plek al
->   werkvoorraad. Geen schema, head blijft 0070.
-> - **Skill-vastlegging (7 punten, deze afsluiting gecommit):** kleur = de *actieve* kaart-lezing
->   (niet absoluut status); één lezing → één render-kanaal; afgeleide-stand-exemplaren onder het
->   bestaande recept; meebewegende legenda + het `kleurOpDomein`-gat; checkpoint-vóór-vorm;
->   parallelle read-only worktrees; tool-cadans (`/doctor` · `/security-review` · `/code-review ultra`).
+> Wat LI043 heeft opgeleverd (gebruikerstaal):
+> - **Gate 4 kaart-lezing compleet.** De kaart toont per bedrijfsfunctie-plek in één oogopslag waar
+>   werk ligt: **slice A** (lezing werk/status/domein + neutraliseer-model + meebewegende legenda),
+>   **slice B1** (ernst-pills in de lijst) en **slice B2** (dezelfde stand-kleuren op de kaart + legenda,
+>   uit één bron `standCodering`). Lijst ↔ kaart vertellen identiek: amber = werk · groen = draait ·
+>   blauw = via boven · grijs = besluit.
+> - **Serving-richting-fix.** "Systeem zonder gebruikersgroep" leest nu de juiste richting (bron=component);
+>   het signaal waarop brok 1/2 leunen is betrouwbaar.
+> - **Brok 3 dev-seed.** Een verse DB vertelt alle vijf standen (incl. een plek mét én zónder
+>   gebruikersgroep); proces-seed verwijderd.
+> - **Naam-fix "Beoordelingsstatus".** Het verwarrende "Lifecycle"/"Status"-veld heet overal
+>   "Beoordelingsstatus", structureel uit de `VELD_LABELS`-registry (één bron, sentinel-getest).
+> - **Borging:** domeinmodel-terminologie (component/type/applicatie; "systeem" geen synoniem) +
+>   zes sessiepatronen in frontend/ux + LOKAAL-TESTEN.
 
 ---
 
 ## Top-5 prioriteiten volgende sessie
 
-1. **Werktree ontwarren — eerst, randvoorwaarde voor alles (DC016).** Slice 2 (kaart-swap) apart
-   committen: `modules/.../services/landschapskaart_service.py`, `schemas/landschapskaart.py`, de
-   twee `.vue` (`KaartBeginscherm`, `LandschapskaartView`), de twee frontend-tests, en de bij
-   slice-2 horende assertie in `test_landschapskaart_proces.py` (`plek_stand == "werkvoorraad"`).
-   Daarna een schone tree. De skills + afsluit-docs zijn deze sessie al gecommit (disjunct).
+1. **Gate 4 restant / ADR-046-stubs — de resterende MVP-gate-stappen.** Ná de nu-voltooide kaart-lezing:
+   levensfase / bedoeling (`migratiepad`) / uitstap-stand (stuk 3, `organisatiegebruik`) / tranche (stuk 4).
+   Dit is de laatste MVP-laag op de bedrijfsfunctie-as. Volgorde + afhankelijkheden: OPVOLGPUNTEN
+   (LI040/LI041-blokken, ADR-046).
 
-2. **Serving-richting-bug fixen (eigen kleine slice, mét richtingtest).** `registratiegaten_service`
-   leest de serving-relatie op `doel_id == Component.id` (`component_zonder_gebruikersgroep`
-   :264-268 en `badge_voor_component` :201-205) — **tegengesteld** aan de énige serving-creator
-   (`gebruikersgroep_service.maak_aan`: bron=component → doel=gebruikersgroep). Vlagt vrijwel elk
-   component onterecht als "zonder gebruikersgroep". Fix in de **gedeelde lezing**, niet in de
-   consumer. Herstelt het signaal waar brok 1 én brok 2 op leunen.
+2. **Open-punten-overzicht per component (kan EERDER, ongewogen).** Het overzicht "alles wat dit systeem
+   nog nodig heeft" (Dit moet nog / Dit zou netjes zijn, met route) kan al landen op de **bestaande
+   ophaalbare** bronnen (checklist nee/deels + `signalering.badgeComponent`) — de weging komt later. Ontwerp
+   (mockup) eerst. Grond: OPVOLGPUNTEN LI043-blok + feitcheck `feitcheck-open-punten-bronnen`.
 
-3. **Gate 4 brok 2 (kaartlaag)** — op nu-betrouwbaar fundament. Ontwerp deze sessie vastgelegd +
-   read-only geverifieerd (kanaal-isolatie): lezing-dropdown (**werk / status / domein** — één
-   kanaal per lezing, rest neutraliseren; "Kleur op domein" gaat op in de dropdown), zachte
-   thema-bewuste canvas-zweem als modus-hint, meebewegende legenda per lezing, de 5e stand
-   `werkvoorraad` als eigen rand-stijl-cue, en de stand-filter (nieuw filterpad op bestaande
-   `plek_stand`-node-data). Geen schema verwacht (head 0070).
+3. **Beoordelingsgrondslag (groot post-MVP ontwerpspoor) — het fundament onder (2).** Tenant-configureerbare
+   waarde-norm; "moet/netjes" volgt eruit; degradeert netjes (werkt ongewogen). Verankerd in OPVOLGPUNTEN
+   (LI043-blok, item 1). Ontwerp/ADR vóór bouw; raakt vermoedelijk schema (nieuw model/catalogus).
 
-4. **Gate 4 brok 3 (seed-verhaal)** — dev-seed vertelt alle 5 standen op een verse DB, incl. een
-   systeem mét én één zónder gebruikersgroep op **dezelfde** plek (streng werkvoorraad-criterium)
-   en de meervoudig-geplaatste-functie-casus. Seed volgt het gebruikersverhaal, tests volgen de
-   seed. (**8 organisaties** in de seed, niet 4 — feitenrapport gate-4 slice-3.)
+4. **De twee B2-bevindingen — koppelen aan de beoordelingsgrondslag.** (a) Op de kaart delen gat en
+   werkvoorraad dezelfde amber (onderscheid leest via lijst-pill/hover) — herzien of dat volstaat; (b) de
+   lezingen Werk/Status/Domein zijn niet symmetrisch (Werk draagt de stand-kleuren, de andere niet). Beide
+   pas herzien wanneer de beoordelingsgrondslag er is; niet los oplossen.
 
 5. **Contract-spoor** (ná gate 4) — zie Openstaande beslissingen; notitie klaar, besluit open.
 
@@ -60,42 +52,52 @@
 
 ## Openstaande beslissingen
 
-- **Contract-analyse (notitie klaar, geen besluit).** Kernpunten:
-  - **A1** = afgeleide contract-afloop-status als **leeslaag** (loopt / verloopt / verlopen —
-    head-neutraal, exact het `plek_standen`-patroon).
-  - **A2** = spiegelsignaal "component zonder contract".
-  - **B1** = verantwoordelijkheid/toelichting op contract (skills LI038 — besloten, niet gebouwd).
-  - Bedrag/administratie bewust **buiten scope**. Bouwen **ná** gate 4. Besluit docs-vastleggen/ADR
-    staat open. Bron: `docs/Analyse-contractregistratie-V040.md`.
+- **LOKAAL-TESTEN §1b (klein).** De reseed/reset-commando's in de doc (`docker exec -w /app lk-api python3
+  dev_seed_testdata.py`; volume-rm-route i.p.v. `down -v`) zijn correct en blijven. Alleen als je een andere
+  vorm wilt, is dat een aparte doc-wijziging. (Vastgesteld in `vastleggen-sessiepatronen`.)
+- **Contract-analyse (notitie klaar, geen besluit).** A1 afgeleide contract-afloop-leeslaag · A2 spiegelsignaal
+  "component zonder contract" · B1 verantwoordelijkheid/toelichting op contract (skills LI038, besloten niet
+  gebouwd). Bedrag/administratie buiten scope. Bouwen ná gate 4. Bron: `docs/Analyse-contractregistratie-V040.md`.
+
+---
+
+## Losse opvolgpunten (deze sessie toegevoegd — staan in OPVOLGPUNTEN.md)
+
+- **L1a** — ijkpunt als auditeerbaar wilsbesluit (werk-terugzet/vernietig, selectieve lijn).
+- **G4-1d** — kaart-state-hardening (`_herstelKaartState` herstelt een dode set na `down -v` → 0-subgraaf).
+- **G4-4** — dode proces-handoff-tak op de kaart na de plek-laan-swap.
+- **G4-5** — domein-lezing afleiden uit de functie-as (nu proxy: componenttype-label "Applicatie").
+- **0b** — Signalering-scherm als werkvoorraad-checklist (per systeem + oplichten + klikbare badges).
+- **Granulaire CRUD × persona** (post-MVP) — indien nog genoteerd; anders bij het open-punten-spoor.
 
 ---
 
 ## Bekende risico's en aandachtspunten
 
-- **Audit-ketenbreuk in de dev-`audit_log`** (rij van 2026-07-14, vorige sessie). Twee live-tests
-  in `test_audit_capture_live.py` falen omdat ze de héle geaccumuleerde keten (89k+ rijen) lezen —
-  **pre-existing data-conditie, geen code-regressie**. Opschonen/herzien wanneer relevant.
-- **Werktree verstrengeld** tot stap 1 is gedraaid (slice 2 bewust ongecommit).
+- **Audit-keten in de dev-`audit_log`: OPGELOST.** De 2 V043-live-tests (`test_audit_capture_live.py`)
+  **slagen nu** (data-conditie weg, waarschijnlijk via reseed). Geen pre-existing failure meer.
+- **Geen verstrengelde werktree** — alle LI043-bouw is per opdracht apart geland. Schone start.
 
 ---
 
 ## Technische schuld
 
-- Serving-richting-bug (stap 2 hierboven) — zolang open, is elk gebruikersgroep-signaal onbetrouwbaar.
-- De dubbele registratiegaten-lezing (badge + overzicht) leunt op een afspraak; fix in de gedeelde
-  lezing borgt beide.
+- **De twee amber-standen (gat/werkvoorraad) delen op de kaart één kleur** — bewust (onderscheid via tekst),
+  maar te herzien bij de beoordelingsgrondslag (top-4).
+- **`object_zonder_roltoewijzing` vs. `component_zonder_verantwoordelijke`** — één feit, twee signaal-sleutels;
+  in het open-punten-overzicht als één punt tonen (feitcheck-open-punten-bronnen).
 
 ---
 
 ## Geleerde patronen deze sessie
 
-Verwerkt in de likara-skills (deze afsluiting gecommit):
-- **kleur = de actieve lezing**, niet absoluut status (frontend — herziening).
-- **één lezing, één render-kanaal** (frontend — P1); **meebewegende legenda + `kleurOpDomein`-gat**
-  (frontend — P3).
-- **afgeleide stand uit bestaande feiten, nooit wegschrijven** — gate-4-exemplaren onder het
-  bestaande recept (backend — P2).
-- **checkpoint-vóór-vorm** (werkprotocol — P4); **parallelle read-only worktrees** (werkprotocol —
-  P5); **tool-cadans richting productie** (werkprotocol — P7).
-
-De kennis leeft in de skills — geen memory-duplicaat.
+Verankerd in de likara-skills (deze afsluiting gecommit), geen memory-duplicaat:
+- **Eén bron voor PRESENTATIE, niet alleen data** — label/kleur/icoon/legenda op één plek + verplichte
+  sentinel-test (frontend — P1).
+- **Canvas resolvet het token op tekenmoment** (`standKaartKleur`), nooit een tweede kleur-literal (frontend — P2).
+- **Plek-stand-kleurtaal** amber/groen/blauw/grijs — een aparte as, niet te verwarren met signalering-🔴/🟡
+  of de status-lezing-tinten (ux — P3).
+- **Leeg ≠ een ingevulde waarde/oordeel** — geen proxy/placeholder als schijnwaarde (ux — P5).
+- **Aandacht schaalt met gewicht** — bevestiging = auditeerbaar wilsbesluit (ux — P6, zie L1a).
+- **Bedieningsfeiten** (kaart opent op verkenningsscherm) in LOKAAL-TESTEN (P4).
+- **Terminologie** component/type/applicatie; "systeem" geen synoniem (domeinmodel).
