@@ -174,3 +174,26 @@ async def seed_checklist_vragen(session, tenant_id) -> int:
     await session.execute(stmt)
     await session.commit()
     return len(CHECKLIST_VRAGEN) + len(type_rows)
+
+
+async def seed_component_norm(session, tenant_id) -> int:
+    """ADR-052 slice 1 — de meegeleverde default-norm voor harde componentfeiten, **per tenant**
+    (idempotent). Eén rij per hard feit; de vijf `DEFAULT_VERPLICHT`-feiten op `verplicht=true`, de
+    rest false. GENERIEKE platform-default (géén tenant-uitzondering). `ON CONFLICT DO NOTHING` op
+    (tenant_id, feit_sleutel) — een reeds door de tenant aangepaste rij blijft ongemoeid.
+
+    Draait per tenant (onboarding/dev_seed), analoog aan `seed_checklist_vragen`; onder de
+    `lk_app`-RLS-context (INSERT-`WITH CHECK` eist `tenant_id = app.tenant_id`)."""
+    from models.models import ComponentNorm
+    from services.component_norm_service import DEFAULT_VERPLICHT, HARDE_FEITEN
+
+    rows = [
+        {"tenant_id": tenant_id, "feit_sleutel": feit, "verplicht": feit in DEFAULT_VERPLICHT}
+        for feit in HARDE_FEITEN
+    ]
+    stmt = pg_insert(ComponentNorm).values(rows).on_conflict_do_nothing(
+        index_elements=["tenant_id", "feit_sleutel"]
+    )
+    await session.execute(stmt)
+    await session.commit()
+    return len(HARDE_FEITEN)

@@ -68,6 +68,10 @@ class Entiteit(str, Enum):
     ARCHITECTUUR = "architectuur"
     # ADR-027 — niet-scorende categorie-klaarverklaring (tenant-zijde, inhoud-entiteit).
     KLAARVERKLARING = "klaarverklaring"
+    # ADR-052 slice 1 — tenant-norm voor harde componentfeiten (tenant-brede governance-config).
+    # Iedereen mag de norm zien (ze bepaalt "compleet"), maar alleen de beheerder stelt 'm in —
+    # het REFERENTIEMODEL-patroon (geen per-component registratie, geen DELETE-pad).
+    COMPONENT_NORM = "component_norm"
     # ADR-033 slice 2 — opgeslagen & deelbare Impact-verkenner-views (eigen-beheer-entiteit).
     IMPACT_VIEW = "impact_view"
     # ADR-041 slice 1 — persoonlijke voorkeuren ("onthoud als mijn standaard"). Eigen-scope: elke
@@ -185,6 +189,16 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     Entiteit.ARCHITECTUUR: dict(_ALLEEN_LEZEN),
     # ADR-027 — categorie-klaarverklaring: inhoud-patroon (zelfde als PLATEAU/applicatie).
     Entiteit.KLAARVERKLARING: dict(_INHOUD),
+    # ADR-052 slice 1 — tenant-norm harde feiten: tenant-brede governance-config. Iedereen leest
+    # (de norm bepaalt "compleet"); alleen de beheerder stelt 'm in — REFERENTIEMODEL-patroon
+    # (Viewer L · Medewerker L · Beheerder LAWV · Auditor L). Geen DELETE-pad (rijen worden geseed
+    # + getoggeld) → geen ADR-050-classificatie nodig.
+    Entiteit.COMPONENT_NORM: {
+        Rol.VIEWER: _L,
+        Rol.MEDEWERKER: _L,
+        Rol.BEHEERDER: _LAWV,
+        Rol.AUDITOR: _L,
+    },
     # ADR-033 slice 2 — opgeslagen views: eigen-beheer-patroon (Viewer/Auditor L; Medewerker/
     # Beheerder LAWV). Ownership (maker muteert) borgt de servicelaag.
     Entiteit.IMPACT_VIEW: dict(_EIGEN_BEHEER),

@@ -64,6 +64,11 @@ VERWACHT = {
         Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,
     },
     Entiteit.KLAARVERKLARING: _INHOUD,  # ADR-027: niet-scorende categorie-klaarverklaring
+    # ADR-052 slice 1 — tenant-norm harde feiten: governance-config, iedereen leest / beheerder
+    # schrijft (REFERENTIEMODEL-patroon).
+    Entiteit.COMPONENT_NORM: {
+        Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _L,
+    },
     # ADR-033 slice 2 — opgeslagen views: eigen-beheer-patroon (Viewer/Auditor L; Medewerker/
     # Beheerder LAWV — óók Medewerker mag VERWIJDEREN, want eigen view weggooien).
     Entiteit.IMPACT_VIEW: {
@@ -88,7 +93,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (29×4×4 = 464 combinaties) tegen de spec
+    """Elke entiteit × rol × actie (30×4×4 = 480 combinaties) tegen de spec
     (ADR-043: +BEDRIJFSFUNCTIE/+REFERENTIEMODEL; ADR-042: +PROCES/+PROCESVERVULLING;
     ADR-049: +FUNCTIEVERVULLING)."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist

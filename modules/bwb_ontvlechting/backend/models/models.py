@@ -1439,6 +1439,30 @@ class ComponentKlaarverklaring(Base, TenantMixin, TimestampMixin):
     verklaard_op: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
 
 
+class ComponentNorm(Base, TenantMixin, TimestampMixin):
+    """ADR-052 slice 1 — tenant-norm voor harde componentfeiten.
+
+    Per hard feit (`feit_sleutel`, uit de code-eigen kiesbare set `HARDE_FEITEN` in
+    `component_norm_service`) legt de tenant vast of het feit **bekend moet zijn** voordat een
+    component migratieklaar verklaard mag worden — MVP: alleen ja/nee (`verplicht`), geen weging.
+    Eén rij per `(tenant_id, feit_sleutel)`. Tenant-eigen governance-configuratie (geen
+    per-component registratie): tenant-scoped, RLS + FORCE.
+
+    De norm is een LAT, geen poort: ze gatet uitsluitend de menselijke klaarverklaring (ADR-027,
+    al engine-gescheiden) en RAAKT DE ENGINE NOOIT — geen import van/schrijf naar
+    `lifecycle_service`/`herbereken_lifecycle`/`bepaal_lifecycle`/`ComponentProfiel`/`Blokkade`/
+    `Checklistscore`. De engine-status `migratieklaar` blijft puur checklist-gedreven."""
+
+    __tablename__ = "component_norm"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "feit_sleutel", name="uq_component_norm_feit"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    feit_sleutel: Mapped[str] = mapped_column(String(60), nullable=False)
+    verplicht: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("false"))
+
+
 class ImpactView(Base, TenantMixin, TimestampMixin):
     """ADR-033 slice 2 — opgeslagen Impact-verkenner-view (bewaarde startselectie).
 

@@ -87,7 +87,7 @@ from services import (  # noqa: E402
     roltoewijzing_service,
 )
 from services.errors import RegistratieConflict  # noqa: E402
-from services.seed import CHECKLIST_VRAGEN, seed_checklist_vragen  # noqa: E402
+from services.seed import CHECKLIST_VRAGEN, seed_checklist_vragen, seed_component_norm  # noqa: E402
 from services.seed_antwoordconfig import seed_antwoordconfig  # noqa: E402
 
 # Bestaande dev-tenant (hoofdopdracht §2) — geen nieuwe tenant.
@@ -1753,7 +1753,9 @@ async def main() -> None:
         # + antwoordconfig) in de dev-tenant als lk_app onder RLS, vóór applicaties/scores.
         await seed_checklist_vragen(session, DEV_TENANT)
         await seed_antwoordconfig(session, DEV_TENANT)
-        print("  + baseline-vragenset (89) + antwoordconfig geseed voor de tenant")
+        # ADR-052 slice 1 — meegeleverde default-norm harde feiten (generiek, per tenant).
+        await seed_component_norm(session, DEV_TENANT)
+        print("  + baseline-vragenset (89) + antwoordconfig + component-norm geseed voor de tenant")
 
         # code ↔ checklistvraag.id-map (applicatie-type) voor het scoringsplan.
         for code, vid in (
