@@ -505,6 +505,11 @@ export const api = {
     status: (componentId) => request(`/component-normen/status/${componentId}`),
     afwijking: (componentId) => request(`/component-normen/afwijking/${componentId}`),
     verschovenLat: () => request('/component-normen/verschoven-lat'),
+    // Slice 4b — het norm-beheerscherm: lees de definitie, voorspel impact, zet de verplicht-vlag.
+    definitie: () => request('/component-normen'),
+    impact: (feit, verplicht) => request(`/component-normen/${feit}/impact?verplicht=${verplicht}`),
+    zetVerplicht: (feit, verplicht) =>
+      request(`/component-normen/${feit}`, { method: 'PUT', body: JSON.stringify({ verplicht }) }),
   },
 
   // ADR-020 §0 (CD043) — tenant-leeszijde van de classificatie-catalogus: alleen

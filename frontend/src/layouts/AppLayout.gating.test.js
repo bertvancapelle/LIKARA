@@ -16,7 +16,7 @@ import { useAuthStore } from '../store/auth'
 const STUB = { template: '<div/>' }
 const NAMEN = [
   'dashboard', 'component-lijst', 'proces-lijst', 'bedrijfsfunctie-lijst', 'partij-lijst', 'contract-lijst', 'blokkades',
-  'architectuur', 'landschapskaart', 'plaatsingssignalen', 'signalering', 'checklistvragen',
+  'architectuur', 'landschapskaart', 'plaatsingssignalen', 'signalering', 'checklistvragen', 'norm-beheer',
   'plateau-lijst', 'gap-lijst', 'work-package-lijst', 'deliverable-lijst',
   'gebruikersbeheer', 'auditlog',
 ]

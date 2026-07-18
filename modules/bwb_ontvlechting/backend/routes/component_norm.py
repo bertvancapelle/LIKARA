@@ -8,13 +8,15 @@ leeft op de klaarverklaring zelf).
 """
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import Actie, Entiteit
 from app.middleware.auth import AuthenticatedUser
 from app.middleware.authz import vereist_permissie
 from app.middleware.tenant import get_tenant_session
+from schemas.component_norm import NormVerplichtZet
+from services import component_norm_beheer_service as beheer_svc
 from services import component_norm_service as svc
 
 router = APIRouter(prefix="/component-normen", tags=["bwb:component-norm"])
@@ -54,3 +56,38 @@ async def afwijking(
     ``{bewust:[...], verschoven:[...]}`` — bewust = bij het verklaren afgewogen (amber),
     verschoven = de lat verschoof sindsdien (neutraal). Niet klaar ⇒ beide leeg (geen lek)."""
     return await svc.afwijking_voor_component(session, _user.tenant_id, component_id)
+
+
+# ── ADR-052 slice 4b — het norm-beheerscherm (de gemeente legt haar eigen lat) ────────────────────
+@router.get("")
+async def norm_definitie(
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_NORM, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """De volledige norm: per hard feit of het verplicht is + of er een 'bewust geen'-antwoord
+    mogelijk is. Leesbaar voor iedereen (de lat bepaalt 'compleet'); bewerken alleen beheerder."""
+    return await svc.norm_definitie(session, _user.tenant_id)
+
+
+@router.get("/{feit_sleutel}/impact")
+async def impact(
+    feit_sleutel: str,
+    verplicht: bool = Query(..., description="Doelstand: aanzetten (true) of uitzetten (false)."),
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_NORM, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Voorspelling vóór opslaan (besluit 3): hoeveel componenten/klaarverklaringen geraakt worden —
+    geen blokkade, alleen inzicht. Dezelfde afleiding als de norm (geen tweede telling)."""
+    return await beheer_svc.impact_voor_feit(session, _user.tenant_id, feit_sleutel, verplicht)
+
+
+@router.put("/{feit_sleutel}")
+async def zet_verplicht(
+    feit_sleutel: str,
+    body: NormVerplichtZet,
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_NORM, Actie.WIJZIGEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Zet de verplicht-vlag voor één hard feit — alléén de beheerder (`WIJZIGEN`). ORM → geaudit
+    (wie/wanneer, besluit 5). Onbekend feit ⇒ 404."""
+    return await beheer_svc.zet_verplicht(session, _user.tenant_id, feit_sleutel, body.verplicht)

@@ -31,6 +31,7 @@ function maakRouter() {
           { path: 'contracten', name: 'contract-lijst', component: { template: '<div/>' } },
           { path: 'blokkades', name: 'blokkades', component: { template: '<div/>' } },
           { path: 'checklistvragen', name: 'checklistvragen', component: { template: '<div/>' } },
+          { path: 'norm', name: 'norm-beheer', component: { template: '<div/>' } },
           { path: 'architectuur', name: 'architectuur', component: { template: '<div/>' } },
           { path: 'landschapskaart', name: 'landschapskaart', component: { template: '<div/>' } },
           { path: 'signalen/plaatsing', name: 'plaatsingssignalen', component: { template: '<div/>' } },

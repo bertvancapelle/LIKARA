@@ -22,13 +22,15 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
+    AuditLog,
     Component,
+    ComponentBevindingSoort,
     ComponentKlaarverklaring,
     ComponentNorm,
     HostingModel,
     KlaarverklaringStatus,
 )
-from services import component_bevinding_service, registratiegaten_service
+from services import actor_resolutie, component_bevinding_service, registratiegaten_service
 
 # ── De kiesbare set van harde feiten (code-eigen; ADR-052 subknoop 3) ──────────────────────────
 # Eigen componentvelden met betekenisvolle afwezigheid + de relationele feiten. `componentrol` valt
@@ -141,22 +143,73 @@ async def norm_status(session: AsyncSession, tenant_id, component_id) -> dict:
             )
 
     def _status(feit: str) -> str:
-        if feit in _FEIT_SIGNAAL:
-            return NIET_VASTGESTELD if _FEIT_SIGNAAL[feit] in signalen else VASTGESTELD
-        if feit in rel_vast:
-            return VASTGESTELD if rel_vast[feit] else NIET_VASTGESTELD
-        if feit == FEIT_HOSTING:
-            # Sentinel `onbekend` = "geen antwoord" → NIET vastgesteld (kolom is NOT NULL).
-            vast = comp.hostingmodel not in (HostingModel.onbekend, HostingModel.onbekend.value)
-        elif feit == FEIT_LEVENSFASE:
-            vast = comp.levensfase is not None
-        elif feit == FEIT_BEDOELING:
-            vast = comp.migratiepad is not None
-        else:  # onbereikbaar: verplicht ⊆ HARDE_FEITEN, alle takken gedekt
-            vast = True
+        vast = _beslis_vastgesteld(
+            feit, hostingmodel=comp.hostingmodel, levensfase=comp.levensfase,
+            migratiepad=comp.migratiepad, signalen=signalen, rel_vast=rel_vast,
+        )
         return VASTGESTELD if vast else NIET_VASTGESTELD
 
     return {"component_id": component_id, "feiten": {feit: _status(feit) for feit in sorted(verplicht)}}
+
+
+def _beslis_vastgesteld(feit: str, *, hostingmodel, levensfase, migratiepad, signalen, rel_vast) -> bool:
+    """DE determinatie per feit — pure functie, DE ENE bron (norm_status én de impact-voorspelling
+    lezen deze; geen tweede telling). `signalen` = de signaal-sleutels op dit component; `rel_vast` =
+    {feit: bool} voor de relationele feiten (bewust geen / echte registratie)."""
+    if feit in _FEIT_SIGNAAL:
+        return _FEIT_SIGNAAL[feit] not in signalen
+    if feit in rel_vast:
+        return rel_vast[feit]
+    if feit == FEIT_HOSTING:
+        # Sentinel `onbekend` = "geen antwoord" → NIET vastgesteld (kolom is NOT NULL).
+        return hostingmodel not in (HostingModel.onbekend, HostingModel.onbekend.value)
+    if feit == FEIT_LEVENSFASE:
+        return levensfase is not None
+    if feit == FEIT_BEDOELING:
+        return migratiepad is not None
+    return True  # onbereikbaar: feit ⊆ HARDE_FEITEN, alle takken gedekt
+
+
+async def feit_vastgesteld(session: AsyncSession, tenant_id, component_id, feit) -> bool | None:
+    """Is dít ene feit vastgesteld op dit component? None als het component niet bestaat. Read-only.
+    Zelfde determinatie (`_beslis_vastgesteld`) als norm_status — voedt de impact-voorspelling zonder
+    een tweede afleiding. Alleen de voor dít feit relevante bron wordt gelezen."""
+    tid = _tenant_uuid(tenant_id)
+    comp = (
+        await session.execute(
+            select(Component.hostingmodel, Component.levensfase, Component.migratiepad).where(
+                Component.tenant_id == tid, Component.id == component_id
+            )
+        )
+    ).one_or_none()
+    if comp is None:
+        return None
+    signalen: set[str] = set()
+    if feit in _FEIT_SIGNAAL:
+        badge = await registratiegaten_service.badge_voor_component(session, tid, component_id)
+        signalen = set(badge.get("signalen", []))
+    rel_vast: dict[str, bool] = {}
+    if feit in (FEIT_KOPPELINGEN, FEIT_CONTRACT):
+        soorten = await component_bevinding_service.soorten_van_component(session, tid, component_id)
+        rel_vast[feit] = feit in soorten or await component_bevinding_service.heeft_echte_registratie(
+            session, tid, component_id, feit
+        )
+    return _beslis_vastgesteld(
+        feit, hostingmodel=comp.hostingmodel, levensfase=comp.levensfase,
+        migratiepad=comp.migratiepad, signalen=signalen, rel_vast=rel_vast,
+    )
+
+
+async def norm_definitie(session: AsyncSession, tenant_id) -> list[dict]:
+    """De volledige norm voor het beheerscherm: per hard feit of het verplicht is, en of er een
+    'bewust geen'-antwoord mogelijk is (relationeel feit) of niet (eigen veld/signaal — dat bepaalt
+    wat de consultant straks kan antwoorden). Read-only."""
+    norm = await haal_norm(session, tenant_id)
+    bewust_geen = {s.value for s in ComponentBevindingSoort}  # koppelingen, contract
+    return [
+        {"feit": feit, "verplicht": norm[feit], "bewust_geen_mogelijk": feit in bewust_geen}
+        for feit in HARDE_FEITEN
+    ]
 
 
 # ── ADR-052 besluiten 8-11 (LI045) — de verschoven lat onderscheiden van de bewuste afwijking ─────
@@ -244,7 +297,47 @@ async def verschoven_lat_overzicht(session: AsyncSession, tenant_id) -> list[dic
         live = await _live_niet_vastgesteld(session, tid, cid)
         for feit in splits_afwijking(live, snapshot)[VERSCHOVEN]:
             per_feit.setdefault(feit, []).append({"id": cid, "naam": naam})
-    return [
-        {"feit": feit, "aantal": len(comps), "componenten": sorted(comps, key=lambda c: c["naam"] or "")}
-        for feit, comps in sorted(per_feit.items())
-    ]
+    resultaat: list[dict] = []
+    for feit, comps in sorted(per_feit.items()):
+        meta = await _lat_verschoven_metadata(session, tid, feit)  # wanneer/door wie (besluit 5)
+        resultaat.append({
+            "feit": feit,
+            "aantal": len(comps),
+            "componenten": sorted(comps, key=lambda c: c["naam"] or ""),
+            **meta,
+        })
+    return resultaat
+
+
+async def _lat_verschoven_metadata(session: AsyncSession, tid: uuid.UUID, feit: str) -> dict:
+    """ADR-052 slice 4b (besluit 5) — WANNEER en DOOR WIE dit feit het laatst verplicht is gesteld,
+    uit het bestaande audit-spoor (component_norm staat in AUDIT_TENANT_ENTITEITEN). Read-only, geen
+    nieuwe opslag. Leeg dict als er geen toggle-gebeurtenis is — dan draagt de regel enkel feit/
+    aantal/doorklik, zoals in slice 4a. Dit raakt de CLASSIFICATIE niet (die blijft snapshot × live
+    norm); het audit-log voedt alléén deze metadata."""
+    rij_id = (
+        await session.execute(
+            select(ComponentNorm.id).where(
+                ComponentNorm.tenant_id == tid, ComponentNorm.feit_sleutel == feit
+            )
+        )
+    ).scalar_one_or_none()
+    if rij_id is None:
+        return {}
+    rec = (
+        await session.execute(
+            select(AuditLog.tijdstip, AuditLog.actor_sub, AuditLog.actor_email)
+            .where(
+                AuditLog.tenant_id == tid,
+                AuditLog.entiteit_type == "component_norm",
+                AuditLog.entiteit_id == rij_id,
+                AuditLog.wijziging["verplicht"]["nieuw"].astext == "true",
+            )
+            .order_by(AuditLog.tijdstip.desc())
+            .limit(1)
+        )
+    ).first()
+    if rec is None:
+        return {}
+    naam = await actor_resolutie.resolveer_naam(session, tid, sub=rec.actor_sub, email=rec.actor_email)
+    return {"verschoven_op": rec.tijdstip, "verschoven_door": naam or rec.actor_email}

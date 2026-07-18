@@ -40,6 +40,8 @@ const GebruikersbeheerView = () => import('@modules/bwb_ontvlechting/frontend/vi
 const AuditTrailView = () => import('@modules/bwb_ontvlechting/frontend/views/AuditTrailView.vue')
 // ADR-022 W1 — tenant-beheer van de checklist-vragenset, lazy.
 const ChecklistConfigBeheer = () => import('../views/ChecklistConfigBeheer.vue')
+// ADR-052 slice 4b — tenant-norm-beheer (de lat); leesbaar voor iedereen, bewerken beheerder, lazy.
+const NormBeheer = () => import('../views/NormBeheer.vue')
 // ADR-020 fase E — platform-beheer contractcatalogus, lazy.
 const ContractConfigBeheer = () => import('../views/ContractConfigBeheer.vue')
 // ADR-021 fase C — platform-beheer componentcatalogus, lazy.
@@ -147,6 +149,9 @@ const routes = [
       // ADR-022 W1 — checklist-vragenset is tenant-eigendom: tenant-facing route
       // (lk_app, tenant-shell), verhuisd uit /beheer.
       { path: 'checklistvragen', name: 'checklistvragen', component: ChecklistConfigBeheer },
+      // ADR-052 slice 4b — de migratienorm: leesbaar voor elke tenant-rol (de lat bepaalt
+      // "compleet"); bewerken alleen de beheerder (backend handhaaft COMPONENT_NORM.WIJZIGEN).
+      { path: 'norm', name: 'norm-beheer', component: NormBeheer, meta: { roles: MIGRATIE_ROLLEN } },
       // ADR-023 Fase F (F-1) — migratielaag-overzicht (read-only). Statische subpaden
       // vóór de dynamische /:id; gegate op de tenant-rolset via meta.roles.
       { path: 'migratie/plateaus', name: 'plateau-lijst', component: PlateauLijstView, meta: { roles: MIGRATIE_ROLLEN } },

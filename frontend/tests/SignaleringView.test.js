@@ -125,4 +125,14 @@ describe('SignaleringView', () => {
     const w = await mountView() // default mock = []
     expect(w.find('[data-testid="sig-verschoven-lat"]').exists()).toBe(false)
   })
+
+  it('slice 4b — de werkvoorraadregel toont wanneer/door wie de lat verschoof (uit audit)', async () => {
+    api.componentNormen.verschovenLat.mockResolvedValue([
+      { feit: 'bedoeling', aantal: 1, componenten: [{ id: 'c1', naam: 'Archiefbeheer' }], verschoven_door: 'J. de Vries', verschoven_op: '2026-07-18T10:00:00+00:00' },
+    ])
+    const w = await mountView()
+    const meta = w.find('[data-testid="sig-verschoven-meta-bedoeling"]')
+    expect(meta.exists()).toBe(true)
+    expect(meta.text()).toContain('J. de Vries')
+  })
 })

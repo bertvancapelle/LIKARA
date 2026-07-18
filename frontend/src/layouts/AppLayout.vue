@@ -194,6 +194,14 @@ async function uitloggen() {
           >
             Checklistvragen
           </router-link>
+          <!-- ADR-052 slice 4b — de migratienorm (de lat): leesbaar voor iedereen, bewerken beheerder. -->
+          <router-link
+            :to="{ name: 'norm-beheer' }"
+            data-testid="nav-norm-beheer"
+            class="rounded-[var(--lk-radius-nav)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-text)] hover:bg-[var(--lk-color-accent)] aria-[current=page]:bg-[var(--lk-color-accent)] aria-[current=page]:font-semibold"
+          >
+            Migratienorm
+          </router-link>
 
           <!-- ADR-023 Fase F (F-1): migratielaag-overzicht, één "Migratie"-groep met vier
                sub-items. Gegate op leesrecht (elke tenant-rol heeft dat). -->

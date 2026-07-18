@@ -79,6 +79,7 @@ async function laadGaten() {
     verschovenLat.value = []  // fail-safe: geen sectie (geen ruis)
   }
 }
+const _datum = (iso) => (iso ? new Date(iso).toLocaleDateString('nl-NL', { dateStyle: 'medium' }) : '')
 onMounted(laadGaten)
 </script>
 
@@ -141,6 +142,14 @@ onMounted(laadGaten)
         >
           <p class="mb-1 text-[length:var(--lk-text-sm)] font-semibold text-[var(--lk-color-text)]">
             {{ label(NORM_FEIT_LABEL, rij.feit) }} — {{ rij.aantal }} syst{{ rij.aantal === 1 ? 'eem' : 'emen' }}
+          </p>
+          <!-- Besluit 5 — wanneer/door wie de lat verschoof (uit het audit-spoor); alleen als bekend. -->
+          <p
+            v-if="rij.verschoven_door"
+            :data-testid="`sig-verschoven-meta-${rij.feit}`"
+            class="mb-1 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
+          >
+            verplicht gesteld door {{ rij.verschoven_door }}<template v-if="rij.verschoven_op"> · {{ _datum(rij.verschoven_op) }}</template>
           </p>
           <ul class="flex flex-col gap-0.5">
             <li

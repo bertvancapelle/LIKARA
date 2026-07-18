@@ -333,6 +333,10 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
           <p class="mt-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)]">
             Je kunt tóch klaar verklaren (bewust besluit, wordt vastgelegd) of eerst aanvullen.
           </p>
+          <!-- Besluit 6 — leesroute naar de lat: leesbaar voor iedereen (de beheerder verzet 'm). -->
+          <p class="mt-[var(--lk-space-xs)]">
+            <router-link :to="{ name: 'norm-beheer' }" data-testid="mg-norm-leesroute" class="text-[var(--lk-color-primary)] hover:underline">Bekijk de migratienorm →</router-link>
+          </p>
         </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="mg-reden" class="font-semibold">Reden *</label>
