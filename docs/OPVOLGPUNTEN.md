@@ -7,6 +7,14 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI045 (2026-07-18) — Archiefwet als hard componentfeit (besloten, MVP)
+
+1. **Archiefwet-feit (ADR-053) — MVP-onderdeel, bouwen ná ADR-052 slice 4a + 4b.** Eén hard componentfeit
+   "draagt dit systeem archiefbescheiden" (ja / bewust geen / niet gekeken), in de norm zoals eigenaar en
+   contract; in de platform-default, **niet** standaard verplicht (de tenant zet de lat zelf). Vorm besloten,
+   subknopen open. Vindplaats: `docs/adr/ADR-053_Archiefwet-als-hard-componentfeit.md`; bewaartermijn-grens
+   + route: `docs/horizon/Horizon-archiefwet-bewaartermijn-via-zaaktype.md`. Status: **open — ná slice 4a/4b**.
+
 ### Nieuw uit LI044 (2026-07-18) — tenant-norm gebouwd, procesregister-UI gesloopt
 
 > **LI045 top-5 (functionele volgorde, staat volledig in `NEXT_SESSION.md`):**
