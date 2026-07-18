@@ -18,10 +18,16 @@ dus er kan niets driften.
 """
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Component, ComponentNorm, HostingModel
+from models.models import (
+    Component,
+    ComponentKlaarverklaring,
+    ComponentNorm,
+    HostingModel,
+    KlaarverklaringStatus,
+)
 from services import component_bevinding_service, registratiegaten_service
 
 # ── De kiesbare set van harde feiten (code-eigen; ADR-052 subknoop 3) ──────────────────────────
@@ -151,3 +157,94 @@ async def norm_status(session: AsyncSession, tenant_id, component_id) -> dict:
         return VASTGESTELD if vast else NIET_VASTGESTELD
 
     return {"component_id": component_id, "feiten": {feit: _status(feit) for feit in sorted(verplicht)}}
+
+
+# ── ADR-052 besluiten 8-11 (LI045) — de verschoven lat onderscheiden van de bewuste afwijking ─────
+# ÉÉN afleiding, twee vensters (componentscherm + werkvoorraad): de LIVE niet-vastgestelde verplichte
+# feiten van een klaar-verklaard component, verdeeld tegen de BEVROREN snapshot van zijn verklaring.
+# Geen nieuwe opslag, geen derde bron (het audit-log wordt NIET gelezen): puur snapshot × live norm.
+BEWUST = "bewust"          # feit stónd in de snapshot → bewust afgewogen bij het verklaren (amber)
+VERSCHOVEN = "verschoven"  # feit stond er NIET in → de lat verschoof ná het verklaren (neutraal)
+
+
+def splits_afwijking(live_niet_vastgesteld: list[str], snapshot) -> dict:
+    """DE gedeelde afleiding (beide vensters lezen deze, nooit een tweede berekening ernaast):
+    verdeel de live-open verplichte feiten over ``bewust`` (stond in de bevroren snapshot) en
+    ``verschoven`` (stond er niet in). Wat de snapshot niet noemde, is nooit een bewust besluit
+    geweest (ADR-052 besluiten 8/9). Pure functie — DB-vrij testbaar."""
+    snap = set(snapshot or [])
+    bewust: list[str] = []
+    verschoven: list[str] = []
+    for feit in live_niet_vastgesteld:
+        (bewust if feit in snap else verschoven).append(feit)
+    return {BEWUST: bewust, VERSCHOVEN: verschoven}
+
+
+async def _live_niet_vastgesteld(session: AsyncSession, tid: uuid.UUID, component_id) -> list[str]:
+    """De verplichte feiten die NU niet vastgesteld zijn op dit component — uit `norm_status`
+    (dezelfde bron, geen duplicaat). Al gesorteerd."""
+    status = await norm_status(session, tid, component_id)
+    return [feit for feit, s in status["feiten"].items() if s == NIET_VASTGESTELD]
+
+
+async def _levende_snapshot(session: AsyncSession, tid: uuid.UUID, component_id):
+    """De bevroren open-feiten-snapshot van de LEVENDE (status=klaar) klaarverklaring, of None als er
+    geen klaar-verklaring is. Read-only."""
+    rij = (
+        await session.execute(
+            select(ComponentKlaarverklaring.open_feiten, ComponentKlaarverklaring.status).where(
+                ComponentKlaarverklaring.tenant_id == tid,
+                ComponentKlaarverklaring.component_id == component_id,
+            )
+        )
+    ).first()
+    if rij is None or rij.status != KlaarverklaringStatus.klaar:
+        return None
+    return rij.open_feiten or []
+
+
+async def afwijking_voor_component(session: AsyncSession, tenant_id, component_id) -> dict:
+    """Componentvenster: ``{component_id, bewust:[...], verschoven:[...]}`` voor de levende
+    klaarverklaring. Geen klaar-verklaring ⇒ beide leeg (niets te tonen). Read-only,
+    engine-onaangeroerd."""
+    tid = _tenant_uuid(tenant_id)
+    snapshot = await _levende_snapshot(session, tid, component_id)
+    if snapshot is None:
+        return {"component_id": component_id, BEWUST: [], VERSCHOVEN: []}
+    live = await _live_niet_vastgesteld(session, tid, component_id)
+    return {"component_id": component_id, **splits_afwijking(live, snapshot)}
+
+
+async def verschoven_lat_overzicht(session: AsyncSession, tenant_id) -> list[dict]:
+    """Werkvoorraadvenster: per verplicht gesteld feit de klaar-verklaarde componenten waar de LAT
+    VERSCHOOF (feit nu verplicht+open, maar niet in hun bevroren snapshot) — één gebundelde regel per
+    feit. Dezelfde `splits_afwijking` als het componentvenster. Read-only, engine-onaangeroerd.
+
+    Retour: ``[{feit, aantal, componenten:[{id, naam}]}]`` gesorteerd op feit; leeg ⇒ geen sectie."""
+    tid = _tenant_uuid(tenant_id)
+    rijen = (
+        await session.execute(
+            select(
+                ComponentKlaarverklaring.component_id,
+                ComponentKlaarverklaring.open_feiten,
+                Component.naam,
+            )
+            .join(
+                Component,
+                and_(Component.id == ComponentKlaarverklaring.component_id, Component.tenant_id == tid),
+            )
+            .where(
+                ComponentKlaarverklaring.tenant_id == tid,
+                ComponentKlaarverklaring.status == KlaarverklaringStatus.klaar,
+            )
+        )
+    ).all()
+    per_feit: dict[str, list[dict]] = {}
+    for cid, snapshot, naam in rijen:
+        live = await _live_niet_vastgesteld(session, tid, cid)
+        for feit in splits_afwijking(live, snapshot)[VERSCHOVEN]:
+            per_feit.setdefault(feit, []).append({"id": cid, "naam": naam})
+    return [
+        {"feit": feit, "aantal": len(comps), "componenten": sorted(comps, key=lambda c: c["naam"] or "")}
+        for feit, comps in sorted(per_feit.items())
+    ]

@@ -51,6 +51,7 @@ from models.models import (  # noqa: E402
     ChecklistVraagOptie,
     Checklistscore,
     Component,
+    ComponentNorm,
     Contract,
     Element,
     ElementType,
@@ -1751,6 +1752,33 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             telling["klaarverklaringen"] = telling.get("klaarverklaringen", 0) + 1
         except RegistratieConflict:
             pass  # idempotent: de klaarverklaring bestaat al
+
+    # ADR-052 slice 4a (besluiten 8-11) — de VERSCHOVEN LAT demonstreren zonder nieuwe opslag.
+    # Verklaar DMS + Zaaksysteem klaar (norm-compleet op de default → lege snapshot); verklaar dán
+    # "bedoeling" verplicht. Zo missen zij (én Archiefbeheer) een feit dat NIET in hun snapshot stond:
+    #   - DMS, Zaaksysteem → pure VERSCHOVEN LAT (neutraal; snapshot leeg + bedoeling nu open);
+    #   - Archiefbeheer    → BEIDE (amber {biv,eigenaar,verantwoordelijke} + neutraal {bedoeling});
+    #   - Klantportaal     → norm-compleet (bedoeling = 'ja') → GEEN signaal.
+    # VOLGORDE is essentieel: de klaarverklaringen ONDER de default (snapshot zonder bedoeling), pas
+    # dáárna de toggle — precies wat een beheerder later via het beheerscherm (4b) doet.
+    for _cid in (app_id.get("DMS"), app_id.get("Zaaksysteem")):
+        if _cid is None:
+            continue
+        try:
+            await component_klaarverklaring_service.maak_aan(
+                session, tid, KlaarverklaringCreate(
+                    component_id=_cid,
+                    reden="Beoordeeld: alle toen verplichte feiten vastgesteld, migratieklaar."))
+            telling["klaarverklaringen"] = telling.get("klaarverklaringen", 0) + 1
+        except RegistratieConflict:
+            pass  # idempotent
+    _bedoeling = (await session.execute(
+        select(ComponentNorm).where(
+            ComponentNorm.tenant_id == tid, ComponentNorm.feit_sleutel == "bedoeling"))
+    ).scalar_one_or_none()
+    if _bedoeling is not None and not _bedoeling.verplicht:
+        _bedoeling.verplicht = True  # de lat verschuift (idempotent: al true → ongemoeid)
+        await session.commit()
 
     return telling
 

@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import app.core.database  # noqa: F401 — registreert de after_begin RLS-hook (self-contained live-tests)
 from services import component_norm_service as cn
 from services import registratiegaten_service as rg
 
@@ -89,6 +90,39 @@ def test_read_only_bronscan():
     src = inspect.getsource(cn)
     for verboden in ("session.add", ".commit(", ".flush(", "session.delete", ".delete("):
         assert verboden not in src, f"read-only-schending: {verboden} in component_norm_service"
+
+
+# ── Offline — de verschoven lat onderscheiden van de bewuste afwijking (besluiten 8-11, LI045) ────
+
+def test_splits_afwijking_verdeelt_tegen_snapshot():
+    """`bewust` = stond in de snapshot (bij het verklaren afgewogen); `verschoven` = stond er niet in
+    (de lat verschoof sindsdien). Wat de snapshot niet noemde is nooit een bewust besluit geweest."""
+    # pure VERSCHOVEN LAT: lege snapshot → alles verschoven, niets bewust
+    assert cn.splits_afwijking(["biv", "eigenaar"], []) == {"bewust": [], "verschoven": ["biv", "eigenaar"]}
+    # pure BEWUSTE AFWIJKING: alles stond in de snapshot
+    assert cn.splits_afwijking(["biv", "eigenaar"], ["biv", "eigenaar", "contract"]) == {
+        "bewust": ["biv", "eigenaar"], "verschoven": []}
+    # BEIDE (case D): biv stond erin (bewust), bedoeling niet (verschoven)
+    assert cn.splits_afwijking(["biv", "bedoeling"], ["biv", "eigenaar", "verantwoordelijke"]) == {
+        "bewust": ["biv"], "verschoven": ["bedoeling"]}
+    # geen open feiten → geen enkel signaal
+    assert cn.splits_afwijking([], ["biv"]) == {"bewust": [], "verschoven": []}
+
+
+def test_splits_afwijking_geen_bruikbare_snapshot():
+    """Randgeval — geen bruikbare snapshot (None of leeg; bv. klaar verklaard vóór er een norm was):
+    niets is bewust afgewogen → alles verschoven. Nooit amber toeschrijven wat niemand accepteerde."""
+    assert cn.splits_afwijking(["biv"], None) == {"bewust": [], "verschoven": ["biv"]}
+    assert cn.splits_afwijking(["biv"], []) == {"bewust": [], "verschoven": ["biv"]}
+
+
+def test_uitgezet_feit_valt_buiten_de_afleiding():
+    """Randgeval — de beheerder ZET een feit UIT (lat versoepeld): `norm_status` geeft alleen nog
+    verplichte feiten, dus het staat niet in de live-open input → het verschijnt in geen van beide
+    categorieën (geen signaal). Hier gemodelleerd door 'hosting' niet in de live-open input te zetten."""
+    r = cn.splits_afwijking(["biv"], ["biv", "hosting"])
+    assert "hosting" not in r["bewust"] and "hosting" not in r["verschoven"]
+    assert r == {"bewust": ["biv"], "verschoven": []}
 
 
 # ── Live (skip-if-no-DB) ───────────────────────────────────────────────────────────────────────

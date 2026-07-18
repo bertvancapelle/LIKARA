@@ -7,6 +7,7 @@ vi.mock('@/api', () => ({
   api: {
     signalering: { registratiegaten: vi.fn() },
     signalen: { plaatsing: vi.fn() }, // PlaatsingSignalenView (ingebedde tab) roept dit op mount aan
+    componentNormen: { verschovenLat: vi.fn() }, // slice 4a — de verschoven-lat-sectie
   },
 }))
 
@@ -53,6 +54,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.signalen.plaatsing.mockResolvedValue([])
   api.signalering.registratiegaten.mockResolvedValue(GATEN())
+  api.componentNormen.verschovenLat.mockResolvedValue([])
 })
 afterEach(() => vi.restoreAllMocks())
 
@@ -103,5 +105,24 @@ describe('SignaleringView', () => {
     await w.find('[data-testid="sig-tab-plaatsing"]').trigger('click')
     expect(w.find('[data-testid="sig-panel-plaatsing"]').exists()).toBe(true)
     expect(api.signalen.plaatsing).toHaveBeenCalled()
+  })
+
+  it('slice 4a — verschoven lat: eigen neutrale sectie met feit, aantal en component-doorklik', async () => {
+    api.componentNormen.verschovenLat.mockResolvedValue([
+      { feit: 'bedoeling', aantal: 2, componenten: [{ id: 'c1', naam: 'Archiefbeheer' }, { id: 'c2', naam: 'DMS' }] },
+    ])
+    const w = await mountView()
+    const sec = w.find('[data-testid="sig-verschoven-lat"]')
+    expect(sec.exists()).toBe(true)
+    expect(sec.text()).toContain('De lat is verschoven')
+    const rij = w.find('[data-testid="sig-verschoven-bedoeling"]')
+    expect(rij.text()).toContain('Bedoeling (migratiepad)')
+    expect(rij.text()).toContain('2 systemen')
+    expect(w.find('[data-testid="sig-verschoven-bedoeling-c1"] a').attributes('href')).toContain('/componenten/c1')
+  })
+
+  it('slice 4a — geen verschoven lat → sectie afwezig', async () => {
+    const w = await mountView() // default mock = []
+    expect(w.find('[data-testid="sig-verschoven-lat"]').exists()).toBe(false)
   })
 })

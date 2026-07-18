@@ -8,7 +8,7 @@ import ToastService from 'primevue/toastservice'
 vi.mock('@/api', () => ({
   api: {
     klaarverklaringen: { lijst: vi.fn(), maak: vi.fn(), wijzigStatus: vi.fn() },
-    componentNormen: { status: vi.fn() },
+    componentNormen: { status: vi.fn(), afwijking: vi.fn(), verschovenLat: vi.fn() },
   },
 }))
 
@@ -22,11 +22,14 @@ const KLAAR = {
 }
 const OPEN = { ...KLAAR, id: 'kv-2', status: 'open', reden: 'heropend' }
 
-async function mountSectie({ verklaring = null, aantalGescoord = 89, aantalVragen = 89, normOpen = [] } = {}) {
+async function mountSectie({ verklaring = null, aantalGescoord = 89, aantalVragen = 89, normOpen = [], bewust = null, verschoven = [] } = {}) {
   api.klaarverklaringen.lijst.mockResolvedValue(verklaring ? [verklaring] : [])
   api.componentNormen.status.mockResolvedValue({
     feiten: Object.fromEntries(normOpen.map((f) => [f, 'niet_vastgesteld'])),
   })
+  // Slice 4a: de badges lezen `afwijking` (bewust vs. verschoven). Default: bewust = alle normOpen
+  // (spiegelt de bestaande slice-3-tests: open feiten stonden in de snapshot → amber).
+  api.componentNormen.afwijking.mockResolvedValue({ bewust: bewust ?? normOpen, verschoven })
   const w = mount(MigratiegereedheidSectie, {
     props: { componentId: COMP, aantalGescoord, aantalVragen },
     global: { plugins: [createPinia(), [PrimeVue, { unstyled: true }], ToastService], stubs: { teleport: true } },
@@ -234,5 +237,46 @@ describe('MigratiegereedheidSectie — verantwoordingsvenster (ADR-052 slice 3b)
     const w = await mountSectie({ verklaring: KLAAR, aantalGescoord: 77 })
     await w.find('[data-testid="mg-afwijking"]').trigger('click')
     expect(w.find('[data-testid="mg-verantwoording"]').findAll('button').length).toBe(0)
+  })
+})
+
+describe('MigratiegereedheidSectie — verschoven lat vs. bewuste afwijking (slice 4a, besluiten 2/3/4)', () => {
+  it('pure verschoven lat: neutraal blok met "nog niet naar gekeken" + "toen compleet"; géén amber', async () => {
+    const w = await mountSectie({ verklaring: KLAAR, bewust: [], verschoven: ['bedoeling'] })
+    const vl = w.find('[data-testid="mg-verschoven-lat"]')
+    expect(vl.exists()).toBe(true)
+    expect(vl.text()).toContain('Bedoeling (migratiepad)')
+    expect(vl.text()).toContain('daar is hier nog niet naar gekeken')
+    expect(vl.text()).toContain('was toen compleet')
+    expect(w.find('[data-testid="mg-norm-open"]').exists()).toBe(false) // niets bewust geaccepteerd
+  })
+
+  it('case D (beide): amber (bewust) én neutraal (verschoven) naast elkaar; géén "toen compleet"', async () => {
+    const w = await mountSectie({
+      verklaring: { ...KLAAR, open_feiten: ['biv', 'eigenaar', 'verantwoordelijke'] },
+      bewust: ['biv', 'eigenaar', 'verantwoordelijke'],
+      verschoven: ['bedoeling'],
+    })
+    const amber = w.find('[data-testid="mg-norm-open"]')
+    expect(amber.exists()).toBe(true)
+    expect(amber.text()).toContain('BIV-classificatie')
+    const vl = w.find('[data-testid="mg-verschoven-lat"]')
+    expect(vl.exists()).toBe(true)
+    expect(vl.text()).toContain('Bedoeling (migratiepad)')
+    expect(vl.text()).not.toContain('was toen compleet') // de verklaring was toen NIET compleet
+  })
+
+  it('geen verschoven feiten → geen neutraal blok; open (niet-klaar) verklaring → ook niet', async () => {
+    let w = await mountSectie({ verklaring: KLAAR, verschoven: [] })
+    expect(w.find('[data-testid="mg-verschoven-lat"]').exists()).toBe(false)
+    w = await mountSectie({ verklaring: OPEN, verschoven: ['bedoeling'] })
+    expect(w.find('[data-testid="mg-verschoven-lat"]').exists()).toBe(false)
+  })
+
+  it('neutraal blok toont het leesbare label, niet de ruwe sleutel', async () => {
+    const w = await mountSectie({ verklaring: KLAAR, bewust: [], verschoven: ['koppelingen'] })
+    const vl = w.find('[data-testid="mg-verschoven-lat"]')
+    expect(vl.text()).toContain('Koppelingen')
+    expect(vl.find('[data-testid="mg-verschoven-tekst"]').text()).not.toContain('koppelingen')
   })
 })

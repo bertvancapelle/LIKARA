@@ -29,3 +29,28 @@ async def norm_status(
     """Per VERPLICHT feit de vastgesteld-status voor dit component ({feiten: {feit: status}}).
     Live afleiding; component buiten de tenant ⇒ lege `feiten` (geen lek)."""
     return await svc.norm_status(session, _user.tenant_id, component_id)
+
+
+# ── ADR-052 besluiten 8-11 (LI045) — de verschoven lat onderscheiden van de bewuste afwijking ─────
+# Statisch subpad vóór de dynamische `/{...}`-paden.
+@router.get("/verschoven-lat")
+async def verschoven_lat(
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.ARCHITECTUUR, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Werkvoorraad: per verplicht gesteld feit de klaar-verklaarde componenten waar de lat
+    verschoof (feit nu verplicht+open, maar niet in hun bevroren snapshot). Tenant-breed inzicht
+    (hergebruik `ARCHITECTUUR.LEZEN`, zoals de registratiegaten). Leeg ⇒ geen sectie."""
+    return await svc.verschoven_lat_overzicht(session, _user.tenant_id)
+
+
+@router.get("/afwijking/{component_id}")
+async def afwijking(
+    component_id: uuid.UUID,
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_NORM, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Per component het onderscheid voor de levende klaarverklaring:
+    ``{bewust:[...], verschoven:[...]}`` — bewust = bij het verklaren afgewogen (amber),
+    verschoven = de lat verschoof sindsdien (neutraal). Niet klaar ⇒ beide leeg (geen lek)."""
+    return await svc.afwijking_voor_component(session, _user.tenant_id, component_id)

@@ -28,6 +28,10 @@ const verklaring = ref(null) // de levende verklaring, of null
 // ADR-052 slice 3 — LIVE norm-status: de verplichte feiten die NU niet vastgesteld zijn (badge =
 // nu; de bevroren snapshot leeft op de klaarverklaring zelf). Eén norm-definitie, twee peildata.
 const normOpen = ref([])
+// Slice 4a (besluiten 8-11) — het onderscheid, LIVE afgeleid uit één backend-bron (afwijking):
+// bewust = bij het verklaren afgewogen (amber); verschoven = de lat verschoof sindsdien (neutraal).
+const bewust = ref([])
+const verschoven = ref([])
 const dialogOpen = ref(false)
 const bezig = ref(false)
 const reden = ref('')
@@ -44,10 +48,14 @@ const openVragen = computed(() => Math.max(props.aantalVragen - props.aantalGesc
 const heeftAfwijking = computed(() => isKlaar.value && props.aantalVragen > 0 && openVragen.value > 0)
 // In de dialog: toon de open-vragen-context wanneer de handeling het component klaar zet.
 const toontVragenContext = computed(() => !isKlaar.value && props.aantalVragen > 0 && openVragen.value > 0)
-// ADR-052 slice 3 — norm-afwijking: verplichte feiten die (live) niet vastgesteld zijn.
+// ADR-052 slice 3/4a — norm-afwijking. De DIALOG toont alle nu-open verplichte feiten (normOpen);
+// de BADGES splitsen tussen bewust (amber) en verschoven (neutraal) — besluiten 8-11.
 const normOpenLabels = computed(() => normOpen.value.map((f) => label(NORM_FEIT_LABEL, f)))
-const heeftNormAfwijking = computed(() => isKlaar.value && normOpen.value.length > 0)  // badge (live)
-const toontNormAfwijking = computed(() => !isKlaar.value && normOpen.value.length > 0) // in de dialog
+const bewustLabels = computed(() => bewust.value.map((f) => label(NORM_FEIT_LABEL, f)))
+const verschovenLabels = computed(() => verschoven.value.map((f) => label(NORM_FEIT_LABEL, f)))
+const heeftNormAfwijking = computed(() => isKlaar.value && bewust.value.length > 0)      // amber (bewust)
+const heeftVerschovenLat = computed(() => isKlaar.value && verschoven.value.length > 0)  // neutraal
+const toontNormAfwijking = computed(() => !isKlaar.value && normOpen.value.length > 0)   // in de dialog
 // Drempel hangt aan de AFWIJKING, niet aan de handeling (ADR-052 besluit 5 / L1a-uitzondering).
 const bevestigLabel = computed(() => (toontNormAfwijking.value ? 'Toch klaar verklaren' : actieLabel.value))
 
@@ -103,6 +111,14 @@ async function _laadNorm() {
       .map(([f]) => f)
   } catch {
     normOpen.value = []  // norm niet leesbaar → geen badge/afwijking tonen (fail-safe, geen ruis)
+  }
+  try {
+    const af = await api.componentNormen.afwijking(props.componentId)  // bewust vs. verschoven (één bron)
+    bewust.value = af?.bewust || []
+    verschoven.value = af?.verschoven || []
+  } catch {
+    bewust.value = []
+    verschoven.value = []
   }
 }
 
@@ -234,7 +250,7 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
         @click="openVerantwoording"
       >
         <span aria-hidden="true">⚠</span>
-        <span>Klaar verklaard, maar {{ normOpen.length }} verplicht{{ normOpen.length === 1 ? ' feit is' : 'e feiten zijn' }} nog niet vastgesteld: {{ normOpenLabels.join(', ') }}.</span>
+        <span>Klaar verklaard, maar {{ bewust.length }} verplicht{{ bewust.length === 1 ? ' feit is' : 'e feiten zijn' }} nog niet vastgesteld: {{ bewustLabels.join(', ') }}.</span>
       </button>
 
       <!-- Gedeeld verantwoordingsvenster (read-only, ook voor de viewer). Toont juist wat je nog
@@ -262,6 +278,27 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
           </ul>
         </div>
       </div>
+    </div>
+
+    <!-- Slice 4a (besluiten 2/3/4) — VERSCHOVEN LAT: neutraal, gedempt grijs, géén amber. Staat
+         náást de amber verantwoording (besluit 3: beide tonen). De lat verschoof ná het verklaren —
+         een uitnodiging om opnieuw te kijken, geen verwijt. -->
+    <div
+      v-if="heeftVerschovenLat"
+      data-testid="mg-verschoven-lat"
+      class="mt-[var(--lk-space-sm)] rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+    >
+      <p class="flex items-start gap-[var(--lk-space-xs)]">
+        <span aria-hidden="true">↔</span>
+        <span>Deze verklaring is destijds beoordeeld tegen de lat die toen gold<template v-if="bewust.length === 0"> en was toen compleet</template>.</span>
+      </p>
+      <p class="mt-[var(--lk-space-xs)]" data-testid="mg-verschoven-tekst">
+        <template v-if="verschoven.length === 1">Sindsdien is <strong>{{ verschovenLabels[0] }}</strong> verplicht gesteld — daar is hier nog niet naar gekeken.</template>
+        <template v-else>Sindsdien zijn deze verplicht gesteld — daar is hier nog niet naar gekeken:</template>
+      </p>
+      <ul v-if="verschoven.length > 1" class="mt-[var(--lk-space-xs)] list-disc pl-[var(--lk-space-md)]">
+        <li v-for="f in verschovenLabels" :key="f" :data-testid="`mg-verschoven-feit-${f}`">{{ f }}</li>
+      </ul>
     </div>
 
     <!-- Handel-dialog (trigger staat in de knoppenrij van het ouder-scherm → openDialog()). -->

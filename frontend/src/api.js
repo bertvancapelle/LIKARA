@@ -498,8 +498,13 @@ export const api = {
   },
 
   // ADR-052 slice 3 — live norm-status per component ({ feiten: { feit: status } }).
+  // Slice 4a — de verschoven lat onderscheiden van de bewuste afwijking (besluiten 8-11):
+  //   afwijking(id)   → { bewust:[...], verschoven:[...] } per component (componentvenster)
+  //   verschovenLat() → [{ feit, aantal, componenten:[{id,naam}] }] (werkvoorraadvenster)
   componentNormen: {
     status: (componentId) => request(`/component-normen/status/${componentId}`),
+    afwijking: (componentId) => request(`/component-normen/afwijking/${componentId}`),
+    verschovenLat: () => request('/component-normen/verschoven-lat'),
   },
 
   // ADR-020 §0 (CD043) — tenant-leeszijde van de classificatie-catalogus: alleen
