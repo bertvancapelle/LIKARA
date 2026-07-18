@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Status** | Aanvaard — **slices 1–3 gebouwd** (`fae7593` norm-opslag/-toetsing · `626dc76` "bewust geen" · `7e2ff25` verrijkte klaarverklaring); **slice 4 (norm-beheerscherm) open**. Subknopen 1–5 besloten (zie onder). |
-| **Datum** | 2026-07-17 |
+| **Status** | Aanvaard — **slices 1–3 gebouwd** (`fae7593` norm-opslag/-toetsing · `626dc76` "bewust geen" · `7e2ff25` verrijkte klaarverklaring). **Slice 4 gesplitst (besluit 14, bindende volgorde): 4a — het onderscheid tussen "bewust over de lat" en "de lat is verschoven" + het werkvoorraadsignaal (besluiten 8–11); 4b — het norm-beheerscherm (besluiten 12–13). Beide OPEN (LI045).** Subknopen 1–5 + besluiten 8–14 besloten (zie onder). |
+| **Datum** | 2026-07-17 (uitgebreid 2026-07-18, LI045 — besluiten 8–14) |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-027 (component-klaarverklaring — dit verrijkt haar) · ADR-013/016 (lifecycle-engine — ongemoeid) · ADR-035 (registratiegat-signalen) · ADR-028 (BIV/componentrol) · ADR-044/049 ("bewust niets" op de bedrijfsfunctie-plek) · ADR-006 (append-only audit) · OPVOLGPUNTEN L1a (ijkpunt) + LI043-1 (beoordelingsgrondslag) |
-| **Grond** | `docs/Checkpoint-tenant-norm-harde-velden-en-klaarverklaring-V044.md` (read-only) |
+| **Grond** | `docs/Checkpoint-tenant-norm-harde-velden-en-klaarverklaring-V044.md` (read-only) · `docs/Checkpoint-norm-beheerscherm-V045.md` (read-only, slice 4) |
 | **Invariant (onschendbaar)** | **De checklist-score blijft de enige lifecycle-driver.** De tenant-norm én de klaarverklaring hangen *náást* de engine: ze gaten een menselijke verklaring, niet de machinale `lifecycle_status`. |
 
 ---
@@ -73,6 +73,66 @@ laagst mogelijke drempel, want inrichtingsdwang vooraf is precies wat LIKARA ver
    De engine-status `migratieklaar` blijft puur checklist-gedreven; de menselijke verklaring is de
    laag die de norm meeweegt. Twee waarheden, elk heel.
 
+> **Uitbreiding LI045 (besluiten 8–14).** De lat verschuift in de tijd — dat is het bestaansrecht van
+> een beheerscherm. Een component dat vorige maand aan de norm voldeed, voldoet er vandaag niet meer aan
+> omdat de beheerder een feit toevoegde. De onderstaande besluiten scheiden "de consultant stapte bewust
+> over de lat" van "de lat is sinds de verklaring verschoven", verplaatsen het signaal naar de
+> werkvoorraad, en verankeren waar en in welke volgorde het beheerscherm landt.
+
+8. **Twee soorten afwijking, streng onderscheiden — het live signaal splitst (verfijnt besluit 6).**
+   "Deze consultant stapte bewust over de lat" is een uitspraak over een **persoon**; "de lat is sinds
+   deze verklaring verschoven" is een uitspraak over de **organisatie**. Vandaag zien ze er identiek uit
+   (één amber badge), en dat schrijft met terugwerkende kracht een keuze toe aan een mens die hem niet
+   maakte — precies de misleiding die het checkpoint (blok 4) blootlegde. Voortaan zijn het **twee
+   signalen**: (i) een verplicht feit dat de consultant bij het verklaren **zelf heeft afgewogen** en toch
+   accepteerde blijft **amber, met verantwoording** (het staat in de bevroren snapshot); (ii) een verplicht
+   feit dat **pas ná de verklaring** open kwam te staan is **neutraal van kleur én van taal** — een
+   uitnodiging om opnieuw te kijken, geen verwijt. Dit **verfijnt** het enkele badge van besluit 6 tot twee
+   tonen; besluit 6 blijft voor het overige ongewijzigd.
+
+9. **Het onderscheid is een afleiding, geen nieuwe waarheid.** Er wordt **niets extra's opgeslagen**. De
+   klaarverklaring bevriest al welke verplichte feiten op het besluitmoment open waren — de snapshot ís
+   juist de verzameling feiten die de consultant zág en afwoog; de huidige norm-status is live bekend. Het
+   **verschil** tussen die twee peildata *is* het signaal: een nu-open verplicht feit dat in de snapshot
+   staat → bewust afgewogen (amber); een nu-open verplicht feit dat er niet in staat → niet afgewogen bij
+   het verklaren (neutraal, "kijk opnieuw"). Dit volgt exact de bestaande regel — **één norm-definitie,
+   twee peildata** (besluit 6) — en de snapshot blijft de **audit van een wilsbesluit**, nooit een
+   afgeleide waarde (invariant; likara-ux §LI044).
+
+10. **De verschoven lat is primair een werkvoorraad-gebeurtenis (herziet de reikwijdte-keuze B5).** Een
+    verschoven lat raakt in één klik tientallen eerder klaar verklaarde systemen tegelijk. Laat je de
+    consultant dat per component ontdekken, dan krijgt hij **ruis in plaats van werk**. Het signaal leeft
+    daarom als **één gebundelde regel in zijn werkvoorraad** ("de lat is verschoven — N eerder klaar
+    verklaarde systemen missen nu een verplicht feit"), met het **componentsignaal als afgeleide daarvan**
+    — één bron, twee vensters (dezelfde lijn als besluit 6). Dit **herziet** de oorspronkelijke
+    reikwijdte-keuze (B5), die de norm-afwijking bewust alléén als component-badge liet leven; de reden
+    staat in §Reikwijdte-keuze.
+
+11. **Het neutrale signaal noemt de lat die tóén gold.** Op het component staat niet alleen wat er nú
+    ontbreekt, maar ook dat de verklaring destijds tegen de **toen geldende lat** is beoordeeld en toen
+    compleet was. Zonder die zin is het neutrale signaal alsnog een verwijt in een vriendelijker kleur. De
+    bevroren snapshot wordt daarmee leesbaar als **geruststelling vooraf** ("hier is niets stils gebeurd"),
+    niet alleen als verantwoording achteraf.
+
+12. **De beheerder ziet de gevolgen op het moment dat hij de lat verzet.** Bij het aan- of uitzetten van
+    een feit toont het beheerscherm hoeveel componenten daardoor **niet meer** (of alsnog **wel**) aan de
+    lat voldoen, en hoeveel eerdere verklaringen geraakt worden. **Geen blokkade** — de beheerder mag dit
+    gewoon doen — maar met **open ogen**. De cijfers zijn puur afleidbaar uit wat er al is (de norm × de
+    huidige veldwaarden), geen nieuwe opslag.
+
+13. **Plaatsing: de norm is data van de organisatie zelf.** Het beheerscherm hoort in de **tenant-schil
+    bij de beheerder**, als **broer van Checklistvragen** — niet in de platform-schil, en niet op het
+    componentdetail. De lat geldt voor het hele landschap; hem laten verzetten tijdens gewoon
+    registratiewerk zou beleid tot bijvangst van registratie maken. Vanuit de klaarverklaring loopt een
+    **leesroute** naar de lat: **zichtbaar voor iedereen, bewerkbaar alleen voor de beheerder** (RBAC
+    `COMPONENT_NORM`: iedereen leest, de beheerder stelt in).
+
+14. **Volgorde-eis (bindend).** Het beheerscherm gaat **niet live vóór het onderscheid uit besluit 8
+    bestaat**. Zolang de norm alleen via de seed beweegt is het probleem theoretisch; op het moment dat een
+    beheerder de lat kan verzetten is de eerste klik meteen de gevolgschade. Daarom: **eerst** het
+    onderscheid + het werkvoorraadsignaal (besluiten 8–11, slice 4a), **dan** het beheerscherm (besluiten
+    12–13, slice 4b).
+
 ### L1a-uitzondering (expliciet)
 
 L1a houdt vooruit-handelingen bewust licht. Klaar verklaren is normaal zo'n vooruit-handeling.
@@ -120,15 +180,25 @@ verklaren is altijd licht" en het verantwoordingsmoment stil laat verdwijnen.
 - Nieuw bouwwerk t.o.v. vandaag: de norm-opslag + -toetsing, de uitbreiding van de per-component
   leesbron, "bewust geen" voor koppelingen/contract, en de snapshot-kolom + bevestiging.
 
-## Reikwijdte-keuze bij de bouw (B5, LI044 — besloten, niet in het oorspronkelijke besluit)
+## Reikwijdte-keuze bij de bouw (B5, LI044 — HERZIEN door besluit 10, LI045)
 
 De norm-afwijking ("verplichte feiten niet vastgesteld") en het bestaande `klaar_met_afwijking`
-("checklist niet compleet") zijn **twee semantisch verschillende afwijkingen** — ze worden **niet
-samengevoegd in één dashboardteller** (dat zou misleiden; "twee waarheden, elk heel" — zie de
-invariant). De norm-afwijking leeft daarom bewust **alléén als badge op het component**
-(`MigratiegereedheidSectie`), niet in `dashboard_service.klaar_met_afwijking`. Uitbreiding naar een
-dashboard-/lijstsignaal voor de norm-afwijking is een **eigen, nog te nemen besluit**, geen bijvangst
-van deze ADR (likara-domeinmodel §LI041-kernregel, vierde toepassing).
+("checklist niet compleet") zijn **twee semantisch verschillende afwijkingen** — ze worden **nooit
+samengevoegd in één teller** (dat zou misleiden; "twee waarheden, elk heel" — zie de invariant). **Dat
+deel staat ongewijzigd.**
+
+**Herzien (besluit 10, LI045).** De oorspronkelijke keuze liet de norm-afwijking bewust **alléén als
+badge op het component** leven (`MigratiegereedheidSectie`), met een dashboard-/lijstsignaal als "eigen,
+nog te nemen besluit". Dat besluit is nu genomen. Het checkpoint
+(`docs/Checkpoint-norm-beheerscherm-V045.md`, blok 4/6) maakte duidelijk waaróm de component-only-keuze
+niet houdbaar is zodra de beheerder de lat kan verzetten: één klik raakt tientallen eerder klaar
+verklaarde systemen tegelijk, en dat per component laten ontdekken is **ruis, geen werk**. De
+norm-afwijking krijgt daarom **wél een eigen signaal** — maar niet als dashboardteller náást
+`klaar_met_afwijking`, wat de twee afwijkingssoorten zou versmelten. Ze leeft als **één gebundelde
+werkvoorraadregel** ("de lat is verschoven — N systemen geraakt"), met het componentsignaal als
+afgeleide (besluit 10). De twee afwijkingssoorten blijven dus streng gescheiden; dit is geen
+samenvoeging maar een **eigen, tweede venster op dezelfde norm-definitie** (likara-domeinmodel
+§LI041-kernregel, vierde toepassing).
 
 ## Subknopen — besloten bij de bouw (LI044)
 
@@ -168,4 +238,11 @@ Slices, elk met engine-onaangeroerd-borging + gate-discipline:
 1. ✅ **Norm-opslag + -toetsing** (`component_norm`, tenant-scoped; de "vastgesteld"-leesbron uitgebreid) — **gebouwd `fae7593`**.
 2. ✅ **"Bewust geen" voor koppelingen en contract** (`component_bevinding`, spiegel bedrijfsfunctie) — **gebouwd `626dc76`**.
 3. ✅ **Verrijkte klaarverklaring** (snapshot-kolom `open_feiten` + bevestiging bij afwijking + badge/log uit één feit; slice 3b verantwoordingsvenster, 3c reden-achter-de-waarschuwing) — **gebouwd `7e2ff25`**.
-4. ⏳ **Norm-beheerscherm** (de tenant stelt de verplicht-vlaggen in) + optionele default-norm — **OPEN** (LI045-prioriteit 1).
+4. **Norm-beheerscherm — gesplitst in de bindende volgorde van besluit 14 (LI045):**
+   - 4a. ⏳ **Het onderscheid + het werkvoorraadsignaal** (besluiten 8–11): "bewust over de lat" (amber,
+     met verantwoording) vs. "de lat is verschoven sinds de verklaring" (neutraal), en één gebundelde
+     werkvoorraadregel met het componentsignaal als afgeleide. Puur leeslaag — geen nieuwe opslag, engine
+     onaangeroerd (afleiding uit de bevroren snapshot × de live norm-status). — **OPEN (LI045-prioriteit 1).**
+   - 4b. ⏳ **Norm-beheerscherm** (de beheerder stelt de verplicht-vlaggen in; tenant-schil, broer van
+     Checklistvragen), mét de gevolg-cijfers bij het verzetten (besluit 12) en de leesroute vanuit de
+     klaarverklaring (besluit 13). **Gaat niet live vóór 4a bestaat (besluit 14, bindend).** — **OPEN.**
