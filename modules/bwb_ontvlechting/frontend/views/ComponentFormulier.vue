@@ -21,7 +21,7 @@
  * Annuleren met gewijzigde velden vraagt bevestiging ("wijzigingen gaan verloren?").
  * Type-vergrendeling (SUBTYPE_HEEFT_DATA) en de veld-/servervalidaties zijn ongewijzigd.
  */
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, provide, reactive, ref, watch } from 'vue'
 import { Button, Dialog, InputText, Textarea, useToast } from '@/primevue'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
@@ -30,8 +30,16 @@ import { HOSTINGMODEL, LEVENSFASE, MIGRATIEPAD, NIVEAU, REGISTER_FOUT, label } f
 import ComponentBedrijfsfunctieSectie from './ComponentBedrijfsfunctieSectie.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
+import { useNormLat } from '../useNormLat'
 
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
+
+// ADR-052 slice 4c — de lat zichtbaar tijdens het invullen. De VeldUitleg krijgt het FEIT door
+// (norm-feit) en leest de lat uit de ge-provide norm-stand → precies één aanduiding per feit
+// (besluit 21). Feit-sleutel per veld (het formulierveld heet soms anders: migratiepad → 'bedoeling').
+const { laad: laadNorm, verplichtPerFeit } = useNormLat()
+provide('normVerplicht', verplichtPerFeit)
+const PLAATSING_FEIT = { levensfase: 'levensfase', migratiepad: 'bedoeling', hostingmodel: 'hosting' }
 // ADR-043 gate 4 (G3) — bij aanmaken alvast koppelen aan bedrijfsfuncties (grof = vertrekpunt;
 // niet-vervallen functies zijn koppelbaar). Fijn verfijnen gebeurt op het detail (waar de plek leeft).
 const zoekBedrijfsfuncties = async (params = {}) => {
@@ -168,6 +176,7 @@ async function init() {
     typeOpties.value = opties.componenttype || []
     rolOpties.value = opties.componentrol_opties || []
     bivNiveaus.value = opties.biv_niveaus || []
+    await laadNorm() // slice 4c — welke feiten staan op de lat (voor de veld-aanduiding)
     if (bewerken.value) {
       const c = await api.componenten.haal(props.id)
       typeVergrendeld.value = c.type_wijzigbaar === false
@@ -389,7 +398,7 @@ function bevestigAnnuleren() {
           <div class="flex flex-col gap-[var(--lk-space-xs)]">
             <div class="flex items-center gap-[var(--lk-space-xs)]">
               <label for="f-eigenaar-org" class="font-semibold">Eigenaar-organisatie</label>
-              <VeldUitleg veld="eigenaar_organisatie_id" />
+              <VeldUitleg veld="eigenaar_organisatie_id" norm-feit="eigenaar" />
             </div>
             <ZoekSelect
               id="f-eigenaar-org"
@@ -484,7 +493,13 @@ function bevestigAnnuleren() {
             <span v-if="fouten.componentrol" role="alert" data-testid="fout-componentrol" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.componentrol }}</span>
           </div>
           <fieldset class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] p-[var(--lk-space-sm)]" data-testid="biv-blok">
-            <legend class="px-[var(--lk-space-xs)] font-semibold">BIV-classificatie</legend>
+            <legend class="px-[var(--lk-space-xs)] font-semibold">
+              <span class="inline-flex items-center gap-[var(--lk-space-xs)]">
+                BIV-classificatie
+                <!-- Slice 4c besluit 21 — BIV is één feit met drie velden → ÉÉN aanduiding op de legenda. -->
+                <VeldUitleg veld="biv" norm-feit="biv" />
+              </span>
+            </legend>
             <!-- De drie aspecten naast elkaar (smal scherm → stapelen). -->
             <div class="grid grid-cols-1 gap-[var(--lk-space-sm)] sm:grid-cols-3">
               <div v-for="b in BIV_VELDEN" :key="b.veld" class="flex flex-col gap-[var(--lk-space-xs)]">
@@ -513,7 +528,7 @@ function bevestigAnnuleren() {
             <div v-for="p in PLAATSING_VELDEN" :key="p.veld" class="flex flex-col gap-[var(--lk-space-xs)]">
               <div class="flex items-center gap-[var(--lk-space-xs)]">
                 <label :for="`f-${p.veld}`" class="font-semibold text-[length:var(--lk-text-sm)]">{{ p.label }}</label>
-                <VeldUitleg :veld="p.uitleg" />
+                <VeldUitleg :veld="p.uitleg" :norm-feit="PLAATSING_FEIT[p.veld]" />
               </div>
               <select
                 :id="`f-${p.veld}`"

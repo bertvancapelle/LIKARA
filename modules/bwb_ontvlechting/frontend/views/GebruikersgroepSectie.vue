@@ -257,6 +257,7 @@ laad({ reset: true })
   <section class="card" aria-labelledby="sectie-gebruikersgroepen">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
       <h2 id="sectie-gebruikersgroepen" class="text-[length:var(--lk-text-lg)] font-semibold">Gebruikersgroepen</h2>
+      <VeldUitleg veld="gebruikersgroep" norm-feit="gebruikersgroep" />
       <Button v-if="mag" label="Toevoegen" severity="secondary" data-testid="gg-toevoegen" class="ml-auto" @click="openNieuw" />
     </div>
 

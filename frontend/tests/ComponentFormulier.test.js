@@ -13,6 +13,7 @@ vi.mock('@/api', () => ({
     bedrijfsfuncties: { lijst: vi.fn(), haal: vi.fn() },
     functievervullingen: { maak: vi.fn(), componentKoppelingen: vi.fn(), verwijder: vi.fn(), zetOordeel: vi.fn() },
     partijen: { lijst: vi.fn() },
+    componentNormen: { definitie: vi.fn() }, // slice 4c — de lat-leesbron
   },
 }))
 
@@ -49,6 +50,7 @@ async function mountForm({ id = null, rollen = ['medewerker'] } = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  api.componentNormen.definitie.mockResolvedValue([]) // slice 4c — default: niets op de lat
   api.componenten.opties.mockResolvedValue({
     componenttype: [
       { optie_sleutel: 'database', label: 'Database' },
@@ -328,5 +330,52 @@ describe('ComponentFormulier — annuleren-bevestiging', () => {
     await w.find('[data-testid="form-annuleer-bevestig"]').trigger('click')
     await flushPromises()
     expect(w.emitted('update:visible').at(-1)).toEqual([false])
+  })
+})
+
+describe('ComponentFormulier — de lat zichtbaar tijdens het invullen (slice 4c)', () => {
+  it('genormeerd feit → de "telt mee"-passage achter het veldlabel (beweegt mee: aan)', async () => {
+    api.componentNormen.definitie.mockResolvedValue([{ feit: 'eigenaar', verplicht: true, bewust_geen_mogelijk: false }])
+    const { w } = await mountForm()
+    await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
+    expect(w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]').text()).toContain('telt mee')
+  })
+
+  it('feit niet op de lat → geen passage (beweegt mee: uit)', async () => {
+    api.componentNormen.definitie.mockResolvedValue([{ feit: 'eigenaar', verplicht: false, bewust_geen_mogelijk: false }])
+    const { w } = await mountForm()
+    await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
+    expect(w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]').exists()).toBe(false)
+  })
+
+  it('de passage blijft staan als het feit al is ingevuld (regel, geen status)', async () => {
+    api.componentNormen.definitie.mockResolvedValue([{ feit: 'eigenaar', verplicht: true, bewust_geen_mogelijk: false }])
+    api.componenten.haal.mockResolvedValue({
+      id: 'c1', naam: 'X', componenttype: 'applicatie', hostingmodel: 'saas',
+      eigenaar_organisatie_id: 'org1', eigenaar_organisatie_naam: 'Gemeente',
+      biv_beschikbaarheid: 'midden', biv_integriteit: 'midden', biv_vertrouwelijkheid: 'midden',
+      levensfase: 'in_productie', migratiepad: 'herbouw', componentrol: 'interne_applicatie',
+    })
+    const { w } = await mountForm({ id: 'c1' })
+    await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
+    // eigenaar ís ingevuld (org1), tóch blijft de lat-aanduiding staan
+    expect(w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]').text()).toContain('telt mee')
+  })
+})
+
+describe('ComponentFormulier — één aanduiding per feit (slice 4c besluit 21)', () => {
+  it('BIV toont de aanduiding precies één keer (op de legenda), niet 3× op de schaalvelden', async () => {
+    api.componentNormen.definitie.mockResolvedValue([
+      { feit: 'biv', verplicht: true, bewust_geen_mogelijk: false },
+      { feit: 'eigenaar', verplicht: true, bewust_geen_mogelijk: false },
+    ])
+    const { w } = await mountForm()
+    // BIV: één keer op de legenda, niet op de drie velden.
+    expect(w.findAll('[data-testid="uitleg-biv-lat"]').length).toBe(1)
+    expect(w.find('[data-testid="uitleg-biv_beschikbaarheid-lat"]').exists()).toBe(false)
+    expect(w.find('[data-testid="uitleg-biv_integriteit-lat"]').exists()).toBe(false)
+    expect(w.find('[data-testid="uitleg-biv_vertrouwelijkheid-lat"]').exists()).toBe(false)
+    // Tellende borging: #aanduidingen == #genormeerde feiten op dit scherm (biv + eigenaar = 2).
+    expect(w.findAll('[data-norm-lat]').length).toBe(2)
   })
 })

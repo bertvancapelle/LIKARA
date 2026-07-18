@@ -6,7 +6,7 @@
 | **Datum** | 2026-07-17 (uitgebreid 2026-07-18, LI045 — besluiten 8–14) |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-027 (component-klaarverklaring — dit verrijkt haar) · ADR-013/016 (lifecycle-engine — ongemoeid) · ADR-035 (registratiegat-signalen) · ADR-028 (BIV/componentrol) · ADR-044/049 ("bewust niets" op de bedrijfsfunctie-plek) · ADR-006 (append-only audit) · OPVOLGPUNTEN L1a (ijkpunt) + LI043-1 (beoordelingsgrondslag) |
-| **Grond** | `docs/Checkpoint-tenant-norm-harde-velden-en-klaarverklaring-V044.md` (read-only) · `docs/Checkpoint-norm-beheerscherm-V045.md` (read-only, slice 4) |
+| **Grond** | `docs/Checkpoint-tenant-norm-harde-velden-en-klaarverklaring-V044.md` (read-only) · `docs/Checkpoint-norm-beheerscherm-V045.md` (read-only, slice 4) · `docs/Meting-veldaanduiding-norm-V045.md` (read-only, slice 4c) |
 | **Invariant (onschendbaar)** | **De checklist-score blijft de enige lifecycle-driver.** De tenant-norm én de klaarverklaring hangen *náást* de engine: ze gaten een menselijke verklaring, niet de machinale `lifecycle_status`. |
 
 ---
@@ -133,6 +133,58 @@ laagst mogelijke drempel, want inrichtingsdwang vooraf is precies wat LIKARA ver
     onderscheid + het werkvoorraadsignaal (besluiten 8–11, slice 4a), **dan** het beheerscherm (besluiten
     12–13, slice 4b).
 
+> **Uitbreiding LI045 slice 4c (besluiten 15–20).** De lat zichtbaar máken tijdens het invullen, niet
+> pas bij het klaar verklaren. Grond: `docs/Meting-veldaanduiding-norm-V045.md` (read-only).
+
+15. **De lat is zichtbaar tijdens het invullen, niet pas bij het klaar verklaren.** De norm is een
+    uitspraak van de organisatie over wat bekend moet zijn; die achterhouden tot het beoordelingsmoment
+    maakt er een **verrassing** van in plaats van een richtlijn. Achter een genormeerd feit staat daarom
+    tijdens het invullen een aanwijzing dat het meetelt.
+
+16. **Nooit het sterretje (harde grens).** Het sterretje belooft "je kunt niet opslaan zonder dit veld".
+    Dat is hier **onwaar**: opslaan mag, de norm gaat over het moment van klaar verklaren. Zou de norm een
+    sterretje krijgen, dan verwacht de consultant een blokkade die niet komt, én verliest het sterretje
+    zijn betekenis op de plekken waar het wél blokkeert (verplichte invoer). Het sterretje blijft exclusief
+    voor opslaan-blokkerende velden.
+
+17. **Geen nieuw teken; de bestaande uitleg draagt het.** Grond (de meting): de vijf normeerbare
+    formuliervelden dragen al een **blauw informatieteken ("i")** op exact de plek waar een nieuw teken zou
+    landen, en er is **geen aparte informatiekleur** naast de linkkleur — een tweede blauw teken ernaast
+    zou een niet te onderscheiden tweeling zijn. De norm-boodschap wordt daarom een **extra passage binnen
+    de bestaande uitleg**, onder een scheidingslijn: boven de betekenis van het veld, eronder wat het voor
+    de lat betekent. Het **uitroepteken is bewust níét gekozen**: de betekenis "let op" is op deze schermen
+    al bezet door de amber/rode waarschuwingsfamilie (⚠), en hier is niets mis.
+
+18. **Twee landingsplekken, één boodschap.** Vijf feiten hebben een formulierveld (eigenaar · BIV ·
+    levensfase · bedoeling · hosting); vijf hebben dat niet en leven als **sectie op het componentdetail**
+    (koppelingen · contract · verantwoordelijke · gebruikersgroep · bedrijfsfunctie). De aanduiding landt
+    bij de eerste **achter het veldlabel**, bij de tweede **op de sectiekop** — dezelfde boodschap, dezelfde
+    bouwsteen (`VeldUitleg`) waar mogelijk.
+
+19. **De aanduiding leest de norm, en beweegt dus mee.** Geen tweede waarheid: verzet de beheerder de lat,
+    dan verschijnt of verdwijnt de aanduiding vanzelf (dezelfde norm-leesbron als slice 4a/4b). Ze verdwijnt
+    **niet** zodra het feit is ingevuld — het is een **regel, geen status**; anders knippert het formulier en
+    kan de consultant de lat nooit meer teruglezen.
+
+20. **Niet herhalen in het klaarverklaringsvenster.** Daar is de lat al het onderwerp (de open verplichte
+    feiten staan er expliciet). Herhaling van de "telt mee"-passage maakt het luider zonder duidelijker te
+    worden.
+
+21. **Eén aanduiding per feit, op het kleinste omvattende element (algemene regel).** De aanduiding hangt
+    aan het **feit**, niet aan het veld. Precies **één** aanduiding per genormeerd feit, op het kleinste
+    element dat het héle feit omvat: een feit met **één veld** → achter het veldlabel; een feit met een
+    **groep velden** → op de kop van die groep; een feit dat als **sectie** leeft → op de sectiekop.
+    Grond: een samengesteld feit dat zijn aanduiding per veld draagt herhaalt dezelfde mededeling en
+    suggereert meer latten dan er zijn — precies de ruis die de aanduiding moest voorkomen. **Illustratie:**
+    BIV is één feit met drie schaalvelden → de aanduiding landt op de **legenda "BIV-classificatie"**, niet
+    op de drie velden. Dit is een **generalisatie**, geen BIV-uitzondering. **Structurele borging:** de view
+    geeft de bouwsteen door **welk feit** het betreft (niet een plek-boolean), zodat een tweede aanduiding
+    voor hetzelfde feit opvalt; een **tellende test** per scherm eist dat het aantal zichtbare aanduidingen
+    gelijk is aan het aantal genormeerde feiten. **Randgeval (te melden, niet op te lossen):** vallen de
+    velden van één feit uiteen over **twee secties**, dan bestaat er geen gemeenschappelijk omvattend
+    element — dat is geen plaatsingsprobleem maar een teken dat het feit verkeerd gemodelleerd is; rapporteer
+    het i.p.v. een plek te verzinnen.
+
 ### L1a-uitzondering (expliciet)
 
 L1a houdt vooruit-handelingen bewust licht. Klaar verklaren is normaal zo'n vooruit-handeling.
@@ -243,6 +295,9 @@ Slices, elk met engine-onaangeroerd-borging + gate-discipline:
      met verantwoording) vs. "de lat is verschoven sinds de verklaring" (neutraal), en één gebundelde
      werkvoorraadregel met het componentsignaal als afgeleide. Puur leeslaag — geen nieuwe opslag, engine
      onaangeroerd (afleiding uit de bevroren snapshot × de live norm-status). — **OPEN (LI045-prioriteit 1).**
-   - 4b. ⏳ **Norm-beheerscherm** (de beheerder stelt de verplicht-vlaggen in; tenant-schil, broer van
+   - 4b. ✅ **Norm-beheerscherm** (de beheerder stelt de verplicht-vlaggen in; tenant-schil, broer van
      Checklistvragen), mét de gevolg-cijfers bij het verzetten (besluit 12) en de leesroute vanuit de
-     klaarverklaring (besluit 13). **Gaat niet live vóór 4a bestaat (besluit 14, bindend).** — **OPEN.**
+     klaarverklaring (besluit 13). **Gaat niet live vóór 4a bestaat (besluit 14, bindend).** — **gebouwd (`d748fcf`).**
+   - 4c. ⏳ **De lat zichtbaar tijdens het invullen** (besluiten 15–20): de "telt mee"-passage binnen de
+     bestaande `VeldUitleg`, achter het veldlabel (5 velden) én op de sectiekop (5 secties); leest de norm,
+     beweegt mee; nooit het sterretje; niet herhaald in het klaarverklaringsvenster. — **OPEN (deze slice).**

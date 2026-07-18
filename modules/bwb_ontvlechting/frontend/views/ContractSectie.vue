@@ -15,6 +15,7 @@ import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import { CONTRACTTYPE, REGISTER_FOUT, label } from '../labels'
 import ZoekSelect from './ZoekSelect.vue'
 import BewustGeenControl from './BewustGeenControl.vue'
+import VeldUitleg from './VeldUitleg.vue'
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
@@ -239,6 +240,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
   <section class="card" aria-labelledby="sectie-contracten">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
       <h2 id="sectie-contracten" class="text-[length:var(--lk-text-lg)] font-semibold">Contracten</h2>
+      <VeldUitleg veld="contract" norm-feit="contract" />
       <Button v-if="mag" label="Contract koppelen" severity="secondary" data-testid="ct-koppelen" class="ml-auto" @click="openKoppelen" />
     </div>
 

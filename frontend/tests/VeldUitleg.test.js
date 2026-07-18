@@ -1,6 +1,7 @@
 /** Tests — VeldUitleg (velduitleg-fundament, slice 1): component + accessors. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { ref } from 'vue'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 import {
   optieUitleg,
@@ -86,6 +87,15 @@ describe('VeldUitleg popover', () => {
     expect(paneel(w).isVisible()).toBe(true)
   })
 
+  it('adopteert de gedeelde positioneringshulp: paneel is fixed (niet eigen absolute) — blijft in beeld', async () => {
+    const w = mountVU()
+    await knop(w).trigger('click')
+    await flushPromises() // usePopoverPositie berekent op nextTick
+    const p = paneel(w)
+    expect(p.attributes('style') || '').toContain('position: fixed') // uit usePopoverPositie
+    expect(p.classes()).not.toContain('absolute') // regressiewacht: niet terugvallen op eigen positionering
+  })
+
   it('opent op focus', async () => {
     const w = mountVU()
     await knop(w).trigger('focus')
@@ -137,6 +147,49 @@ describe('VeldUitleg popover', () => {
     const w = mount(VeldUitleg, { props: { veld: 'bestaat_niet' } })
     expect(w.find('[data-testid="uitleg-bestaat_niet-knop"]').exists()).toBe(false)
     expect(w.find('[data-testid="uitleg-bestaat_niet-inline"]').exists()).toBe(false)
+  })
+})
+
+// ── Slice 4c — norm-feit + injectie (besluiten 15-21) ───────────────────────────
+function mountNorm(props, verplicht) {
+  return mount(VeldUitleg, {
+    props, attachTo: document.body,
+    global: verplicht ? { provide: { normVerplicht: ref(verplicht) } } : {},
+  })
+}
+describe('VeldUitleg — norm-feit (op de lat)', () => {
+  it('normFeit dat verplicht is → de "telt mee"-passage, mét "opslaan kan wel zonder"', async () => {
+    const w = mountNorm({ veld: 'eigenaar_organisatie_id', normFeit: 'eigenaar' }, { eigenaar: true })
+    await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
+    const lat = w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]')
+    expect(lat.exists()).toBe(true)
+    expect(lat.text()).toContain('telt mee om dit systeem klaar te kunnen verklaren')
+    expect(lat.text()).toContain('Opslaan kan wel zonder') // besluit 16 — geen sterretje-belofte
+  })
+
+  it('normFeit NIET verplicht → geen passage (beweegt mee met de norm)', async () => {
+    const w = mountNorm({ veld: 'eigenaar_organisatie_id', normFeit: 'eigenaar' }, { eigenaar: false })
+    await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
+    expect(w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]').exists()).toBe(false)
+  })
+
+  it('geen norm ge-provide → geen passage (backward-compatible; 75 views ongemoeid)', async () => {
+    const w = mountNorm({ veld: 'eigenaar_organisatie_id', normFeit: 'eigenaar' }, null)
+    await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
+    expect(w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]').exists()).toBe(false)
+  })
+
+  it('draagt de passage óók voor een feit zonder eigen veld-uitleg (sectiekop): de i verschijnt tóch', async () => {
+    const w = mountNorm({ veld: 'koppelingen', normFeit: 'koppelingen' }, { koppelingen: true })
+    const b = w.find('[data-testid="uitleg-koppelingen-knop"]')
+    expect(b.exists()).toBe(true)
+    await b.trigger('click')
+    expect(w.find('[data-testid="uitleg-koppelingen-lat"]').text()).toContain('telt mee')
+  })
+
+  it('geen normFeit én geen veld-uitleg → rendert niets (geen kale i)', () => {
+    const w = mount(VeldUitleg, { props: { veld: 'bestaat_niet' } })
+    expect(w.find('[data-testid="uitleg-bestaat_niet-knop"]').exists()).toBe(false)
   })
 })
 

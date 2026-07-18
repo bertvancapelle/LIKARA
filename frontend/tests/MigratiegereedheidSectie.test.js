@@ -181,6 +181,14 @@ describe('MigratiegereedheidSectie — norm-afwijking (ADR-052 slice 3)', () => 
     expect(w.find('[data-testid="mg-bevestig"]').text()).toContain('Klaar verklaren')
     expect(w.find('[data-testid="mg-annuleer"]').text()).toContain('Annuleren')
   })
+
+  it('slice 4c (besluit 20) — de "telt mee"-passage verschijnt NIET in het klaarverklaringsvenster', async () => {
+    const w = await mountSectie({ verklaring: null, normOpen: ['eigenaar'] })
+    w.vm.openDialog()
+    await flushPromises()
+    expect(w.find('[data-testid="mg-dialog-norm"]').exists()).toBe(true) // de lat is er al het onderwerp
+    expect(w.html()).not.toContain('telt mee om dit systeem klaar te kunnen verklaren')
+  })
 })
 
 describe('MigratiegereedheidSectie — verantwoordingsvenster (ADR-052 slice 3b)', () => {

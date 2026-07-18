@@ -213,7 +213,7 @@ watch(() => props.componentId, () => laad(), { immediate: true })
       <h2 id="comp-bf-titel" class="text-[length:var(--lk-text-lg)] font-semibold">
         Waarvoor gebruiken we het
       </h2>
-      <VeldUitleg veld="bedrijfsfunctie" testid="uitleg-bedrijfsfunctie-comp" />
+      <VeldUitleg veld="bedrijfsfunctie" testid="uitleg-bedrijfsfunctie-comp" norm-feit="bedrijfsfunctie" />
     </div>
 
     <p v-if="fout" role="alert" data-testid="cbf-fout" class="mb-[var(--lk-space-sm)] text-[var(--lk-color-danger)]">{{ fout }}</p>

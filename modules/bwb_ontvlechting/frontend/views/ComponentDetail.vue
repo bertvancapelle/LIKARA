@@ -9,7 +9,7 @@
  * (`vereist_permissie`). Lifecycle is read-only (Tag); "Start beoordeling" alleen bij
  * checklist-dragend + status `concept`. Verwijderen waarschuwt voor de cascade.
  */
-import { computed, ref, watch } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { Button, Dialog, Tag, useToast } from '@/primevue'
 import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
@@ -38,6 +38,7 @@ import MigratiegereedheidSectie from './MigratiegereedheidSectie.vue'
 // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" = bedrijfsfunctie-inzet (verving de
 // procesinzet; het procesregister gaat in slice 3 uit de UI). Formulier als bewerk-overlay.
 import ComponentBedrijfsfunctieSectie from './ComponentBedrijfsfunctieSectie.vue'
+import { useNormLat } from '../useNormLat'
 import ComponentFormulier from './ComponentFormulier.vue'
 import SignaleringBadge from './SignaleringBadge.vue'
 import DetailKop from '@/components/DetailKop.vue'
@@ -55,6 +56,10 @@ const toast = useToast()
 const auth = useAuthStore()
 
 const component = ref(null)
+// ADR-052 slice 4c — de lat zichtbaar op de sectiekoppen. De secties injecteren de norm-stand en
+// geven hun eigen feit door aan VeldUitleg (norm-feit) → één aanduiding per feit (besluit 21).
+const { laad: laadNorm, verplichtPerFeit } = useNormLat()
+provide('normVerplicht', verplichtPerFeit)
 const laden = ref(false)
 const fout = ref(null)
 const verwijderDialog = ref(false)
@@ -119,6 +124,7 @@ async function laad() {
   signaleringBadge.value = { kritiek: 0, aandacht: 0, signalen: [] }
   try {
     component.value = await api.componenten.haal(props.id)
+    await laadNorm() // slice 4c — welke feiten staan op de lat (voor de sectiekop-aanduiding)
     // Badge read-only + optioneel: een fout hierin mag de detail-laad niet breken.
     try {
       signaleringBadge.value = await api.signalering.badgeComponent(props.id)

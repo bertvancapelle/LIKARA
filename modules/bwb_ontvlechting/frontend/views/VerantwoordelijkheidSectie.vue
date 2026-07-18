@@ -144,6 +144,7 @@ defineExpose({ items, laad })
       <h2 id="sectie-verantwoordelijkheden" class="text-[length:var(--lk-text-lg)] font-semibold">
         Verantwoordelijkheden
       </h2>
+      <VeldUitleg veld="verantwoordelijke" norm-feit="verantwoordelijke" />
       <Button v-if="mag" label="Toewijzing toevoegen" severity="secondary" data-testid="vw-toevoegen" class="ml-auto" @click="openToevoegen" />
     </div>
 

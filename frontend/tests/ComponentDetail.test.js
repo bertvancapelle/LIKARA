@@ -53,6 +53,8 @@ vi.mock('@/api', () => ({
       lijst: vi.fn(() => Promise.resolve({ items: [], volgende_cursor: null })),
       haal: vi.fn(),
     },
+    // Slice 4c — de lat-leesbron (de aanduiding op de sectiekoppen).
+    componentNormen: { definitie: vi.fn(() => Promise.resolve([])) },
   },
 }))
 
@@ -509,5 +511,20 @@ describe('ComponentBedrijfsfunctieSectie — succes-terugkoppeling', () => {
     await flushPromises()
     expect(api.functievervullingen.verwijder).toHaveBeenCalledWith('fv1')
     expect(toastSucces).toHaveBeenCalledWith(expect.anything(), 'Koppeling weggehaald')
+  })
+})
+
+describe('ComponentDetail — één aanduiding per feit (slice 4c besluit 21)', () => {
+  it('elk genormeerd sectie-feit toont precies één aanduiding op zijn sectiekop', async () => {
+    api.componentNormen.definitie.mockResolvedValue([
+      { feit: 'contract', verplicht: true, bewust_geen_mogelijk: true },
+      { feit: 'verantwoordelijke', verplicht: true, bewust_geen_mogelijk: false },
+      { feit: 'koppelingen', verplicht: false, bewust_geen_mogelijk: true },
+    ])
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="uitleg-contract-lat"]').exists()).toBe(true)
+    expect(w.find('[data-testid="uitleg-verantwoordelijke-lat"]').exists()).toBe(true)
+    // Tellende borging: #aanduidingen == #genormeerde feiten op dit scherm (contract + verantwoordelijke = 2).
+    expect(w.findAll('[data-norm-lat]').length).toBe(2)
   })
 })

@@ -41,14 +41,16 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 2. **Dev-seed vertelt het gate-3-verhaal (L4).** Norm en "bewust geen" zitten nu in de seed, maar het
    gate-3-verhaal (koppelingen, "hier draait niets", de noodoplossing) is op een verse DB nog
    onzichtbaar. Elke browsercheck leunt op de seed. Status: **open — LI045-prioriteit 4**.
-3. **`VeldUitleg`-overlay adopteert `popoverPositie.js`.** De positioneer-rekenkern
-  (`berekenPopoverPositie` + `usePopoverPositie`) is gedeeld en unit-getest, maar `VeldUitleg` draagt
-  hem nog **niet** — het gebruikt zijn eigen `absolute`-overlay (75 views). Per de KERNLES-vervolgregel
-  ("elk pad dat de regel kan omzeilen moet hem dragen, of het pad moet niet bestaan") is de
-  overlay-borging pas af als `VeldUitleg` is omgebouwd naar de bouwsteen. **Klein/eigen slice;
-  regressierisico:** `VeldUitleg` draait in-flow naast formulierlabels (`absolute`, scrollt mee); de
-  omzetting naar `fixed`/viewport-klem raakt 75 views → browserverificatie over meerdere schermen
-  vereist. Zie likara-frontend §Overlay-positionering (LI044).
+3. **`VeldUitleg`-overlay adopteert `popoverPositie.js`.** ✅ **AFGEROND (LI045, slice 4c).** `VeldUitleg`
+  gebruikt nu de gedeelde `usePopoverPositie` (`fixed` + flip/klem) i.p.v. zijn eigen `absolute`-overlay
+  — één bouwsteen, geen tweede positioneringslogica. Aanleiding: de 4c-norm-passage maakte het paneel
+  hoger en liet het bij "Bedoeling" onderaan het (scrollende) formulier buiten beeld vallen; de Dialog
+  klipt via `overflow-y-auto` en centreert via marge (géén `transform`) → `fixed` ontsnapt correct.
+  **Alle 29 VeldUitleg-schermen erven de fix** (de wijziging zit in de ene bouwsteen). Geborgd met een
+  regressietest (`VeldUitleg.test.js` — paneel is `fixed`, niet `absolute`). A11y (Escape/klik-buiten/
+  focus-terug) ongewijzigd. **Nog open voor ándere componenten:** MigratiegereedheidSectie droeg 'm al;
+  er zijn verder geen bekende eigen-overlay-componenten meer — als er een opduikt, adopteert die de
+  bouwsteen op dezelfde wijze. Zie likara-frontend §Overlay-positionering (LI044).
 
 ### Nieuw uit LI043 (2026-07-17) — beoordelingsgrondslag & open-punten-overzicht
 
