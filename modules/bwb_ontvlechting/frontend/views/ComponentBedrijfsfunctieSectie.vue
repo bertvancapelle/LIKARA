@@ -22,6 +22,7 @@ import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import MeldingBanner from '@/components/MeldingBanner.vue'
 import ZoekSelect from './ZoekSelect.vue'
 import VeldUitleg from './VeldUitleg.vue'
+import { NORM_FEIT_LABEL } from '../labels'
 
 const props = defineProps({
   componentId: { type: String, required: true },
@@ -209,11 +210,20 @@ watch(() => props.componentId, () => laad(), { immediate: true })
 
 <template>
   <section class="card" aria-labelledby="comp-bf-titel" data-testid="component-bedrijfsfunctie-sectie">
-    <div class="mb-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-xs)]">
-      <h2 id="comp-bf-titel" class="text-[length:var(--lk-text-lg)] font-semibold">
-        Waarvoor gebruiken we het
-      </h2>
-      <VeldUitleg veld="bedrijfsfunctie" testid="uitleg-bedrijfsfunctie-comp" norm-feit="bedrijfsfunctie" />
+    <!-- C1 (LI045) — de consultant-vriendelijke kop blijft; de feitnaam uit de werkvoorraad komt
+         eronder als ondertitel, zodat hij deze plek herkent. De norm-"i" hoort bij de KÓP en staat
+         daarom in de kop-rij (items-center op de h2), niet in het ondertitel-blok — zo schuift hij niet
+         mee met de ondertitel. Het woord komt uit NORM_FEIT_LABEL: exact wat de werkvoorraad toont. -->
+    <div class="mb-[var(--lk-space-sm)]">
+      <div class="flex items-center gap-[var(--lk-space-xs)]">
+        <h2 id="comp-bf-titel" class="text-[length:var(--lk-text-lg)] font-semibold">
+          Waarvoor gebruiken we het
+        </h2>
+        <VeldUitleg veld="bedrijfsfunctie" testid="uitleg-bedrijfsfunctie-comp" norm-feit="bedrijfsfunctie" />
+      </div>
+      <p data-testid="cbf-ondertitel" class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+        {{ NORM_FEIT_LABEL.bedrijfsfunctie }}
+      </p>
     </div>
 
     <p v-if="fout" role="alert" data-testid="cbf-fout" class="mb-[var(--lk-space-sm)] text-[var(--lk-color-danger)]">{{ fout }}</p>

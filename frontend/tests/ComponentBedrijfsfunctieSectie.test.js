@@ -79,6 +79,28 @@ describe('ComponentBedrijfsfunctieSectie — lezen (uit de leeslaag)', () => {
   })
 })
 
+describe('ComponentBedrijfsfunctieSectie — C1 (LI045): de brug naar het werkvoorraadwoord', () => {
+  it('toont "Bedrijfsfunctie" als ondertitel onder de kop; de kop zelf blijft consultant-vriendelijk', async () => {
+    const { w } = await mountSectie()
+    const ondertitel = w.find('[data-testid="cbf-ondertitel"]')
+    expect(ondertitel.exists()).toBe(true)
+    // Exact het woord uit de werkvoorraad/norm (NORM_FEIT_LABEL) — assert op ZICHTBARE tekst, zodat een
+    // latere hernoeming de brug niet stilletjes weghaalt.
+    expect(ondertitel.text()).toBe('Bedrijfsfunctie')
+    // De bewust gekozen kop blijft ongewijzigd.
+    expect(w.find('#comp-bf-titel').text()).toBe('Waarvoor gebruiken we het')
+  })
+
+  it('de norm-"i" hoort bij de kop (kop-rij), niet bij de ondertitel — hij schuift niet mee', async () => {
+    const { w } = await mountSectie()
+    const koprij = w.find('#comp-bf-titel').element.parentElement
+    // de i-knop staat in dezelfde rij als de h2 …
+    expect(koprij.querySelector('[data-testid="uitleg-bedrijfsfunctie-comp-knop"]')).not.toBeNull()
+    // … en de ondertitel staat DAARBUITEN (eronder), dus de i verschuift niet met de ondertitel.
+    expect(koprij.querySelector('[data-testid="cbf-ondertitel"]')).toBeNull()
+  })
+})
+
 describe('ComponentBedrijfsfunctieSectie — koppelen (grof default; fijn kiest een plek)', () => {
   async function kiesFunctie(w, id) {
     await w.find('[data-testid="cbf-functie-input"]').trigger('focus')
