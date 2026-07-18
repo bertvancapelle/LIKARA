@@ -59,6 +59,7 @@ from models.models import (  # noqa: E402
     Gebruikersgroep,
     HostingModel,
     Levensfase,
+    Migratiepad,
     Organisatiegebruik,
     Partij,
     PartijAard,
@@ -114,6 +115,17 @@ _ID_TO_CODE: dict[object, str] = {}
 # aanhaakpunt voor de call-sites.
 APP_DEFAULTS = {}
 KOP_DEFAULTS = {"richting": "eenrichting", "impact_bij_verbreking": "midden"}
+
+# ADR-052 S1 (LI045) — het SCHONE geval. De demostaat toonde nergens hoe "gewoon in orde" eruitziet:
+# elk klaar-verklaard component droeg een signaal (bewuste afwijking óf verschoven lat). Zonder een
+# schoon geval kan geen browsercheck aantonen dat een signaal terécht wégblijft. HR-systeem leent zich
+# hiervoor functioneel: een standalone personeels-/salarisadministratie (Culemborg) met eigenaar,
+# verantwoordelijke en contract, maar bewust ZONDER koppelingen — "geen integraties" is voor zo'n
+# geïsoleerd systeem een ECHT antwoord, geen registratiegat. Het blijft signaalloos, óók nadat de
+# demostaat de lat verschuift (het heeft een bedoeling/migratiepad, dus de bedoeling-toggle raakt het niet).
+SCHOON_GEVAL_NAAM = "HR-systeem"
+SCHOON_GEVAL_MIGRATIEPAD = "lift_and_shift"   # een standalone systeem verhuist as-is
+SCHOON_GEVAL_BEWUST_GEEN = "koppelingen"      # het relationele feit met een écht "bewust geen"-antwoord
 
 # --- Aanvulling B: bevinding/eigenaar/actie op een subset gescoorde rijen --------
 # Functierol-pool voor `eigenaar` (deterministisch op app-index, GEEN persoonsnaam).
@@ -1754,11 +1766,16 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             pass  # idempotent: de klaarverklaring bestaat al
 
     # ADR-052 slice 4a (besluiten 8-11) — de VERSCHOVEN LAT demonstreren zonder nieuwe opslag.
-    # Verklaar DMS + Zaaksysteem klaar (norm-compleet op de default → lege snapshot); verklaar dán
-    # "bedoeling" verplicht. Zo missen zij (én Archiefbeheer) een feit dat NIET in hun snapshot stond:
-    #   - DMS, Zaaksysteem → pure VERSCHOVEN LAT (neutraal; snapshot leeg + bedoeling nu open);
-    #   - Archiefbeheer    → BEIDE (amber {biv,eigenaar,verantwoordelijke} + neutraal {bedoeling});
-    #   - Klantportaal     → norm-compleet (bedoeling = 'ja') → GEEN signaal.
+    # Verklaar DMS + Zaaksysteem klaar (onder de default → hun BIV staat open en komt dus in de
+    # bevroren snapshot); verklaar dán "bedoeling" verplicht. De demostaat toont zo de VIER gevallen:
+    #   - Klantportaal   → pure VERSCHOVEN LAT (BIV is hier wél gezet → lege snapshot; ná de toggle is
+    #                      alleen bedoeling open, en die stond niet in de snapshot → enkel neutraal);
+    #   - DMS, Zaaksysteem → BEIDE (amber {biv} — BIV stond open in hun snapshot — + neutraal {bedoeling});
+    #   - Archiefbeheer  → BEIDE (amber {biv,eigenaar,verantwoordelijke} + neutraal {bedoeling});
+    #   - HR-systeem     → SCHOON: volledig norm-compleet → GEEN signaal (het ijkbeeld van "in orde",
+    #                      ook na de latverschuiving — zie _seed_schoon_geval).
+    # (S1: elke component heeft migratiepad=NULL by design — LIKARA verzint geen bedoeling. Het schone
+    #  geval krijgt daarom expliciet wél een bedoeling, zodat de bedoeling-toggle het niet raakt.)
     # VOLGORDE is essentieel: de klaarverklaringen ONDER de default (snapshot zonder bedoeling), pas
     # dáárna de toggle — precies wat een beheerder later via het beheerscherm (4b) doet.
     for _cid in (app_id.get("DMS"), app_id.get("Zaaksysteem")):
@@ -1772,6 +1789,10 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
             telling["klaarverklaringen"] = telling.get("klaarverklaringen", 0) + 1
         except RegistratieConflict:
             pass  # idempotent
+    # ADR-052 S1 — het SCHONE geval: HR-systeem volledig norm-compleet + klaar, VÓÓR de toggle.
+    _hr = app_id.get(SCHOON_GEVAL_NAAM)
+    if _hr is not None:
+        await _seed_schoon_geval(session, tid, _hr, telling)
     _bedoeling = (await session.execute(
         select(ComponentNorm).where(
             ComponentNorm.tenant_id == tid, ComponentNorm.feit_sleutel == "bedoeling"))
@@ -1781,6 +1802,47 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         await session.commit()
 
     return telling
+
+
+async def _seed_schoon_geval(session, tid, component_id, telling=None) -> None:
+    """ADR-052 S1 — maak dit component volledig norm-compleet en verklaar het klaar, zodat de demostaat
+    toont hoe "in orde" eruitziet: geen enkel norm-signaal, óók na een latverschuiving.
+
+    Wat deze stap zelf zet (de prerequisites eigenaar/verantwoordelijke/contract komen uit het scenario):
+      - BIV volledig (de drie aspecten) → biv vastgesteld;
+      - bedoeling/migratiepad → bedoeling vastgesteld (zo raakt de bedoeling-toggle dit component niet);
+      - "bewust geen koppelingen" → een leeg antwoord is een ECHT antwoord (koppelingen vastgesteld).
+    Daarna klaar verklaren. Idempotent (setattr met `or`, 409-tolerant).
+
+    VOLGORDE-eis (aanroeper): dit MOET vóór de bedoeling-toggle draaien, zodat de bevroren snapshot
+    onder de default-lat wordt genomen (leeg) — precies zoals een consultant het component nú al
+    volledig invult en klaar verklaart, waarna de beheerder later de lat verzet."""
+    comp = (await session.execute(
+        select(Component).where(Component.tenant_id == tid, Component.id == component_id)
+    )).scalar_one_or_none()
+    if comp is None:
+        return
+    comp.biv_beschikbaarheid = comp.biv_beschikbaarheid or "midden"
+    comp.biv_integriteit = comp.biv_integriteit or "midden"
+    comp.biv_vertrouwelijkheid = comp.biv_vertrouwelijkheid or "midden"
+    comp.migratiepad = comp.migratiepad or Migratiepad(SCHOON_GEVAL_MIGRATIEPAD)
+    await session.commit()
+    try:
+        await component_bevinding_service.registreer_geen(
+            session, tid, component_id, SCHOON_GEVAL_BEWUST_GEEN)
+        if telling is not None:
+            telling["component_bevindingen"] = telling.get("component_bevindingen", 0) + 1
+    except RegistratieConflict:
+        pass  # idempotent, of er is tóch een echte koppeling → dan is 'bewust geen' niet aan de orde
+    try:
+        await component_klaarverklaring_service.maak_aan(
+            session, tid, KlaarverklaringCreate(
+                component_id=component_id,
+                reden="Beoordeeld: alle verplichte feiten vastgesteld (koppelingen: bewust geen), migratieklaar."))
+        if telling is not None:
+            telling["klaarverklaringen"] = telling.get("klaarverklaringen", 0) + 1
+    except RegistratieConflict:
+        pass  # idempotent: de klaarverklaring bestaat al
 
 
 async def _seed_dev_gebruikers(session, tenant_id) -> dict:

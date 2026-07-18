@@ -14,8 +14,10 @@
 - **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). ADR-052 slices 1–3 hebben
   schema geraakt: `component_norm` (0071), `component_bevinding` (0072), `component_klaarverklaring.open_feiten` (0073).
 - **TST-rapport:** `docs/TST-V045-Validatierapport.md` (0 kritieken).
-- **Dev-DB:** GEMMA-model intact. De dev-seed draagt nu norm + "bewust geen" + twee demo-klaarverklaringen
-  (Archiefbeheer klaar mét open feiten → badge; Klantportaal norm-compleet → geen badge). ⚠ Het volledige
+- **Dev-DB:** GEMMA-model intact. De dev-seed draagt nu norm + "bewust geen" + demo-klaarverklaringen die
+  de vier normgevallen tonen (Archiefbeheer = beide: amber + verschoven; DMS/Zaaksysteem = beide;
+  Klantportaal = pure verschoven lat na de bedoeling-toggle; **HR-systeem = SCHOON: volledig norm-compleet
+  → géén signaal**, het ijkbeeld van "in orde" — S1/LI045). ⚠ Het volledige
   gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog onzichtbaar (L4).
 - **Werktree:** **schoon** — alle LI044-bouw is per opdracht apart geland (één opdracht per commit).
 

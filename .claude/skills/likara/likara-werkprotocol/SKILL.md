@@ -217,7 +217,12 @@ leeg scherm als de demodata het te tonen verschijnsel niet draagt — een norm-b
 bij een genormeerd, klaar-verklaard component **mét** open feiten. Prepareer die staat (idempotent, op
 de dev-tenant, exact wat de seed doet) vóór het draaiboek, en benoem in het draaiboek welk component
 welk geval toont. Leesbare tegenhanger van de walkthrough-baseline-regel (benoemde begintellingen).
-(LI044: Archiefbeheer = klaar mét open feiten → badge; Klantportaal = norm-compleet → geen badge.)
+(LI044: Archiefbeheer = klaar mét open feiten → badge. **S1/LI045**: seed óók een SCHOON geval —
+HR-systeem, volledig norm-compleet → géén signaal, óók na een latverschuiving — zodat de browsercheck
+kán aantonen dat een signaal terécht wégblijft. Zonder schoon geval is een "geen signaal"-vinkje
+onbewijsbaar: bij slice 4a is "Klantportaal toont geen signaal" afgevinkt terwijl Klantportaal ná de
+bedoeling-toggle juist de verschoven-lat droeg. Een leeg antwoord ("bewust geen koppelingen") is dáár
+een écht antwoord, geen gat.)
 
 ## Tool-cadans richting productie (LI042 — vaste stappen)
 
