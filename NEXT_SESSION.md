@@ -1,98 +1,110 @@
-# NEXT_SESSION.md — LIKARA V045
+# NEXT_SESSION.md — LIKARA V046
 
 **Gegenereerd**: 2026-07-18
-**Vorige build**: V044 → **V045**
+**Vorige build**: V045 → **V046**
 **Branch**: master
-**Laatste commit (code)**: `7e2ff25` ADR-052 slice 3 (verrijkte klaarverklaring) · daarvóór `626dc76`
-slice 2 ("bewust geen") · `fae7593` slice 1 (norm-opslag) · `c82ad80` gate-4 sloop
-**Laatste commit (docs)**: `f0fa9bd` LI044-patronen in skills + opvolgpunt VeldUitleg-overlay
+**Laatste commit (code)**: `f8a9142` slice 4c (lat tijdens invullen) · `d748fcf` 4b (norm-beheerscherm) ·
+`aaeeb15` 4a (verschoven lat) · `6a0931a` S1 (schoon geval) · `3e74a47` C1 (feit-brug)
+**Laatste commit (docs)**: `0c7860d` LI045-patronen in skills · afsluiting: deze sessie-commit
 
-> **Sessie LI044 — de gemeente kan nu haar eigen lat voor "migratieklaar" leggen; het procesregister is uit de MVP-UI.**
+> **Sessie LI045 — de gemeente legt haar eigen lat nu zélf, en het systeem schrijft nooit een keuze toe die niemand maakte.**
 >
-> Wat LI044 heeft opgeleverd (gebruikerstaal):
-> - **Gate-4 sloop.** Het procesregister is uit de MVP-UI gehaald (nav, routes, ProcesLijst/ProcesDetail
->   + secties, PartijProcessenSectie, ComponentProcessenSectie, de kaart proces-ingang en de doodlopende
->   "Bekijk op kaart"). Datamodel, bouwstenen (procesBoom/ProcesDiagram) en slapende endpoints blijven;
->   het concept is geparkeerd (ADR-043), niet verwijderd.
-> - **Tenant-norm voor harde componentfeiten (ADR-052, slices 1–3).** De gemeente kan per hard feit
->   vastleggen dat het bekend moet zijn vóór een component migratieklaar verklaard mag worden. "Vastgesteld"
->   = een echt antwoord (leeg/sentinel/nooit-gekeken tellen niet). Voor koppelingen/contract is er nu een
->   uitspreekbaar **"bewust geen"**. De consultant verklaart; de norm is een **lat, geen poort**.
-> - **Verrijkte klaarverklaring.** Klaar verklaren blijft licht — behalve bij **afwijking van de norm**:
->   dan benoemt een bevestiging de open feiten (bewust akkoord óf "eerst aanvullen"). Het component toont
->   een **live badge**; de klaarverklaring bevriest een **snapshot** (wie/wanneer/welke feiten open). De
->   amber waarschuwing is **klikbaar** → verantwoordingsvenster met de reden + stand-bij-het-besluit; de
->   reden staat niet meer permanent bij de status. Een venster valt nooit meer buiten beeld.
-> - **Borging:** ADR-052 teruggevouwen naar de gebouwde realiteit; LI044-patronen vastgelegd in vijf
->   skills; ADR-045 besluit 2 / "fileshare = gat" gemarkeerd als verworpen (ADR-051 besluit 3).
+> Wat een gemeente ná LI045 kan dat ze vanochtend niet kon (gebruikerstaal):
+> - **De beheerder legt en verzet de lat zelf** — een eigen "Migratienorm"-scherm waar hij per hard feit
+>   aanzet of het meetelt om klaar te kunnen verklaren. Vóór hij opslaat leest hij **wat het raakt**
+>   ("raakt 12 systemen, waarvan 1 eerder klaar verklaard") — een rustige voorspelling, geen blokkade.
+>   Tot vanochtend kon alleen de seed de norm zetten; nu is het een gemeente-keuze met een moment en een
+>   eigenaar.
+> - **Een verschoven lat leest niet meer als een besluit van de consultant.** Verzet de beheerder de lat
+>   ná een klaarverklaring, dan krijgt die verklaring een **neutraal** signaal ("sindsdien verplicht
+>   gesteld — daar is hier nog niet naar gekeken"), niet de amber van een bewuste afwijking. Wat de
+>   consultant destijds wél bewust accepteerde blijft amber; dragen beide, dan staan ze naast elkaar.
+> - **De consultant ziet tijdens het invullen welke velden meetellen** — een rustige "i" bij het feit
+>   zegt "telt mee om klaar te kunnen verklaren; opslaan kan wel zonder". En hij herkent de plek uit zijn
+>   werkvoorraad: onder "Waarvoor gebruiken we het" staat nu het woord **"Bedrijfsfunctie"**.
+> - **De demostaat toont eindelijk hoe "in orde" eruitziet** — één systeem dat volledig aan de lat
+>   voldoet en géén signaal draagt, zodat een browsercheck kan bewijzen dat een signaal terecht wégblijft.
+> - **Besloten, nog te bouwen:** de **Archiefwet** als hard componentfeit (ADR-053) — "valt hier
+>   archiefwaardig materiaal onder?" — in de norm zoals eigenaar en contract.
 
 ---
 
-## Top-5 prioriteiten volgende sessie (LI045)
+## Vertrekpunt LI046 — welk gat voelt de gebruiker nu als eerste?
 
-> **Functionele volgorde: maak eerst af wat je begon (de norm bruikbaar maken), dán de volgende waardelaag.**
+De consultant ziet nu **per feit** of het vastgesteld is (badges, de norm-"i"), maar er is nog **geen
+scherm dat per systeem bundelt "alles wat dít systeem nog nodig heeft"**. Hij leest zijn werkvoorraad
+feit-voor-feit, niet component-voor-component. Dát is het eerstvolgende gat — en het fundament ervoor
+(`norm_status` + registratiegaten per component) staat er nu.
 
-1. **Slice 4 — norm-beheerscherm.** *De beheerder kan de norm nu niet zien of aanpassen; alleen de seed
-   zet hem.* Elke tenant zit vast aan de default (eigenaar · verantwoordelijke · BIV · contract ·
-   koppelingen) — BvoWB kan BIV pas uitzetten als dit scherm er is. **Maakt ADR-052 af.** Raakt geen
-   schema (norm-tabel `component_norm` bestaat); UI + toets + optionele default-norm-actie.
+## Top-5 prioriteiten volgende sessie (LI046)
 
-2. **Open-punten-overzicht per component.** *Nu de norm bestaat en per component leesbaar is welke feiten
-   niet vastgesteld zijn, kan "alles wat dit systeem nog nodig heeft" eindelijk betekenis dragen.* Het
-   fundament staat (`norm_status` + `registratiegaten`); dit is waar de consultant het hardst "de weg
-   kwijt" bleek. Start met een mockup (Bert beslist op beeld).
+> **Functionele volgorde: eerst het overzicht dat de norm nú al kán dragen, dan de laatste MVP-feiten.**
+
+1. **Open-punten-overzicht per component.** *Nu de norm per component leesbaar is welke feiten niet
+   vastgesteld zijn, kan "alles wat dit systeem nog nodig heeft" eindelijk als één lijst bestaan.* Dit is
+   waar de consultant het hardst "de weg kwijt" bleek. Start met een **mockup** (Bert beslist op beeld);
+   fundament = `norm_status` + `registratiegaten` per component (geen schema).
+
+2. **Archiefwet-feit bouwen (ADR-053).** *De norm-slices zijn nu geland — het feit kan erin.* Eén hard
+   componentfeit "draagt dit systeem archiefbescheiden" (`ja` / `bewust geen` / `null` = niet gekeken),
+   in de platform-default maar **niet** standaard verplicht (de tenant zet de lat zelf). Eigen enum-kolom
+   op het component (géén "bewust geen"-relatie-mechanisme — dat is relatie-verankerd). Subknopen open;
+   grond: `docs/adr/ADR-053_…`. Raakt schema (nieuwe kolom + migratie) → gate.
 
 3. **Laatste MVP-laag op de functie-as (ADR-046 stuk 3 → 5 → 4).** *Maakt de MVP af; lag bewust ná gate 4.*
    Uitstap-stand op de gebruiksrelatie (`organisatiegebruik`, stuk 3) → afgeleide zwaarte-telling (stuk 5,
    nooit opgeslagen) → tranche (stuk 4). Grond: OPVOLGPUNTEN LI040/LI041-blokken, ADR-046.
 
-4. **Dev-seed vertelt het volledige verhaal (L4).** *Elke browsercheck leunt op de seed.* Norm en "bewust
-   geen" zitten er nu in, maar het gate-3-verhaal (koppelingen, "hier draait niets", de noodoplossing) is
-   op een verse DB nog onzichtbaar. Vul de seed zodat een verse DB het hele verhaal toont.
+4. **Dev-seed vertelt het volledige verhaal (L4).** *Het schone geval (S1) is er nu; het gate-3-verhaal
+   nog niet.* Vul de seed zodat een verse DB óók koppelingen, "hier draait niets" en de noodoplossing
+   toont — elke browsercheck leunt op de seed.
 
-5. **VeldUitleg adopteert `popoverPositie.js`.** *Rekenkern is gedeeld, 75 views dragen hem nog niet → de
-   borging is niet af* (KERNLES: elk pad moet de regel dragen). Klein/eigen slice; regressierisico
-   (in-flow `absolute` → `fixed`/viewport-klem over 75 views) benoemen; browserverificatie over meerdere
-   schermen. Zie OPVOLGPUNTEN + likara-frontend §Overlay-positionering.
+5. **Docs-hygiëne: README ADR-register bijwerken (049–053).** *De ADR-tabel loopt tot 048.* Klein; voeg
+   049 (functievervulling) t/m 053 (Archiefwet) toe.
 
 ---
 
 ## Openstaande beslissingen
 
-- **Reikwijdte norm-afwijking (B5, besloten deze sessie).** De norm-afwijking is bewust **niet**
-  samengevoegd met `klaar_met_afwijking` in de dashboardteller (twee semantisch verschillende
-  afwijkingen). Uitbreiding naar een dashboard-/lijstsignaal voor de norm-afwijking is een **eigen, nog
-  te nemen besluit** (ADR-052 §Reikwijdte-keuze).
-- **Contract-analyse (notitie klaar, geen besluit).** A1 afgeleide contract-afloop-leeslaag · A2
-  spiegelsignaal "component zonder contract" · B1 verantwoordelijkheid/toelichting op contract (skills
-  LI038, besloten niet gebouwd). Bedrag/administratie buiten scope. Bron: `docs/Analyse-contractregistratie-V040.md`.
-- **Beoordelingsgrondslag (post-MVP).** ADR-052 is de smalle MVP-voorloper (aanwezigheids-/vastgesteld-norm);
-  de volle gewogen waarde-norm blijft het grote post-MVP-ontwerpspoor (OPVOLGPUNTEN LI043-1).
+- **Reikwijdte norm-afwijking (B5/D4, besloten LI044).** De norm-afwijking is bewust **niet** samengevoegd
+  met `klaar_met_afwijking` in de dashboardteller (twee semantisch verschillende afwijkingen). Uitbreiding
+  naar een dashboard-/lijstsignaal is een **eigen, nog te nemen besluit** (ADR-052 §Reikwijdte).
+- **Archiefwet-subknopen (ADR-053).** De vorm is besloten (eigen enum-feit); de subknopen (waar in de
+  norm-UI, hoe de "bewust geen"-taal luidt, of het een default-verplicht wordt) zijn open.
+- **Bewaartermijn buiten LIKARA (ADR-053 / horizon).** Een bewaartermijn volgt uit zaaktype × resultaat
+  (Selectielijst) — géén component-veld. Vastgelegd als grens, niet als scope.
+- **Beoordelingsgrondslag (post-MVP).** ADR-052 is de smalle MVP-voorloper; de volle gewogen waarde-norm
+  blijft het grote post-MVP-spoor (OPVOLGPUNTEN LI043-1).
 
 ---
 
 ## Bekende risico's en aandachtspunten
 
-- **Geen verstrengelde werktree** — alle LI044-bouw is per opdracht apart geland (`c82ad80`, `fae7593`,
-  `626dc76`, `7e2ff25`, `f0fa9bd`). Schone start.
-- **Suites groen:** backend 1149 passed / 2 skipped · frontend 1175 passed · vite build OK · css-build OK ·
+- **Geen verstrengelde werktree** — alle LI045-bouw is per opdracht apart geland (`aaeeb15`, `d748fcf`,
+  `f8a9142`, `6a0931a`, `3e74a47`, `0c7860d`). Schone start.
+- **Suites groen:** backend 1159 passed / 2 skipped · frontend 1202 passed · vite build OK · css-build OK ·
   alembic 1 head (`0073`), 0 branches.
-- **Slice 4 vóór verdere norm-uitbreiding** — zolang de norm alleen via de seed te zetten is, kan een
-  browsercheck de norm-varianten niet zonder reseed tonen (zie L4/dev-seed).
+- **Norm-borging is per scherm** — een nieuw scherm dat norm-feiten toont heeft zijn **eigen** tellende
+  test nodig; er is geen globale scan. Een sectie zonder `provide('normVerplicht')` toont stil geen
+  aanduiding (OPVOLGPUNTEN LI045-2/3).
+- **Open verificatie GEMMA** — of de publieke GEMMA Archi-repo méér functie↔proces-relaties draagt dan
+  ons AMEFF-bestand (4% gemeten) staat nog open (OPVOLGPUNTEN LI045-5).
 
 ---
 
 ## Geleerde patronen deze sessie
 
-Verankerd in de likara-skills (LI044-vastlegging, `f0fa9bd` + deze afsluiting), geen memory-duplicaat:
-- **Vastgesteld = een echt antwoord** (leeg/sentinel/nooit-gekeken tellen niet); **geen norm = geen eis**
-  (domeinmodel §Norm & vastgesteld).
-- **"Bewust geen"** = write-guard (409) + read "real wins", generieke relatie-service onaangeroerd
-  (domeinmodel §Registratie-feiten).
-- **De drempel hangt aan de afwijking, niet aan de handeling** — uitzondering op L1a (ux).
-- **Eén norm-definitie, twee peildata** — signaal leeft / snapshot bevriest; de snapshot mag opgeslagen als
-  audit van een wilsbesluit, niet als afgeleide waarde (ux).
-- **Een venster valt nooit buiten beeld** — gedeelde `popoverPositie.js`, rekenkern puur + unit-getest
-  (frontend + tests).
-- **Vorm convergeert eerder dan schema** — UI bij n=2, opslag pas bij de derde drager (domeinmodel harde regel 8).
-- **Een tenant-wens versmalt nooit de platform-default** (ux).
+Verankerd in de likara-skills (LI045-vastlegging, `0c7860d`), geen memory-duplicaat:
+- **Nooit een besluit toeschrijven dat een mens niet nam** — verschoven lat (neutraal) vs. bewuste
+  afwijking (amber); het verschil snapshot × live ís het signaal, geen extra opslag (ux §LI045).
+- **Het sterretje is voor opslaan-blokkerend** — een genormeerd veld is geen verplicht veld (ux §LI045).
+- **Eén aanduiding per feit, op het kleinste omvattende element** — feit-prop + tellende test (ux §LI045).
+- **Hetzelfde feit heet overal hetzelfde, of de brug wordt zichtbaar** — ondertitel uit dezelfde
+  labelbron; enkelvoud/meervoud is geen afwijking (ux §LI045).
+- **Toon gevolgen vóór opslaan** — een rustige voorspelling, geen blokkade (ux §LI045).
+- **Toets een referentiemodel op dekking vóór je erop bouwt** — lage dekking = nee (domeinmodel §LI045).
+- **Een feit in de default; de verplichtstelling is een tenant-keuze** — kun je niet versmallen, dan niet
+  standaard verplicht (domeinmodel §LI045; complementair aan W4).
+- **De demostaat bevat het rustige eindbeeld** — geborgd met een test die het schone geval bewaakt
+  (werkprotocol).
+- **Vraag geen metadata over een gebeurtenis die in deze slice nog niet kan bestaan** (werkprotocol).

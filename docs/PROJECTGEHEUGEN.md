@@ -5,23 +5,37 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V045 · 2026-07-18
-- **Commit:** code `7e2ff25` ADR-052 slice 3 · `626dc76` slice 2 · `fae7593` slice 1 · `c82ad80` gate-4
-  sloop; docs `f0fa9bd` LI044-patronen in skills. Afsluitcommit LI044 (ADR-052-update + NEXT_SESSION +
-  OPVOLGPUNTEN + build) volgt in deze afsluiting.
-- **Tests:** backend **1149 passed, 2 skipped, 0 failed** (80 platform + 1069 module) · frontend
-  **92 files / 1175 passed** · `vite build` ✅ · `test:css-build` ✅ · 0 kritieken.
-- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). ADR-052 slices 1–3 hebben
-  schema geraakt: `component_norm` (0071), `component_bevinding` (0072), `component_klaarverklaring.open_feiten` (0073).
-- **TST-rapport:** `docs/TST-V045-Validatierapport.md` (0 kritieken).
+- **Build:** V046 · 2026-07-18
+- **Commit:** code `f8a9142` ADR-052 slice 4c · `d748fcf` 4b · `aaeeb15` 4a · `6a0931a` S1 (schoon geval) ·
+  `3e74a47` C1 (feit-brug); docs `0c7860d` LI045-patronen in skills. Afsluitcommit LI045 (TST-V046 +
+  NEXT_SESSION + OPVOLGPUNTEN + PROJECTGEHEUGEN + build) volgt in deze afsluiting.
+- **Tests:** backend **1159 passed, 2 skipped, 0 failed** · frontend **93 files / 1202 passed** ·
+  `vite build` ✅ · `test:css-build` ✅ · 0 kritieken.
+- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). Slice 4 was **sleutelgestuurd**
+  (nieuw feit = nieuwe sleutel in `component_norm`) — géén nieuwe migratie deze sessie.
+- **TST-rapport:** `docs/TST-V046-Validatierapport.md` (0 kritieken).
 - **Dev-DB:** GEMMA-model intact. De dev-seed draagt nu norm + "bewust geen" + demo-klaarverklaringen die
   de vier normgevallen tonen (Archiefbeheer = beide: amber + verschoven; DMS/Zaaksysteem = beide;
   Klantportaal = pure verschoven lat na de bedoeling-toggle; **HR-systeem = SCHOON: volledig norm-compleet
   → géén signaal**, het ijkbeeld van "in orde" — S1/LI045). ⚠ Het volledige
   gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog onzichtbaar (L4).
-- **Werktree:** **schoon** — alle LI044-bouw is per opdracht apart geland (één opdracht per commit).
+- **Werktree:** **schoon** — alle LI045-bouw is per opdracht apart geland (één opdracht per commit).
 
-## Deze sessie (LI044 — tenant-norm gebouwd, procesregister-UI gesloopt) — AFGEROND
+## Deze sessie (LI045 — de gemeente legt haar eigen lat, geen besluit toegeschreven) — AFGEROND
+
+**Kern: de beheerder ziet en verzet de norm nu zelf; een verschoven lat leest niet meer als een keuze van de consultant.**
+
+- **ADR-052 slice 4a/4b/4c.** Verschoven lat (neutraal) onderscheiden van bewuste afwijking (amber, `aaeeb15`);
+  norm-beheerscherm met impact-voorspelling vóór opslaan + "wanneer/door wie" uit het audit-spoor (`d748fcf`);
+  de lat zichtbaar tijdens invullen — één norm-"i" per feit op het kleinste omvattende element (`f8a9142`).
+- **Integrale testronde** (`docs/TST-Normverhaal-V045.md`): 0 blokkerend · 1 storend (S1, gerepareerd
+  `6a0931a` — HR-systeem als schoon ijkbeeld + borgtest) · 2 cosmetisch (C1 gerepareerd `3e74a47`
+  — feit-brug; C2 bewust gelaten met reden).
+- **ADR-053 (besloten, niet gebouwd):** Archiefwet als hard componentfeit (eigen enum, niet default-verplicht);
+  bewaartermijn volgt uit zaaktype × resultaat → géén component-veld (grens vastgelegd).
+- **Borging:** LI045-patronen in vier skills (`0c7860d`); frontend-skill-drift (VeldUitleg-adoptie) gecorrigeerd.
+
+## Sessie LI044 (tenant-norm gebouwd, procesregister-UI gesloopt) — AFGEROND
 
 **Kern: de gemeente kan nu haar eigen lat voor "migratieklaar" leggen; het procesregister is uit de MVP-UI.**
 

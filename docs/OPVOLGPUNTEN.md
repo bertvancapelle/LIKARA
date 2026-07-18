@@ -13,16 +13,41 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    "draagt dit systeem archiefbescheiden" (ja / bewust geen / niet gekeken), in de norm zoals eigenaar en
    contract; in de platform-default, **niet** standaard verplicht (de tenant zet de lat zelf). Vorm besloten,
    subknopen open. Vindplaats: `docs/adr/ADR-053_Archiefwet-als-hard-componentfeit.md`; bewaartermijn-grens
-   + route: `docs/horizon/Horizon-archiefwet-bewaartermijn-via-zaaktype.md`. Status: **open — ná slice 4a/4b**.
+   + route: `docs/horizon/Horizon-archiefwet-bewaartermijn-via-zaaktype.md`. Status: **open — ná slice 4a/4b (nu geland)**.
+2. **Tellende norm-borging is per scherm — geen globale scan.** De borging dat elk genormeerd feit precies
+   één aanduiding draagt (`#[data-norm-lat]` == aantal genormeerde feiten; BIV één keer) leeft als test
+   **per scherm** (`ComponentFormulier.test.js`, `ComponentDetail.test.js`). Een **nieuw** scherm dat
+   norm-feiten toont heeft zijn **eigen** tellende test nodig — er is geen platform-brede scan die het
+   afdwingt. Status: **open — discipline per nieuw normscherm** (geen bouwtaak nu).
+3. **Secties zonder norm-doorgifte tonen geen aanduiding.** De norm-"i" verschijnt alleen als het scherm
+   `provide('normVerplicht', …)` doet (via `useNormLat`). Een sectie/venster dat elders gemount wordt
+   **zonder** die doorgifte toont stil géén aanduiding — geen fout, maar iets om te weten bij een nieuw
+   mountpunt. Status: **open — aandachtspunt, geen defect**.
+4. **`GebruikersgroepSectie`: kop tegenover feitnaam (bewust gelaten).** De sectiekop "Gebruikersgroepen"
+   wijkt af van de feitnaam "Gebruikersgroep" — zelfde enkelvoud/meervoud-patroon als Contract↔Contracten.
+   Bij C1 bewust **niet** aangeraakt (enkelvoud/meervoud is geen afwijking; gebruikersgroep staat niet op de
+   default-lat). Status: **gelaten — eigen opdracht als Bert het toch wil**.
+5. **Verificatie: draagt de publieke GEMMA Archi-repo méér relaties dan ons AMEFF-bestand?** De GEMMA-meting
+   (functie↔proces, 4% dekking → geen brug) is gedaan op het gepinde AMEFF-bestand in de repo. Openstaand:
+   controleer of de **publieke GEMMA Archi-repository** rijkere relaties bevat die de conclusie zouden
+   veranderen. Vindplaats: `docs/Meting-gemma-functie-proces-relatie-V045.md`. Status: **open — verificatie**.
+6. **README ADR-register mist ADR-049 t/m 053.** De ADR-tabel in de README/CLAUDE.md loopt tot 048; de
+   deze-en-vorige-sessie geschreven ADR-049 (functievervulling) t/m 053 (Archiefwet) ontbreken. Status:
+   **open — docs-hygiëne**.
+7. **C2 (bewust gelaten, patroon vastgelegd).** "Bedoeling (migratiepad)" (normscherm) vs. "Bedoeling"
+   (formulier); Contract↔Contracten; Verantwoordelijke↔Verantwoordelijkheden. Enkelvoud/meervoud +
+   verhelderende toevoeging — gelijktrekken zou de koppen ongemakkelijker maken. Vastgelegd in likara-ux
+   §LI045. Status: **gelaten met reden — geen actie**.
 
 ### Nieuw uit LI044 (2026-07-18) — tenant-norm gebouwd, procesregister-UI gesloopt
 
-> **LI045 top-5 (functionele volgorde, staat volledig in `NEXT_SESSION.md`):**
-> 1. **Slice 4 — norm-beheerscherm** (maakt ADR-052 af; elke tenant zit vast aan de default tot dit er is).
-> 2. **Open-punten-overzicht per component** (fundament staat nu de norm per component leesbaar is).
-> 3. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
-> 4. **Dev-seed vertelt het volledige verhaal (L4)** — gate-3-verhaal nog onzichtbaar op verse DB.
-> 5. **VeldUitleg adopteert `popoverPositie.js`** — borging niet af tot 75 views hem dragen.
+> **LI045 top-5 — eindstand (de LI046 top-5 staat in `NEXT_SESSION.md`):**
+> 1. ✅ **Slice 4 — norm-beheerscherm** — geland (4a/4b/4c, `aaeeb15`/`d748fcf`/`f8a9142`); ADR-052 af.
+> 2. **Open-punten-overzicht per component** — nog **open** (draagt naar LI046).
+> 3. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — nog **open** (draagt naar LI046).
+> 4. **Dev-seed vertelt het volledige verhaal (L4)** — deels: het **schone geval** (S1, `6a0931a`) is
+>    toegevoegd; het gate-3-verhaal (koppelingen/"hier draait niets"/noodoplossing) blijft **open**.
+> 5. ✅ **VeldUitleg adopteert `popoverPositie.js`** — geland (slice 4c, `f8a9142`).
 
 **Afgerond deze sessie (LI044):**
 - ✅ **Gate-4 sloop** — procesregister uit de MVP-UI (nav/routes/`ProcesLijst`/`ProcesDetail`/secties/
@@ -34,10 +59,10 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 **Open:**
 
-1. **Slice 4 — norm-beheerscherm (ADR-052).** De beheerder kan de norm nu niet zien of aanpassen; alleen
-   de seed zet hem. Elke tenant zit vast aan `DEFAULT_VERPLICHT` (eigenaar · verantwoordelijke · BIV ·
-   contract · koppelingen) — BvoWB kan BIV pas uitzetten als dit scherm er is. Maakt ADR-052 af.
-   Status: **open — LI045-prioriteit 1**.
+1. **Slice 4 — norm-beheerscherm (ADR-052).** ✅ **AFGEROND (LI045).** De beheerder ziet en verzet de norm
+   nu zelf (4b, `d748fcf`), met impact-voorspelling vóór opslaan en "wanneer/door wie" uit het audit-spoor;
+   4a onderscheidt de verschoven lat (neutraal) van de bewuste afwijking (amber, `aaeeb15`); 4c toont de lat
+   tijdens het invullen (`f8a9142`). BvoWB kan BIV nu zelf uitzetten. ADR-052 af.
 2. **Dev-seed vertelt het gate-3-verhaal (L4).** Norm en "bewust geen" zitten nu in de seed, maar het
    gate-3-verhaal (koppelingen, "hier draait niets", de noodoplossing) is op een verse DB nog
    onzichtbaar. Elke browsercheck leunt op de seed. Status: **open — LI045-prioriteit 4**.
