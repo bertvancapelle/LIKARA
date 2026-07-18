@@ -735,3 +735,58 @@ een tweede waarheid. De klaarverklaring-snapshot is een **andere soort**: geen a
 klaar"). Die bewaar je juist wél — de auditwaarde zit in de bevriezing. Benoem dit onderscheid expliciet
 zodat een latere sessie de snapshot niet als schending van ADR-046 besluit 5 leest. Referentie: ADR-052
 besluit 6, `component_klaarverklaring.open_feiten` (snapshot) vs. `norm_status` (live badge).
+
+## LI045/ADR-052 — de verschoven lat, de aanduiding en de brug
+
+*(Bouwt voort op LI044 "één norm-definitie, twee peildata". De patronen zijn gevalideerd in
+`docs/TST-Normverhaal-V045.md`; slices 4a–4c + C1.)*
+
+- **Nooit een besluit toeschrijven dat een mens niet nam (U-norm).** Verschuift een organisatienorm in
+  de tijd, dan mag een signaal dat daaruit volgt niet lezen als een **keuze van de gebruiker**. Onderscheid
+  streng: **de organisatie verzette de lat** (neutraal, gedempt — géén waarschuwingskleur) vs. **deze
+  persoon week bewust af** (amber). De scheidslijn is de **bevroren snapshot**: een feit dat er wél in stond
+  is bewust afgewogen (amber); een feit dat er níét in stond is nooit een besluit geweest (neutraal —
+  "sindsdien verplicht gesteld; daar is hier nog niet naar gekeken"). Dragen beide tegelijk: **beide tonen,
+  elk in eigen toon** — er wint er geen. **Het verschil snapshot × live ís het signaal — geen extra opslag**
+  (geen derde bron; het audit-log voedt alléén de "wanneer/door wie"-metadata, niet de classificatie).
+  Borging: pure `splits_afwijking(live, snapshot)` (één bron voor componentvenster én werkvoorraad) +
+  `test_component_norm_adr052`. Referentie: `component_norm_service`, `MigratiegereedheidSectie`,
+  `SignaleringView` (verschoven-lat-sectie).
+
+- **Het sterretje is gereserveerd voor opslaan-blokkerend.** Een **genormeerd** veld is géén **verplicht**
+  veld: opslaan mag, de norm geldt op het **beoordelingsmoment** (het klaar-verklaren), niet op het invullen.
+  Overlaad de sterretje-/verplicht-conventie daarom niet met de norm — anders verliest hij zijn betekenis
+  waar hij wél blokkeert. De norm-aanduiding zegt het met zoveel woorden: *"telt mee om klaar te kunnen
+  verklaren; opslaan kan wel zonder."* Borging: `VeldUitleg` `LAT_PASSAGE` (geen sterretje op het veld).
+
+- **Eén aanduiding per feit, op het kleinste omvattende element.** Niet per veld. Eén veld → veldlabel;
+  groep velden → groepkop (BIV op de `<legend>`, niet 3× op de schaalvelden); sectie → sectiekop. Vallen de
+  velden van één feit over meerdere secties uiteen: **melden, niet oplossen** — dat is een modelleerfout.
+  **Borging (structureel, niet in tekst):** de view geeft het **feit** door (`norm-feit="…"`), géén
+  plaatsings-boolean — de bouwsteen `VeldUitleg` beslist zélf uit de ge-provide norm of hij de aanduiding
+  toont, zodat een view er niet stiekem een tweede voor hetzelfde feit bijzet — plús een **tellende test per
+  scherm** (`#[data-norm-lat]` == aantal genormeerde feiten; BIV precies één keer). Referentie:
+  `ComponentFormulier.test.js` / `ComponentDetail.test.js`.
+
+- **Hetzelfde feit heet overal hetzelfde — of de brug wordt zichtbaar gemaakt.** De feitnaam is gelijk op
+  het normscherm, in de werkvoorraad en op het component-badge (alle uit `NORM_FEIT_LABEL`). Wijkt een
+  **sectiekop** bewust af omdat die beter is voor de consultant ("Waarvoor gebruiken we het" i.p.v.
+  "Bedrijfsfunctie"), dan draagt die sectie het feitwoord als **ondertitel, per constructie uit dezelfde
+  labelbron** — zo herkent de consultant de plek die zijn werkvoorraad bedoelt zónder de bewust gekozen kop
+  op te geven. **Enkelvoud/meervoud is geen afwijking** (Contract↔Contracten, Verantwoordelijke↔
+  Verantwoordelijkheden blijven). Borging: `ComponentBedrijfsfunctieSectie` (ondertitel uit
+  `NORM_FEIT_LABEL.bedrijfsfunctie`) + een test op de **zichtbare tekst** (C1). Aanvulling op §5
+  Terminologie.
+
+- **Toon gevolgen vóór het opslaan, niet erna.** Raakt één handeling veel objecten (een feit verplicht
+  stellen raakt elk component), dan leest de gebruiker **vooraf** wat het doet: *"raakt 12 systemen die er
+  nu niet aan voldoen — waarvan 1 eerder klaar is verklaard."* **Geen blokkade, geen waarschuwingskleur —
+  een rustige voorspelling**, zodat hij het met open ogen doet. De voorspelling en de latere werkvoorraad
+  komen uit **dezelfde afleiding** (`feit_vastgesteld`), zodat het voorspelde aantal klopt met wat de
+  consultant daarna ziet (geen tweede telling). Onderscheiden van de bevestiging-die-het-gevolg-benoemt
+  (LI043, §LI035): dát is een auditeerbaar akkoord bij een terugzet-/vernietig-handeling; dit is een
+  vrijblijvende vooruitblik. Referentie: `component_norm_beheer_service.impact_voor_feit`, `NormBeheer.vue`.
+
+- **Taal volgt de gebruiker, niet het model (LI045-instantie van §5).** Gebruik het begrip waarop de
+  gebruiker zoekt en dat een verantwoordelijke kent — **"Archiefwet"**, niet "houdt gegevens vast"
+  (ADR-053). Analyse-/modeltaal hoort niet op het scherm; toets tegen het randgeval (§5).

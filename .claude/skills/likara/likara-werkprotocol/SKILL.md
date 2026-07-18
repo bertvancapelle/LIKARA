@@ -184,13 +184,26 @@ mechanisme dat je wilt gebruiken **vrij** is — is de kleur al bezet, is de ran
 al een filter-pad? Leg nooit een tweede betekenis op een bezet kanaal zonder dat eerst vast te
 stellen. De kanaal-lijst van de kaart (likara-frontend §Signaal-kanalen · kaart-kleur-lezing:
 werk→rand-stijl, status→vulling, domein→rand-kleur, selectie→amber-rand) **ís** de concrete
-checkvraag voor UI-ontwerp.
+checkvraag voor UI-ontwerp. **Is geen kanaal vrij: stoppen en melden, geen compromis kiezen.**
+(LI045-instantie: **amber** was al bezet door de bewuste afwijking, **blauw** door de linkkleur én de
+bestaande "i" — de verschoven lat kreeg daarom een **neutraal/gedempt** kanaal, geen vierde kleur op
+een bezet kanaal.)
 
 ### Herijk de fasering als stappen niet los toetsbaar blijken
 
 Klein-houden is een **middel, geen doel**. Als een gate niet zelfstandig in de browser te beoordelen
 is (iets ertussen maskeert het resultaat), is **samenvoegen juist correct** — meld de reden. (Deze
 sessie: twee stappen waren niet los verifieerbaar door een tussenliggende layout-fallback → samengevoegd.)
+
+### Vraag geen metadata over een gebeurtenis die in deze slice nog niet kan bestaan (LI045)
+
+Kan de **handeling** pas in een latere slice plaatsvinden, dan is *"wanneer en door wie"* daar **niet
+afleidbaar** zonder een derde bron of nieuwe opslag — **stop en rapporteer**, verzin geen metadata en
+zet geen opslag vooruit. **Het veld ontstaat waar de handeling ontstaat.** (LI045: in slice 4a bestond
+er nog geen handeling "de lat verzetten" — die kwam pas met het beheerscherm 4b; de "wanneer/door wie"
+werd daarom **niet** in 4a gebouwd maar in 4b uit het audit-spoor van de toggle gelezen, zonder nieuwe
+opslag.) Zusje van de adversariële checkvraag ("welke afleiding maak ik, en kan de bron die dragen?")
+en van de engine-invariant "geen tweede bron".
 
 ---
 
@@ -222,7 +235,11 @@ HR-systeem, volledig norm-compleet → géén signaal, óók na een latverschuiv
 kán aantonen dat een signaal terécht wégblijft. Zonder schoon geval is een "geen signaal"-vinkje
 onbewijsbaar: bij slice 4a is "Klantportaal toont geen signaal" afgevinkt terwijl Klantportaal ná de
 bedoeling-toggle juist de verschoven-lat droeg. Een leeg antwoord ("bewust geen koppelingen") is dáár
-een écht antwoord, geen gat.)
+een écht antwoord, geen gat.) **Regel: elk signaal heeft in de seed zowel een geval dat het draagt als
+een geval dat het terecht níét draagt — en het schone geval wordt geborgd met een test** (die de
+seed-stap aanroept en signaalloosheid ná een latverschuiving assert; hij valt om zodra een
+seedwijziging het schone geval vervuilt). Referentie: `_seed_schoon_geval` (HR-systeem) +
+`test_seed_schoon_geval_s1`.
 
 ## Tool-cadans richting productie (LI042 — vaste stappen)
 
@@ -256,6 +273,13 @@ de browsercheck blijft het echte sluitpunt (§Browsercheck vóór commit):
 - **Reparatie mag bovenop een ongecommitte gate-staat** verder bouwen, met de **laatste schone
   commit als expliciete terugval**; terugdraaien alleen als de gerichte fix niet lukt (niet als
   eerste reflex).
+- **Verergert een slice een bestaand gebrek, repareer het binnen dezelfde changeset — mits het
+  adoptie is, geen verbouwing (LI045).** Maak je een bestaand probleem groter (bv. de norm-passage
+  maakte het VeldUitleg-paneel hoger → het viel buiten beeld), dan los je het in dezelfde slice op als
+  de fix **adoptie** van een bestaande gedeelde bouwsteen is (één wijziging, alle consumenten erven
+  hem — zie KERNLES LI038 #3). Is het een **verbouwing** (nieuwe bouwsteen, brede blast-radius): **eigen
+  slice met expliciete bevinding**, niet meegelift. Stap 1 is daarom read-only vaststellen wélke van de
+  twee het is, en stoppen als het verbouwing blijkt.
 
 ---
 

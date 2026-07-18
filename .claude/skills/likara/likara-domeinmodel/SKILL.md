@@ -969,3 +969,39 @@ antwoord gelezen. De MVP-vorm van de latere beoordelingsgrondslag.)*
   de bevinding is een eigen component-verankerd feit. Referentie: `component_bevinding_service`
   (`registreer_geen`/`heeft_echte_registratie`/`soorten_van_component`), gelezen door `norm_status`.
   Vorm-convergentie: zie harde regel 8 (UI convergeert bij n=2, opslag blijft gespiegeld).
+
+## LI045/ADR-052+053 — norm-default, referentiemodel-dekking, feit op het juiste object
+
+- **"Bewust geen" is relatie-verankerd — het generaliseert NIET naar niet-relationele feiten (LI045).**
+  Het mechanisme geldt waar "nul" dubbelzinnig is op een **relatie** (koppelingen, contract): een
+  bevinding náást de afwezige relatie. Een niet-relationeel feit dat afwezigheid moet kunnen dragen krijgt
+  een **eigen kolom met een expliciete "geen"-waarde**, niet het relatie-mechanisme opgerekt. Bewijs
+  (ADR-053): de **Archiefwet-vraag** ("valt hieronder archiefwaardig materiaal?") is een eigen
+  component-enum `{ja, bewust_geen}` met `null` = "nog niet gekeken" — géén `component_bevinding`-soort.
+  Gedeelde wóórden ("bewust geen") zijn geen gedeelde **bouwsteen** (harde regel 8 / §9.8): de UI-taal mag
+  convergeren, de onderliggende vorm verschilt.
+
+- **Leg geen feit op een object dat de betekenis niet kan dragen (ADR-053).** Een **bewaartermijn** volgt
+  uit **zaaktype × resultaat** (Selectielijst) — een component heeft er geen enkelvoudig antwoord op; een
+  `bewaartermijn`-veld op het component zou iets beloven wat het product niet waar kan maken. Leg zo'n grens
+  vast als **besluit** (ADR), niet stil als "buiten scope". Het component draagt hooguit de smallere,
+  wél-dragbare vraag ("valt hier archiefwaardig materiaal onder?"). Zusje van §LI040 *"een feit staat op
+  het niveau waar het wáár is"*: hier is er géén niveau in LIKARA dat het kan dragen → niet bouwen.
+
+- **Toets een referentiemodel op dekking vóór je er een brug op bouwt (LI045).** Meet in het **werkelijke
+  bestand** hoeveel eenheden de relatie dragen die je nodig hebt; **lage dekking is een nee, geen
+  "gedeeltelijk".** Bewijs: GEMMA bood 12 bedrijfsfunctie↔bedrijfsproces-relaties (**4%** dekking) → géén
+  automatische brug functie↔proces gebouwd. Levert de bron de brug niet, dan moet de **gemeente hem zelf
+  leggen** — een implementatieproject vóór er waarde is, tegen de kern van LIKARA. Dan niet bouwen.
+  Aansluitend op §LI039 *"telling vóór besluit — denkbaar is niet geteld"*. Referentie:
+  `docs/Meting-gemma-functie-proces-relatie-V045.md`.
+
+- **Een feit hoort in de platform-default; de verplichtstelling is een tenant-keuze (LI045).** Kun je een
+  vraag **niet vooraf versmallen** tot de objecten waar hij ertoe doet, zet hem dan **niet standaard
+  verplicht** — anders wordt het **behang in plaats van signaal** (elk component draagt een openstaand punt
+  dat voor de meeste niet geldt). Het feit staat wél **beschikbaar** in de meegeleverde default
+  (`HARDE_FEITEN`); de **tenant** zet het verplicht als **besluit met een moment en een eigenaar** (het
+  norm-beheerscherm, geauditeerd). Complementair aan likara-ux **W4** ("een tenant-wens versmalt nooit de
+  platform-default"): W4 verbiedt het **weghalen** van een default-feit; deze regel bewaakt de **drempel om
+  een feit standaard verplicht te zetten**. Beide: de default is compleet en generiek, de scherpte is
+  tenant-configuratie. Referentie: `DEFAULT_VERPLICHT` (5 van 10) vs. de per-tenant `component_norm`.

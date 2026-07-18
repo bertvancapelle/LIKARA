@@ -306,9 +306,14 @@ beeld, **herberekend bij openen én bij resize/scroll**. Gebouwd als gedeelde bo
 - **A11y blijft bij de aanroeper** (Escape/klik-buiten/focus-terug/aria) — dit gaat puur over plaatsing.
 
 **Elke overlay-consument hoort deze bouwsteen te dragen** (KERNLES LI038: "elk pad dat de regel kan
-omzeilen moet hem dragen, of het pad moet niet bestaan"). ⚠ **Eerlijke noot:** nu draagt alléén
-`MigratiegereedheidSectie` hem; **`VeldUitleg` is nog niet omgebouwd** (eigen `absolute`-overlay, 75
-views) — de borging is pas af als VeldUitleg de bouwsteen adopteert (OPVOLGPUNTEN).
+omzeilen moet hem dragen, of het pad moet niet bestaan"). **Gedragen door `MigratiegereedheidSectie`
+én — sinds LI045 slice 4c — `VeldUitleg`** (adopteerde `usePopoverPositie`; eigen `absolute`-overlay
+vervangen door `fixed` + flip/klem, dus het paneel valt niet meer buiten beeld onderaan een scrollende
+Dialog). **Alle ~29 VeldUitleg-schermen erven de fix uit die ene bouwsteen** — geen tweede
+positioneringslogica per view. Borging: regressietest in `VeldUitleg.test.js` (paneel is `fixed`, niet
+`absolute`) + de pure-functie-tests op `berekenPopoverPositie`. Duikt er een nieuwe eigen-overlay op,
+dan adopteert die de bouwsteen op dezelfde wijze (repareer in de bouwsteen, niet in de consument —
+werkprotocol KERNLES LI038 #3).
 
 ## Cytoscape.js Vue 3 integratiepatroon (DC013, niet-onderhandelbaar)
 
