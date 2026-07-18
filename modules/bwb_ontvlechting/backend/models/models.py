@@ -1463,6 +1463,55 @@ class ComponentNorm(Base, TenantMixin, TimestampMixin):
     verplicht: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=text("false"))
 
 
+class ComponentBevindingSoort(str, Enum):
+    """ADR-052 slice 2 — waarvoor een "bewust geen"-bevinding op een component geldt."""
+
+    koppelingen = "koppelingen"
+    contract = "contract"
+
+
+component_bevinding_soort_enum = sa.Enum(
+    ComponentBevindingSoort, name="component_bevinding_soort_enum"
+)
+
+
+class ComponentBevinding(Base, TenantMixin, TimestampMixin):
+    """ADR-052 slice 2 — "bewust geen"-bevinding op een component (koppelingen / contract).
+
+    Een uitspreekbare BEVINDING: "vastgesteld — dit component heeft er geen." Streng onderscheiden
+    van "nog nooit naar gekeken" (= geen rij). Component-verankerd (spiegel van de bedrijfsfunctie-
+    "bewust niets", ADR-044/049, die plek-verankerd in `functievervulling.geen_systeem` leeft) —
+    zelfde VORM (registratiefeit: wie/wanneer/toelichting, intrekbaar, XOR met de echte registratie),
+    eigen tabel omdat het anker het component is i.p.v. een functie-plek.
+
+    Eén bevinding per (component, soort): `UNIQUE(tenant_id, component_id, soort)`. `component_id` is
+    een composiet-FK `(tenant_id, component_id) → element(tenant_id, id)` ON DELETE CASCADE (zelfde
+    vorm als roltoewijzing/klaarverklaring). Herroepbaar (intrekken = de rij verwijderen).
+
+    Puur registratief — RAAKT DE ENGINE NOOIT: importeert géén `lifecycle_service`/
+    `herbereken_lifecycle`/`bepaal_lifecycle`/`ComponentProfiel`/`Blokkade`/`Checklistscore`."""
+
+    __tablename__ = "component_bevinding"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "component_id", "soort", name="uq_component_bevinding"),
+        ForeignKeyConstraint(
+            ["tenant_id", "component_id"], ["element.tenant_id", "element.id"],
+            name="fk_component_bevinding_component", ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    component_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    soort: Mapped[ComponentBevindingSoort] = mapped_column(
+        component_bevinding_soort_enum, nullable=False
+    )
+    # ADR-029-lijn: stabiele actor-sleutel (Keycloak-sub) + e-mail-fallback, server-gestempeld.
+    verklaard_door_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verklaard_door: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    verklaard_op: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    toelichting: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class ImpactView(Base, TenantMixin, TimestampMixin):
     """ADR-033 slice 2 — opgeslagen Impact-verkenner-view (bewaarde startselectie).
 

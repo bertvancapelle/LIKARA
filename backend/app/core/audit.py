@@ -79,6 +79,8 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     "component_klaarverklaring",
     # ADR-052 slice 1 — tenant-norm harde feiten (governance-config; per-feit verplicht-vlag).
     "component_norm",
+    # ADR-052 slice 2 — "bewust geen"-bevinding op een component (koppelingen/contract).
+    "component_bevinding",
     # ADR-029 — koppeling Keycloak-login ↔ persoon-partij (registratiefeit bij gebruiker-aanmaak).
     "gebruiker_persoon",
     # ADR-033 slice 2 — opgeslagen Impact-verkenner-views; ook de junctie, zodat selectie-

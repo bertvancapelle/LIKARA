@@ -72,6 +72,9 @@ class Entiteit(str, Enum):
     # Iedereen mag de norm zien (ze bepaalt "compleet"), maar alleen de beheerder stelt 'm in —
     # het REFERENTIEMODEL-patroon (geen per-component registratie, geen DELETE-pad).
     COMPONENT_NORM = "component_norm"
+    # ADR-052 slice 2 — "bewust geen"-bevinding op een component (koppelingen/contract). Een
+    # registratie-feit (uitspraak van de gemeente) — inhoud-patroon; intrekken guardt op WIJZIGEN.
+    COMPONENT_BEVINDING = "component_bevinding"
     # ADR-033 slice 2 — opgeslagen & deelbare Impact-verkenner-views (eigen-beheer-entiteit).
     IMPACT_VIEW = "impact_view"
     # ADR-041 slice 1 — persoonlijke voorkeuren ("onthoud als mijn standaard"). Eigen-scope: elke
@@ -199,6 +202,9 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
         Rol.BEHEERDER: _LAWV,
         Rol.AUDITOR: _L,
     },
+    # ADR-052 slice 2 — "bewust geen"-bevinding: registratie-feit → inhoud-patroon (Viewer L ·
+    # Medewerker LAW · Beheerder LAWV · Auditor L); intrekken guardt op WIJZIGEN (ADR-050).
+    Entiteit.COMPONENT_BEVINDING: dict(_INHOUD),
     # ADR-033 slice 2 — opgeslagen views: eigen-beheer-patroon (Viewer/Auditor L; Medewerker/
     # Beheerder LAWV). Ownership (maker muteert) borgt de servicelaag.
     Entiteit.IMPACT_VIEW: dict(_EIGEN_BEHEER),
@@ -253,6 +259,8 @@ REGISTRATIE_FEIT_ENTITEITEN: frozenset[Entiteit] = frozenset({
     Entiteit.COMPONENT_CONTRACT,
     Entiteit.CHECKLISTSCORE,
     Entiteit.RELATIE,
+    # ADR-052 slice 2 — "bewust geen"-bevinding: uitspraak van de gemeente → intrekken = WIJZIGEN.
+    Entiteit.COMPONENT_BEVINDING,
 })
 
 LANDSCHAPSOBJECT_ENTITEITEN: frozenset[Entiteit] = frozenset({

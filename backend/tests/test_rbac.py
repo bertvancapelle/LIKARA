@@ -69,6 +69,8 @@ VERWACHT = {
     Entiteit.COMPONENT_NORM: {
         Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _L,
     },
+    # ADR-052 slice 2 — "bewust geen"-bevinding: registratie-feit, inhoud-patroon.
+    Entiteit.COMPONENT_BEVINDING: _INHOUD,
     # ADR-033 slice 2 — opgeslagen views: eigen-beheer-patroon (Viewer/Auditor L; Medewerker/
     # Beheerder LAWV — óók Medewerker mag VERWIJDEREN, want eigen view weggooien).
     Entiteit.IMPACT_VIEW: {
@@ -93,7 +95,7 @@ VERWACHT = {
 
 
 def test_matrix_volledig_inclusief_negatief():
-    """Elke entiteit × rol × actie (30×4×4 = 480 combinaties) tegen de spec
+    """Elke entiteit × rol × actie (31×4×4 = 496 combinaties) tegen de spec
     (ADR-043: +BEDRIJFSFUNCTIE/+REFERENTIEMODEL; ADR-042: +PROCES/+PROCESVERVULLING;
     ADR-049: +FUNCTIEVERVULLING)."""
     assert set(VERWACHT) == set(Entiteit)  # geen entiteit gemist

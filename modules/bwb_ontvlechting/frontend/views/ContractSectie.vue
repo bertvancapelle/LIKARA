@@ -14,6 +14,7 @@ import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import { CONTRACTTYPE, REGISTER_FOUT, label } from '../labels'
 import ZoekSelect from './ZoekSelect.vue'
+import BewustGeenControl from './BewustGeenControl.vue'
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
@@ -29,6 +30,8 @@ const mag = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('medewerker', 'beheerder'))
 
 const items = ref([])
+// ADR-052 slice 2 — echt contract aanwezig? (voedt de "bewust geen"-bouwsteen: real wins).
+const heeftContract = computed(() => items.value.length > 0)
 // §3 — 'valt onder'-conventie (model garandeert geen uniciteit: 0, 1 of meer).
 const valtOnder = computed(() => items.value.filter((r) => r.relatie_rol === 'valt_onder'))
 // LI026 — contractketen (bottom-up): contracten van deze app die onder een mantelcontract vallen.
@@ -240,6 +243,13 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
     </div>
 
     <p v-if="fout" role="alert" data-testid="ct-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
+
+    <!-- ADR-052 slice 2 — "bewust geen contract" (bevinding ≠ nog niet vastgesteld). -->
+    <BewustGeenControl
+      :component-id="props.applicatieId" soort="contract" onderwerp="contract"
+      :heeft-echt="heeftContract" :mag="mag"
+      class="mb-[var(--lk-space-sm)]"
+    />
 
     <!-- §3 — 'valt onder'-samenvatting boven de tabel -->
     <p data-testid="ct-valt-onder" class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]">

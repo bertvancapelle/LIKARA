@@ -488,6 +488,15 @@ export const api = {
     verwijder: (id) => request(`/component-contracten/${id}`, { method: 'DELETE' }),
   },
 
+  // ADR-052 slice 2 — "bewust geen"-bevinding per component (soort = 'koppelingen' | 'contract').
+  componentBevindingen: {
+    lijst: (componentId) => request(`/component-bevindingen/component/${componentId}`),
+    maak: (componentId, data) =>
+      request(`/component-bevindingen/component/${componentId}`, { method: 'POST', body: JSON.stringify(data) }),
+    verwijder: (componentId, soort) =>
+      request(`/component-bevindingen/component/${componentId}/${soort}`, { method: 'DELETE' }),
+  },
+
   // ADR-020 §0 (CD043) — tenant-leeszijde van de classificatie-catalogus: alleen
   // ACTIEVE opties per dimensie (voor formulier-checkboxen + rol-select).
   contractconfig: {

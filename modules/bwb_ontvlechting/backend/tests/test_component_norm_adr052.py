@@ -52,11 +52,14 @@ def test_signaal_mapping_is_een_bron():
     }
 
 
-def test_contract_en_koppelingen_zijn_uitgesteld():
-    # ADR-052: hun toetsing hangt af van "bewust geen" (slice 2) — nu expliciet TOETSING_VOLGT.
-    assert cn._UITGESTELD == {cn.FEIT_CONTRACT, cn.FEIT_KOPPELINGEN}
+def test_contract_en_koppelingen_via_bevinding_pad():
+    # ADR-052 slice 2: contract + koppelingen zijn niet signaal-gemapt maar lopen via de
+    # bevinding-/echte-registratie-toets (component_bevinding_service). De tijdelijke
+    # `toetsing_volgt`-stand uit slice 1 bestaat niet meer.
     assert cn.FEIT_CONTRACT not in cn._FEIT_SIGNAAL
     assert cn.FEIT_KOPPELINGEN not in cn._FEIT_SIGNAAL
+    assert not hasattr(cn, "TOETSING_VOLGT")
+    assert not hasattr(cn, "_UITGESTELD")
 
 
 def test_seed_component_norm_idempotent():
@@ -191,13 +194,9 @@ def test_norm_status_vastgesteld_is_niet_gevuld_live():
     leeg, gevuld = asyncio.run(_run_rls(_flow))
     # Alle 10 feiten verplicht → alle 10 in de uitkomst.
     assert set(leeg) == set(cn.HARDE_FEITEN)
-    # Contract + koppelingen: toetsing volgt (slice 2), ongeacht de stand.
-    assert leeg[cn.FEIT_CONTRACT] == cn.TOETSING_VOLGT
-    assert leeg[cn.FEIT_KOPPELINGEN] == cn.TOETSING_VOLGT
-    # Kale component: sentinel + lege velden + geen relaties = niet vastgesteld.
-    for feit in (cn.FEIT_EIGENAAR, cn.FEIT_VERANTWOORDELIJKE, cn.FEIT_BIV,
-                 cn.FEIT_GEBRUIKERSGROEP, cn.FEIT_BEDRIJFSFUNCTIE,
-                 cn.FEIT_HOSTING, cn.FEIT_LEVENSFASE, cn.FEIT_BEDOELING):
+    # Kale component: sentinel + lege velden + geen relaties + geen bevinding = ALLES niet vastgesteld
+    # (slice 2: contract/koppelingen niet meer `toetsing_volgt`, maar echt niet_vastgesteld).
+    for feit in cn.HARDE_FEITEN:
         assert leeg[feit] == cn.NIET_VASTGESTELD, feit
     # Na vullen: hosting/levensfase/bedoeling vastgesteld; de relationele blijven ongemoeid.
     assert gevuld[cn.FEIT_HOSTING] == cn.VASTGESTELD

@@ -73,6 +73,7 @@ from schemas.relatie import RelatieCreate  # noqa: E402
 from schemas.partij import PartijCreate, PartijUpdate  # noqa: E402
 from schemas.gebruikersgroep import GebruikersgroepCreate  # noqa: E402
 from services import (  # noqa: E402
+    component_bevinding_service,
     component_contract_service,
     component_service,
     blokkade_service,
@@ -1708,6 +1709,18 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         telling["functievervullingen"] += 1
     except RegistratieConflict:
         pass  # idempotent: de bevinding bestaat al
+
+    # ADR-052 slice 2 — "bewust geen"-bevinding op een component. Het bewust-kale Archiefbeheer heeft
+    # geen koppelingen en geen contract: leg dat als BEVINDING vast (grijs "bewust geen"), zodat het
+    # onderscheid met "nog niet vastgesteld" (de rest) op een verse DB zichtbaar is zonder klikken.
+    _archief = app_id.get("Archiefbeheer")
+    if _archief is not None:
+        for _soort in ("koppelingen", "contract"):
+            try:
+                await component_bevinding_service.registreer_geen(session, tid, _archief, _soort)
+                telling["component_bevindingen"] = telling.get("component_bevindingen", 0) + 1
+            except RegistratieConflict:
+                pass  # idempotent, of er is tóch een echte registratie op dit component
 
     return telling
 

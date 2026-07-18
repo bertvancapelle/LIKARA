@@ -24,6 +24,7 @@ import { api } from '@/api'
 import { IMPACT_SEVERITY, IMPACT_VERBREKING, KOPPELPROTOCOL, KOPPELRICHTING, label } from '../labels'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
+import BewustGeenControl from './BewustGeenControl.vue'
 
 const props = defineProps({ applicatieId: { type: String, required: true } })
 const auth = useAuthStore()
@@ -48,6 +49,8 @@ const UITLEG_OPTIES = { richting: 'koppelrichting' }
 const uitgaand = reactive({ items: [], cursor: null, laden: false, sort: null, order: 'asc' })
 const inkomend = reactive({ items: [], cursor: null, laden: false, sort: null, order: 'asc' })
 const fout = ref(null)
+// ADR-052 slice 2 — echte koppeling aanwezig? (voedt de "bewust geen"-bouwsteen: real wins).
+const heeftKoppelingen = computed(() => uitgaand.items.length > 0 || inkomend.items.length > 0)
 
 // Bron/doel-pickers: server-side zoeken (CD049). `dezeAppNaam` + bron/doel-initieel
 // leveren de weergavelabels voor de reeds-gekozen waarden (default-bron / bewerken).
@@ -359,6 +362,13 @@ laadBeide()
     </div>
 
     <p v-if="fout" role="alert" data-testid="kp-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
+
+    <!-- ADR-052 slice 2 — "bewust geen koppelingen" (bevinding ≠ nog niet vastgesteld). -->
+    <BewustGeenControl
+      :component-id="props.applicatieId" soort="koppelingen" onderwerp="koppelingen"
+      :heeft-echt="heeftKoppelingen" :mag="mag"
+      class="mb-[var(--lk-space-sm)]"
+    />
 
     <!-- Uitgaand: deze applicatie = bron -->
     <h3 class="font-semibold mt-[var(--lk-space-sm)]">Uitgaand (dit component is bron)</h3>
