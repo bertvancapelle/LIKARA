@@ -479,6 +479,15 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
 
 ## LI035 — Regel-acties, meldingen, overlay en de proceswereld (ADR-042)
 
+> ⚠ **Procesregister-UI geparkeerd (LI044, gate-4 sloop `c82ad80`).** De proces-UX-patronen hierna
+> (§LI035 "Proces-detail = twee blokken", de registratiegap-cue "op de processen-lijst", §LI036/LI037
+> "kaartpatronen: proces-ingang/-inzoom", §LI038 "processen-scherm Boom | Diagram") beschrijven schermen
+> die **uit de MVP-UI zijn verwijderd**: nav, routes, `ProcesLijst`/`ProcesDetail`, `PartijProcessenSectie`,
+> de kaart proces-ingang en de "Bekijk op kaart"-doorklik zijn gesloopt. Ze blijven staan als
+> **historische ontwerpgrond** — de bouwstenen (`procesBoom`/`ProcesDiagram`) en het datamodel leven
+> nog, het concept is geparkeerd (niet verwijderd). Zie likara-domeinmodel §LI038/ADR-043. Lees deze
+> patronen dus niet als "een levend scherm dat de gebruiker nu bezoekt".
+
 - **Regel-acties zijn een recht van elke regel.** Wat een gebruiker registreert moet hij
   ter plekke kunnen corrigeren (Bewerken: kenmerk-velden wijzigbaar, de identiteit van
   het feit read-only zichtbaar) en verwijderen — verwijderen áltijd met bevestiging

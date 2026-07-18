@@ -7,9 +7,33 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
-### Nieuw uit LI044 (2026-07-18) — overlay-borging
+### Nieuw uit LI044 (2026-07-18) — tenant-norm gebouwd, procesregister-UI gesloopt
 
-- **`VeldUitleg`-overlay adopteert `popoverPositie.js`.** De positioneer-rekenkern
+> **LI045 top-5 (functionele volgorde, staat volledig in `NEXT_SESSION.md`):**
+> 1. **Slice 4 — norm-beheerscherm** (maakt ADR-052 af; elke tenant zit vast aan de default tot dit er is).
+> 2. **Open-punten-overzicht per component** (fundament staat nu de norm per component leesbaar is).
+> 3. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
+> 4. **Dev-seed vertelt het volledige verhaal (L4)** — gate-3-verhaal nog onzichtbaar op verse DB.
+> 5. **VeldUitleg adopteert `popoverPositie.js`** — borging niet af tot 75 views hem dragen.
+
+**Afgerond deze sessie (LI044):**
+- ✅ **Gate-4 sloop** — procesregister uit de MVP-UI (nav/routes/`ProcesLijst`/`ProcesDetail`/secties/
+  `PartijProcessenSectie`/`ComponentProcessenSectie`), de dode kaart-handoff en de doodlopende "Bekijk
+  op kaart" opgeruimd (`c82ad80`); datamodel + bouwstenen + slapende endpoints behouden. Zie G4-4.
+- ✅ **ADR-052 slices 1–3** — tenant-norm-opslag/-toetsing (`component_norm`, `fae7593`), "bewust geen"
+  voor koppelingen/contract (`component_bevinding`, `626dc76`), verrijkte klaarverklaring
+  (snapshot + verantwoordingsvenster + reden-achter-de-waarschuwing, `7e2ff25`). **Slice 4 open** (top-1).
+
+**Open:**
+
+1. **Slice 4 — norm-beheerscherm (ADR-052).** De beheerder kan de norm nu niet zien of aanpassen; alleen
+   de seed zet hem. Elke tenant zit vast aan `DEFAULT_VERPLICHT` (eigenaar · verantwoordelijke · BIV ·
+   contract · koppelingen) — BvoWB kan BIV pas uitzetten als dit scherm er is. Maakt ADR-052 af.
+   Status: **open — LI045-prioriteit 1**.
+2. **Dev-seed vertelt het gate-3-verhaal (L4).** Norm en "bewust geen" zitten nu in de seed, maar het
+   gate-3-verhaal (koppelingen, "hier draait niets", de noodoplossing) is op een verse DB nog
+   onzichtbaar. Elke browsercheck leunt op de seed. Status: **open — LI045-prioriteit 4**.
+3. **`VeldUitleg`-overlay adopteert `popoverPositie.js`.** De positioneer-rekenkern
   (`berekenPopoverPositie` + `usePopoverPositie`) is gedeeld en unit-getest, maar `VeldUitleg` draagt
   hem nog **niet** — het gebruikt zijn eigen `absolute`-overlay (75 views). Per de KERNLES-vervolgregel
   ("elk pad dat de regel kan omzeilen moet hem dragen, of het pad moet niet bestaan") is de
@@ -255,11 +279,11 @@ L7. **De css-build-poort draait pas bij de closeout, niet vóór een commit.** D
    uitstap-stand op de gebruik-rijen landt (stuk 3), horen grof en fijn in één
    gelaagde weergave (grof → verfijning eronder) — niet twee losse tabs die elk een
    halve waarheid tonen. Status: **besloten — ontwerpeis stuk 3**.
-10. **"Fileshare als drager = gat, niet groen" — harde ontwerpeis voor gate 3.** Een
-    bedrijfsfunctie die uitsluitend door een niet-werk-ondersteunend/noodgreep-achtig
-    component wordt gedragen telt als gat-signaal, niet als gedekt (ADR-045 besluit
-    2-keerzijde; zelfde familie als het gap-signaal per plaatsing, ADR-044 besluit 4).
-    Status: **besloten — ontwerpeis gate 3**.
+10. ~~**"Fileshare als drager = gat, niet groen" — harde ontwerpeis voor gate 3.**~~ **VERVALLEN
+    (LI044).** Verworpen door **ADR-051 besluit 3**: een fileshare is niet inherent een noodgreep — het
+    oordeel "noodoplossing/naar behoren" zit op de **plek/koppeling**, niet op het componenttype
+    (ADR-045 besluit 2 is daarmee ook verworpen). "Riskant" is een aparte oordeel-as, geen gat-signaal.
+    Niet meer inplannen.
 11a. **`platform_init` lokaal vergt een lk_admin-DATABASE_URL** (bevinding TST-V041):
     de seed loopt via `get_platform_db_session()` op de DATABASE_URL-engine — in de
     init-container is dat lk_admin (correct, ADR-011), maar het CLAUDE.md-alternatief
@@ -378,7 +402,10 @@ G4-4. **Dode proces-handoff-tak op de kaart na de bedrijfsfunctie-plek-laan-swap
    proces-detail doodlopend; de tak schoon verwijderen vraagt tóch de proces-schermen aan te raken — en dat
    ís de sloop-stap. Eén sloop, niet twee. **Verband:** G10 (backend proces-endpoints blijven slapend —
    slice 3); `docs/Feitenrapport-gate4-slice3-sloop-en-seed-V043.md` §1a (Groep B: "samen met ProcesDetail/
-   ProcesLijst slopen, niet los"). Status: **geparkeerd — meenemen in de gate-4 sloop-stap (slice 3)**.
+   ProcesLijst slopen, niet los"). Status: ✅ **AFGEROND (LI044, `c82ad80`)** — de procesregister-UI is
+   gesloopt (nav/routes/`ProcesLijst`/`ProcesDetail`/secties/`PartijProcessenSectie`); de kaart
+   proces-ingang/-inzoom-handoff, de chip "Proceslandschap: X", de `onMounted` mount-handoff en de
+   doodlopende "Bekijk op kaart" zijn weg. Bouwstenen + slapende backend-endpoints behouden.
 
 G4-5. **Domein-lezing op de kaart toont nog een placeholder — afleiden uit de bedrijfsfunctie-as (samen
    met brok 3, LI043).** **Bevinding (feitcheck `feitcheck-domein-bron`):** de kaart-domein-lezing (slice A,

@@ -783,9 +783,16 @@ LIKARA levert een **Logische ICT Kaart**: wat er moet gebeuren, los van hoe het 
 ingericht. Een logische kaart rust daarom op wat **stabiel** is (**bedrijfsfunctie** — GEMMA
 Basisarchitectuur, wijzigt in jaren), niet op wat met elke reorganisatie schuift (**proces**).
 **ADR-043 herijkt ADR-042:** de "waarvoor"-as verschuift van proces naar bedrijfsfunctie; het
-procesregister wordt de **verdieping eronder** ("zo doen wij dat concreet"), nooit ernaast —
-in de MVP **verborgen, niet verwijderd** (de LI038-bouw wordt door de functie-as hergebruikt,
-n≥2-abstractie). Grond: `docs/Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md`.
+procesregister wordt de **verdieping eronder** ("zo doen wij dat concreet"), nooit ernaast — in de MVP
+**geparkeerd**. ⚠ **Bijgesteld LI044 (gate-4 sloop, `c82ad80`):** de procesregister-**UI** is niet
+langer alleen "verborgen" maar **uit de MVP-UI verwijderd** — nav, routes, `ProcesLijst`/`ProcesDetail`
++ secties, `PartijProcessenSectie`, `ComponentProcessenSectie`, de kaart proces-ingang/-inzoom-handoff
+en de doodlopende "Bekijk op kaart" zijn gesloopt. **Behouden:** het datamodel (`proces`,
+`procesvervulling`), de bouwstenen (`procesBoom`/`ProcesDiagram`/`useSleepbaar`) en slapende
+backend-endpoints, plus de bedrijfsfunctie-plek-machinerie (n≥2-hergebruik). De proces-UX-patronen
+hieronder (§LI035 "Proces-detail", §LI036/LI037/LI038) en in likara-ux beschrijven daarom een
+**geparkeerd/verwijderd** scherm — historische ontwerpgrond, geen levend MVP-onderdeel.
+Grond: `docs/Feitenrapport-referentiemodel-bedrijfsfuncties-V038.md`.
 
 ### Modelinhoud lees je — je wijzigt hem niet
 
@@ -866,9 +873,12 @@ Verantwoordelijkheid (met rol) + toelichting (beschrijving + **benoemde verwijzi
   - *Besluit 4 (gate 3)* — het gap-signaal hangt aan de PLAATSING, niet aan de functie: de
     plek is de teleenheid.
   - *"Alleen wat werk ondersteunt mag aan een bedrijfsfunctie hangen"* — sessie-besluit
-    LI039, **ADR nog te schrijven**; "ondersteunt werk" wordt een EIGENSCHAP van het
-    componenttype (precedent: `checklist_dragend` op `componentconfig_optie`), geen lijst in
-    code.
+    LI039, **GESCHREVEN als ADR-045 besluit 1** ("ondersteunt werk" = beheerbare eigenschap
+    `ondersteunt_werk` op `componentconfig_optie`, NOT NULL, geen lijst in code). ⚠ **ADR-045
+    besluit 2** (het noodgreep/volwaardig-onderscheid als *componenttype*-eigenschap) is
+    **verworpen door ADR-051 besluit 3**: dat oordeel zit op de **plek/koppeling**, niet in het
+    ding — een fileshare is niet inherent een noodgreep ("riskant" is een aparte oordeel-as).
+    Besluit 1 staat; besluit 2 niet.
 
 
 ## LI040/ADR-046 — levensfase, bedoeling, uitstap (stuk 1+2 gebouwd; 3/4/5 besloten)

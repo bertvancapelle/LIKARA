@@ -1,6 +1,6 @@
-# SESSIESTART — LIKARA V044
+# SESSIESTART — LIKARA V045
 
-**Datum**: 2026-07-17
+**Datum**: 2026-07-18
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle likara-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V044 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V045 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V044
+# SESSIE_BRIEFING.md — LIKARA V045
 
-**Gegenereerd**: 2026-07-17
+**Gegenereerd**: 2026-07-18
 
 ---
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V044 |
+| Build | V045 |
 | Datum | July 2026 |
-| Commit | 5c4e479 |
-| Tests | backend 1133 passed / 2 skipped / 0 failed · frontend 95 files / 1222 passed · vite build OK |
-| TST-rapport | TST-V044-Validatierapport.md |
+| Commit | f0fa9bd |
+| Tests | backend 1149 passed / 2 skipped · frontend 92 files / 1175 passed · vite build OK · css-build OK |
+| TST-rapport | TST-V045-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,120 +64,115 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
-5c4e479 [skills][docs] LI043 — zes sessiepatronen vastgelegd (presentatie-single-source, canvas-token, plek-stand-kleurtaal, bediening, leeg-is-geen-oordeel, aandacht-schaalt-met-gewicht)
-9b322b6 [frontend] LI043 naam-fix — beoordelings-veldlabel → "Beoordelingsstatus", structureel uit de VELD_LABELS-registry
-6d41dbf [frontend] LI043 slice B2 — stand-codering op de kaart + meebewegende standen-legenda (gedeelde bron, optie A) — G4-6
-8937e95 [docs] LI043 ontwerpspoor — beoordelingsgrondslag (tenant-waarde-norm) + gewogen open-punten-overzicht
-38b02eb [skills] LI043 domeinmodel — terminologie component/type/applicatie vastgelegd; "systeem" geen synoniem
+f0fa9bd [docs] LI044-patronen vastgelegd in skills + opvolgpunt VeldUitleg-overlay
+7e2ff25 [frontend][backend] ADR-052 slice 3 — verrijkte migratieklaar-verklaring — ADR-052
+626dc76 [backend+frontend] ADR-052 slice 2 — "bewust geen" voor koppelingen en contract
+fae7593 [backend] ADR-052 slice 1 — tenant-norm harde feiten: opslag + default + vastgesteld-leesbron
+8a9ea3d [docs] ADR-052 tenant-norm harde feiten + migratieklaar-verklaring (met checkpoint)
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# NEXT_SESSION.md — LIKARA V044
+# NEXT_SESSION.md — LIKARA V045
 
-**Gegenereerd**: 2026-07-17
-**Vorige build**: V044
+**Gegenereerd**: 2026-07-18
+**Vorige build**: V044 → **V045**
 **Branch**: master
-**Laatste commit (code)**: `9b322b6` naam-fix "Beoordelingsstatus" · daarvóór `6d41dbf` slice B2 ·
-`972df21` slice B1 · `ac9db21` slice A · `bd60085` brok 3 seed · `bae58b2` serving-fix
+**Laatste commit (code)**: `7e2ff25` ADR-052 slice 3 (verrijkte klaarverklaring) · daarvóór `626dc76`
+slice 2 ("bewust geen") · `fae7593` slice 1 (norm-opslag) · `c82ad80` gate-4 sloop
+**Laatste commit (docs)**: `f0fa9bd` LI044-patronen in skills + opvolgpunt VeldUitleg-overlay
 
-> **Sessie LI043 — de bedrijfsfunctie-kaart is nu leesbaar; de beoordelingsstatus heeft een naam.**
+> **Sessie LI044 — de gemeente kan nu haar eigen lat voor "migratieklaar" leggen; het procesregister is uit de MVP-UI.**
 >
-> Wat LI043 heeft opgeleverd (gebruikerstaal):
-> - **Gate 4 kaart-lezing compleet.** De kaart toont per bedrijfsfunctie-plek in één oogopslag waar
->   werk ligt: **slice A** (lezing werk/status/domein + neutraliseer-model + meebewegende legenda),
->   **slice B1** (ernst-pills in de lijst) en **slice B2** (dezelfde stand-kleuren op de kaart + legenda,
->   uit één bron `standCodering`). Lijst ↔ kaart vertellen identiek: amber = werk · groen = draait ·
->   blauw = via boven · grijs = besluit.
-> - **Serving-richting-fix.** "Systeem zonder gebruikersgroep" leest nu de juiste richting (bron=component);
->   het signaal waarop brok 1/2 leunen is betrouwbaar.
-> - **Brok 3 dev-seed.** Een verse DB vertelt alle vijf standen (incl. een plek mét én zónder
->   gebruikersgroep); proces-seed verwijderd.
-> - **Naam-fix "Beoordelingsstatus".** Het verwarrende "Lifecycle"/"Status"-veld heet overal
->   "Beoordelingsstatus", structureel uit de `VELD_LABELS`-registry (één bron, sentinel-getest).
-> - **Borging:** domeinmodel-terminologie (component/type/applicatie; "systeem" geen synoniem) +
->   zes sessiepatronen in frontend/ux + LOKAAL-TESTEN.
+> Wat LI044 heeft opgeleverd (gebruikerstaal):
+> - **Gate-4 sloop.** Het procesregister is uit de MVP-UI gehaald (nav, routes, ProcesLijst/ProcesDetail
+>   + secties, PartijProcessenSectie, ComponentProcessenSectie, de kaart proces-ingang en de doodlopende
+>   "Bekijk op kaart"). Datamodel, bouwstenen (procesBoom/ProcesDiagram) en slapende endpoints blijven;
+>   het concept is geparkeerd (ADR-043), niet verwijderd.
+> - **Tenant-norm voor harde componentfeiten (ADR-052, slices 1–3).** De gemeente kan per hard feit
+>   vastleggen dat het bekend moet zijn vóór een component migratieklaar verklaard mag worden. "Vastgesteld"
+>   = een echt antwoord (leeg/sentinel/nooit-gekeken tellen niet). Voor koppelingen/contract is er nu een
+>   uitspreekbaar **"bewust geen"**. De consultant verklaart; de norm is een **lat, geen poort**.
+> - **Verrijkte klaarverklaring.** Klaar verklaren blijft licht — behalve bij **afwijking van de norm**:
+>   dan benoemt een bevestiging de open feiten (bewust akkoord óf "eerst aanvullen"). Het component toont
+>   een **live badge**; de klaarverklaring bevriest een **snapshot** (wie/wanneer/welke feiten open). De
+>   amber waarschuwing is **klikbaar** → verantwoordingsvenster met de reden + stand-bij-het-besluit; de
+>   reden staat niet meer permanent bij de status. Een venster valt nooit meer buiten beeld.
+> - **Borging:** ADR-052 teruggevouwen naar de gebouwde realiteit; LI044-patronen vastgelegd in vijf
+>   skills; ADR-045 besluit 2 / "fileshare = gat" gemarkeerd als verworpen (ADR-051 besluit 3).
 
 ---
 
-## Top-5 prioriteiten volgende sessie
+## Top-5 prioriteiten volgende sessie (LI045)
 
-1. **Gate 4 restant / ADR-046-stubs — de resterende MVP-gate-stappen.** Ná de nu-voltooide kaart-lezing:
-   levensfase / bedoeling (`migratiepad`) / uitstap-stand (stuk 3, `organisatiegebruik`) / tranche (stuk 4).
-   Dit is de laatste MVP-laag op de bedrijfsfunctie-as. Volgorde + afhankelijkheden: OPVOLGPUNTEN
-   (LI040/LI041-blokken, ADR-046).
+> **Functionele volgorde: maak eerst af wat je begon (de norm bruikbaar maken), dán de volgende waardelaag.**
 
-2. **Open-punten-overzicht per component (kan EERDER, ongewogen).** Het overzicht "alles wat dit systeem
-   nog nodig heeft" (Dit moet nog / Dit zou netjes zijn, met route) kan al landen op de **bestaande
-   ophaalbare** bronnen (checklist nee/deels + `signalering.badgeComponent`) — de weging komt later. Ontwerp
-   (mockup) eerst. Grond: OPVOLGPUNTEN LI043-blok + feitcheck `feitcheck-open-punten-bronnen`.
+1. **Slice 4 — norm-beheerscherm.** *De beheerder kan de norm nu niet zien of aanpassen; alleen de seed
+   zet hem.* Elke tenant zit vast aan de default (eigenaar · verantwoordelijke · BIV · contract ·
+   koppelingen) — BvoWB kan BIV pas uitzetten als dit scherm er is. **Maakt ADR-052 af.** Raakt geen
+   schema (norm-tabel `component_norm` bestaat); UI + toets + optionele default-norm-actie.
 
-3. **Beoordelingsgrondslag (groot post-MVP ontwerpspoor) — het fundament onder (2).** Tenant-configureerbare
-   waarde-norm; "moet/netjes" volgt eruit; degradeert netjes (werkt ongewogen). Verankerd in OPVOLGPUNTEN
-   (LI043-blok, item 1). Ontwerp/ADR vóór bouw; raakt vermoedelijk schema (nieuw model/catalogus).
+2. **Open-punten-overzicht per component.** *Nu de norm bestaat en per component leesbaar is welke feiten
+   niet vastgesteld zijn, kan "alles wat dit systeem nog nodig heeft" eindelijk betekenis dragen.* Het
+   fundament staat (`norm_status` + `registratiegaten`); dit is waar de consultant het hardst "de weg
+   kwijt" bleek. Start met een mockup (Bert beslist op beeld).
 
-4. **De twee B2-bevindingen — koppelen aan de beoordelingsgrondslag.** (a) Op de kaart delen gat en
-   werkvoorraad dezelfde amber (onderscheid leest via lijst-pill/hover) — herzien of dat volstaat; (b) de
-   lezingen Werk/Status/Domein zijn niet symmetrisch (Werk draagt de stand-kleuren, de andere niet). Beide
-   pas herzien wanneer de beoordelingsgrondslag er is; niet los oplossen.
+3. **Laatste MVP-laag op de functie-as (ADR-046 stuk 3 → 5 → 4).** *Maakt de MVP af; lag bewust ná gate 4.*
+   Uitstap-stand op de gebruiksrelatie (`organisatiegebruik`, stuk 3) → afgeleide zwaarte-telling (stuk 5,
+   nooit opgeslagen) → tranche (stuk 4). Grond: OPVOLGPUNTEN LI040/LI041-blokken, ADR-046.
 
-5. **Contract-spoor** (ná gate 4) — zie Openstaande beslissingen; notitie klaar, besluit open.
+4. **Dev-seed vertelt het volledige verhaal (L4).** *Elke browsercheck leunt op de seed.* Norm en "bewust
+   geen" zitten er nu in, maar het gate-3-verhaal (koppelingen, "hier draait niets", de noodoplossing) is
+   op een verse DB nog onzichtbaar. Vul de seed zodat een verse DB het hele verhaal toont.
+
+5. **VeldUitleg adopteert `popoverPositie.js`.** *Rekenkern is gedeeld, 75 views dragen hem nog niet → de
+   borging is niet af* (KERNLES: elk pad moet de regel dragen). Klein/eigen slice; regressierisico
+   (in-flow `absolute` → `fixed`/viewport-klem over 75 views) benoemen; browserverificatie over meerdere
+   schermen. Zie OPVOLGPUNTEN + likara-frontend §Overlay-positionering.
 
 ---
 
 ## Openstaande beslissingen
 
-- **LOKAAL-TESTEN §1b (klein).** De reseed/reset-commando's in de doc (`docker exec -w /app lk-api python3
-  dev_seed_testdata.py`; volume-rm-route i.p.v. `down -v`) zijn correct en blijven. Alleen als je een andere
-  vorm wilt, is dat een aparte doc-wijziging. (Vastgesteld in `vastleggen-sessiepatronen`.)
-- **Contract-analyse (notitie klaar, geen besluit).** A1 afgeleide contract-afloop-leeslaag · A2 spiegelsignaal
-  "component zonder contract" · B1 verantwoordelijkheid/toelichting op contract (skills LI038, besloten niet
-  gebouwd). Bedrag/administratie buiten scope. Bouwen ná gate 4. Bron: `docs/Analyse-contractregistratie-V040.md`.
-
----
-
-## Losse opvolgpunten (deze sessie toegevoegd — staan in OPVOLGPUNTEN.md)
-
-- **L1a** — ijkpunt als auditeerbaar wilsbesluit (werk-terugzet/vernietig, selectieve lijn).
-- **G4-1d** — kaart-state-hardening (`_herstelKaartState` herstelt een dode set na `down -v` → 0-subgraaf).
-- **G4-4** — dode proces-handoff-tak op de kaart na de plek-laan-swap.
-- **G4-5** — domein-lezing afleiden uit de functie-as (nu proxy: componenttype-label "Applicatie").
-- **0b** — Signalering-scherm als werkvoorraad-checklist (per systeem + oplichten + klikbare badges).
-- **Granulaire CRUD × persona** (post-MVP) — indien nog genoteerd; anders bij het open-punten-spoor.
+- **Reikwijdte norm-afwijking (B5, besloten deze sessie).** De norm-afwijking is bewust **niet**
+  samengevoegd met `klaar_met_afwijking` in de dashboardteller (twee semantisch verschillende
+  afwijkingen). Uitbreiding naar een dashboard-/lijstsignaal voor de norm-afwijking is een **eigen, nog
+  te nemen besluit** (ADR-052 §Reikwijdte-keuze).
+- **Contract-analyse (notitie klaar, geen besluit).** A1 afgeleide contract-afloop-leeslaag · A2
+  spiegelsignaal "component zonder contract" · B1 verantwoordelijkheid/toelichting op contract (skills
+  LI038, besloten niet gebouwd). Bedrag/administratie buiten scope. Bron: `docs/Analyse-contractregistratie-V040.md`.
+- **Beoordelingsgrondslag (post-MVP).** ADR-052 is de smalle MVP-voorloper (aanwezigheids-/vastgesteld-norm);
+  de volle gewogen waarde-norm blijft het grote post-MVP-ontwerpspoor (OPVOLGPUNTEN LI043-1).
 
 ---
 
 ## Bekende risico's en aandachtspunten
 
-- **Audit-keten in de dev-`audit_log`: OPGELOST.** De 2 V043-live-tests (`test_audit_capture_live.py`)
-  **slagen nu** (data-conditie weg, waarschijnlijk via reseed). Geen pre-existing failure meer.
-- **Geen verstrengelde werktree** — alle LI043-bouw is per opdracht apart geland. Schone start.
-
----
-
-## Technische schuld
-
-- **De twee amber-standen (gat/werkvoorraad) delen op de kaart één kleur** — bewust (onderscheid via tekst),
-  maar te herzien bij de beoordelingsgrondslag (top-4).
-- **`object_zonder_roltoewijzing` vs. `component_zonder_verantwoordelijke`** — één feit, twee signaal-sleutels;
-  in het open-punten-overzicht als één punt tonen (feitcheck-open-punten-bronnen).
+- **Geen verstrengelde werktree** — alle LI044-bouw is per opdracht apart geland (`c82ad80`, `fae7593`,
+  `626dc76`, `7e2ff25`, `f0fa9bd`). Schone start.
+- **Suites groen:** backend 1149 passed / 2 skipped · frontend 1175 passed · vite build OK · css-build OK ·
+  alembic 1 head (`0073`), 0 branches.
+- **Slice 4 vóór verdere norm-uitbreiding** — zolang de norm alleen via de seed te zetten is, kan een
+  browsercheck de norm-varianten niet zonder reseed tonen (zie L4/dev-seed).
 
 ---
 
 ## Geleerde patronen deze sessie
 
-Verankerd in de likara-skills (deze afsluiting gecommit), geen memory-duplicaat:
-- **Eén bron voor PRESENTATIE, niet alleen data** — label/kleur/icoon/legenda op één plek + verplichte
-  sentinel-test (frontend — P1).
-- **Canvas resolvet het token op tekenmoment** (`standKaartKleur`), nooit een tweede kleur-literal (frontend — P2).
-- **Plek-stand-kleurtaal** amber/groen/blauw/grijs — een aparte as, niet te verwarren met signalering-🔴/🟡
-  of de status-lezing-tinten (ux — P3).
-- **Leeg ≠ een ingevulde waarde/oordeel** — geen proxy/placeholder als schijnwaarde (ux — P5).
-- **Aandacht schaalt met gewicht** — bevestiging = auditeerbaar wilsbesluit (ux — P6, zie L1a).
-- **Bedieningsfeiten** (kaart opent op verkenningsscherm) in LOKAAL-TESTEN (P4).
-- **Terminologie** component/type/applicatie; "systeem" geen synoniem (domeinmodel).
+Verankerd in de likara-skills (LI044-vastlegging, `f0fa9bd` + deze afsluiting), geen memory-duplicaat:
+- **Vastgesteld = een echt antwoord** (leeg/sentinel/nooit-gekeken tellen niet); **geen norm = geen eis**
+  (domeinmodel §Norm & vastgesteld).
+- **"Bewust geen"** = write-guard (409) + read "real wins", generieke relatie-service onaangeroerd
+  (domeinmodel §Registratie-feiten).
+- **De drempel hangt aan de afwijking, niet aan de handeling** — uitzondering op L1a (ux).
+- **Eén norm-definitie, twee peildata** — signaal leeft / snapshot bevriest; de snapshot mag opgeslagen als
+  audit van een wilsbesluit, niet als afgeleide waarde (ux).
+- **Een venster valt nooit buiten beeld** — gedeelde `popoverPositie.js`, rekenkern puur + unit-getest
+  (frontend + tests).
+- **Vorm convergeert eerder dan schema** — UI bij n=2, opslag pas bij de derde drager (domeinmodel harde regel 8).
+- **Een tenant-wens versmalt nooit de platform-default** (ux).
 
 
 ---
@@ -186,6 +181,6 @@ Verankerd in de likara-skills (deze afsluiting gecommit), geen memory-duplicaat:
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V044"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V045"
 4. Wacht op START: [naam] van Bert
 

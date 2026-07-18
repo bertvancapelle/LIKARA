@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Aanvaard (besluiten belegd één voor één; bouw open, ná deze ADR) |
+| **Status** | Aanvaard — **slices 1–3 gebouwd** (`fae7593` norm-opslag/-toetsing · `626dc76` "bewust geen" · `7e2ff25` verrijkte klaarverklaring); **slice 4 (norm-beheerscherm) open**. Subknopen 1–5 besloten (zie onder). |
 | **Datum** | 2026-07-17 |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-027 (component-klaarverklaring — dit verrijkt haar) · ADR-013/016 (lifecycle-engine — ongemoeid) · ADR-035 (registratiegat-signalen) · ADR-028 (BIV/componentrol) · ADR-044/049 ("bewust niets" op de bedrijfsfunctie-plek) · ADR-006 (append-only audit) · OPVOLGPUNTEN L1a (ijkpunt) + LI043-1 (beoordelingsgrondslag) |
@@ -120,22 +120,38 @@ verklaren is altijd licht" en het verantwoordingsmoment stil laat verdwijnen.
 - Nieuw bouwwerk t.o.v. vandaag: de norm-opslag + -toetsing, de uitbreiding van de per-component
   leesbron, "bewust geen" voor koppelingen/contract, en de snapshot-kolom + bevestiging.
 
-## Open subknopen (te beslissen vóór/bij de bouw — met voorlopige default)
+## Reikwijdte-keuze bij de bouw (B5, LI044 — besloten, niet in het oorspronkelijke besluit)
 
-1. **Norm-opslagvorm.** Eigen tenant-tabel vs. vlag-set naast de componentconfig. *Default: eigen
-   tenant-scoped tabel met het RLS-recept; één rij per (hard feit).* 
-2. **Default-norm meeleveren?** Levert LIKARA een verstandige start-norm mee (eigenaar/verantwoordelijke/
-   BIV op "verplicht", op de bestaande kritiek-lijn) zodat een nieuwe tenant vanaf minuut één een
-   zinvolle lat heeft, of begint elke tenant met een lege norm? *Default (nog te bevestigen door Bert):
-   verstandige default meeleveren, aanpasbaar — verlaagt de drempel, degradeert netjes.*
-3. **Welke feiten "hard" heten** (de kiesbare set voor de norm). *Default: de eigen componentvelden
-   met betekenisvolle afwezigheid + de relationele feiten koppelingen en contract/leverancier;
-   `componentrol` valt af (nooit leeg → moot).*
-4. **Vorm van "bewust geen"** voor koppelingen en contract (per-component bevinding; spiegel van de
-   bedrijfsfunctie-"bewust niets"). *Default: dezelfde bevindings-vorm hergebruiken (n≥2), niet een
-   tweede mechanisme.*
-5. **Sentinel-lijst** die als "niet vastgesteld" telt. *Default: kort en expliciet; nu alleen
-   `hostingmodel = onbekend`. Uitbreidbaar wanneer een nieuw sentinel-veld bijkomt.*
+De norm-afwijking ("verplichte feiten niet vastgesteld") en het bestaande `klaar_met_afwijking`
+("checklist niet compleet") zijn **twee semantisch verschillende afwijkingen** — ze worden **niet
+samengevoegd in één dashboardteller** (dat zou misleiden; "twee waarheden, elk heel" — zie de
+invariant). De norm-afwijking leeft daarom bewust **alléén als badge op het component**
+(`MigratiegereedheidSectie`), niet in `dashboard_service.klaar_met_afwijking`. Uitbreiding naar een
+dashboard-/lijstsignaal voor de norm-afwijking is een **eigen, nog te nemen besluit**, geen bijvangst
+van deze ADR (likara-domeinmodel §LI041-kernregel, vierde toepassing).
+
+## Subknopen — besloten bij de bouw (LI044)
+
+1. **Norm-opslagvorm → BESLOTEN.** Eigen **tenant-scoped tabel `component_norm`** met het RLS-recept;
+   één rij per (hard feit, verplicht-vlag). Geen vlag-set naast de componentconfig.
+2. **Default-norm meeleveren → BESLOTEN.** LIKARA levert een verstandige platform-default mee:
+   **eigenaar · verantwoordelijke · BIV · contract · koppelingen** verplicht (`DEFAULT_VERPLICHT`).
+   Generiek voor elke tenant; een tenant die een feit niet hanteert zet het in zijn **eigen norm** uit
+   (tenant-configuratie) — de default versmalt daar niet mee (likara-ux W4). Degradeert netjes: geen
+   norm-rij = niet-verplicht.
+3. **Welke feiten "hard" heten → BESLOTEN.** De kiesbare set = **10 harde feiten** (`HARDE_FEITEN`):
+   eigenaar, verantwoordelijke, BIV, gebruikersgroep, bedrijfsfunctie, levensfase, bedoeling, hosting,
+   koppelingen, contract. **`componentrol` valt af** (NOT NULL met vaste beginstand → nooit leeg →
+   moot).
+4. **Vorm van "bewust geen" → BESLOTEN.** Een **component-verankerde eigen tabel `component_bevinding`**
+   met **dezelfde vorm** als de bedrijfsfunctie-"bewust niets" (die embedded in `functievervulling.
+   geen_systeem` leeft). **Frontend geconvergeerd** → één `BewustGeenControl.vue` (2 consumenten:
+   `ContractSectie`/`KoppelingSectie`); **opslag gespiegeld** (twee tabellen op dezelfde leest) tot een
+   **derde drager** unificatie rechtvaardigt (n≥2 — likara-domeinmodel harde regel 8). Consistentie
+   langs write-guard (409 `REGISTRATIE_BESTAAT`) + read "real wins"; de generieke `relatie_service`
+   blijft onaangeroerd.
+5. **Sentinel-lijst → BESLOTEN.** Kort en expliciet: **alleen `hostingmodel = onbekend`** telt als "niet
+   vastgesteld". Uitbreidbaar wanneer een nieuw sentinel-veld bijkomt.
 
 ## Verhouding tot de beoordelingsgrondslag (OPVOLGPUNTEN LI043-1)
 
@@ -148,8 +164,8 @@ grote post-MVP-ontwerpspoor.
 ## Bouw-fasering (indicatief, ná deze ADR)
 
 De read-only feitenopname is gedaan (`docs/Checkpoint-tenant-norm-harde-velden-en-klaarverklaring-V044.md`).
-Voorgestelde slices, elk met engine-onaangeroerd-borging + gate-discipline:
-1. **Norm-opslag + -toetsing** (tenant-scoped; de "vastgesteld"-leesbron uitgebreid).
-2. **"Bewust geen" voor koppelingen en contract** (bevinding, spiegel bedrijfsfunctie).
-3. **Verrijkte klaarverklaring** (snapshot-kolom + bevestiging bij afwijking + badge/log uit één feit).
-4. **Norm-beheerscherm** (de tenant stelt de verplicht-vlaggen in) + optionele default-norm.
+Slices, elk met engine-onaangeroerd-borging + gate-discipline:
+1. ✅ **Norm-opslag + -toetsing** (`component_norm`, tenant-scoped; de "vastgesteld"-leesbron uitgebreid) — **gebouwd `fae7593`**.
+2. ✅ **"Bewust geen" voor koppelingen en contract** (`component_bevinding`, spiegel bedrijfsfunctie) — **gebouwd `626dc76`**.
+3. ✅ **Verrijkte klaarverklaring** (snapshot-kolom `open_feiten` + bevestiging bij afwijking + badge/log uit één feit; slice 3b verantwoordingsvenster, 3c reden-achter-de-waarschuwing) — **gebouwd `7e2ff25`**.
+4. ⏳ **Norm-beheerscherm** (de tenant stelt de verplicht-vlaggen in) + optionele default-norm — **OPEN** (LI045-prioriteit 1).
