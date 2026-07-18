@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.tenant_context import huidige_actor
 from models.models import ComponentKlaarverklaring, Component, KlaarverklaringStatus
 from schemas.component_klaarverklaring import KlaarverklaringCreate, KlaarverklaringStatusWijzig
-from services import actor_resolutie
+from services import actor_resolutie, component_norm_service
 from services.errors import NietGevonden, RegistratieConflict
 
 _ENTITEIT = "component_klaarverklaring"
@@ -58,6 +58,17 @@ async def _component_bestaat(session: AsyncSession, tid: uuid.UUID, component_id
         raise NietGevonden("component", component_id)
 
 
+async def _open_verplichte_feiten(session: AsyncSession, tid: uuid.UUID, component_id) -> list[str]:
+    """ADR-052 slice 3 — server-berekende snapshot: de verplichte norm-feiten die op DIT moment
+    NIET vastgesteld zijn (uit de gedeelde `component_norm_service.norm_status` — één norm-definitie,
+    nooit een tweede afleiding). Leeg = geen afwijking."""
+    status = await component_norm_service.norm_status(session, tid, component_id)
+    return sorted(
+        feit for feit, s in status.get("feiten", {}).items()
+        if s == component_norm_service.NIET_VASTGESTELD
+    )
+
+
 async def maak_aan(session: AsyncSession, tenant_id, data: KlaarverklaringCreate) -> ComponentKlaarverklaring:
     tid = _tenant_uuid(tenant_id)
     await _component_bestaat(session, tid, data.component_id)
@@ -70,6 +81,9 @@ async def maak_aan(session: AsyncSession, tenant_id, data: KlaarverklaringCreate
         verklaard_door_sub=sub,
         verklaard_door=email,
         verklaard_op=op,
+        # Snapshot van de openstaande verplichte feiten op het moment van akkoord (het bevroren
+        # wilsbesluit); het live badge leest los hiervan de actuele norm-status (twee peildata).
+        open_feiten=await _open_verplichte_feiten(session, tid, data.component_id),
     )
     session.add(obj)
     try:
@@ -104,12 +118,19 @@ async def wijzig_status(
 ) -> ComponentKlaarverklaring:
     """Symmetrisch klaar↔open; nieuwe reden verplicht (schema), herstempelt wie/wanneer."""
     obj = await haal_op(session, tenant_id, klaarverklaring_id)
+    tid = _tenant_uuid(tenant_id)
+    nieuwe_status = KlaarverklaringStatus(data.status)
     sub, email, op = _stempel()
-    obj.status = KlaarverklaringStatus(data.status)
+    obj.status = nieuwe_status
     obj.reden = data.reden
     obj.verklaard_door_sub = sub
     obj.verklaard_door = email
     obj.verklaard_op = op
+    # Bij (her)verklaren: verse snapshot van de openstaande verplichte feiten; bij heropenen leeg.
+    obj.open_feiten = (
+        await _open_verplichte_feiten(session, tid, obj.component_id)
+        if nieuwe_status == KlaarverklaringStatus.klaar else []
+    )
     await session.commit()
     await session.refresh(obj)
     return await _zet_naam(session, _tenant_uuid(tenant_id), obj)

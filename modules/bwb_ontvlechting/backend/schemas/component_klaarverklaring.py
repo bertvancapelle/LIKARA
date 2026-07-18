@@ -64,5 +64,7 @@ class KlaarverklaringRead(BaseModel):
     # ADR-029 Fase 3b — read-side geresolveerde naam (sub → persoon.naam) of e-mail-fallback (transient).
     verklaard_door_naam: str | None = None
     verklaard_op: datetime
+    # ADR-052 slice 3 — bevroren snapshot: verplichte feiten die bij het verklaren open stonden.
+    open_feiten: list[str] = []
     created_at: datetime
     updated_at: datetime

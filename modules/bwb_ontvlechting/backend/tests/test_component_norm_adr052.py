@@ -130,6 +130,26 @@ async def _run_rls(fn):
         await eng.dispose()
 
 
+async def _norm_alles_verplicht(s):
+    from sqlalchemy import text
+    from models.models import ComponentNorm
+    await s.execute(text("DELETE FROM component_norm WHERE tenant_id=:t"), {"t": _TID})
+    for f in cn.HARDE_FEITEN:
+        s.add(ComponentNorm(tenant_id=uuid.UUID(_TID), feit_sleutel=f, verplicht=True))
+    await s.flush()
+
+
+async def _maak_component_norm(s, naam, hosting="onbekend"):
+    from models.models import Component, Element, ElementType, HostingModel
+    elem = Element(tenant_id=uuid.UUID(_TID), element_type=ElementType.component)
+    s.add(elem)
+    await s.flush()
+    s.add(Component(id=elem.id, tenant_id=uuid.UUID(_TID), naam=naam,
+                    componenttype="applicatie", hostingmodel=HostingModel(hosting)))
+    await s.flush()
+    return elem.id
+
+
 @integratie
 def test_seed_zaait_default_en_haal_norm_live():
     from sqlalchemy import text
@@ -203,3 +223,75 @@ def test_norm_status_vastgesteld_is_niet_gevuld_live():
     assert gevuld[cn.FEIT_LEVENSFASE] == cn.VASTGESTELD
     assert gevuld[cn.FEIT_BEDOELING] == cn.VASTGESTELD
     assert gevuld[cn.FEIT_EIGENAAR] == cn.NIET_VASTGESTELD
+
+
+# ── ADR-052 slice 3 — verrijkte klaarverklaring (snapshot bevriest; badge is live) ──────────────
+
+@integratie
+def test_klaarverklaring_snapshot_bevriest_maar_norm_status_leeft_live():
+    from sqlalchemy import text
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
+    from services import component_klaarverklaring_service as kv
+
+    async def _flow(s):
+        eid = None
+        try:
+            await _norm_alles_verplicht(s)
+            eid = await _maak_component_norm(s, "WT-KV-Snapshot")  # hosting=onbekend, kaal
+            await s.commit()
+
+            # Klaar verklaren MÉT open feiten → snapshot bevriest wat NU open is.
+            obj = await kv.maak_aan(s, _TID, KlaarverklaringCreate(component_id=eid, reden="Toch klaar."))
+            snapshot = sorted(obj.open_feiten)
+            live_bij_akkoord = sorted(
+                f for f, st in (await cn.norm_status(s, _TID, eid))["feiten"].items()
+                if st == cn.NIET_VASTGESTELD
+            )
+            # Vul één feit alsnog vast (hosting): live norm-status dooft, snapshot blijft.
+            await s.execute(text("UPDATE component SET hostingmodel='saas' WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+            live_na = sorted(
+                f for f, st in (await cn.norm_status(s, _TID, eid))["feiten"].items()
+                if st == cn.NIET_VASTGESTELD
+            )
+            bewaard = sorted((await kv.lijst(s, _TID, component_id=eid))[0].open_feiten)
+            return snapshot, live_bij_akkoord, live_na, bewaard
+        finally:
+            await s.execute(text("DELETE FROM component_norm WHERE tenant_id=:t"), {"t": _TID})
+            if eid is not None:
+                await s.execute(text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    snapshot, live_bij_akkoord, live_na, bewaard = asyncio.run(_run_rls(_flow))
+    assert snapshot == live_bij_akkoord           # de snapshot = de open feiten op akkoord-moment
+    assert "hosting" in snapshot                  # hosting stond open bij verklaren
+    assert "hosting" not in live_na               # LIVE: na aanvullen is hosting weg (badge dooft)
+    assert "hosting" in bewaard                   # SNAPSHOT: blijft bevroren (historie blijft)
+
+
+@integratie
+def test_klaarverklaring_geen_afwijking_bij_compleet_live():
+    from sqlalchemy import text
+    from models.models import ComponentNorm, HostingModel  # noqa: F401
+    from schemas.component_klaarverklaring import KlaarverklaringCreate
+    from services import component_klaarverklaring_service as kv
+
+    async def _flow(s):
+        eid = None
+        try:
+            # Norm: alléén hosting verplicht; component met hosting=saas → compleet.
+            await s.execute(text("DELETE FROM component_norm WHERE tenant_id=:t"), {"t": _TID})
+            s.add(ComponentNorm(tenant_id=uuid.UUID(_TID), feit_sleutel="hosting", verplicht=True))
+            await s.flush()
+            eid = await _maak_component_norm(s, "WT-KV-Compleet", hosting="saas")
+            await s.commit()
+            obj = await kv.maak_aan(s, _TID, KlaarverklaringCreate(component_id=eid, reden="Compleet."))
+            return list(obj.open_feiten)
+        finally:
+            await s.execute(text("DELETE FROM component_norm WHERE tenant_id=:t"), {"t": _TID})
+            if eid is not None:
+                await s.execute(text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            await s.commit()
+
+    open_feiten = asyncio.run(_run_rls(_flow))
+    assert open_feiten == []  # geen openstaande verplichte feiten → lege snapshot (geen afwijking)

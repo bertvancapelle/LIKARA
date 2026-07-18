@@ -11,10 +11,11 @@
  * Het afwijkingssignaal hergebruikt de bestaande vragen-stand (`aantal-gescoord`/`aantal-vragen`
  * uit de ChecklistscoreSectie-ref van het ouder-scherm) — geen tweede telling.
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { usePopoverPositie } from '@/composables/popoverPositie'
 import { Button, Dialog, Tag, Textarea, useToast } from '@/primevue'
 import { api } from '@/api'
-import { KLAARVERKLARING_SEVERITY, KLAARVERKLARING_STATUS, REGISTER_FOUT, label } from '../labels'
+import { KLAARVERKLARING_SEVERITY, KLAARVERKLARING_STATUS, NORM_FEIT_LABEL, REGISTER_FOUT, label } from '../labels'
 
 const props = defineProps({
   componentId: { type: String, required: true },
@@ -24,6 +25,9 @@ const props = defineProps({
 
 const toast = useToast()
 const verklaring = ref(null) // de levende verklaring, of null
+// ADR-052 slice 3 — LIVE norm-status: de verplichte feiten die NU niet vastgesteld zijn (badge =
+// nu; de bevroren snapshot leeft op de klaarverklaring zelf). Eén norm-definitie, twee peildata.
+const normOpen = ref([])
 const dialogOpen = ref(false)
 const bezig = ref(false)
 const reden = ref('')
@@ -40,6 +44,46 @@ const openVragen = computed(() => Math.max(props.aantalVragen - props.aantalGesc
 const heeftAfwijking = computed(() => isKlaar.value && props.aantalVragen > 0 && openVragen.value > 0)
 // In de dialog: toon de open-vragen-context wanneer de handeling het component klaar zet.
 const toontVragenContext = computed(() => !isKlaar.value && props.aantalVragen > 0 && openVragen.value > 0)
+// ADR-052 slice 3 — norm-afwijking: verplichte feiten die (live) niet vastgesteld zijn.
+const normOpenLabels = computed(() => normOpen.value.map((f) => label(NORM_FEIT_LABEL, f)))
+const heeftNormAfwijking = computed(() => isKlaar.value && normOpen.value.length > 0)  // badge (live)
+const toontNormAfwijking = computed(() => !isKlaar.value && normOpen.value.length > 0) // in de dialog
+// Drempel hangt aan de AFWIJKING, niet aan de handeling (ADR-052 besluit 5 / L1a-uitzondering).
+const bevestigLabel = computed(() => (toontNormAfwijking.value ? 'Toch klaar verklaren' : actieLabel.value))
+
+// ── ADR-052 slice 3b — verantwoordingsvenster (klik op een amber regel) ─────────────────────────
+// Reden/wie/wanneer + de BEVROREN snapshot (open_feiten bij het verklaren). Beide amber regels
+// (checklist + norm) openen HETZELFDE venster — één klaarverklaring = één besluit. Van-scratch
+// overlay (PrimeVue Unstyled), a11y-patroon gemodelleerd op VeldUitleg (Escape/klik-buiten/focus-terug).
+const verantwoordingOpen = ref(false)
+const verantwoordingWortel = ref(null)
+const verantwoordingPaneel = ref(null)
+const PANEEL_ID = 'mg-verantwoording-paneel'
+let _vTrigger = null
+// Gedeelde positioneer-bouwsteen: flipt boven/onder + klemt binnen beeld (position: fixed).
+const { stijl: verantwoordingStijl, open: _posOpen, sluit: _posSluit } = usePopoverPositie(verantwoordingPaneel)
+// De bevroren snapshot van de klaarverklaring, met leesbare labels (niet de ruwe sleutels).
+const snapshotLabels = computed(() => (verklaring.value?.open_feiten || []).map((f) => label(NORM_FEIT_LABEL, f)))
+
+function openVerantwoording(e) {
+  _vTrigger = e?.currentTarget ?? document.activeElement
+  verantwoordingOpen.value = true
+  _posOpen(_vTrigger)
+}
+function sluitVerantwoording(focusTerug = true) {
+  if (!verantwoordingOpen.value) return
+  verantwoordingOpen.value = false
+  _posSluit()
+  if (focusTerug && _vTrigger?.focus) _vTrigger.focus()
+}
+function _vKeydown(e) {
+  if (verantwoordingOpen.value && e.key === 'Escape') sluitVerantwoording(true)
+}
+function _vClick(e) {
+  if (!verantwoordingOpen.value) return
+  const w = verantwoordingWortel.value
+  if (w && !w.contains(e.target)) sluitVerantwoording(false)
+}
 
 function _toastFout(e) {
   if (e?.status === 401) return // sessie verlopen — centrale vangrail leidt al naar login
@@ -51,6 +95,17 @@ function _toastFout(e) {
   toast.add({ severity: 'error', summary: 'Fout', detail, life: 5000 })
 }
 
+async function _laadNorm() {
+  try {
+    const ns = await api.componentNormen.status(props.componentId)
+    normOpen.value = Object.entries(ns?.feiten || {})
+      .filter(([, s]) => s === 'niet_vastgesteld')
+      .map(([f]) => f)
+  } catch {
+    normOpen.value = []  // norm niet leesbaar → geen badge/afwijking tonen (fail-safe, geen ruis)
+  }
+}
+
 async function laad() {
   try {
     const rijen = await api.klaarverklaringen.lijst({ component_id: props.componentId })
@@ -59,12 +114,14 @@ async function laad() {
     verklaring.value = null
     _toastFout(e)
   }
+  await _laadNorm()
 }
 
 function openDialog(event) {
   laatsteTrigger = event?.currentTarget ?? document.activeElement
   reden.value = ''
   Object.keys(fouten).forEach((k) => delete fouten[k])
+  _laadNorm()  // verse norm-status bij het openen (feiten kunnen intussen zijn aangevuld)
   dialogOpen.value = true
 }
 
@@ -112,7 +169,15 @@ async function bevestig() {
   }
 }
 
-onMounted(laad)
+onMounted(() => {
+  laad()
+  document.addEventListener('keydown', _vKeydown, true)
+  document.addEventListener('click', _vClick, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', _vKeydown, true)
+  document.removeEventListener('click', _vClick, true)
+})
 defineExpose({ status, openDialog, herlaad: laad })
 
 const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }) : '')
@@ -128,22 +193,76 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
       data-testid="mg-status"
     />
 
+    <!-- ADR-052 slice 3c — bij de status alleen wie/wanneer; de reden verschijnt achter de
+         waarschuwing (klik), niet permanent in beeld. -->
     <p v-if="verklaring" data-testid="mg-door" class="mt-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
       door {{ verklaring.verklaard_door_naam || verklaring.verklaard_door || 'onbekend' }} · {{ _datum(verklaring.verklaard_op) }}
     </p>
-    <p v-if="verklaring" data-testid="mg-reden" class="mt-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] whitespace-pre-wrap">
-      <span class="font-semibold">Reden:</span> {{ verklaring.reden }}
-    </p>
 
-    <p
-      v-if="heeftAfwijking"
-      role="status"
-      data-testid="mg-afwijking"
-      class="mt-[var(--lk-space-sm)] flex items-center gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-warning)]"
+    <!-- ADR-052 slice 3b — de amber regels zijn klikbaar en openen HETZELFDE verantwoordingsvenster
+         (reden/wie/wanneer + bevroren snapshot). Eén klaarverklaring = één besluit → één venster.
+         De regels blijven LIVE (checklist-stand resp. norm-stand); het venster toont de bevroren
+         stand bij het verklaren. -->
+    <div
+      v-if="heeftAfwijking || heeftNormAfwijking"
+      ref="verantwoordingWortel"
+      class="relative mt-[var(--lk-space-sm)] flex flex-col gap-[var(--lk-space-xs)]"
     >
-      <span aria-hidden="true">⚠</span>
-      Klaar verklaard terwijl {{ openVragen }} van {{ aantalVragen }} vragen nog open staan.
-    </p>
+      <button
+        v-if="heeftAfwijking"
+        type="button"
+        data-testid="mg-afwijking"
+        :aria-expanded="verantwoordingOpen ? 'true' : 'false'"
+        :aria-controls="PANEEL_ID"
+        aria-label="Klaar verklaard met afwijking — bekijk de verantwoording"
+        class="flex w-full items-center gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-left text-[length:var(--lk-text-sm)] text-[var(--lk-color-warning)] underline decoration-dotted underline-offset-2 hover:bg-[color-mix(in_srgb,var(--lk-color-warning)_18%,transparent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-warning)]"
+        @click="openVerantwoording"
+      >
+        <span aria-hidden="true">⚠</span>
+        <span>Klaar verklaard terwijl {{ openVragen }} van {{ aantalVragen }} vragen nog open staan.</span>
+      </button>
+
+      <!-- Norm-afwijking (LIVE): dooft zodra de feiten alsnog worden vastgesteld (historie blijft). -->
+      <button
+        v-if="heeftNormAfwijking"
+        type="button"
+        data-testid="mg-norm-open"
+        :aria-expanded="verantwoordingOpen ? 'true' : 'false'"
+        :aria-controls="PANEEL_ID"
+        aria-label="Klaar verklaard met openstaande verplichte feiten — bekijk de verantwoording"
+        class="flex w-full items-start gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-left text-[length:var(--lk-text-sm)] text-[var(--lk-color-warning)] underline decoration-dotted underline-offset-2 hover:bg-[color-mix(in_srgb,var(--lk-color-warning)_18%,transparent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-warning)]"
+        @click="openVerantwoording"
+      >
+        <span aria-hidden="true">⚠</span>
+        <span>Klaar verklaard, maar {{ normOpen.length }} verplicht{{ normOpen.length === 1 ? ' feit is' : 'e feiten zijn' }} nog niet vastgesteld: {{ normOpenLabels.join(', ') }}.</span>
+      </button>
+
+      <!-- Gedeeld verantwoordingsvenster (read-only, ook voor de viewer). Toont juist wat je nog
+           NIET zag: de reden + de bevroren stand bij het verklaren (wie/wanneer staat al bij de
+           status). Positie via de gedeelde bouwsteen (fixed, flipt/klemt binnen beeld). -->
+      <div
+        v-show="verantwoordingOpen"
+        ref="verantwoordingPaneel"
+        :id="PANEEL_ID"
+        role="region"
+        aria-label="Verantwoording van de klaarverklaring"
+        data-testid="mg-verantwoording"
+        :style="verantwoordingStijl"
+        class="z-20 w-80 max-w-[90vw] rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-sm)] shadow-[var(--lk-shadow-md)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text)]"
+      >
+        <p class="font-semibold">Verantwoording</p>
+        <p data-testid="mg-verantwoording-reden" class="mt-[var(--lk-space-xs)] whitespace-pre-wrap">
+          <template v-if="verklaring && verklaring.reden">{{ verklaring.reden }}</template>
+          <span v-else class="text-[var(--lk-color-text-muted)] italic">Geen reden opgegeven.</span>
+        </p>
+        <div v-if="snapshotLabels.length" data-testid="mg-verantwoording-snapshot" class="mt-[var(--lk-space-sm)]">
+          <p class="text-[var(--lk-color-text-muted)]">Nog niet vastgesteld bij het verklaren:</p>
+          <ul class="mt-[var(--lk-space-xs)] list-disc pl-[var(--lk-space-md)]">
+            <li v-for="f in snapshotLabels" :key="f">{{ f }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
 
     <!-- Handel-dialog (trigger staat in de knoppenrij van het ouder-scherm → openDialog()). -->
     <Dialog
@@ -163,6 +282,21 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
         >
           Let op: {{ openVragen }} van {{ aantalVragen }} vragen staan nog open.
         </p>
+        <!-- ADR-052 slice 3 — de norm in beeld bij het verklaren: welke verplichte feiten nog niet
+             vastgesteld zijn. De machine houdt niets tegen; de consultant beslist bewust. -->
+        <div
+          v-if="toontNormAfwijking"
+          data-testid="mg-dialog-norm"
+          class="rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
+        >
+          <p class="font-semibold text-[var(--lk-color-warning)]">Nog niet vastgesteld (tenant-norm):</p>
+          <ul class="ml-[var(--lk-space-md)] list-disc">
+            <li v-for="f in normOpenLabels" :key="f" :data-testid="`mg-norm-feit-${f}`">{{ f }}</li>
+          </ul>
+          <p class="mt-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)]">
+            Je kunt tóch klaar verklaren (bewust besluit, wordt vastgelegd) of eerst aanvullen.
+          </p>
+        </div>
         <div class="flex flex-col gap-[var(--lk-space-xs)]">
           <label for="mg-reden" class="font-semibold">Reden *</label>
           <Textarea
@@ -177,8 +311,8 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
           <span v-if="fouten.reden" id="mg-fout-reden" role="alert" data-testid="mg-fout-reden" class="text-[var(--lk-color-danger)] text-[length:var(--lk-text-sm)]">{{ fouten.reden }}</span>
         </div>
         <div class="flex justify-end gap-[var(--lk-space-md)]">
-          <Button label="Annuleren" severity="secondary" data-testid="mg-annuleer" @click="sluit" />
-          <Button :label="actieLabel" type="submit" :disabled="bezig" data-testid="mg-bevestig" />
+          <Button :label="toontNormAfwijking ? 'Eerst aanvullen' : 'Annuleren'" severity="secondary" data-testid="mg-annuleer" @click="sluit" />
+          <Button :label="bevestigLabel" type="submit" :disabled="bezig" data-testid="mg-bevestig" />
         </div>
       </form>
     </Dialog>

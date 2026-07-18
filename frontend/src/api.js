@@ -497,6 +497,11 @@ export const api = {
       request(`/component-bevindingen/component/${componentId}/${soort}`, { method: 'DELETE' }),
   },
 
+  // ADR-052 slice 3 — live norm-status per component ({ feiten: { feit: status } }).
+  componentNormen: {
+    status: (componentId) => request(`/component-normen/status/${componentId}`),
+  },
+
   // ADR-020 §0 (CD043) — tenant-leeszijde van de classificatie-catalogus: alleen
   // ACTIEVE opties per dimensie (voor formulier-checkboxen + rol-select).
   contractconfig: {

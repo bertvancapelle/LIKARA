@@ -66,6 +66,7 @@ from models.models import (  # noqa: E402
 )
 from schemas.component import ComponentCreate  # noqa: E402
 from schemas.component_contract import ComponentContractCreate  # noqa: E402
+from schemas.component_klaarverklaring import KlaarverklaringCreate  # noqa: E402
 from schemas.blokkade import BlokkadeUpdate  # noqa: E402
 from schemas.checklistscore import ChecklistscoreCreate, ChecklistscoreUpdate  # noqa: E402
 from schemas.contract import ContractCreate  # noqa: E402
@@ -74,6 +75,7 @@ from schemas.partij import PartijCreate, PartijUpdate  # noqa: E402
 from schemas.gebruikersgroep import GebruikersgroepCreate  # noqa: E402
 from services import (  # noqa: E402
     component_bevinding_service,
+    component_klaarverklaring_service,
     component_contract_service,
     component_service,
     blokkade_service,
@@ -1721,6 +1723,34 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
                 telling["component_bevindingen"] = telling.get("component_bevindingen", 0) + 1
             except RegistratieConflict:
                 pass  # idempotent, of er is tóch een echte registratie op dit component
+
+    # ADR-052 slice 3 — verrijkte klaarverklaring: de seed toont beide kanten van de norm.
+    #  (a) Klantportaal is norm-compleet (eigenaar/rol/contract/koppeling uit het scenario + BIV hier)
+    #      → klaar verklaard ZONDER openstaande feiten (geen badge, lege snapshot).
+    #  (b) Archiefbeheer is bewust kaal (geen eigenaar/rol/BIV) → klaar verklaard MÉT openstaande
+    #      verplichte feiten (badge "N verplichte feiten open" + bevroren snapshot).
+    _kp = app_id.get("Klantportaal")
+    if _kp is not None:
+        kp = (await session.execute(
+            select(Component).where(Component.tenant_id == tid, Component.id == _kp)
+        )).scalar_one_or_none()
+        if kp is not None:
+            kp.biv_beschikbaarheid = kp.biv_beschikbaarheid or "midden"
+            kp.biv_integriteit = kp.biv_integriteit or "midden"
+            kp.biv_vertrouwelijkheid = kp.biv_vertrouwelijkheid or "midden"
+            await session.commit()
+    for _cid, _reden in (
+        (_kp, "Beoordeeld: alle verplichte feiten vastgesteld, migratieklaar."),
+        (app_id.get("Archiefbeheer"), "Migratieklaar verklaard; enkele registraties volgen later."),
+    ):
+        if _cid is None:
+            continue
+        try:
+            await component_klaarverklaring_service.maak_aan(
+                session, tid, KlaarverklaringCreate(component_id=_cid, reden=_reden))
+            telling["klaarverklaringen"] = telling.get("klaarverklaringen", 0) + 1
+        except RegistratieConflict:
+            pass  # idempotent: de klaarverklaring bestaat al
 
     return telling
 

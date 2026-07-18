@@ -322,6 +322,20 @@ export const KLAARVERKLARING_SEVERITY = {
   open: 'secondary',
 }
 
+// ── ADR-052 — harde feiten van de tenant-norm (leesbare labels bij de klaarverklaring) ──
+export const NORM_FEIT_LABEL = {
+  eigenaar: 'Eigenaar-organisatie',
+  verantwoordelijke: 'Verantwoordelijke',
+  biv: 'BIV-classificatie',
+  gebruikersgroep: 'Gebruikersgroep',
+  bedrijfsfunctie: 'Bedrijfsfunctie',
+  levensfase: 'Levensfase',
+  bedoeling: 'Bedoeling (migratiepad)',
+  hosting: 'Hostingmodel',
+  koppelingen: 'Koppelingen',
+  contract: 'Contract',
+}
+
 // ── ADR-020 contractregister ─────────────────────────────────────────────────
 
 export const CONTRACTTYPE = {

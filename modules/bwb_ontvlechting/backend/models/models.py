@@ -1437,6 +1437,13 @@ class ComponentKlaarverklaring(Base, TenantMixin, TimestampMixin):
     verklaard_door_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
     verklaard_door: Mapped[str | None] = mapped_column(String(255), nullable=True)
     verklaard_op: Mapped[datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    # ADR-052 slice 3 — bevroren snapshot: de verplichte norm-feiten die op het moment van klaar
+    # verklaren NIET vastgesteld waren (server-berekend uit `component_norm_service.norm_status`).
+    # Leeg = geen afwijking. `verklaard_op` = de peildatum. Echte kolom → de audit vangt de omslag
+    # (het auditeerbare wilsbesluit "kreeg deze open feiten voorgelegd en verklaarde toch klaar").
+    open_feiten: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, server_default=text("'{}'::text[]")
+    )
 
 
 class ComponentNorm(Base, TenantMixin, TimestampMixin):
