@@ -292,6 +292,24 @@ entiteiten dezelfde waarde delen (bv. één interne organisatie), fout zodra er 
 `GebruikersbeheerView.vue` (`beheerOrgKey`/`beheerAfdKey`); regressie: open twee gebruikers na elkaar
 en assert dat het label meebeweegt (`GebruikersbeheerView.test.js`, geen-stale-label).
 
+## Overlay-positionering (LI044) — een venster valt nooit buiten beeld
+
+Een overlay/popover (verantwoordingsvenster, veld-uitleg, klik-popup) **valt nooit buiten het
+zichtbare gebied**: **flip** boven↔onder naar de beschikbare ruimte + **horizontaal klemmen** binnen
+beeld, **herberekend bij openen én bij resize/scroll**. Gebouwd als gedeelde bouwsteen
+`frontend/src/composables/popoverPositie.js`:
+- **Rekenkern puur + unit-getest** — `berekenPopoverPositie({trigger, paneel, viewport})` beslist
+  flip/klem zonder layout-engine (jsdom doet geen layout — zie likara-tests, pure-functie-patroon);
+- **bedrading browser-geverifieerd** — `usePopoverPositie(paneelRef)` koppelt de kern aan
+  `getBoundingClientRect` + resize/scroll (`position: fixed`); de feitelijke plaatsing toets je in de
+  browser, niet in de suite.
+- **A11y blijft bij de aanroeper** (Escape/klik-buiten/focus-terug/aria) — dit gaat puur over plaatsing.
+
+**Elke overlay-consument hoort deze bouwsteen te dragen** (KERNLES LI038: "elk pad dat de regel kan
+omzeilen moet hem dragen, of het pad moet niet bestaan"). ⚠ **Eerlijke noot:** nu draagt alléén
+`MigratiegereedheidSectie` hem; **`VeldUitleg` is nog niet omgebouwd** (eigen `absolute`-overlay, 75
+views) — de borging is pas af als VeldUitleg de bouwsteen adopteert (OPVOLGPUNTEN).
+
 ## Cytoscape.js Vue 3 integratiepatroon (DC013, niet-onderhandelbaar)
 
 Cytoscape.js in een Vue 3 flex-container vereist vier dingen voor een correcte render.

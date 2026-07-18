@@ -7,6 +7,17 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI044 (2026-07-18) — overlay-borging
+
+- **`VeldUitleg`-overlay adopteert `popoverPositie.js`.** De positioneer-rekenkern
+  (`berekenPopoverPositie` + `usePopoverPositie`) is gedeeld en unit-getest, maar `VeldUitleg` draagt
+  hem nog **niet** — het gebruikt zijn eigen `absolute`-overlay (75 views). Per de KERNLES-vervolgregel
+  ("elk pad dat de regel kan omzeilen moet hem dragen, of het pad moet niet bestaan") is de
+  overlay-borging pas af als `VeldUitleg` is omgebouwd naar de bouwsteen. **Klein/eigen slice;
+  regressierisico:** `VeldUitleg` draait in-flow naast formulierlabels (`absolute`, scrollt mee); de
+  omzetting naar `fixed`/viewport-klem raakt 75 views → browserverificatie over meerdere schermen
+  vereist. Zie likara-frontend §Overlay-positionering (LI044).
+
 ### Nieuw uit LI043 (2026-07-17) — beoordelingsgrondslag & open-punten-overzicht
 
 1. ⭐ **Beoordelingsgrondslag — tenant-configureerbare waarde-norm + gewogen open-punten-overzicht per

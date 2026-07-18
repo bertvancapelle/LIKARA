@@ -193,6 +193,17 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
   distinct zijn + deterministisch bij herhaling). Referentie: `frontend/tests/kaartLayout.test.js`. De
   fijn-afstemming van leesbaarheid (labelbreedte, ratio) is een **browsercheck-criterium** — headless
   meet geen tekst.
+- **Pure-functie-patroon: is de DOM/layout niet unit-testbaar, test dan de BESLISSING (LI044).** jsdom/
+  happy-dom doen **geen layout** (`getBoundingClientRect` = 0, geen `innerHeight`-effect), dus is een
+  positioneer-/flip-beslissing niet zinvol te asserten via de gerenderde DOM. **Extraheer de beslissing
+  als pure functie** en test díé (in-/uitvoer); verifieer de DOM-bedrading in de **browser**. Generieke
+  tegenhanger van de "assert op zichtbare tekst"-regel (LI040): waar het beeld niet renderbaar toetsbaar
+  is, toets je de logica die het beeld bepaalt. Referentie: `berekenPopoverPositie` (puur, 4 tests) +
+  `usePopoverPositie` (bedrading, browsercheck); `frontend/tests/popoverPositie.test.js`.
+- **`wrapper.isVisible()`-gotcha (LI044): onbetrouwbaar zonder `attachTo: document.body`.** Zonder
+  `attachTo` gaf `isVisible()` een vals-positief op een `v-show`-verborgen paneel; assert dan op het
+  style-attribuut (`v-show` schrijft `display: none`) — `expect(el.attributes('style') || '').toContain('display: none')` —
+  óf mount met `attachTo: document.body` (zoals de VeldUitleg-tests, die daarom `isVisible()` wél mogen gebruiken).
 
 ## Offline-grens (bewust)
 

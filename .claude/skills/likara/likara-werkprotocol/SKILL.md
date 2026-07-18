@@ -98,6 +98,10 @@ aangeroepen". Verkies dit boven een afspraak of een test.
 - `AKKOORD: commit` wordt **uitsluitend door Bert, rechtstreeks in CC** gegeven — **nooit**
   door claude.ai in een opdracht-`.md` geschreven (een `.md` bevat alleen `START:`-instructies).
   Zo commit CC nooit op bestandsinhoud.
+- **Doc/checkpoint krijgt een eigen commit-akkoord (W5, LI044).** Een checkpoint/doc lift niet mee met
+  bouwwerk — het krijgt zijn eigen `AKKOORD: commit`. **Uitzondering:** een **ADR en het read-only
+  checkpoint dat hem grondt** landen in **één** commit; de ADR verwijst ernaar met `Grond:`. (LI044:
+  ADR-052 + `docs/Checkpoint-…-V044.md` samen gecommit, de ADR draagt `| Grond | … |`.)
 
 ### Stapelen in één werktree — alléén bij samenhangend, samen-committend werk (ADR-040)
 
@@ -207,6 +211,13 @@ groene tests. De regel is niet nieuw — dit is opnieuw bewijs dat de browserche
 niet: een groene test zag "knop verborgen bij magBewerken=false", maar niet dat verwijderen een
 **ánder** recht eist dan bewerken (medewerker zag de knop en kreeg pas een 403 in de dialoog).
 Bij elke slice die rol-gating raakt bevat het draaiboek stappen als medewerker én als beheerder.
+
+**Seed de demostaat zó dat de browsercheck iets te zien geeft (LI044).** Een browsercheck toetst een
+leeg scherm als de demodata het te tonen verschijnsel niet draagt — een norm-badge is pas zichtbaar
+bij een genormeerd, klaar-verklaard component **mét** open feiten. Prepareer die staat (idempotent, op
+de dev-tenant, exact wat de seed doet) vóór het draaiboek, en benoem in het draaiboek welk component
+welk geval toont. Leesbare tegenhanger van de walkthrough-baseline-regel (benoemde begintellingen).
+(LI044: Archiefbeheer = klaar mét open feiten → badge; Klantportaal = norm-compleet → geen badge.)
 
 ## Tool-cadans richting productie (LI042 — vaste stappen)
 

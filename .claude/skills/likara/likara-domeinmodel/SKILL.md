@@ -558,6 +558,12 @@ hebben. Ze raken de engine nooit.
 
 8. **Generalisatie-discipline n≥2** — abstraheer een patroon pas als er twee
    concrete instanties zijn; bouw de tweede naast de eerste vóór je abstraheert.
+   **Vorm convergeert eerder dan schema (aanscherping, LI044):** convergeer bij n=2 wat duplicatie
+   écht pijn doet — de gedeelde UI-/gedragsbouwsteen; laat de **opslag/het schema gespiegeld** (twee
+   dunne tabellen op dezelfde leest) tot een **derde drager** een unificatie rechtvaardigt. (LI044:
+   de "bewust geen"-UI convergeerde naar één `BewustGeenControl.vue` (2 consumenten), maar de opslag
+   bleef gespiegeld — nieuwe `component_bevinding`-tabel náást de embedded `Functievervulling.geen_systeem`,
+   niet één tabel geforceerd.)
 
 9. **Intern/extern is een vlag, niet een tabel** — de grens is een kenmerk op de
    partij, geen apart datamodel.
@@ -912,7 +918,44 @@ opgelost"*) van *meervoud* naar **elke gelijkwaardige keuze**: tel ze of noem ze
 nooit stil één uit. De meervoud-regel is het eerste/tweede gezicht van deze kernregel, geen aparte
 regel.
 
+**Vierde toepassing — twee semantisch verschillende afwijkingen blijven distinct (D4, LI044).** Voeg
+afwijkingen met **verschillende betekenis** niet samen in één teller/signaal: `klaar_met_afwijking`
+("checklist niet compleet") en de norm-afwijking ("verplichte feiten niet vastgesteld") zijn andere
+dingen; samengevoegd in één dashboardteller misleiden ze (dezelfde "twee waarheden, elk heel" als de
+ADR-052-invariant). Reikwijdte-uitbreiding naar dashboard/lijst is een **eigen besluit**, geen
+bijvangst. (LI044: de norm-afwijking leeft bewust alléén als badge op het component —
+`MigratiegereedheidSectie` —, niet in `dashboard_service.klaar_met_afwijking`.)
+
 **Deze kernregel bijt alleen mét de adversariële checkvraag vóór de bouw** (likara-werkprotocol):
 drie van de vier stille keuzes hierboven zijn niet door een test maar door een **read-only
 checkvraag vóór de bouw** gevangen. De regel benoemt de fout achteraf; de checkvraag houdt hem
 vooraf tegen. Zonder die stap is deze kernregel een spreuk — de twee horen bij elkaar.
+
+## LI044/ADR-052 — Norm & vastgesteld
+
+*(Derde gezicht van de LI041-kernregel toegepast op de tenant-norm: afwezigheid wordt nooit stil als
+antwoord gelezen. De MVP-vorm van de latere beoordelingsgrondslag.)*
+
+- **Vastgesteld = een echt antwoord, niet "veld gevuld" (D1).** Een verplicht feit telt pas als het
+  een echt antwoord draagt. Tellen alle drie als **niet** vastgesteld: een **leeg** veld, een
+  **sentinel** die "geen antwoord" betekent (`hostingmodel = onbekend`), én — bij de relationele
+  feiten — "er is nog **nooit** naar gekeken". Afwezigheid wordt nooit stil als antwoord gelezen; de
+  mens stelt vast. Dit is de smalste, eerlijke vorm die de placeholder-val vermijdt zonder een volle
+  waarde-norm te bouwen. Referentie: `component_norm_service.norm_status` (`hostingmodel==onbekend` →
+  `niet_vastgesteld`; leeg → idem), ADR-052 besluit 2.
+- **Geen norm = geen eis; de norm degradeert netjes (D5).** Een feit zónder norm-rij telt als
+  **niet-verplicht** — het overzicht werkt óók zonder ingerichte norm, scherper mét. Referentie:
+  `component_norm_service.haal_norm` (`opgeslagen.get(feit, False)`); `norm_status` weegt alleen de
+  verplicht-gestelde feiten.
+- **"Bewust geen" als volwaardig antwoord — write-guard + read "real wins" (D2).** Waar "nul"
+  dubbelzinnig is (koppelingen, contract), krijgt de mens een uitspreekbaar **"bewust geen"** —
+  streng onderscheiden van "nog niet gekeken" (dezelfde vorm als de bedrijfsfunctie-"bewust niets",
+  ADR-044/049). Borg langs **twee lijnen uit één bron**, zonder zichtbare tegenspraak:
+  - **write-guard:** `registreer_geen` weigert (409 `REGISTRATIE_BESTAAT`) als er al een échte
+    koppeling/contract is;
+  - **read "real wins":** een echte registratie telt als vastgesteld zodra ze bestaat, **ongeacht**
+    een achterhaalde bevinding.
+  **Nooit de generieke `relatie_service` hiervoor verbouwen** (invasieve koppeling, brede blast-radius);
+  de bevinding is een eigen component-verankerd feit. Referentie: `component_bevinding_service`
+  (`registreer_geen`/`heeft_echte_registratie`/`soorten_van_component`), gelezen door `norm_status`.
+  Vorm-convergentie: zie harde regel 8 (UI convergeert bij n=2, opslag blijft gespiegeld).

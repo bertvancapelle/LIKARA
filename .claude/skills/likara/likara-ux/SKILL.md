@@ -62,6 +62,11 @@ tenant-onderscheid**. Dus:
   gebruikerswereld.
 - Verenigbaar met het bovenstaande: bouw **generiek** (geen hardcoding), maar voeg **geen
   per-tenant-differentiatielogica** toe zolang er één tenant is.
+- **Een tenant-wens versmalt nooit de platform-default (W4, LI044).** Een tenant die een feit niet
+  hanteert, zet het in zijn eigen norm/configuratie **uit** — dat is tenant-configuratie. Het is nóóit
+  een reden een feit uit de **meegeleverde platform-default** te verwijderen: de default geldt voor
+  elke tenant en versmalt niet mee met één gebruiker. (LI044: BvoWB hanteert geen BIV → BIV blijft in
+  `DEFAULT_VERPLICHT`; de tenant zet 'm uit, de default blijft compleet.)
 
 Twee concrete missers die deze skill voorkomt (DC012):
 1. **Partij-detailscherm met drie leeslijsten en geen enkele toevoeg-knop.** De gebruiker
@@ -486,6 +491,15 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   verantwoordingsmoment (wie · wanneer · welk getoond gevolg · bewust akkoord). Lichte, triviaal-
   omkeerbare, additieve handelingen (koppelen, gebruikersgroep tóevoegen) krijgen géén drempel. Het uit
   te voeren werk staat in **OPVOLGPUNTEN L1a** (niet hier dupliceren).
+  - **De drempel hangt aan de AFWIJKING, niet aan de handeling (U1, LI044 — expliciete uitzondering op
+    L1a).** Dezelfde handeling is licht óf zwaar afhankelijk van de afwijking: een component klaar
+    verklaren is normaal een lichte vooruit-handeling (L1a: "vooruit-handelingen blijven licht"), maar
+    klaar verklaren **terwijl de tenant-norm afwijkt** (verplichte feiten nog niet vastgesteld) is het
+    bewust overrulen van de gemeente-norm en verdient dáárom het rijke, auditeerbare akkoord met de
+    open feiten benoemd (of "eerst aanvullen" — geen doodlopend pad). De drempel zit in de afwijking,
+    niet in het verklaren; leg deze uitzondering expliciet vast zodat een latere sessie L1a niet leest
+    als "klaar verklaren is altijd licht". Referentie: ADR-052 besluit 5 + §L1a-uitzondering,
+    `MigratiegereedheidSectie` (`toontNormAfwijking` → `bevestigLabel`).
 - **Weigeringen en fouten zijn zichtbaar, nooit alléén kleur.** MeldingBanner: kleur +
   icoon + tekst, bóven de invoervelden (leesvolgorde vóór het te corrigeren veld), met
   scroll-vangnet; de melding verdwijnt zodra de invoer wijzigt. Een 409 "bestaat al" is
@@ -556,6 +570,10 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   **inklap** (herkomst per component, standaard dicht) → **popup/detailscherm** (volledige
   uitsplitsing + doorklik). Nooit alle detail front-loaden (de "Vervuld door"-tekstmuur
   was de aanleiding); geldt als leidend principe voor elke roll-up-/bundel-weergave.
+  **Context die alleen bij een afwijking telt, hoort achter de waarschuwing, niet permanent bij de
+  status (U3, LI044):** een reden bij een klaarverklaring staat niet vast in beeld — de waarschuwing
+  die de vraag "waarom toch?" oproept ís de ingang naar de reden + stand-bij-het-besluit; de verdieping
+  herhaalt niet wat er al boven staat.
 
 ## LI037 — kaartpatronen: proces-ingang, inzoom, boom vs. netwerk
 
@@ -688,3 +706,23 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   **scope-regel** die benoemt wát je ziet ("met componenten van dit type wordt werk gedaan") is
   **altijd waar**; een verklaring van afwezigheid niet. Verfijnt de LI039-regel "weren vooraf én
   uitleggen waarom": de uitleg krijgt de vorm van een zékere scope-regel. *(velduitleg.js:286.)*
+
+## LI044 — Eén norm-definitie, twee peildata (ADR-052)
+
+**Eén norm-definitie, twee peildata (U2).** Een afgeleid signaal en zijn vastlegging lezen uit
+**dezelfde** definitie, maar tegen **verschillende peildata** — en dat onderscheid mag niet vervlakken:
+- **Het signaal leeft** — een **live** her-afleiding (de badge "klaar verklaard, maar N verplichte
+  feiten open") die vanzelf **dooft** zodra het feit alsnog is vastgesteld.
+- **De vastlegging bevriest** — een **snapshot** op het moment van het besluit (de open feiten bij het
+  klaar-verklaren + wie + wanneer) die **blijft staan**, ook nadat de feiten zijn aangevuld.
+- **Beide uit één definitie, nooit twee parallelle afleidingen** die uiteen kunnen lopen (dezelfde lijn
+  als "één bron, meerdere ingangen" — likara-domeinmodel §LI041-kernregel).
+
+**Nuance — de bevroren snapshot mág worden opgeslagen (schijnbaar in strijd met ADR-046 besluit 5).**
+De regel "afgeleide uitkomsten worden nooit opgeslagen" (LI040/ADR-046 besluit 5) geldt voor afgeleide
+**waarden** (readiness, zwaarte) — die tel je live, je bewaart ze niet, want een opgeslagen afleiding is
+een tweede waarheid. De klaarverklaring-snapshot is een **andere soort**: geen afgeleide waarde maar de
+**audit van een wilsbesluit** ("consultant X kreeg déze open feiten voorgelegd en verklaarde toch
+klaar"). Die bewaar je juist wél — de auditwaarde zit in de bevriezing. Benoem dit onderscheid expliciet
+zodat een latere sessie de snapshot niet als schending van ADR-046 besluit 5 leest. Referentie: ADR-052
+besluit 6, `component_klaarverklaring.open_feiten` (snapshot) vs. `norm_status` (live badge).
