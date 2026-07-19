@@ -1279,6 +1279,7 @@ function vooruitInHistorie() {
 // klik VERVANGT de open popup (zelfde refs). Engine onaangeroerd (alleen lezen via api).
 const popupOpen = ref(false)
 const popupKind = ref(null) // 'node' | 'edge'
+const popupEdgeRing = ref(null) // LI046 slice 3 — de leeg-melding is flow-specifiek
 const popupTitel = ref('')
 const popupBadge = ref(null) // 'Inkomend' | 'Uitgaand' (alleen koppeling t.o.v. ego)
 const popupLaden = ref(false)
@@ -1307,7 +1308,7 @@ const fullscreen = ref(false)
 // uiteenlopende drempels meer. (NB: backend-nodes dragen het componenttype als `element_type`, nooit
 // letterlijk 'component' — daarom is `laag==='application'` de juiste, bredere conditie.)
 const _heeftComponentDetail = (n) => !!n && (n.element_type === 'applicatie' || n.laag === 'application')
-function _detailLink(node) {
+function _detailLink(node, aanleiding = null) {
   if (!node) return null
   // LI046 — de kaart vertaalt zijn node naar de canonieke objectsoort; de ROUTE komt uit de
   // gedeelde ingang (`detailRoute`). Kaart-nodes dragen het componenttype als `element_type`
@@ -1321,7 +1322,7 @@ function _detailLink(node) {
           ? 'component'
           : null
   if (!soort) return null
-  const route = detailRoute(soort, node.id)
+  const route = detailRoute(soort, node.id, aanleiding)
   if (!route) return null
   const label = { partij: 'Open partij →', contract: 'Open contract →', component: 'Open component →' }[soort]
   return { label, fn: () => router.push(route) }
@@ -1330,6 +1331,7 @@ function _detailLink(node) {
 function sluitPopup() {
   popupOpen.value = false
   popupKind.value = null
+  popupEdgeRing.value = null
   popupTitel.value = ''
   popupBadge.value = null
   popupVelden.value = []
@@ -1539,6 +1541,107 @@ function _flowRij(r, edge) {
   }
 }
 
+// ── LI046 slice 3 — per-ring-takken van de edge-popup. Elke ring vertelt zijn EIGEN
+// verhaal; de dekking is geborgd met een test (RINGEN ⊆ _EDGE_TAKKEN — zie
+// LandschapskaartPopups.test.js): een nieuwe ring zonder tak laat de suite falen. Valt
+// er op runtime tóch een onbekende ring doorheen, dan toont de fallback een neutraal
+// bron→label→doel-verhaal — nooit meer een lege bevinding over een ander relatietype
+// (de "Geen koppelingen gevonden."-bug op de gebruikt-lijn).
+// Een tak geeft { titel, velden, aanleidingBron?, aanleidingDoel?, laadGebruikStand? }
+// terug; de aanleidingen reizen mee met de doorklik (gedeelde ingang, slice 1/2).
+const _EDGE_TAKKEN = {
+  applicaties: null, // flow — het master-detail-pad met API-call (in openEdgePopup zelf)
+  rollen: ({ edge, bronNaam, doelNaam }) => ({
+    titel: edge.label || 'Rol',
+    velden: [_veld('Partij', bronNaam), _veld('Object', doelNaam)],
+  }),
+  // LI034 slice 3 — de contracten-ring draagt twee soorten lijnen: component→contract
+  // ("valt onder") en contract→leverancier ("geleverd door"); onderscheid via relatietype.
+  contracten: ({ edge, bronNaam, doelNaam }) =>
+    edge.relatietype === 'leverancier'
+      ? { titel: 'Geleverd door', velden: [_veld('Contract', bronNaam), _veld('Leverancier', doelNaam)] }
+      : {
+          titel: 'Valt onder contract',
+          velden: [_veld('Component', bronNaam), _veld('Contract', doelNaam)],
+          aanleidingBron: { tab: 'contracten' }, // het feit leeft op de Contracten-tab
+        },
+  infrastructuur: ({ bronNaam, doelNaam }) => ({
+    titel: 'Draait op',
+    velden: [_veld('Component', doelNaam), _veld('Host', bronNaam)],
+  }),
+  // ADR-033 1b — samenstelling: bron=geheel → doel=onderdeel ("bestaat uit").
+  samenstelling: ({ bronNaam, doelNaam }) => ({
+    titel: 'Samenstelling',
+    velden: [_veld('Geheel', bronNaam), _veld('Onderdeel', doelNaam)],
+  }),
+  // ADR-024 — hoort bij: bron (persoon/afdeling) → doel (afdeling/organisatie).
+  organisatiestructuur: ({ bronNaam, doelNaam }) => ({
+    titel: 'Hoort bij',
+    velden: [_veld('Onderdeel', bronNaam), _veld('Hoort bij', doelNaam)],
+  }),
+  // ADR-043 gate 4 — twee lijnsoorten: plek-hiërarchie ("onderdeel van") en systeem→plek
+  // ("ondersteunt", het antwoord ná verdringing — nooit een verdrongen systeem).
+  bedrijfsfuncties: ({ edge, bronNaam, doelNaam }) =>
+    edge.relatietype === 'functie_plaatsing'
+      ? { titel: 'Onderdeel van', velden: [_veld('Functie', bronNaam), _veld('Onderdeel van', doelNaam)] }
+      : {
+          titel: 'Ondersteunt',
+          velden: [_veld('Systeem', bronNaam), _veld('Bedrijfsfunctie', doelNaam)],
+          aanleidingBron: { tab: 'bedrijfsfunctie' }, // het feit leeft op de Bedrijfsfunctie-tab
+        },
+  gebruikers: ({ nodeDoel, bronNaam, doelNaam }) => ({
+    titel: 'Gebruikt door',
+    velden: [
+      _veld('Component', bronNaam),
+      _veld('Gebruikersgroep', doelNaam),
+      nodeDoel?.aantal_leden ? { label: 'Leden', waarde: String(nodeDoel.aantal_leden) } : null,
+    ],
+  }),
+  // LI046 slice 3 — de twee ringen die eerder stil in het koppeling-pad vielen.
+  // Eigenaar: read-only projectie van `component.eigenaar_organisatie_id`; de doorklik
+  // landt bij het feit (veld-anker uit slice 2).
+  eigenaar: ({ bronNaam, doelNaam }) => ({
+    titel: 'Eigenaar',
+    velden: [_veld('Organisatie', bronNaam), _veld('Component', doelNaam)],
+    aanleidingDoel: { veld: 'eigenaar' },
+  }),
+  // Gebruikt: het grove gebruiksfeit (organisatiegebruik). De HARDHEID van het feit staat
+  // bovenaan — een stand, geen tekort (grof op organisatieniveau · verfijnd naar afdeling);
+  // async bijgeladen. De doorklik landt op de Gebruik-tab van het component.
+  gebruikt: ({ bronNaam, doelNaam }) => ({
+    titel: 'Gebruikt',
+    velden: [_veld('Organisatie', bronNaam), _veld('Component', doelNaam)],
+    aanleidingDoel: { tab: 'gebruik' },
+    laadGebruikStand: true,
+  }),
+}
+
+// De stand van het grove gebruiksfeit bijladen (grof/verfijnd) — de kaart-payload draagt
+// die niet op de edge. Zelfde taal als de leeslijst (ADR-046 stuk 2): verfijnd zonder
+// afdelingsnamen is "afdeling nog onbekend" — de normale stand na een eerste workshop,
+// geen fout; grof is een stand, geen verwijt.
+async function _laadGebruikStand(edge) {
+  popupLaden.value = true
+  try {
+    const rijen = await api.organisatiegebruik.lijstVoorApplicatie({ applicatie_id: edge.doel_id })
+    if (popupKind.value !== 'edge') return
+    const feit = (rijen || []).find((r) => r.organisatie_id === edge.bron_id)
+    if (!feit) return // feit niet (meer) vindbaar → basisvelden blijven staan, geen verzonnen stand
+    const stand = feit.heeft_verfijning
+      ? feit.afdelingen?.length
+        ? `Verfijnd naar afdeling: ${feit.afdelingen.join(', ')}`
+        : 'Verfijnd — afdeling nog onbekend'
+      : 'Op organisatieniveau — nog niet verfijnd naar afdeling'
+    popupVelden.value = _velden([{ label: 'Stand', waarde: stand }, ...popupVelden.value])
+  } catch (e) {
+    popupMelding.value = e?.status === 403
+      ? 'Meer details niet beschikbaar (geen leesrecht).'
+      : 'Details konden niet geladen worden.'
+  } finally {
+    popupLaden.value = false
+  }
+}
+
 // Koppeling-popup (flow-edge) — ADR-023a Fase 4. Eén edge = een gericht applicatiepaar dat één
 // of meer flows bundelt. Haal ALLE flows van het ONGEORDENDE paar op, sorteer op naam, en toon
 // ze als master-detail (links lijst + richting-icoon, rechts detail). Geldt ook bij n=1.
@@ -1547,90 +1650,64 @@ async function openEdgePopup(edge) {
   const bronNaam = nodePerId.value[edge.bron_id]?.naam || '?'
   const doelNaam = nodePerId.value[edge.doel_id]?.naam || '?'
   popupKind.value = 'edge'
+  popupEdgeRing.value = edge.ring ?? null
   popupBadge.value = null
-  // B2 — doorklik naar bron/doel-entiteit waar die een eigen detailscherm heeft.
-  popupActies.value = [edge.bron_id, edge.doel_id]
-    .map((nid) => {
-      const node = nodePerId.value[nid]
-      const l = _detailLink(node)
-      return l ? { label: `Open ${node.naam} →`, fn: l.fn } : null
-    })
-    .filter(Boolean)
   popupMelding.value = null
   popupVelden.value = []
   popupFlows.value = []
   popupSelId.value = null
   popupOpen.value = true
-  // ADR-031 — niet-flow ringen: directe velden uit de edge + node-namen (geen API-call).
-  if (edge.ring !== 'applicaties') {
-    popupLaden.value = false
-    if (edge.ring === 'rollen') {
-      popupTitel.value = edge.label || 'Rol'
-      popupVelden.value = _velden([_veld('Partij', bronNaam), _veld('Object', doelNaam)])
-    } else if (edge.ring === 'contracten') {
-      // LI034 slice 3 — de contracten-ring draagt nu twee soorten lijnen: component→contract ("valt
-      // onder") en contract→leverancier ("geleverd door"). Onderscheid via het relatietype.
-      if (edge.relatietype === 'leverancier') {
-        popupTitel.value = 'Geleverd door'
-        popupVelden.value = _velden([_veld('Contract', bronNaam), _veld('Leverancier', doelNaam)])
-      } else {
-        popupTitel.value = 'Valt onder contract'
-        popupVelden.value = _velden([_veld('Component', bronNaam), _veld('Contract', doelNaam)])
-      }
-    } else if (edge.ring === 'infrastructuur') {
-      popupTitel.value = 'Draait op'
-      popupVelden.value = _velden([_veld('Component', doelNaam), _veld('Host', bronNaam)])
-    } else if (edge.ring === 'samenstelling') {
-      // ADR-033 1b — samenstelling: bron=geheel → doel=onderdeel ("bestaat uit").
-      popupTitel.value = 'Samenstelling'
-      popupVelden.value = _velden([_veld('Geheel', bronNaam), _veld('Onderdeel', doelNaam)])
-    } else if (edge.ring === 'organisatiestructuur') {
-      // ADR-024 — hoort bij: bron (persoon/afdeling) → doel (afdeling/organisatie).
-      popupTitel.value = 'Hoort bij'
-      popupVelden.value = _velden([_veld('Onderdeel', bronNaam), _veld('Hoort bij', doelNaam)])
-    } else if (edge.relatietype === 'functie_plaatsing') {
-      // ADR-043 gate 4 — plek-hiërarchie-lijn ("onderdeel van"): de functie is onderdeel van de
-      // bovenliggende functie; NIET de ondersteunt-vorm (dat is een andere relatie).
-      popupTitel.value = 'Onderdeel van'
-      popupVelden.value = _velden([
-        _veld('Functie', bronNaam),
-        _veld('Onderdeel van', doelNaam),
-      ])
-    } else if (edge.ring === 'bedrijfsfuncties') {
-      // ADR-043 gate 4 — systeem→plek-lijn: welk systeem ondersteunt déze bedrijfsfunctie-plek
-      // (het antwoord ná verdringing — de backend tekent nooit een verdrongen systeem).
-      popupTitel.value = 'Ondersteunt'
-      popupVelden.value = _velden([
-        _veld('Systeem', bronNaam),
-        _veld('Bedrijfsfunctie', doelNaam),
-      ])
-    } else if (edge.ring === 'gebruikers') {
-      popupTitel.value = 'Gebruikt door'
-      const gg = nodePerId.value[edge.doel_id]
-      popupVelden.value = _velden([
-        _veld('Component', bronNaam),
-        _veld('Gebruikersgroep', doelNaam),
-        gg?.aantal_leden ? { label: 'Leden', waarde: String(gg.aantal_leden) } : null,
-      ])
+  popupLaden.value = false
+
+  if (edge.ring === 'applicaties') {
+    popupActies.value = _edgeActies(edge)
+    popupTitel.value = `Koppelingen: ${bronNaam} ↔ ${doelNaam}`
+    popupLaden.value = true
+    try {
+      const p = await api.relaties.lijst({ paar_bron_id: edge.bron_id, paar_doel_id: edge.doel_id, relatietype: 'flow' })
+      if (popupKind.value !== 'edge') return
+      const rijen = (p.items || []).map((r) => _flowRij(r, edge))
+      rijen.sort((a, b) => String(a.naam).localeCompare(String(b.naam), 'nl'))
+      popupFlows.value = rijen
+      popupSelId.value = rijen[0]?.id ?? null // eerste rij automatisch geselecteerd
+    } catch (e) {
+      popupMelding.value = e?.status === 403
+        ? 'Meer details niet beschikbaar (geen leesrecht).'
+        : 'Details konden niet geladen worden.'
+    } finally {
+      popupLaden.value = false
     }
     return
   }
-  popupTitel.value = `Koppelingen: ${bronNaam} ↔ ${doelNaam}`
-  popupLaden.value = true
-  try {
-    const p = await api.relaties.lijst({ paar_bron_id: edge.bron_id, paar_doel_id: edge.doel_id, relatietype: 'flow' })
-    if (popupKind.value !== 'edge') return
-    const rijen = (p.items || []).map((r) => _flowRij(r, edge))
-    rijen.sort((a, b) => String(a.naam).localeCompare(String(b.naam), 'nl'))
-    popupFlows.value = rijen
-    popupSelId.value = rijen[0]?.id ?? null // eerste rij automatisch geselecteerd
-  } catch (e) {
-    popupMelding.value = e?.status === 403
-      ? 'Meer details niet beschikbaar (geen leesrecht).'
-      : 'Details konden niet geladen worden.'
-  } finally {
-    popupLaden.value = false
-  }
+
+  const tak = _EDGE_TAKKEN[edge.ring]
+  const verhaal = tak
+    ? tak({ edge, bronNaam, doelNaam, nodeDoel: nodePerId.value[edge.doel_id] })
+    : {
+        // Runtime-fallback (onbekende ring): eerlijk neutraal verhaal, nooit een lege
+        // bevinding over koppelingen. De dekkingstest hoort dit pad onbereikbaar te houden.
+        titel: edge.label || 'Relatie',
+        velden: [_veld('Van', bronNaam), _veld('Naar', doelNaam)],
+      }
+  popupTitel.value = verhaal.titel
+  popupVelden.value = _velden(verhaal.velden)
+  popupActies.value = _edgeActies(edge, verhaal)
+  if (verhaal.laadGebruikStand) await _laadGebruikStand(edge)
+}
+
+// B2 + LI046 — doorklik naar bron/doel wáár die een eigen detailscherm heeft, mét het
+// aangeklikte feit als aanleiding (gedeelde ingang): landen bij het feit, niet bovenaan.
+function _edgeActies(edge, verhaal = {}) {
+  return [
+    { id: edge.bron_id, aanleiding: verhaal.aanleidingBron || null },
+    { id: edge.doel_id, aanleiding: verhaal.aanleidingDoel || null },
+  ]
+    .map(({ id, aanleiding }) => {
+      const node = nodePerId.value[id]
+      const l = _detailLink(node, aanleiding)
+      return l ? { label: `Open ${node.naam} →`, fn: l.fn } : null
+    })
+    .filter(Boolean)
 }
 
 // Enkele- vs. dubbel-tap op een knoop (Cytoscape kent geen native dbltap). De enkele-
@@ -2634,7 +2711,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, _EDGE_TAKKEN, RINGEN, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -3249,7 +3326,7 @@ const typeLabel = (t) => humaniseer(t)
               <template v-if="popupGeselecteerd.omschrijving"><dt class="text-[var(--lk-color-text-muted)]">Omschrijving</dt><dd class="break-words">{{ popupGeselecteerd.omschrijving }}</dd></template>
             </dl>
           </div>
-          <p v-else-if="popupKind === 'edge' && !popupLaden && !popupMelding" data-testid="lk-popup-md-leeg" class="mt-2 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Geen koppelingen gevonden.</p>
+          <p v-else-if="popupKind === 'edge' && popupEdgeRing === 'applicaties' && !popupLaden && !popupMelding" data-testid="lk-popup-md-leeg" class="mt-2 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Geen koppelingen gevonden.</p>
           <p v-if="popupMelding" data-testid="lk-popup-melding" class="mt-2 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">{{ popupMelding }}</p>
           <div v-if="popupActies.length" class="mt-2 flex flex-col items-start gap-1">
             <button v-for="(a, i) in popupActies" :key="i" type="button" :data-testid="i === 0 ? 'lk-popup-actie' : `lk-popup-actie-${i}`" class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] text-white" @click="a.fn">{{ a.label }}</button>

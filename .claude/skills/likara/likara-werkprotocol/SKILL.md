@@ -209,6 +209,13 @@ en van de engine-invariant "geen tweede bron".
 
 ## Browsercheck vóór commit — niet-optioneel bij UX-/picker-/auth-slices (LI032)
 
+**Stap 0 van élk browsercheck-draaiboek (LI046, niet-optioneel):** na een slice die nieuwe
+bestanden of nieuwe importketens introduceert begint het draaiboek met **dev-server herstarten
+en de modulecache verwijderen** (`rm -rf node_modules/.vite` + `npm run dev` opnieuw), gevolgd
+door een harde refresh. Les LI046: een dagenlang draaiende Vite-server serveerde stale modules;
+de browser toonde oud gedrag terwijl de suite terecht groen was — de bevinding leek een codebug
+en was er (deels) geen. Zonder stap 0 is een browserbevinding niet interpreteerbaar.
+
 Een **groene testrun betrapt geen kapotte UX**: mocks verbergen een verkeerde picker-bron, een
 lege/onleesbare picker, voorvul-verdringing, een stale label, en een onnodige/foutgevoelige
 account-aanroep. Bewezen deze sessie — drie keer bleef de suite groen terwijl het scherm in de

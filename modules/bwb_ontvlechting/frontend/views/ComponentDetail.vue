@@ -263,8 +263,18 @@ function _initVanafQuery() {
   }
 }
 
+// LI046 — de bezoeker wint van het scherm: de URL-terugschrijf begint pas wanneer de
+// binnenkomst (deep-link/aanleiding) verwerkt is. Zonder deze poort kon de categorie-watch
+// (vragen arriveren async, zodra `component` gezet is middenin `laad()`) de terugschrijf
+// laten vuren op de BEGINSTAND en zo de aanleiding uit de URL wissen vóór `_initVanafQuery`
+// hem las. De poort zit op de verwerking als geheel — een later toegevoegd anker (nieuwe
+// query-parameter) erft hem automatisch, er is niets om per anker aan te denken. Borging:
+// tests/detailIngang.flow.test.js (landing op een component MET checklistvragen).
+let _binnenkomstVerwerkt = false
+
 // Actieve tab(s) terugschrijven naar de URL. Overzicht = schone URL; `router.replace` (geen history-spam).
 watch([activeTop, activeCat], () => {
+  if (!_binnenkomstVerwerkt) return // de aanleiding van de bezoeker is nog niet verwerkt
   const query = {}
   if (activeTop.value !== 'overzicht') query.tab = activeTop.value
   if (activeTop.value === 'checklist' && activeCat.value != null) query.cat = activeCat.value
@@ -303,11 +313,13 @@ function onNaarVraag({ code, categorieNr }) {
 // Navigatie component-detail → component-detail hergebruikt de instance; watch op props.id
 // (immediate) herlaadt + her-initialiseert de deep-link bij elke id-wissel.
 watch(() => props.id, async () => {
+  _binnenkomstVerwerkt = false // (her)binnenkomst: terugschrijf dicht tot de aanleiding gelezen is
   await laad()
   _initVanafQuery()
   laadSleutelrollen()
   // ADR-042 4b — deep-link /componenten/:id/bewerken (redirect) opent de bewerk-overlay.
   if (String(route.query.bewerk ?? '') === '1' && magBewerken.value) bewerkOverlayOpen.value = true
+  _binnenkomstVerwerkt = true
 }, { immediate: true })
 </script>
 

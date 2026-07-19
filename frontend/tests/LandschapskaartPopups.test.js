@@ -27,6 +27,7 @@ vi.mock('@/api', () => ({
     partijen: { haal: vi.fn() },
     relaties: { lijst: vi.fn() },
     impactViews: { lijst: vi.fn() }, // ADR-033 2c — view-lijst (hier leeg: geen startscherm)
+    organisatiegebruik: { lijstVoorApplicatie: vi.fn() }, // LI046 slice 3 — stand op de gebruikt-lijn
   },
 }))
 
@@ -79,6 +80,7 @@ beforeEach(() => {
   api.landschapskaart.haalGrafdata.mockResolvedValue(GRAF())
   api.landschapskaart.subgraaf.mockResolvedValue(GRAF()) // Fase B — set-modus = zelfde graaf
   api.impactViews.lijst.mockResolvedValue([]) // geen views → geen startscherm in deze suite
+  api.organisatiegebruik.lijstVoorApplicatie.mockResolvedValue([]) // default: geen feiten
 })
 afterEach(() => {
   wrappers.forEach((w) => w.unmount())
@@ -386,5 +388,70 @@ describe('Landschapskaart — fullscreen-overlay', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(w.vm.fullscreen).toBe(false)
+  })
+})
+
+
+// ── LI046 slice 3 — per-ring-takken: de kapotte gebruikt-/eigenaar-lijn + fallback ──
+describe('Landschapskaart — edge-popup per ring (LI046 slice 3)', () => {
+  it('gebruikt-lijn vertelt de stand (grof) — niet langer "Geen koppelingen gevonden."', async () => {
+    api.organisatiegebruik.lijstVoorApplicatie.mockResolvedValue([
+      { id: 'g1', organisatie_id: 'p1', applicatie_id: 'a1', heeft_verfijning: false, afdelingen: [] },
+    ])
+    const { w } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'gebruikt', label: 'gebruikt', relatietype: 'gebruikt' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Gebruikt')
+    expect(veld(w, 'Organisatie')).toBe('Gemeente X')
+    expect(veld(w, 'Component')).toBe('Zaaksysteem')
+    expect(veld(w, 'Stand')).toBe('Op organisatieniveau — nog niet verfijnd naar afdeling')
+    expect(w.find('[data-testid="lk-popup-md-leeg"]').exists()).toBe(false)
+  })
+
+  it('gebruikt-lijn verfijnd: stand toont de afdelingen', async () => {
+    api.organisatiegebruik.lijstVoorApplicatie.mockResolvedValue([
+      { id: 'g1', organisatie_id: 'p1', applicatie_id: 'a1', heeft_verfijning: true, afdelingen: ['Burgerzaken', 'KCC'] },
+    ])
+    const { w } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'gebruikt', label: 'gebruikt', relatietype: 'gebruikt' })
+    await flushPromises()
+    expect(veld(w, 'Stand')).toBe('Verfijnd naar afdeling: Burgerzaken, KCC')
+  })
+
+  it('gebruikt-doorklik naar het component draagt het feit mee (tab=gebruik)', async () => {
+    const { w, pushSpy } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'gebruikt', label: 'gebruikt', relatietype: 'gebruikt' })
+    await flushPromises()
+    await w.find('[data-testid="lk-popup-actie-1"]').trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'component-detail', params: { id: 'a1' }, query: { tab: 'gebruik' } })
+  })
+
+  it('eigenaar-lijn vertelt het eigendom en de doorklik landt op het eigenaar-veld', async () => {
+    const { w, pushSpy } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'eigenaar', label: 'is eigendom van', relatietype: 'eigenaar' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('Eigenaar')
+    expect(veld(w, 'Organisatie')).toBe('Gemeente X')
+    expect(w.find('[data-testid="lk-popup-md-leeg"]').exists()).toBe(false)
+    await w.find('[data-testid="lk-popup-actie-1"]').trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'component-detail', params: { id: 'a1' }, query: { veld: 'eigenaar' } })
+  })
+
+  it('een onbekende ring valt in de neutrale fallback — nooit een lege koppeling-bevinding', async () => {
+    const { w } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'toekomstring', label: 'nieuw verband', relatietype: 'x' })
+    await flushPromises()
+    expect(w.find('[data-testid="lk-popup-titel"]').text()).toBe('nieuw verband')
+    expect(veld(w, 'Van')).toBe('Gemeente X')
+    expect(veld(w, 'Naar')).toBe('Zaaksysteem')
+    expect(w.find('[data-testid="lk-popup-md-leeg"]').exists()).toBe(false)
+  })
+
+  it('dekking: élke ring van de kaart heeft een eigen popup-tak (vergeten = suite rood)', async () => {
+    const { w } = await mountView()
+    const takken = Object.keys(w.vm._EDGE_TAKKEN)
+    for (const ring of w.vm.RINGEN) {
+      expect(takken, `ring '${ring}' heeft geen tak in _EDGE_TAKKEN`).toContain(ring)
+    }
   })
 })

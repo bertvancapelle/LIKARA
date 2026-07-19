@@ -281,6 +281,13 @@ describe('ComponentDetail', () => {
     expect(w.find('[data-testid="klaarverklaar-knop"]').exists()).toBe(false)
   })
 
+  // ── LI046 — tab-aanleiding landt (de keten-variant mét vragen staat in detailIngang.flow.test.js) ──
+  it('?tab=gebruik landt op de Gebruik-tab', async () => {
+    const { w } = await mountDetail({ query: '?tab=gebruik' })
+    expect(w.find('#detailtabs-panel-gebruik').isVisible()).toBe(true)
+    expect(w.find('#detailtabs-panel-overzicht').isVisible()).toBe(false)
+  })
+
   // ── LI046 slice 2 — veld-anker (?veld=): landen op het Overzicht bij het veld ──
   it('markeert het veld uit ?veld= in de checklist-markeer-taal, met bewerkknop ernaast', async () => {
     const { w } = await mountDetail({ query: '?veld=eigenaar' })
