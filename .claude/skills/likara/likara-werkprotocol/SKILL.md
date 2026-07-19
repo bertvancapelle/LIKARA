@@ -53,6 +53,17 @@ bescherming**. De fix voerde de guard terug op de bestaande bescherming
 dekking op de handmatig toegevoegde `_weiger_modelinhoud`, niet op een structurele scan. Tot die
 test bestaat is dit een aanname, geen borging.
 
+**Vierde geval (LI046): een per-tak-regel wordt vergeten — maak er een invariant van, geen afspraak.**
+Twee regels die deze sessie tekstueel vastlagen en tóch misgingen: (1) de **`gebruikt`-tak** van de
+edge-popup ontbrak → de doorklik viel stil door naar het koppeling-pad; (2) twee binnenkomst-takken
+zetten `beginschermOpen = false`, de **derde niet** → de terugkeer tekende werk dat niemand zag. Beide
+"afgedekt" in proza. De fix in beide gevallen: **niet nóg een tak-regel opschrijven, maar de regel
+structureel onvergeetbaar maken** — een dekkingsscan (`RINGEN ⊆ _EDGE_TAKKEN`) resp. **één eenmalige
+regel ná de beslisboom** i.p.v. een vlag per tak (ADR-054 besluit 6). Vuistregel: **staat een regel
+"in elke tak/plek moet je X doen", dan is X vergeten wachten te gebeuren** — hef de herhaling op (één
+gedeelde plek) of laat een scan de afwezigheid vangen. Dit is KERNLES LI038 toegepast op fan-out:
+tekst dekt geen tak die nog niet bestaat.
+
 ## Scope voeren op de ids van je eigen domein (LI038)
 
 Voer een set-/scope-actie op de identiteiten van het domein dat je toont — niet op een
@@ -211,7 +222,9 @@ en van de engine-invariant "geen tweede bron".
 
 **Stap 0 van élk browsercheck-draaiboek (LI046, niet-optioneel):** na een slice die nieuwe
 bestanden of nieuwe importketens introduceert begint het draaiboek met **dev-server herstarten
-en de modulecache verwijderen** (`rm -rf node_modules/.vite` + `npm run dev` opnieuw), gevolgd
+en de modulecache verwijderen** (de vite-cache: `find frontend/node_modules/.vite -type f -delete`
++ `find frontend/node_modules/.vite -depth -type d -delete`, dán `npm run dev` opnieuw — **`rm`
+staat in de CC-deny-lijst**, dus `find … -delete`, zie de LI010-note), gevolgd
 door een harde refresh. Les LI046: een dagenlang draaiende Vite-server serveerde stale modules;
 de browser toonde oud gedrag terwijl de suite terecht groen was — de bevinding leek een codebug
 en was er (deels) geen. Zonder stap 0 is een browserbevinding niet interpreteerbaar.

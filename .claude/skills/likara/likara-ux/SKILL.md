@@ -797,3 +797,32 @@ besluit 6, `component_klaarverklaring.open_feiten` (snapshot) vs. `norm_status` 
 - **Taal volgt de gebruiker, niet het model (LI045-instantie van §5).** Gebruik het begrip waarop de
   gebruiker zoekt en dat een verantwoordelijke kent — **"Archiefwet"**, niet "houdt gegevens vast"
   (ADR-053). Analyse-/modeltaal hoort niet op het scherm; toets tegen het randgeval (§5).
+
+## LI046 — de kaart vertelt, het component verandert (ADR-054)
+
+Drie regels over de beweging kaart ↔ component. Alle drie vanuit de gebruiker; alle drie geborgd
+in code (zie likara-frontend §LI046 voor het hoe), niet in tekst.
+
+- **De kaart vertelt, het component verandert.** Er is **geen mutatie-ingang vanaf de kaart**. De
+  kaart is een lees-/verwijs-oppervlak: hij brengt je naar het feit; het wijzigen gebeurt op het
+  detailscherm. Bouw op de kaart nooit een "wijzig hier"-affordance.
+- **Je landt bij het feit waar je vandaan kwam.** Klik je op de kaart op een relatie/feit, dan land
+  je op de plek waar dát feit leeft (de juiste tab, of het gemarkeerde veld) — niet op een kale
+  detailpagina. De aanleiding leeft in de URL, dus de landing is **deelbaar en herstelbaar**.
+  - **Geen route beloofd waar niets te landen valt.** Bestaat er geen eerlijke landingsplek (een type
+    zónder detailscherm; een feit zónder anker), dan toont LIKARA **geen link** — nooit kaal landen
+    of "de dichtstbijzijnde tab" openen, want beide liegen. Het gat is zichtbaar (geen affordance),
+    niet verzwegen.
+  - **Een veld-anker markeert, het opent geen bewerk-modus.** `?veld=` markeert het veld op het
+    Overzicht met de Bewerken-knop ernaast; het duwt je niet ongevraagd in een invoerscherm. Reden:
+    **een gegokte eigenaar is erger dan een lege eigenaar** — LIKARA verzint geen antwoord, het brengt
+    je naar de plek en laat jou beslissen (spiegel van de kernregel §LI041 "verzint nooit een antwoord").
+- **En je komt terug waar je was.** Terugkeren of herladen **mét bewaard werk ís de expliciete
+  gebruikersactie** — de kaart tekent direct het bewaarde beeld; het beginscherm hoort bij een **verse
+  start** (herziet de oude LI023-vlag-regel voor de herstelde terugkeer; zie §LI023 + likara-frontend).
+  - **Is er niets meer om naar terug te keren, dan zegt LIKARA dát.** Een volledig verdwenen selectie
+    (de componenten bestaan niet meer) krijgt een **eerlijke, gedempte melding** ("De eerder gekozen
+    componenten bestaan niet meer", vervallen-taal — geen fout van de gebruiker) met de "Begin
+    opnieuw"-uitweg ter plekke, niet een zwijgzaam leeg canvas. Instantie van de eerlijk-gaten-tonen-
+    lijn (§LI034 "eerlijk gaten tonen"): een belofte ("je komt terug waar je was") draagt haar eigen
+    uitzondering.

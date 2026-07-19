@@ -1479,3 +1479,50 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   met opzettelijk foute voorbeelden draait bij elke run mee; (2) **geen vals-positieven**
   (template-only scannen, comments strippen, quote-bewust multi-line tags lezen) — een scan die
   vals alarm slaat wordt genegeerd en is erger dan geen scan.
+
+## LI046-patronen (één ingang naar een detailscherm — ADR-054, geverifieerd tegen de code)
+
+- **Eén gedeelde detail-ingang, geborgd met een scan.** Élke navigatie naar een detailscherm bouwt
+  zijn route via `frontend/src/detailIngang.js` → `detailRoute(objectType, id, aanleiding)`; de
+  type→route-map (`ROUTE_PER_TYPE`) leeft op **één** plek (de vier eerdere kopieën —
+  kaart `_detailLink`, `ArchitectuurView`, `ArchitectuurLagenView`, `PartijRollenSectie` — zijn
+  erin opgegaan). Ook een kale rij-klik loopt door de ingang (zonder aanleiding). Borging:
+  `tests/detailIngang.scan.test.js` (patroon `name:\s*['"](component|contract|partij)-detail['"]`,
+  recept `tests/api.filter.test.js`) faalt op elk bestand dat er tóch een eigen route-literal op
+  nahoudt. **De regel leeft in een scan, niet in tekst** (KERNLES LI038).
+- **De aanleiding leeft in de URL — promotie van het bestaande query-mechanisme.**
+  `AANLEIDING_SLEUTELS = {tab, cat, markeer, bewerk, veld}` (CD022-query + slice 2's `veld`), dus
+  deelbaar/herstelbaar/overleeft F5. Een **onbekende sleutel** is een **luide fout** (`detailRoute`
+  throwt, zelfde conventie als `_filterQuery` in `api.js`) — een aanleiding valt niet stil weg.
+- **Geen route beloofd waar niets te landen valt.** `detailRoute` geeft `null` voor een type zonder
+  detailscherm → de aanroeper toont **geen link** (nooit kaal landen of de dichtstbijzijnde tab
+  openen). `bedrijfsfunctie` → `bedrijfsfunctie-lijst` met `?focus=<id>` (geen detailscherm);
+  `proces` = MVP-verborgen, geen route. Onbekend **veld-anker** = luide fout (`VELD_ANKERS`).
+- **Veld-anker landt gemarkeerd, niet in bewerk-modus (slice 2, optie B).** `?veld=<anker>` markeert
+  het veld op het Overzicht (accent-achtergrond via `veldKlas`) en zet de **Bewerken-knop ernaast**
+  (`data-testid="veld-bewerk-knop"`) — géén ongevraagde bewerk-overlay. `VELD_ANKERS = {eigenaar,
+  biv, levensfase, bedoeling, beschrijving}` (`detailIngang.js`). De mens beslist; LIKARA opent de
+  plek, verzint geen invoer.
+- **De bezoeker wint van het scherm (volgorde-invariant).** Een detail-view die een deep-link/
+  aanleiding uit de URL leest én zijn sub-content **async** bijlaadt, mag zijn eigen URL-terugschrijf
+  pas starten **nadat de binnenkomst verwerkt is**. Referentie: `ComponentDetail.vue:273-322`
+  (`_binnenkomstVerwerkt`-poort op `schrijfTabNaarUrl`); zonder poort liet de async categorie-watch
+  (checklistvragen arriveren middenin `laad()`) de terugschrijf op de beginstand vuren en wiste de
+  aanleiding vóór `_initVanafQuery` hem las — op elk component mét checklistvragen. Elke nieuwe
+  aanleiding-lezende view met async sub-content erft deze poort-eis.
+- **Per-ring edge-popup-takken + dekkingsscan (het "vergeten gebruikt-tak"-bewijs).** De kaart-edge-
+  popup vertelt per ring zijn eigen verhaal via `_EDGE_TAKKEN` (`LandschapskaartView.vue:1566`);
+  borging `RINGEN ⊆ _EDGE_TAKKEN` (`tests/LandschapskaartPopups.test.js:452-454`) + een
+  **runtime-fallback** (neutraal verhaal bij een onbekende ring, `:1701`). Zonder de scan viel een
+  ring zonder tak **stil** door naar het koppeling-pad (de gebruikt-doorklik landde verkeerd). Een
+  nieuwe ring zonder tak faalt nu zichtbaar in de suite.
+- **Beginscherm-binnenkomst = één eenmalige regel (zie §LI023 hierboven, aangescherpt LI046).**
+  `beginschermOpen = actieveSet.size === 0` ná de beslisboom (`:2665`), voor álle takken; **per-tak-
+  vlaggen bestaan niet meer** (het "vergeten per-tak-vlag"-bewijs). Borging: de gedeelde regel wordt
+  getoetst via de herstelde-`lk-state`-tak + verse start + de verdwenen-selectie (`LandschapskaartView.test.js`
+  `:1607/:1617/:1632`); handoff/deep-link erven hetzelfde codepad (niet apart per tak uitgeoefend).
+- **Verdwenen selectie = eerlijke lege staat (`lk-leeg-verdwenen`).** Kom je terug met een selectie die
+  volledig weggeschoond is (spook-ids, LI052-prune), dan telt `setOpgeschoond` de weggeschoonde ids en
+  toont de view `data-testid="lk-leeg-verdwenen"` ("De eerder gekozen componenten bestaan niet meer" +
+  "Begin opnieuw"→`wisSet`) i.p.v. het zwijgzame `lk-leeg`. `setOpgeschoond` verandert het prune-gedrag
+  niet; het is het bewijs dat er zojuist iets wég was.
