@@ -5,23 +5,46 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V046 · 2026-07-18
-- **Commit:** code `f8a9142` ADR-052 slice 4c · `d748fcf` 4b · `aaeeb15` 4a · `6a0931a` S1 (schoon geval) ·
-  `3e74a47` C1 (feit-brug); docs `0c7860d` LI045-patronen in skills. Afsluitcommit LI045 (TST-V046 +
-  NEXT_SESSION + OPVOLGPUNTEN + PROJECTGEHEUGEN + build) volgt in deze afsluiting.
-- **Tests:** backend **1159 passed, 2 skipped, 0 failed** · frontend **93 files / 1202 passed** ·
+- **Build:** V047 · 2026-07-19
+- **Commit:** code `6651f1f` relaties op hoedanigheid · `3a72b35` linkerkolom-gate · `9ee6fcb` terugkeer
+  landt in de kaart · `61665a4` derde uitgang · `466eb7b`/`4dd1387`/`80d0038` slice 3/2/1; docs `aca7cb1`
+  LI046-patronen · `f7929a9` checkpoints · `bf67e67` ADR-054 + register · `3b7941f`/`70f2cbb` skills.
+  Afsluitcommit LI046 (TST-V047 + NEXT_SESSION + OPVOLGPUNTEN + PROJECTGEHEUGEN + build) volgt in deze afsluiting.
+- **Tests:** backend **1159 passed, 2 skipped, 0 failed** · frontend **97 files / 1248 passed** ·
   `vite build` ✅ · `test:css-build` ✅ · 0 kritieken.
-- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). Slice 4 was **sleutelgestuurd**
-  (nieuw feit = nieuwe sleutel in `component_norm`) — géén nieuwe migratie deze sessie.
-- **TST-rapport:** `docs/TST-V046-Validatierapport.md` (0 kritieken).
-- **Dev-DB:** GEMMA-model intact. De dev-seed draagt nu norm + "bewust geen" + demo-klaarverklaringen die
-  de vier normgevallen tonen (Archiefbeheer = beide: amber + verschoven; DMS/Zaaksysteem = beide;
-  Klantportaal = pure verschoven lat na de bedoeling-toggle; **HR-systeem = SCHOON: volledig norm-compleet
-  → géén signaal**, het ijkbeeld van "in orde" — S1/LI045). ⚠ Het volledige
-  gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog onzichtbaar (L4).
-- **Werktree:** **schoon** — alle LI045-bouw is per opdracht apart geland (één opdracht per commit).
+- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). LI046 was **puur frontend**
+  (kaart-leesbaarheid + één-ingang) — géén schema- of migratiewijziging.
+- **TST-rapport:** `docs/TST-V047-Validatierapport.md` (0 kritieken).
+- **Dev-DB:** GEMMA-model intact. De dev-seed draagt norm + "bewust geen" + demo-klaarverklaringen die de
+  vier normgevallen tonen (Archiefbeheer/DMS/Zaaksysteem = beide; Klantportaal = pure verschoven lat;
+  **HR-systeem = SCHOON: norm-compleet → géén signaal**, het ijkbeeld van "in orde" — S1/LI045). ⚠ Het
+  volledige gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog
+  onzichtbaar (L4).
+- **Werktree:** **schoon** — alle LI046-bouw is per opdracht apart geland (één opdracht per commit).
 
-## Deze sessie (LI045 — de gemeente legt haar eigen lat, geen besluit toegeschreven) — AFGEROND
+## Deze sessie (LI046 — de kaart vertelt, het component verandert) — AFGEROND
+
+**Kern: één ingang naar het detailscherm mét aanleiding; een linkerkolom alléén bij een getekende kaart; relaties gescheiden op hoedanigheid.**
+
+- **ADR-054 — één ingang naar het detailscherm** (`80d0038`/`4dd1387`/`466eb7b`/`61665a4`/`9ee6fcb`).
+  Gedeelde detail-ingang (`detailRoute`), de aanleiding in de URL, geen route zonder landing, het veld-anker
+  (`?veld=`) markeert; per-ring-popup-takken; terugkeer landt bij het bewaarde beeld met een eerlijke melding
+  bij een volledig verdwenen selectie (`lk-leeg-verdwenen`). Beginscherm-binnenkomst als één eenmalige regel
+  ná de beslisboom (`3b7941f`, "de bezoeker wint").
+- **Linkerkolom-gate** (`3a72b35`). De kijkinstellingen-kolom (`aside`) draagt `v-if="heeftData"` — bewust
+  níét `!beginschermOpen`; kijken ≠ binnenkomen. Opgeslagen kijken + beheer naar het startpaneel
+  (`KaartBeginscherm`, ✎/× + `magViewsBeheren`); Rol/BIV achter een inklap.
+- **Relaties gescheiden op hoedanigheid** (`6651f1f`). `kaartBanen.js`: `hoedanigheidVan()`
+  (roltoewijzing→beheer, anders relatietype), `baanVerdeling()` waaiert edges per knopenpaar met
+  richting-gecorrigeerde `cpd` (`unbundled-bezier`); ná de instance-projectie (Lagen-veilig). Klik op een
+  baan levert **alles** onder dat paar (`popupPaarLijst`). Ring-agnostisch — invariant boven afspraak.
+- **Borging:** LI046-patronen in vier skills (`aca7cb1`/`70f2cbb`); vier read-only checkpoints (`f7929a9`/
+  `bf67e67`); ADR-register 049–054 + statuscorrectie ADR-049/050/051 (kop+body).
+- **Open (ontwerpbesluit Bert):** terugweg-fijnslijpen — org-scope/Rol-BIV/weergave/zoom-pan reizen niet mee
+  terug; view-verwijderen zonder bevestiging; "selectie bijwerken" onbereikbaar; "bewust geen" niet in het
+  gebruiksdata-model (OPVOLGPUNTEN §LI046).
+
+## Sessie LI045 (de gemeente legt haar eigen lat, geen besluit toegeschreven) — AFGEROND
 
 **Kern: de beheerder ziet en verzet de norm nu zelf; een verschoven lat leest niet meer als een keuze van de consultant.**
 
@@ -64,12 +87,15 @@
 - **LI042** — gate 4 brok 1 (datalaag, `heeft_gebruikersgroep` + 5e stand `werkvoorraad`), skill-vastlegging.
 - **LI041/LI040** — gate 2 koppelen + gate 3 vier standen + rollengrens ADR-050 · ADR-045/046.
 
-## Prioriteiten volgende sessie (LI045 — zie NEXT_SESSION.md)
-1. **Slice 4 — norm-beheerscherm** (maakt ADR-052 af; elke tenant zit vast aan de default tot dit er is).
-2. **Open-punten-overzicht per component** (fundament staat nu de norm per component leesbaar is).
-3. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
-4. **Dev-seed vertelt het volledige gate-3-verhaal (L4).**
-5. **VeldUitleg adopteert `popoverPositie.js`** (borging niet af tot 75 views hem dragen).
+## Prioriteiten volgende sessie (LI047 — zie NEXT_SESSION.md)
+1. **Open-punten-overzicht per component** (fundament staat nu de norm per component leesbaar is; start met mockup).
+2. **Dev-seed vertelt het volledige verhaal (L4)** — *randvoorwaarde: een seed die het geval niet kent maakt
+   van elke browsercheck een gok.* Naast het gate-3-verhaal ook: partij die eigenaar én gebruiker is met
+   meerdere beheerrollen (baan-scheiding op hoedanigheid), en een knooppaar met relaties van meerdere
+   hoedanigheden (cross-ring overlap komt 0× voor in de dev-data).
+3. **Archiefwet-feit bouwen (ADR-053)** — eigen enum-kolom + migratie, niet default-verplicht (raakt schema → gate).
+4. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
+5. **Terugweg-fijnslijpen** — wat hoort in `lk-state` (org-scope/filter/weergave/zoom-pan); view-verwijderen + selectie-bijwerken (ontwerpbesluit).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.

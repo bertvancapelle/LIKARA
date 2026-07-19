@@ -19,6 +19,26 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    filter of een ontbrekend lid niet. Bron: `docs/Checkpoint-terugweg-naar-de-kaart-V046.md` (blok 5).
    Status: **open — ontwerpbesluit Bert (geen oplossingsvoorkeur vastgelegd)**.
 
+2. **View verwijderen gebeurt zonder bevestiging.** De × op een opgeslagen kijk in `KaartBeginscherm`
+   (`@verwijder-view`) verwijdert direct; er is geen tussenvraag. Een per ongeluk verwijderde kijk is
+   onherstelbaar weg. Status: **open — ontwerpbesluit (bevestiging ja/nee)**.
+3. **"Selectie bijwerken" op een bestaande view is onbereikbaar.** Op een opgeslagen kijk bestaan alleen
+   ✎ (naam wijzigen) en × (verwijderen); de **bewaarde selectie zelf** opnieuw vastleggen onder dezelfde
+   naam heeft geen ingang. Wie zijn kijk wil bijstellen moet verwijderen + opnieuw opslaan. Status: **open
+   — ontwerpbesluit**.
+4. **"Bewust geen" bestaat niet in het gebruiksdata-model.** Voor een gebruiksrelatie
+   (`organisatiegebruik`) is er geen expliciete "bewust geen"-stand: een component waarvan bewust is
+   vastgesteld dat er géén organisatiegebruik is, is niet te onderscheiden van een component waar nog niet
+   naar gekeken is. Vergelijk het Archiefwet-feit (ADR-053), dat die drieslag wél kent (`ja` / `bewust
+   geen` / `null`). Status: **open — ontwerpvraag (hoort de drieslag ook op de gebruiksrelatie?)**.
+5. **Weergave-instelling en zoom/pan reizen niet mee terug.** Bij terugkeer landt de bewaarde selectie
+   (ADR-054), maar de **weergavekeuze** (Lagen/rolbanen-projectie) en de **zoom/pan-stand** zitten niet in
+   `lk-state` en vallen terug op de default. Verwant aan punt 1(b/c), maar dit betreft de *weergave* — niet
+   de selectie of het filter. Status: **open — ontwerpbesluit (wat hoort in `lk-state`?)**.
+6. **Hercheck: is het ADR-036-vervolg en de contactpersoon-schemagate nog actueel?** Beide staan langer open;
+   controleer bij de volgende sessie of ze nog kloppen tegen de huidige code (schema + endpoints) vóór er
+   op wordt voortgebouwd. Status: **open — verificatie (versheid tegen de code)**.
+
 ### Nieuw uit LI045 (2026-07-18) — Archiefwet als hard componentfeit (besloten, MVP)
 
 1. **Archiefwet-feit (ADR-053) — MVP-onderdeel, bouwen ná ADR-052 slice 4a + 4b.** Eén hard componentfeit
