@@ -23,6 +23,7 @@ import { useSleepbaar } from '@/composables/useSleepbaar'
 import { procesBoomLayout } from '../procesBoom'
 import { humaniseer, veldLabel } from '../labels'
 import { STAND_CODERING, STAND_LEGENDA, standKaartKleur } from '../standCodering'
+import { baanVerdeling, baanLabel, hoedanigheidVan } from '../kaartBanen'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
 import KaartBeginscherm from './KaartBeginscherm.vue'
 
@@ -1294,6 +1295,10 @@ function vooruitInHistorie() {
 const popupOpen = ref(false)
 const popupKind = ref(null) // 'node' | 'edge'
 const popupEdgeRing = ref(null) // LI046 slice 3 — de leeg-melding is flow-specifiek
+// LI046 — de klik levert ALLES onder het paar: élke hoedanigheid tussen de twee knopen (koppeling ·
+// beheer · eigenaar · …), zodat de consultant niet elke baan los hoeft aan te klikken en niets mist.
+const popupPaarLijst = ref([]) // [{ hoedanigheid, label, aantal, edge }]
+const popupEdgeHoed = ref(null) // de nu-getoonde hoedanigheid (nadruk in de lijst)
 const popupTitel = ref('')
 const popupBadge = ref(null) // 'Inkomend' | 'Uitgaand' (alleen koppeling t.o.v. ego)
 const popupLaden = ref(false)
@@ -1346,6 +1351,8 @@ function sluitPopup() {
   popupOpen.value = false
   popupKind.value = null
   popupEdgeRing.value = null
+  popupPaarLijst.value = []
+  popupEdgeHoed.value = null
   popupTitel.value = ''
   popupBadge.value = null
   popupVelden.value = []
@@ -1486,6 +1493,8 @@ async function openNodePopup(id) {
   detailId.value = id
   popupKind.value = 'node'
   popupBadge.value = null
+  popupPaarLijst.value = [] // LI046 — geen edge-paar-lijst op een knoop-popup
+  popupEdgeHoed.value = null
   popupTitel.value = n.naam || ''
   popupMelding.value = null
   const _nodeLink = _detailLink(n)
@@ -1672,6 +1681,20 @@ async function openEdgePopup(edge) {
   popupSelId.value = null
   popupOpen.value = true
   popupLaden.value = false
+
+  // LI046 — alle hoedanigheden tussen dit ongeordende paar (uit de VOLLEDIGE graaf → ook een relatie op
+  // een uitgezette ring telt mee: "wat je niet ziet, kun je niet aanklikken"). Gegroepeerd via dezelfde
+  // baan-verdeling; de beheerrollen vallen samen tot één 'beheer'-item met de rollen in het label.
+  const _paarEdges = grafEdges.value.filter((e) =>
+    (e.bron_id === edge.bron_id && e.doel_id === edge.doel_id)
+    || (e.bron_id === edge.doel_id && e.doel_id === edge.bron_id))
+  popupPaarLijst.value = baanVerdeling(_paarEdges).map((g) => ({
+    hoedanigheid: g.hoedanigheid,
+    label: baanLabel(g) || g.hoedanigheid,
+    aantal: g.leden.reduce((s, l) => s + (Number(l.aantal) || 1), 0),
+    edge: g.leden[0],
+  }))
+  popupEdgeHoed.value = hoedanigheidVan(edge.relatietype)
 
   if (edge.ring === 'applicaties') {
     popupActies.value = _edgeActies(edge)
@@ -2094,6 +2117,9 @@ function _edgeData(e, i) {
   return {
     id: `e${i}-${e.bron_id}-${e.doel_id}-${e.relatietype}`, source: e.bron_id, target: e.doel_id, ring: e.ring, lc, w, ls, label,
     bronLog: e.bron_logisch || e.bron_id, doelLog: e.doel_logisch || e.doel_id,
+    // LI046 — hoedanigheid (baan-eenheid) + control-point-afstand (baan-plek). `cpd` wordt in
+    // `_elementen` per baan gezet; 0 = rechte lijn (één hoedanigheid tussen het paar).
+    hoed: hoedanigheidVan(e.relatietype), cpd: 0,
   }
 }
 // LI036 "ring uit wint" — baan→ring-map voor de gaps-inperking: een écht relatie-loze knoop
@@ -2254,7 +2280,16 @@ function _elementen() {
       const d = _nodeData(inst.node)
       return { data: { ...d, id: inst.id, logischId: inst.logischId, rollen: inst.rollen }, classes: _SHAPE_KLASSE(d.shape) || undefined }
     }),
-    ...edges.map((e, i) => ({ data: _edgeData(e, i) })),
+    // LI046 — scheiden op HOEDANIGHEID: groepeer de (mogelijk instance-geremapte) edges per
+    // (bron,doel,hoedanigheid) en verdeel de groepen per knooppaar over banen. Zo krijgt elke
+    // hoedanigheid tussen hetzelfde paar een eigen baan (`cpd`) en valt niets op elkaar; de
+    // beheerrollen vallen samen tot één 'beheer'-baan met een leesbaar label.
+    ...baanVerdeling(edges).map((g, i) => {
+      const d = _edgeData(g.leden[0], i)
+      d.cpd = g.cpd
+      if (g.hoedanigheid === 'beheer') d.label = baanLabel(g)
+      return { data: d }
+    }),
   ]
 }
 const zichtbaarAantal = computed(() => getekendeNodes.value.length)
@@ -2527,7 +2562,11 @@ const CY_STYLE = [
     selector: 'edge',
     style: {
       width: 'data(w)', 'line-color': 'data(lc)', 'line-style': 'data(ls)',
-      'target-arrow-shape': 'triangle', 'target-arrow-color': 'data(lc)', 'curve-style': 'bezier',
+      'target-arrow-shape': 'triangle', 'target-arrow-color': 'data(lc)',
+      // LI046 — expliciete baan-scheiding: unbundled-bezier met een per-baan control-point-afstand
+      // (`cpd`, gezet in _elementen). Eén hoedanigheid tussen het paar → cpd 0 → rechte lijn; meerdere
+      // hoedanigheden → elk een eigen gebogen baan, nooit op dezelfde plek.
+      'curve-style': 'unbundled-bezier', 'control-point-distances': 'data(cpd)', 'control-point-weights': 0.5,
       // Koppelingsdetail-label (flow-edges): protocol + richting.
       // Concrete hex i.p.v. een CSS-custom-property: cytoscape resolvet `var(--…)` niet (invalide-color-
       // warning) — dezelfde muted-grijs als de UI-tekst, nu wél door cytoscape leesbaar. Font 8 → 10 mee
@@ -2730,7 +2769,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, _EDGE_TAKKEN, RINGEN, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, sluitStartscherm, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, _EDGE_TAKKEN, RINGEN, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, sluitStartscherm, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, popupPaarLijst, popupEdgeHoed, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -3269,6 +3308,26 @@ const typeLabel = (t) => humaniseer(t)
               <p v-if="popupSub" data-testid="lk-popup-sub" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">{{ popupSub }}</p>
             </div>
             <button type="button" data-testid="lk-popup-sluit" aria-label="Sluiten" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-text)]" @click="sluitPopup">✕</button>
+          </div>
+          <!-- LI046 — alle hoedanigheden tussen dit paar: de klik levert álles onder de lijn (niet
+               alleen de aangeklikte baan). Elke hoedanigheid is aanklikbaar; de nu-getoonde licht op. -->
+          <div
+            v-if="popupKind === 'edge' && popupPaarLijst.length > 1"
+            data-testid="lk-popup-paar"
+            class="mt-2 flex flex-wrap items-center gap-1 text-[length:var(--lk-text-sm)]"
+          >
+            <span class="text-[var(--lk-color-text-muted)]">Tussen deze twee:</span>
+            <button
+              v-for="h in popupPaarLijst"
+              :key="h.hoedanigheid"
+              type="button"
+              :data-testid="`lk-popup-paar-${h.hoedanigheid}`"
+              :aria-pressed="h.hoedanigheid === popupEdgeHoed"
+              :class="['rounded-full border px-2 leading-6', h.hoedanigheid === popupEdgeHoed
+                ? 'border-[var(--lk-color-primary)] bg-[var(--lk-color-primary)] text-white'
+                : 'border-[var(--lk-color-border)] hover:bg-[var(--lk-color-accent)]']"
+              @click="openEdgePopup(h.edge)"
+            >{{ h.label }}<span v-if="h.aantal > 1"> · {{ h.aantal }}</span></button>
           </div>
           <!-- LI036 rolbanen — rolcontext (partij, Lagen): de rol van de aangeklikte plek bovenaan
                (zelfde kleur als de node-tag), de andere rol(len) van deze partij eronder. -->

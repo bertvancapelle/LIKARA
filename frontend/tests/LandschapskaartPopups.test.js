@@ -259,6 +259,37 @@ describe('Landschapskaart — knoop-popup (dispatch per soort)', () => {
     expect(veld(w, 'Leverancier')).toBe('Gemeente X')
   })
 
+  it('LI046 — de klik levert álle hoedanigheden tussen het paar; beheerrollen samengevat tot één item', async () => {
+    api.landschapskaart.haalGrafdata.mockResolvedValue({
+      nodes: [
+        { id: 'p1', naam: 'Gemeente X', element_type: 'partij', laag: 'business', soort: 'organisatie', blokkades_open: 0 },
+        { id: 'a1', naam: 'Zaaksysteem', element_type: 'applicatie', laag: 'application', lifecycle_status: 'migratieklaar', blokkades_open: 0 },
+      ],
+      edges: [
+        { bron_id: 'p1', doel_id: 'a1', relatietype: 'eigenaar', label: 'is eigendom van', ring: 'eigenaar' },
+        { bron_id: 'p1', doel_id: 'a1', relatietype: 'gebruikt', label: 'gebruikt', ring: 'gebruikt' },
+        { bron_id: 'p1', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Functioneel beheer', ring: 'rollen' },
+        { bron_id: 'p1', doel_id: 'a1', relatietype: 'roltoewijzing', label: 'Technisch beheer', ring: 'rollen' },
+      ],
+    })
+    const { w } = await mountView()
+    await w.vm.openEdgePopup({ bron_id: 'p1', doel_id: 'a1', ring: 'eigenaar', label: 'is eigendom van', relatietype: 'eigenaar' })
+    await flushPromises()
+    // Drie hoedanigheden tussen dit paar: eigenaar · gebruikt · beheer — NIET vier (de rollen vallen samen).
+    const lijst = w.vm.popupPaarLijst
+    expect(lijst.length).toBe(3)
+    const beheer = lijst.find((h) => h.hoedanigheid === 'beheer')
+    expect(beheer.aantal).toBe(2)
+    expect(beheer.label).toBe('Functioneel beheer + Technisch beheer')
+    // De template toont de aanklikbare "Tussen deze twee"-lijst (alles onder de lijn).
+    expect(w.find('[data-testid="lk-popup-paar"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-popup-paar-beheer"]').exists()).toBe(true)
+    // Wisselen naar een andere hoedanigheid via de lijst.
+    await w.find('[data-testid="lk-popup-paar-beheer"]').trigger('click')
+    await flushPromises()
+    expect(w.vm.popupEdgeHoed).toBe('beheer')
+  })
+
   it('pre-fill toont meteen node-data terwijl de fetch nog loopt; 403 valt netjes terug', async () => {
     let los
     api.componenten.haal.mockReturnValue(new Promise((res) => { los = res }))
