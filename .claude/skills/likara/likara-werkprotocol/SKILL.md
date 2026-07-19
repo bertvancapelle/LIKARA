@@ -259,6 +259,17 @@ door een harde refresh. Les LI046: een dagenlang draaiende Vite-server serveerde
 de browser toonde oud gedrag terwijl de suite terecht groen was — de bevinding leek een codebug
 en was er (deels) geen. Zonder stap 0 is een browserbevinding niet interpreteerbaar.
 
+**Valkuil bij `find … -delete` (LI046) — een verwijderpatroon toon je eerst.** `?` en `*` zijn in
+`-name` **glob-wildcards**; een patroon dat er letterlijk uitziet (`V???.zip`) is dat niet en matcht
+breder dan bedoeld — `V???.zip` matcht elk `V`+3-tekens, niet de string `V???`. Draai daarom élk
+verwijderpatroon **eerst met `-print`** (of laat `-delete` weg en lees de lijst) vóór je `-delete`
+toevoegt; bij één doelbestand: gebruik de **exacte naam**, geen patroon. Bewijs: in LI046 wiste
+`find -name "LIKARA_Sessiestart_V???.zip" -delete` **30** gitignored sessie-ZIPs (V018–V047) i.p.v. de
+ene stray — en `find -delete` omzeilt de prullenbak, gitignored betekent niet via git terug, en de
+backup bevat alleen de DB-dump; alleen V047 was regenereerbaar. Dezelfde deny-lijst-vervanging die
+`rm` veilig moest vervangen, was hier de oorzaak: een veiligheidsregel zonder zijn eigen valkuil is
+een halve regel.
+
 Een **groene testrun betrapt geen kapotte UX**: mocks verbergen een verkeerde picker-bron, een
 lege/onleesbare picker, voorvul-verdringing, een stale label, en een onnodige/foutgevoelige
 account-aanroep. Bewezen deze sessie — drie keer bleef de suite groen terwijl het scherm in de
