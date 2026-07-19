@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Besloten (LI041) — bouw nog niet gestart (gate 2a, stap 1 = dit ADR) |
+| **Status** | **Gerealiseerd.** Besluiten 1–5 gebouwd (LI041, `980587b` — koppelen in de functieboom + de leesregel `dekking_overzicht`), geborgd door `test_functievervulling_adr049`. LI042 gate-4-addendum (component-ingang `ComponentBedrijfsfunctieSectie` + kaart-edges lezen de leesregel) gebouwd (`4e9f238`, `test_functievervulling_component_gate4`; `landschapskaart_service` leest `dekking_overzicht`). |
 | **Datum** | 2026-07-14 |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-043 (bedrijfsfunctie als ruggengraat — herijkt) · ADR-044 (plaatsing als eerste-klas feit — herijkt op twee punten) · ADR-045 ("ondersteunt werk" — de picker-vangrail) · ADR-042 (procesregister — het herbruikte recept) · ADR-036 (grof→fijn + "detaillering ontbreekt"-signaal) |
@@ -162,7 +162,7 @@ lifecycle-driver; dit is registratie + leeslaag).
 
 ---
 
-## Addendum LI042 — de component-ingang en de kaart-edges lezen de leesregel (gate 4, besloten; bouw volgt)
+## Addendum LI042 — de component-ingang en de kaart-edges lezen de leesregel (gate 4, gebouwd)
 
 Gate 4 (ADR-043 §"Gate 4") maakt besluit 5 van dit ADR concreet met **drie nieuwe consumenten** van de
 gedeelde afleiding: de **componentdetail-sectie** (koppelen vanuit het systeem, ADR-043 besluit G2), het
@@ -184,7 +184,8 @@ verschijnen.
 gedeelde bouwsteen, geen `if` per scherm") naar de nieuwe consumenten en is als **invariant** vastgelegd in
 ADR-043 §"Gate 4" (*één feit, meerdere ingangen*). Grof/fijn vanuit het component: **grof is de default**
 (ADR-043 besluit G9), fijn verdringt grof bij het lezen — ongewijzigd t.o.v. besluit 1. Status:
-**besloten (LI042), bouw nog niet gestart.**
+**gebouwd (LI042, `4e9f238`): `ComponentBedrijfsfunctieSectie` + `component_service`/
+`landschapskaart_service` lezen `dekking_overzicht`; borging `test_functievervulling_component_gate4`.**
 
 ---
 

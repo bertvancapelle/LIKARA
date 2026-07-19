@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Besloten (LI041) — bouw (sweep) nog niet gestart (stap 1 = dit ADR) |
+| **Status** | **Gerealiseerd.** De rollengrens-sweep (besluiten 1–4) gebouwd (LI041, `980587b`): classificatie in `backend/app/core/rbac.py` (`REGISTRATIE_FEIT_ENTITEITEN`/`LANDSCHAPSOBJECT_ENTITEITEN` → `verwijder_actie`, `:255-289`), frontend-gating spiegelt mee (registratie-feit → `WIJZIGEN`/medewerker, landschapsobject → `VERWIJDEREN`/beheerder). Geborgd door `test_rollengrens_adr050`. |
 | **Datum** | 2026-07-14 |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-010 (RBAC-rollenmatrix) · ADR-012 (tweelaags rollenmodel) · ADR-042 (procesvervulling — waar de regel voor het eerst is opgeschreven) · ADR-049 (gate 2a — de achtste instantie) · ADR-023 (unified relatiemodel — de aggregation/composition-vs-uitspraak-scheiding) · ADR-036 (organisatiegebruik) |

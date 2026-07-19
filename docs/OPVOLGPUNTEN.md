@@ -7,6 +7,18 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI046 (2026-07-19) — terugweg naar de kaart (open ontwerpbesluit)
+
+1. **Wat kan er stil verschuiven tussen weggaan en terugkomen op de kaart?** Bij terugkeer naar de
+   Landschapskaart landt de gebruiker nu bij zijn bewaarde beeld (ADR-054), maar drie dingen kunnen
+   **ongemerkt** verschuiven: (a) een **gedeeltelijk** verdwenen selectie wordt zonder aanwijzing kleiner
+   getekend én de bewaarde set wordt stil opgeschoond (LI052-prune), zodat het verlies bij een volgende
+   terugkeer onvindbaar is — alléén een *volledig* verdwenen selectie krijgt de eerlijke melding
+   (`lk-leeg-verdwenen`, ADR-054 besluit 7); (b) de **organisatie-scope** (`scopeOrgs`) zit niet in
+   `lk-state`; (c) de **rol-/BIV-filters** zitten niet in `lk-state`. Een dichte deur zie je; een verschoven
+   filter of een ontbrekend lid niet. Bron: `docs/Checkpoint-terugweg-naar-de-kaart-V046.md` (blok 5).
+   Status: **open — ontwerpbesluit Bert (geen oplossingsvoorkeur vastgelegd)**.
+
 ### Nieuw uit LI045 (2026-07-18) — Archiefwet als hard componentfeit (besloten, MVP)
 
 1. **Archiefwet-feit (ADR-053) — MVP-onderdeel, bouwen ná ADR-052 slice 4a + 4b.** Eén hard componentfeit
@@ -33,7 +45,12 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
    veranderen. Vindplaats: `docs/Meting-gemma-functie-proces-relatie-V045.md`. Status: **open — verificatie**.
 6. **README ADR-register mist ADR-049 t/m 053.** De ADR-tabel in de README/CLAUDE.md loopt tot 048; de
    deze-en-vorige-sessie geschreven ADR-049 (functievervulling) t/m 053 (Archiefwet) ontbreken. Status:
-   **open — docs-hygiëne**.
+   **opgelost (LI046 — `docs/adr/README.md` aangevuld t/m ADR-054)**.
+   ⚠ Randobservatie: de **status­regels ín ADR-049/050/051** zeggen nog "bouw nog niet gestart", terwijl de
+   borgingstests (`test_functievervulling_adr049`/`_rollengrens_adr050`/`_gapsignaal_adr051`) bestaan → die
+   ADR-koppen zijn ✓ **rechtgezet (LI046)**: register én ADR-koppen vertellen nu hetzelfde. (De gelijkluidende
+   "bouw volgt"-notities ín de LI042-gate-4-addenda van ADR-049/051 blijven stale — alléén de kop-status is
+   gecorrigeerd; de body-tekst viel buiten deze scope.)
 7. **C2 (bewust gelaten, patroon vastgelegd).** "Bedoeling (migratiepad)" (normscherm) vs. "Bedoeling"
    (formulier); Contract↔Contracten; Verantwoordelijke↔Verantwoordelijkheden. Enkelvoud/meervoud +
    verhelderende toevoeging — gelijktrekken zou de koppen ongemakkelijker maken. Vastgelegd in likara-ux

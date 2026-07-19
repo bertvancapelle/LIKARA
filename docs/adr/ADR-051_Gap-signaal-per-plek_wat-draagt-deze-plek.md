@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Besloten (LI041) — bouw nog niet gestart (gate 3, stap 1 = dit ADR) |
+| **Status** | **Gerealiseerd.** Gate 3 (besluiten 1–5 — `plek_standen`, één afleiding/twee vensters) gebouwd (LI041, `78ffd5e` + veldnorm-fix `6d1b3fc`), geborgd door `test_gapsignaal_adr051`. Kaart-/lijst-/werkvoorraad-venster op `plek_standen` via `standCodering.js` (LI043, dev-seed 5 standen `bd60085`). LI042 gate-4-addendum (de kaart als derde venster) gebouwd. |
 | **Datum** | 2026-07-14 |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-044 (plaatsing als eerste-klas feit; besluit 4 — herijkt) · ADR-045 ("ondersteunt werk" op het componenttype; besluit 2 — herijkt) · ADR-049 (functievervulling + de leeslaag `dekking_overzicht`) · ADR-050 (een tabelfeit mag zich nooit voordoen als een bevoegdheidsregel — dezelfde figuur) · ADR-046 (levensfase — de "gedragen door iets dat verdwijnt"-familie) · ADR-043 (bedrijfsfunctie als ruggengraat) |
@@ -179,7 +179,7 @@ gesloten, motor generiek · **engine-invariant** (score blijft de enige lifecycl
 
 ---
 
-## Addendum LI042 — de kaart als derde venster op `plek_standen` (gate 4, besloten; bouw volgt)
+## Addendum LI042 — de kaart als derde venster op `plek_standen` (gate 4, gebouwd)
 
 Gate 4 (ADR-043 §"Gate 4", besluit G8) voegt een **derde consument** toe aan de afleiding van dit ADR:
 de **bedrijfsfunctie-laan op de kaart**. Naast de boom-cue en de centrale werkvoorraad (besluit 5) toont
@@ -195,7 +195,8 @@ aparte overzichtslaag worden, maar is **niet** de cue op de plek.
 
 Randvoorwaarde uit ADR-043 besluit G7 (laan van **plekken**, niet van functies): omdat de kaart per plek
 één knoop tekent, mapt `plek_standen` er **1-op-1** op — precies de reden dat de teleenheid de plaatsing
-moet zijn (ADR-044 besluit 4). Status: **besloten (LI042), bouw nog niet gestart.**
+moet zijn (ADR-044 besluit 4). Status: **gebouwd (LI043): de bedrijfsfunctie-laan op de kaart leest
+`plek_standen` via `standCodering.js` (`LandschapskaartView.vue`); borging `test_gapsignaal_adr051`.**
 
 ---
 
