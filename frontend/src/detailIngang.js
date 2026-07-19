@@ -25,8 +25,13 @@ const ROUTE_PER_TYPE = {
   deliverable: 'deliverable-detail',
 }
 
-// Slice 1: de bestaande query-taal van ComponentDetail. Slice 2 breidt uit met veld-ankers.
-const AANLEIDING_SLEUTELS = new Set(['tab', 'cat', 'markeer', 'bewerk'])
+// Slice 1: de bestaande query-taal van ComponentDetail. Slice 2: het veld-anker (`veld`).
+const AANLEIDING_SLEUTELS = new Set(['tab', 'cat', 'markeer', 'bewerk', 'veld'])
+
+// LI046 slice 2 (besluit B) — velden op het Overzicht met een eerlijke landing (markering +
+// bewerkknop ernaast). Een onbekend veld is een LUIDE fout: liever geen link dan een link
+// die nergens op uitkomt — een producent (open-punten-overzicht) merkt het dan direct.
+export const VELD_ANKERS = Object.freeze(['eigenaar', 'biv', 'levensfase', 'bedoeling', 'beschrijving'])
 
 export function detailRoute(objectType, id, aanleiding = null) {
   if (id == null) return null
@@ -42,7 +47,11 @@ export function detailRoute(objectType, id, aanleiding = null) {
       if (!AANLEIDING_SLEUTELS.has(sleutel)) {
         throw new Error(`detailIngang: onbekende aanleiding-sleutel '${sleutel}'`)
       }
-      if (waarde !== undefined && waarde !== null && waarde !== '') query[sleutel] = String(waarde)
+      if (waarde === undefined || waarde === null || waarde === '') continue
+      if (sleutel === 'veld' && !VELD_ANKERS.includes(String(waarde))) {
+        throw new Error(`detailIngang: onbekend veld-anker '${waarde}' (geen landingsplek)`)
+      }
+      query[sleutel] = String(waarde)
     }
     if (Object.keys(query).length) route.query = query
   }

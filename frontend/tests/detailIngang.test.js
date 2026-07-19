@@ -49,6 +49,21 @@ describe('detailRoute — de ene ingang naar een detailscherm', () => {
     })
   })
 
+  // ── LI046 slice 2 — het veld-anker ──
+  it('het veld-anker vertaalt naar ?veld= voor de vijf Overzicht-velden', () => {
+    for (const veld of ['eigenaar', 'biv', 'levensfase', 'bedoeling', 'beschrijving']) {
+      expect(detailRoute('component', 'abc', { veld })).toEqual({
+        name: 'component-detail',
+        params: { id: 'abc' },
+        query: { veld },
+      })
+    }
+  })
+
+  it('een onbekend veld-anker is een LUIDE fout — geen route-belofte zonder landingsplek', () => {
+    expect(() => detailRoute('component', 'abc', { veld: 'hostingmodel' })).toThrow(/onbekend veld-anker 'hostingmodel'/)
+  })
+
   it('een onbekende aanleiding-sleutel is een LUIDE fout (api.filter-conventie)', () => {
     expect(() => detailRoute('component', 'abc', { veldje: 'x' })).toThrow(/onbekende aanleiding-sleutel 'veldje'/)
   })

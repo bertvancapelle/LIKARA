@@ -281,6 +281,45 @@ describe('ComponentDetail', () => {
     expect(w.find('[data-testid="klaarverklaar-knop"]').exists()).toBe(false)
   })
 
+  // ── LI046 slice 2 — veld-anker (?veld=): landen op het Overzicht bij het veld ──
+  it('markeert het veld uit ?veld= in de checklist-markeer-taal, met bewerkknop ernaast', async () => {
+    const { w } = await mountDetail({ query: '?veld=eigenaar' })
+    const dt = w.find('#veld-eigenaar')
+    expect(dt.exists()).toBe(true)
+    expect(dt.classes().join(' ')).toContain('bg-[var(--lk-color-accent)]')
+    const knop = w.find('[data-testid="veld-bewerk-knop"]')
+    expect(knop.exists()).toBe(true)
+  })
+
+  it('de veld-markering is zichtbaar voor een viewer, maar zónder bewerkknop', async () => {
+    const { w } = await mountDetail({ rollen: ['viewer'], query: '?veld=levensfase' })
+    expect(w.find('#veld-levensfase').classes().join(' ')).toContain('bg-[var(--lk-color-accent)]')
+    expect(w.find('[data-testid="veld-bewerk-knop"]').exists()).toBe(false)
+  })
+
+  it('de markering blijft staan tot "iets doen": bewerkknop opent de overlay en wist hem', async () => {
+    const { w } = await mountDetail({ query: '?veld=bedoeling' })
+    expect(w.find('#veld-bedoeling').classes().join(' ')).toContain('bg-[var(--lk-color-accent)]')
+    await w.find('[data-testid="veld-bewerk-knop"]').trigger('click')
+    await flushPromises()
+    expect(w.find('#veld-bedoeling').classes().join(' ')).not.toContain('bg-[var(--lk-color-accent)]')
+  })
+
+  it('wegklikken (klik op het gemarkeerde veld) wist de markering ook', async () => {
+    const { w } = await mountDetail({ query: '?veld=biv' })
+    expect(w.find('#veld-biv').classes().join(' ')).toContain('bg-[var(--lk-color-accent)]')
+    await w.find('[data-testid="comp-biv"]').trigger('click')
+    expect(w.find('#veld-biv').classes().join(' ')).not.toContain('bg-[var(--lk-color-accent)]')
+  })
+
+  it('een onbekend ?veld= markeert niets en landt stil bovenaan (besluit 2)', async () => {
+    const { w } = await mountDetail({ query: '?veld=onzin' })
+    expect(w.find('[data-testid="veld-bewerk-knop"]').exists()).toBe(false)
+    for (const veld of ['eigenaar', 'biv', 'levensfase', 'bedoeling', 'beschrijving']) {
+      expect(w.find(`#veld-${veld}`).classes().join(' ')).not.toContain('bg-[var(--lk-color-accent)]')
+    }
+  })
+
   it('markeert de vraag uit de deep-link-query (blokkadelijst-doorklik, ADR-024-vervolg)', async () => {
     api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: true }))
     api.checklistvragen.lijst.mockResolvedValue([

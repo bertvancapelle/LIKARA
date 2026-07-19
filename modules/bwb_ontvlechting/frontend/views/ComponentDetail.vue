@@ -9,7 +9,7 @@
  * (`vereist_permissie`). Lifecycle is read-only (Tag); "Start beoordeling" alleen bij
  * checklist-dragend + status `concept`. Verwijderen waarschuwt voor de cascade.
  */
-import { computed, provide, ref, watch } from 'vue'
+import { computed, nextTick, provide, ref, watch } from 'vue'
 import { Button, Dialog, Tag, useToast } from '@/primevue'
 import { detailRoute } from '@/detailIngang'
 import { useRoute, useRouter } from '@/composables/router'
@@ -252,6 +252,15 @@ function _initVanafQuery() {
     if (isChecklistDragend.value) activeTop.value = 'checklist'
     markeerVraagCode.value = String(route.query.markeer)
   }
+  // LI046 slice 2 — veld-anker: het veld leeft op het Overzicht, dus dáár landen.
+  markeerVeld.value = route.query.veld != null ? String(route.query.veld) : null
+  if (markeerVeld.value) {
+    activeTop.value = 'overzicht'
+    nextTick(() => {
+      document.getElementById(`veld-${markeerVeld.value}`)
+        ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    })
+  }
 }
 
 // Actieve tab(s) terugschrijven naar de URL. Overzicht = schone URL; `router.replace` (geen history-spam).
@@ -272,6 +281,16 @@ async function onScoreGewijzigd() {
 async function onBlokkadeGewijzigd() {
   await laad()
 }
+
+// LI046 slice 2 — veld-anker (?veld=, besluit B): landt op het Overzicht met het veld
+// aangestipt in de checklist-markeer-taal (accent-achtergrond). De markering blijft staan
+// tot de gebruiker "iets doet": de bewerk-overlay opent of het veld aanklikt (wegklikken);
+// een id-wissel of nieuwe deep-link reset. Scroll/hover laten hem bewust staan.
+const markeerVeld = ref(null)
+const veldKlas = (naam) =>
+  markeerVeld.value === naam ? 'rounded-[var(--lk-radius-badge)] bg-[var(--lk-color-accent)]' : ''
+function wisVeldMarkering() { markeerVeld.value = null }
+watch(bewerkOverlayOpen, (open) => { if (open) wisVeldMarkering() })
 
 // Herkomst-doorklik vanuit BlokkadeSectie: schakel naar Checklist + de categorie van de vraag.
 const markeerVraagCode = ref(null)
@@ -374,15 +393,15 @@ watch(() => props.id, async () => {
             <dl class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
               <dt class="font-semibold">Type</dt>
               <dd>{{ component.componenttype_label }}</dd>
-              <dt class="font-semibold">Beschrijving</dt>
-              <dd class="whitespace-pre-wrap">{{ component.beschrijving || '—' }}</dd>
+              <dt id="veld-beschrijving" class="font-semibold" :class="veldKlas('beschrijving')">Beschrijving</dt>
+              <dd class="whitespace-pre-wrap" :class="veldKlas('beschrijving')" @click="wisVeldMarkering">{{ component.beschrijving || '—' }} <Button v-if="markeerVeld === 'beschrijving' && magBewerken" label="Bewerken" outlined data-testid="veld-bewerk-knop" class="ml-[var(--lk-space-sm)]" @click="naarBewerken" /></dd>
               <dt class="font-semibold">Hostingmodel</dt>
               <dd>{{ label(HOSTINGMODEL, component.hostingmodel) }}</dd>
               <!-- ADR-028 — componentclassificatie (registratief): rol + BIV. -->
               <dt class="font-semibold">Rol</dt>
               <dd data-testid="comp-rol">{{ component.rol_label }}</dd>
-              <dt class="font-semibold">BIV-classificatie</dt>
-              <dd data-testid="comp-biv">
+              <dt id="veld-biv" class="font-semibold" :class="veldKlas('biv')">BIV-classificatie</dt>
+              <dd data-testid="comp-biv" :class="veldKlas('biv')" @click="wisVeldMarkering">
                 <div class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-md)] gap-y-[var(--lk-space-xs)]">
                   <span class="text-[var(--lk-color-text-muted)]">Beschikbaarheid</span>
                   <span data-testid="comp-biv-b">{{ component.biv_beschikbaarheid_label || 'Niet geclassificeerd' }}</span>
@@ -391,20 +410,23 @@ watch(() => props.id, async () => {
                   <span class="text-[var(--lk-color-text-muted)]">Vertrouwelijkheid</span>
                   <span data-testid="comp-biv-v">{{ component.biv_vertrouwelijkheid_label || 'Niet geclassificeerd' }}</span>
                 </div>
+                <Button v-if="markeerVeld === 'biv' && magBewerken" label="Bewerken" outlined data-testid="veld-bewerk-knop" class="ml-[var(--lk-space-sm)]" @click="naarBewerken" />
               </dd>
               <!-- ADR-046 — twee vragen, twee velden, in dezelfde groep: Levensfase
                    ("draait het?") boven Bedoeling ("waar gaat het heen?"). Ontbrekende
                    levensfase = gedempt "nog niet vastgelegd" — leeg ≠ fout, nooit rood. -->
-              <dt class="font-semibold">Levensfase</dt>
-              <dd data-testid="comp-levensfase">
+              <dt id="veld-levensfase" class="font-semibold" :class="veldKlas('levensfase')">Levensfase</dt>
+              <dd data-testid="comp-levensfase" :class="veldKlas('levensfase')" @click="wisVeldMarkering">
                 <span v-if="component.levensfase">{{ label(LEVENSFASE, component.levensfase) }}</span>
                 <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="levensfase-leeg">nog niet vastgelegd</span>
+                <Button v-if="markeerVeld === 'levensfase' && magBewerken" label="Bewerken" outlined data-testid="veld-bewerk-knop" class="ml-[var(--lk-space-sm)]" @click="naarBewerken" />
               </dd>
-              <dt class="font-semibold">Bedoeling</dt>
-              <dd data-testid="comp-bedoeling">
+              <dt id="veld-bedoeling" class="font-semibold" :class="veldKlas('bedoeling')">Bedoeling</dt>
+              <dd data-testid="comp-bedoeling" :class="veldKlas('bedoeling')" @click="wisVeldMarkering">
                 <span v-if="component.migratiepad">{{ label(MIGRATIEPAD, component.migratiepad) }}</span>
                 <!-- LI040 — één leegte-taal: gedempt, identiek aan levensfase, nooit rood. -->
                 <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="bedoeling-leeg">nog niet vastgelegd</span>
+                <Button v-if="markeerVeld === 'bedoeling' && magBewerken" label="Bewerken" outlined data-testid="veld-bewerk-knop" class="ml-[var(--lk-space-sm)]" @click="naarBewerken" />
               </dd>
               <!-- LI040 — oordelen zonder waarde: gedempt "nog niet vastgelegd" (één
                    leegte-taal; nooit een verzonnen 'Midden'). -->
@@ -426,8 +448,8 @@ watch(() => props.id, async () => {
             <section class="card" aria-labelledby="blok-wie-titel" data-testid="blok-verantwoordelijk">
               <h2 id="blok-wie-titel" class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-lg)] font-semibold">Wie is verantwoordelijk</h2>
               <dl class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
-                <dt class="font-semibold">Eigenaar-organisatie</dt>
-                <dd>
+                <dt id="veld-eigenaar" class="font-semibold" :class="veldKlas('eigenaar')">Eigenaar-organisatie</dt>
+                <dd :class="veldKlas('eigenaar')" @click="wisVeldMarkering">
                   <router-link
                     v-if="component.eigenaar_organisatie_id"
                     :to="detailRoute('partij', component.eigenaar_organisatie_id)"
@@ -435,6 +457,7 @@ watch(() => props.id, async () => {
                     class="text-[var(--lk-color-primary)] hover:underline"
                   >{{ component.eigenaar_organisatie_naam }}</router-link>
                   <span v-else class="text-[var(--lk-color-text-muted)]" data-testid="eigenaar-gat">nog niet geregistreerd</span>
+                  <Button v-if="markeerVeld === 'eigenaar' && magBewerken" label="Bewerken" outlined data-testid="veld-bewerk-knop" class="ml-[var(--lk-space-sm)]" @click="naarBewerken" />
                 </dd>
                 <dt class="font-semibold">Product owner</dt>
                 <dd data-testid="sleutelrol-product-owner">

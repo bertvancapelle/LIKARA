@@ -251,11 +251,19 @@ function scanDetailkopOvertredingen(bron, label) {
     return overtredingen
   }
   const OBJECT_ACTIES = ['<ObjectHistoriePaneel', 'label="Bewerken"', 'label="Verwijderen"']
+  // LI046 slice 2 (besluit B, randvoorwaarde 3) — de ENIGE toegestane Bewerken-knop buiten
+  // de kop: de veld-anker-knop náást een via ?veld= gemarkeerd Overzicht-veld. Herkenbaar
+  // aan zijn vaste testid; hij roept dezelfde kop-actie aan (naarBewerken), geen tweede
+  // actiebalk. Elke andere knop buiten de kop blijft een overtreding.
+  const VELD_ANKER_KNOP = 'data-testid="veld-bewerk-knop"'
   for (const naald of OBJECT_ACTIES) {
     let idx = t.indexOf(naald)
     while (idx >= 0) {
       if (idx < kopStart || idx > kopEinde) {
-        overtredingen.push(`${label}: object-actie ${naald} staat buiten de DetailKop — acties horen bij het object (in de kop)`)
+        const tag = t.slice(t.lastIndexOf('<', idx), t.indexOf('>', idx) + 1)
+        if (!tag.includes(VELD_ANKER_KNOP)) {
+          overtredingen.push(`${label}: object-actie ${naald} staat buiten de DetailKop — acties horen bij het object (in de kop)`)
+        }
       }
       idx = t.indexOf(naald, idx + 1)
     }
@@ -284,6 +292,16 @@ const KOP_ZELFTEST = [
   {
     naam: 'historie-buiten-kop-gevangen', verwacht: 1,
     bron: '<template><DetailKop naam="X"></DetailKop><ObjectHistoriePaneel /></template>',
+  },
+  // LI046 slice 2 — de veld-anker-knop (herkenbaar testid) is de ene toegestane
+  // uitzondering; een gewone knop ernaast blijft gevangen (de uitzondering lekt niet).
+  {
+    naam: 'veld-anker-knop-passeert', verwacht: 0,
+    bron: '<template><DetailKop naam="X"></DetailKop><Button label="Bewerken" data-testid="veld-bewerk-knop" /></template>',
+  },
+  {
+    naam: 'veld-anker-uitzondering-lekt-niet', verwacht: 1,
+    bron: '<template><DetailKop naam="X"></DetailKop><Button label="Bewerken" data-testid="veld-bewerk-knop" /><Button label="Bewerken" /></template>',
   },
 ]
 let kopZelftestFouten = 0
