@@ -1679,6 +1679,46 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-view-dialog"]').exists()).toBe(false) // sluit na opslaan
   })
 
+  it('LI046 — startscherm heeft een derde uitgang: "Zelf beginnen" sluit de modal naar het lege beginscherm', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Zaaksysteem kaal' })])
+    const { w } = await mountView({ heleLandschap: false })
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(true)
+    await w.find('[data-testid="lk-startscherm-zelf"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false) // modal dicht
+    expect(w.vm.actieveSet.size).toBe(0) // geen set geladen — leeg beginnen
+    expect(w.vm.heleLandschap).toBe(false) // en zeker niet de zware hele-kaart-actie
+    expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true) // "Begin je verkenning" bereikbaar
+  })
+
+  it('LI046 — de NADRUK ligt op "Zelf beginnen"; de hele kaart is de rustige uitgang (één primary)', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Zaaksysteem kaal' })])
+    const { w } = await mountView({ heleLandschap: false })
+    const dialoog = w.find('[data-testid="lk-startscherm"]')
+    const zelf = dialoog.find('[data-testid="lk-startscherm-zelf"]')
+    const heleKaart = dialoog.find('[data-testid="lk-startscherm-hele-kaart"]')
+    // De voorgestelde weg draagt de primaire kleur, leesbaar (LI030: primary + witte tekst).
+    expect(zelf.classes().join(' ')).toContain('bg-[var(--lk-color-primary)]')
+    expect(zelf.classes()).toContain('text-white')
+    // De zware actie is ontnadrukt: geen primary, wel aanwezig.
+    expect(heleKaart.classes().join(' ')).not.toContain('bg-[var(--lk-color-primary)]')
+    // Eén nadruk per venster: precies één primary-knop in de dialoog.
+    const primaries = dialoog.findAll('button').filter((b) => b.classes().join(' ').includes('bg-[var(--lk-color-primary)]'))
+    expect(primaries.length).toBe(1)
+    // Volgorde: zelf (voorgesteld) staat vóór de hele-kaart-uitgang in het venster.
+    const knoppen = dialoog.findAll('button').map((b) => b.attributes('data-testid'))
+    expect(knoppen.indexOf('lk-startscherm-zelf')).toBeLessThan(knoppen.indexOf('lk-startscherm-hele-kaart'))
+  })
+
+  it('LI046 — Escape sluit het startscherm (zelfde derde uitgang)', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Zaaksysteem kaal' })])
+    const { w } = await mountView({ heleLandschap: false })
+    await w.find('[data-testid="lk-startscherm"]').trigger('keydown.esc')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false)
+    expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true)
+  })
+
   it('ADR-033 2c — views-lijst toont eigen + gedeelde; herkomst + beheer alleen bij is_eigenaar', async () => {
     api.impactViews.lijst.mockResolvedValue([
       VIEW({ id: 'v1', naam: 'Eigen' }),

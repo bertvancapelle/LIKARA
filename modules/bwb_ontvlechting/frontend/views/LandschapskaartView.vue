@@ -1048,6 +1048,13 @@ async function verwijderView(v) {
 }
 // 2d — escape vanuit het startscherm: toon meteen het hele landschap (Fase B-actie), zonder een
 // view te kiezen.
+// LI046 — derde uitgang van het startscherm: gewoon zelf beginnen (lege verkenning).
+// De modal was een verplichte horde voor wie zelf wil zoeken: de enige escape was juist
+// de zware hele-kaart-actie. Sluiten onthult het beginscherm ("Begin je verkenning").
+function sluitStartscherm() {
+  toonStartscherm.value = false
+}
+
 function beginMetHeleKaart() {
   toonHeleLandschap()
 }
@@ -2711,7 +2718,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', _opEscape)
 })
 
-defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, _EDGE_TAKKEN, RINGEN, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
+defineExpose({ openNodePopup, openEdgePopup, selecteerFlow, onNodeTap, sluitPopup, _EDGE_TAKKEN, RINGEN, toggleFullscreen, fullscreen, popupOpen, _edgeData, groepeerPerOrg, grafNodes, grafEdges, zichtbareNodes, zichtbareEdges, _laneVan, _swimlanePositions, _layout, laneVolgorde, verbergLegeLanes, laneBanden, getekendeNodes, _herschikLane, toonRegistratiegaps, modus, weergave, toonPraatplaat, toonOverzicht, toonLagen, kanPraatplaat, instanceProjectie, rolTagPx, popupRolActief, popupRolOverig, _pasCanvasMaat, CY_STYLE, popupVervuldDoor, actieveSet, grofOnlyIds, toggleSet, kiesComponent, drillNaar, _nodeData, geselecteerdNodeId, _edgeGehighlight, inspecteerNode, historie, cursor, kanTerug, kanVooruit, terugInHistorie, vooruitInHistorie, _vormVoorType, legendaOpen, toggleLegenda, scopeOrgs, organisatieNodes, organisatiesInBeeld, toggleScopeOrg, _inScope, opgeslagenViews, magViewsBeheren, toonStartscherm, openView, openOpslaan, openBewerk, bewaarView, verwijderView, beginMetHeleKaart, sluitStartscherm, viewDialogOpen, viewNaam, viewGedeeld, laadViews, heleLandschap, beginscherm, beginschermOpen, tekenVoortgang, toonHeleLandschap, herlaadGraaf, wisSet, voegComponentenToeAanSet, actieveSetNodes, componentBuren, voegBurenToe, voegContextComponentenToe, geselecteerdNodeBuren, detailNode, _relayoutTeller, legendaTypeFilter, toggleLegendaFilter, _legendaMatch, legendaPos, legendaDragging, onLegendaMousedown, onLegendaMousemove, onLegendaMouseup, popupPos, popupDragging, onPopupMousedown, onPopupMousemove, onPopupMouseup, popupKind, popupSub, popupSamenvatting, _pasDim,
   // ADR-028 — rol/BIV-filter (test-toegang).
   filterRollen, filterBivB, filterBivI, filterBivV, _filterMatch, bivNiveaus, rolCatalogus })
 
@@ -3516,6 +3523,8 @@ const typeLabel = (t) => humaniseer(t)
       aria-modal="true"
       aria-labelledby="lk-startscherm-titel"
       class="fixed inset-0 z-[60] flex items-center justify-center bg-black/40"
+      tabindex="-1"
+      @keydown.esc="sluitStartscherm"
     >
       <div class="card flex w-96 max-w-[90%] flex-col gap-[var(--lk-space-md)] bg-white p-[var(--lk-space-lg)]">
         <p id="lk-startscherm-titel" class="font-semibold">Verdergaan met een opgeslagen view?</p>
@@ -3527,7 +3536,13 @@ const typeLabel = (t) => humaniseer(t)
             </button>
           </li>
         </ul>
-        <button type="button" data-testid="lk-startscherm-hele-kaart" class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] py-2 text-white" @click="beginMetHeleKaart">Begin met de hele kaart →</button>
+        <!-- LI046 — de nadruk volgt het ontwerpbesluit "leeg openen": ZELF BEGINNEN is de
+             voorgestelde weg (de ene donkere knop, LI030-leesbaarheidsnorm); de hele kaart
+             blijft beschikbaar als rustige, ontnadrukte uitgang eronder — de zware actie is
+             geen voorgestelde weg. Volgorde: views (het antwoord op de vraag) → zelf → hele
+             kaart. Borging van de nadruk: LandschapskaartView.test.js (één primary). -->
+        <button type="button" data-testid="lk-startscherm-zelf" class="rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] py-2 text-white hover:bg-[#2D6DB5]" @click="sluitStartscherm">Zelf beginnen (zoek een component)</button>
+        <button type="button" data-testid="lk-startscherm-hele-kaart" class="rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-2 text-[var(--lk-color-text-muted)] hover:bg-[var(--lk-color-accent)]" @click="beginMetHeleKaart">Begin met de hele kaart →</button>
       </div>
     </div>
   </div>
