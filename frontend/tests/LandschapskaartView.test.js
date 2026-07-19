@@ -1604,6 +1604,38 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-detail-naam"]').text()).toBe('Zaaksysteem')
   })
 
+  it('LI046 — terugkeer met bewaard werk landt IN de kaart: beginscherm dicht, subgraaf geladen', async () => {
+    sessionStorage.setItem('lk-state', JSON.stringify({ actieveSet: ['a1'] }))
+    const { w } = await mountView({ heleLandschap: false })
+    // De ene binnenkomst-regel: gevulde kaart → geen deur ervoor. (Zelfde regel dekt
+    // handoff/deep-link; een vierde tak hoeft alleen de set te vullen en erft dit.)
+    expect(w.vm.beginschermOpen).toBe(false)
+    expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(false)
+    expect(api.landschapskaart.subgraaf).toHaveBeenCalled() // het bewaarde beeld wordt geladen
+  })
+
+  it('LI046 — volledig verdwenen selectie: eerlijke melding mét "Begin opnieuw" ter plekke', async () => {
+    sessionStorage.setItem('lk-state', JSON.stringify({ actieveSet: ['weg-1'] }))
+    api.landschapskaart.subgraaf.mockResolvedValue({ nodes: [], edges: [] }) // niets bestaat meer
+    const { w } = await mountView({ heleLandschap: false })
+    const melding = w.find('[data-testid="lk-leeg-verdwenen"]')
+    expect(melding.exists()).toBe(true)
+    expect(melding.text()).toContain('bestaan niet meer') // benoemt dat er iets wég is
+    expect(w.find('[data-testid="lk-leeg"]').exists()).toBe(false) // niet de zwijgzame kale variant
+    // De actie ter plekke = de bestaande "Begin opnieuw"-weg (wisSet → beginscherm).
+    await w.find('[data-testid="lk-leeg-verdwenen-opnieuw"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true)
+    expect(w.find('[data-testid="lk-leeg-verdwenen"]').exists()).toBe(false) // melding weg ná bewust opnieuw
+  })
+
+  it('LI046 — een verse start (geen bewaard werk) toont nog gewoon het beginscherm', async () => {
+    const { w } = await mountView({ heleLandschap: false })
+    expect(w.vm.beginschermOpen).toBe(true)
+    expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true)
+    expect(api.landschapskaart.subgraaf).not.toHaveBeenCalled() // leeg = niets laden
+  })
+
   it('ADR-040 — lk-state herstelt de actieve set; de weergave staat default op overzicht (adapter → geheel)', async () => {
     // Bewaarde state met alleen de actieve set + een achterhaalde `modus`-sleutel (moet genegeerd).
     sessionStorage.setItem('lk-state', JSON.stringify({ actieveSet: ['a1', 'a2'], modus: 'ego' }))

@@ -850,6 +850,7 @@ const actieveSetNodes = computed(() => [...actieveSet.value].map((id) => nodePer
 // zodra de set leeg is.
 const focusOpSet = ref(false)
 function wisSet() {
+  setOpgeschoond.value = 0 // LI046 — bewust opnieuw begonnen: geen verdwenen-melding meer
   actieveSet.value = new Set()
   grofOnlyIds.value = new Set() // LI033 — verse start → grof-only-markering weg
   geselecteerdNodeId.value = null // verse start → selectie/highlight weg
@@ -901,9 +902,15 @@ watch(
 // LI052 — na een subgraaf-load: verwijder set-ids die GEEN node opleverden (spook-ids). Zo bevat de
 // set alleen materialiseerbare leden → teller/modus (op geresolveerde leden) en de set convergeren.
 // Toetst bewust tegen de RUWE respons-nodes (nodes.value), niet nodePerId (dat gg-nodes aggregeert).
+// LI046 — registratie van de laatste opschoning (aantal weggeschoonde spook-ids), zodat
+// een VOLLEDIG verdwenen selectie een eerlijke melding kan tonen i.p.v. de zwijgzame
+// "geen componenten"-variant (de set zelf is dan al leeg — de teller is het bewijs dat
+// er zojuist iets wég was, geen gedragswijziging van de LI052-prune).
+const setOpgeschoond = ref(0)
 function _schoonSetOp() {
   const aanwezig = new Set((nodes.value || []).map((n) => n.id))
   const behouden = [...actieveSet.value].filter((id) => aanwezig.has(id))
+  setOpgeschoond.value = actieveSet.value.size - behouden.length
   if (behouden.length !== actieveSet.value.size) {
     _slaHerlaadOver = true // deze opschoon-mutatie mag GEEN nieuwe fetch uitlokken
     actieveSet.value = new Set(behouden)
@@ -2636,7 +2643,6 @@ onMounted(async () => {
     grofOnlyIds.value = new Set(_handoff.grofOnlyIds || [])
     // LI033 — handoff vanuit "Gebruikte applicaties" (consume-once): open exact die set, neutraal.
     if (_handoff.weergave === 'lagen') weergave.value = 'lagen'
-    beginschermOpen.value = false
   } else if (qCenter) {
     // Expliciete deep-link heeft voorrang op bewaarde state. ADR-040 F1 stap 2a: één centrum → praatplaat.
     actieveSet.value = new Set([qCenter])
@@ -2644,13 +2650,19 @@ onMounted(async () => {
     weergave.value = 'praatplaat'
     _zetPraatplaatRingen() // LI034 slice 2 — deep-link betreedt de praatplaat → kern-4-startstand (vóór _zaaiHistorie)
     detailId.value = qCenter
-    // ADR-025 — "Bekijk op kaart": het beginscherm overslaan en direct de ego-view tonen.
-    beginschermOpen.value = false
   } else {
     // Precedentie: in-sessie `lk-state` (herladen behoudt werk) > server-standaardkijk > kale default.
     const hersteld = _herstelKaartState()
     if (!hersteld && opgeslagenKijk.value) _pasKijkToe(opgeslagenKijk.value)
   }
+  // LI046 — ÉÉN regel voor álle binnenkomst-takken (handoff · deep-link · herstelde
+  // lk-state · verse start · elke TOEKOMSTIGE tak): kom je binnen met een GEVULDE kaart,
+  // dan zie je de kaart — het beginscherm hoort bij een verse start. Terugkeren/herladen
+  // mét bewaard werk ís de expliciete gebruikersactie (besluit Bert; herziet de LI023-
+  // vlag-regel). Bewust een EENMALIGE beslissing bij binnenkomst, geen reactieve koppeling
+  // aan de set — de LI023-spooksluiting-les blijft staan. Een nieuwe tak hoeft alleen de
+  // set te vullen en erft dit; borging: LandschapskaartView.test.js (alle takken + vers).
+  beginschermOpen.value = actieveSet.value.size === 0
   // ADR-033 slice 2d — startscherm: bij ≥1 opgeslagen view en géén expliciete ingang (deep-link of
   // herstelde actieve set) tonen we de views als instap. 0 views → direct het geheel-model.
   if (!qCenter && opgeslagenViews.value.length >= 1 && actieveSet.value.size === 0) {
@@ -3362,6 +3374,14 @@ const typeLabel = (t) => humaniseer(t)
         <p v-else-if="tekenVoortgang" data-testid="lk-voortgang" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--lk-color-text-muted)]">{{ tekenVoortgang.gedaan }} van {{ tekenVoortgang.totaal }} componenten geladen…</p>
         <p v-else-if="laden" data-testid="lk-laden" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--lk-color-text-muted)]">Landschap laden…</p>
         <p v-else-if="fout" role="alert" data-testid="lk-fout" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[var(--lk-color-danger)]">{{ fout }}</p>
+        <!-- LI046 — terugkeer met een selectie die volledig verdwenen is (verwijderd/niet meer
+             toegankelijk): benoem dát er iets weg is (eerlijkheidslijn: "bestaat niet meer",
+             de vervallen-taal van het referentiemodel; gedempt — geen fout van de gebruiker)
+             en zet de bestaande uitweg ernaast (zelfde "Begin opnieuw"-actie als de balk). -->
+        <div v-else-if="!heeftData && setOpgeschoond > 0" data-testid="lk-leeg-verdwenen" class="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 text-center">
+          <p class="text-[var(--lk-color-text-muted)]">De eerder gekozen componenten bestaan niet meer.</p>
+          <button type="button" data-testid="lk-leeg-verdwenen-opnieuw" class="mt-[var(--lk-space-md)] rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] py-2 text-white hover:bg-[#2D6DB5]" @click="wisSet">Begin opnieuw</button>
+        </div>
         <p v-else-if="!heeftData" data-testid="lk-leeg" class="absolute left-1/2 top-1/2 max-w-md -translate-x-1/2 -translate-y-1/2 text-center text-[var(--lk-color-text-muted)]">Geen componenten in deze selectie.</p>
         <!-- LI034 bug A — rustige cue bij een gekozen component zónder relaties in beeld (geen leeg canvas). -->
         <p
