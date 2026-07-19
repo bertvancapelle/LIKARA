@@ -120,17 +120,24 @@ async def wijzig_status(
     obj = await haal_op(session, tenant_id, klaarverklaring_id)
     tid = _tenant_uuid(tenant_id)
     nieuwe_status = KlaarverklaringStatus(data.status)
+    # ÉÉN handeling = ÉÉN aantekening in het logboek (LI047). Bij (her)verklaren: verse snapshot van
+    # de openstaande verplichte feiten; bij heropenen leeg. Deze lezing staat BEWUST vóór de eerste
+    # veldmutatie: `_open_verplichte_feiten` doet een SELECT, en zou `obj` op dat moment al gewijzigd
+    # zijn, dan autoflusht SQLAlchemy die velden apart — waarmee één verantwoordingsmoment uiteenvalt
+    # in twee auditregels (status/reden/wie eerst, open_feiten daarna). De uitkomst is identiek: de
+    # snapshot leest de COMPONENT-stand, die door status/reden/stempel niet geraakt wordt; alleen het
+    # WEGSCHRIJFmoment verschuift. Het blijft de momentopname van déze handeling.
+    nieuwe_open_feiten = (
+        await _open_verplichte_feiten(session, tid, obj.component_id)
+        if nieuwe_status == KlaarverklaringStatus.klaar else []
+    )
     sub, email, op = _stempel()
     obj.status = nieuwe_status
     obj.reden = data.reden
     obj.verklaard_door_sub = sub
     obj.verklaard_door = email
     obj.verklaard_op = op
-    # Bij (her)verklaren: verse snapshot van de openstaande verplichte feiten; bij heropenen leeg.
-    obj.open_feiten = (
-        await _open_verplichte_feiten(session, tid, obj.component_id)
-        if nieuwe_status == KlaarverklaringStatus.klaar else []
-    )
+    obj.open_feiten = nieuwe_open_feiten
     await session.commit()
     await session.refresh(obj)
     return await _zet_naam(session, _tenant_uuid(tenant_id), obj)

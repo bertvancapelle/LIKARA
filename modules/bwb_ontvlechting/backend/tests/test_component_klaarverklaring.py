@@ -136,7 +136,12 @@ async def _maak_app(s, tid):
 
 @integratie
 def test_klaarverklaring_happy_statuswissel_audit_engine_live():
-    """Happy aanmaak + symmetrische statuswissel + audit-historie + engine onaangeroerd."""
+    """Happy aanmaak + symmetrische statuswissel + audit-historie + engine onaangeroerd.
+
+    De audit-assertie toetst het VERHAAL (staat status/reden/wanneer van dit moment in het spoor, en
+    is de open-feiten-snapshot die van dít moment?), niet de opslagvorm: hij is bewust ongevoelig
+    voor het AANTAL auditregels waarin één handeling wordt weggeschreven, en werkt zowel met een
+    ingerichte tenant-norm als met een lege."""
     from sqlalchemy import text as _text
 
     from services import component_klaarverklaring_service as svc
@@ -166,18 +171,55 @@ def test_klaarverklaring_happy_statuswissel_audit_engine_live():
             o2 = await svc.wijzig_status(s, tid, obj.id, KlaarverklaringStatusWijzig(
                 status="open", reden="heropend: scope gewijzigd"))
             assert o2.status.value == "open" and o2.reden == "heropend: scope gewijzigd"
+
+            n_na_open = (await s.execute(_text(
+                "SELECT count(*) FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
+                "AND entiteit_id=:i"), {"i": str(obj.id)})).scalar_one()
+            assert n_na_open > n_na_create
+
+            # Verander een FEIT tussen de twee handelingen: `bedoeling` (migratiepad) wordt alsnog
+            # vastgelegd. Daardoor verschilt de open-feiten-stand van vóór het heropenen, en kan een
+            # verouderde snapshot niet meer ongemerkt meekomen — dát maakt de assertie hieronder
+            # scherp (zonder deze stap zou een nooit-bijgewerkte snapshot toevallig kloppen).
+            await s.execute(_text("UPDATE component SET migratiepad='herbouw' WHERE id=:i"),
+                            {"i": str(app_id)})
+            await s.commit()
+
             o3 = await svc.wijzig_status(s, tid, obj.id, KlaarverklaringStatusWijzig(
                 status="klaar", reden="opnieuw afgehandeld"))
             assert o3.status.value == "klaar"
 
-            n_na_wissel = (await s.execute(_text(
-                "SELECT count(*) FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
-                "AND entiteit_id=:i"), {"i": str(obj.id)})).scalar_one()
-            assert n_na_wissel > n_na_create
-            laatste = (await s.execute(_text(
-                "SELECT wijziging::text FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
-                "AND entiteit_id=:i ORDER BY tijdstip DESC LIMIT 1"), {"i": str(obj.id)})).scalar_one()
-            assert "reden" in laatste and "status" in laatste
+            # LI047 — toets het VERHAAL dat de auditor later moet kunnen navertellen, niet de
+            # opslagvorm. Eerder keek deze test naar de LAATSTE weggeschreven regel; dat koppelde
+            # hem aan het aantal regels waarin één handeling toevallig uiteenviel (en hij was groen
+            # om de verkeerde reden: met een lege norm veranderde `open_feiten` niet, dus was er
+            # één regel). Nu: neem ALLE regels die déze ene handeling opleverde en eis dat het
+            # moment er compleet in staat — of dat nu één regel is of meer.
+            wijzigingen = [r[0] for r in (await s.execute(_text(
+                "SELECT wijziging FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
+                "AND entiteit_id=:i ORDER BY tijdstip OFFSET :n"),
+                {"i": str(obj.id), "n": n_na_open})).all()]
+            assert wijzigingen, "de statuswissel liet geen enkel auditspoor na"
+            velden = set().union(*(set(w.keys()) for w in wijzigingen))
+            for veld in ("status", "reden", "verklaard_op"):
+                assert veld in velden, f"'{veld}' ontbreekt in het auditspoor van de statuswissel"
+            # WIE staat op de vastlegging zelf; het auditspoor is een DIFF, dus een ongewijzigde
+            # actor verschijnt daar terecht niet in (zelfde actor als bij het aanmaken).
+            assert o3.verklaard_door and o3.verklaard_op is not None
+
+            # De open feiten zijn de momentopname van DÉZE handeling: vergelijk met wat de norm op
+            # dit moment zegt — via dezelfde bron als de service, nooit een tweede afleiding. Dit is
+            # de assertie die bijt als de snapshot niet (meer) wordt gezet; ze werkt zowel met een
+            # ingerichte tenant-norm (lijst gevuld) als met een lege norm (beide leeg).
+            from services import component_norm_service as _cn
+            live_open = sorted(
+                f for f, st in (await _cn.norm_status(s, tid, app_id))["feiten"].items()
+                if st == _cn.NIET_VASTGESTELD
+            )
+            assert list(o3.open_feiten) == live_open, "snapshot ≠ de open feiten op dit moment"
+            # Veranderde de snapshot t.o.v. het heropenen, dan hoort die wijziging óók in het spoor.
+            if list(o3.open_feiten) != list(o2.open_feiten):
+                assert "open_feiten" in velden, "gewijzigde open feiten ontbreken in het auditspoor"
 
             lc_na = (await s.execute(
                 _text("SELECT lifecycle_status FROM component_profiel WHERE id=:i"), {"i": str(app_id)}
@@ -366,3 +408,81 @@ def test_klaarverklaring_naam_resolutie_live():
             await s.commit()
 
     asyncio.run(_run_rls(_flow))
+
+
+# ── LI047 — VORM-borging: één handeling, één aantekening ────────────────────────────────────────
+# Bewust een APARTE, kleine test naast de verhaal-test hierboven. Die toetst WAT er in het spoor
+# staat (en is expres ongevoelig voor het aantal regels); deze toetst uitsluitend DAT het één regel
+# blijft. Geen overlap: rood hier = het verantwoordingsmoment valt uiteen; rood daar = er ontbreekt
+# inhoud. Zonder deze test houdt alleen een comment in `wijzig_status` de volgorde tegen — en een
+# comment houdt niets tegen (werkprotocol §KERNLES LI038).
+_VORM_TID = "99990052-2700-0000-0000-000000000027"  # eigen tenant: deze test zet zijn eigen norm
+
+
+@integratie
+def test_statuswissel_levert_een_auditregel_live():
+    """ÉÉN statushandeling op de klaarverklaring levert ÉÉN auditregel op.
+
+    Getoetst op het WIJZIGEN van de status (daar viel het uiteen; bij aanmaken niet), in een stand
+    waar de splitsing daadwerkelijk kán optreden: de open feiten veranderen tijdens de handeling
+    (na het heropenen leeg → bij het opnieuw verklaren gevuld). Verandert er niets aan de open
+    feiten, dan is er ook niets weg te schrijven en bewijst een groene test niets — daarom bewaakt
+    de test die voorwaarde zelf."""
+    from sqlalchemy import text as _text
+
+    from models.models import Component, ComponentNorm, Element, ElementType, HostingModel
+    from schemas.component_klaarverklaring import KlaarverklaringCreate, KlaarverklaringStatusWijzig
+    from services import component_klaarverklaring_service as svc
+    from services import component_norm_service as cn
+
+    tid = uuid.UUID(_VORM_TID)
+
+    async def _tel(s, kv_id):
+        return (await s.execute(_text(
+            "SELECT count(*) FROM audit_log WHERE entiteit_type='component_klaarverklaring' "
+            "AND entiteit_id=:i"), {"i": str(kv_id)})).scalar_one()
+
+    async def _flow(s):
+        eid = None
+        try:
+            # Eigen tenant + eigen norm (alle feiten verplicht) zodat een kaal component gegarandeerd
+            # open feiten heeft. De dev-tenant blijft hier bewust buiten (LI047: zijn norm is het
+            # demolandschap — zie test_component_norm_adr052.py).
+            await s.execute(_text("DELETE FROM component_norm WHERE tenant_id=:t"), {"t": _VORM_TID})
+            for feit in cn.HARDE_FEITEN:
+                s.add(ComponentNorm(tenant_id=tid, feit_sleutel=feit, verplicht=True))
+            elem = Element(tenant_id=tid, element_type=ElementType.component)
+            s.add(elem)
+            await s.flush()
+            eid = elem.id
+            s.add(Component(id=eid, tenant_id=tid, naam="WT-KV-Vorm",
+                            componenttype="applicatie", hostingmodel=HostingModel.onbekend))
+            await s.commit()
+
+            kv = await svc.maak_aan(s, tid, KlaarverklaringCreate(
+                component_id=eid, reden="klaar verklaard"))
+            await svc.wijzig_status(s, tid, kv.id, KlaarverklaringStatusWijzig(
+                status="open", reden="heropend"))  # zet de open feiten op leeg
+
+            voor = await _tel(s, kv.id)
+            obj = await svc.wijzig_status(s, tid, kv.id, KlaarverklaringStatusWijzig(
+                status="klaar", reden="opnieuw klaar verklaard"))  # vult ze weer → verandering
+            na = await _tel(s, kv.id)
+            return voor, na, list(obj.open_feiten)
+        finally:
+            await s.execute(_text("DELETE FROM component_norm WHERE tenant_id=:t"), {"t": _VORM_TID})
+            if eid is not None:
+                await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+            # audit_log NIET opruimen: append-only (lk_app heeft er geen DELETE op) — dat ís de invariant.
+            await s.commit()
+
+    voor, na, open_feiten = asyncio.run(_run_rls(_flow, tid=_VORM_TID))
+    assert open_feiten, (
+        "voorwaarde niet gehaald: geen open feiten na het opnieuw verklaren, dus er verandert niets "
+        "en deze test zou vacuüm-groen zijn"
+    )
+    assert na - voor == 1, (
+        f"één statushandeling hoort ÉÉN aantekening op te leveren, maar leverde er {na - voor}: het "
+        "verantwoordingsmoment valt uiteen. Bepaal de open feiten VÓÓR de eerste veldmutatie — een "
+        "leesactie op een al gewijzigd object autoflusht de andere velden apart weg."
+    )
