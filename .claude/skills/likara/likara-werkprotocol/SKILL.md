@@ -63,6 +63,11 @@ regel ná de beslisboom** i.p.v. een vlag per tak (ADR-054 besluit 6). Vuistrege
 "in elke tak/plek moet je X doen", dan is X vergeten wachten te gebeuren** — hef de herhaling op (één
 gedeelde plek) of laat een scan de afwezigheid vangen. Dit is KERNLES LI038 toegepast op fan-out:
 tekst dekt geen tak die nog niet bestaat.
+**Zelfde les, nieuw geval (LI046 banen) — géén nieuwe regel:** de baan-verdeling
+(`kaartBanen.js:baanVerdeling`) rekent puur op het **knooppaar**, niet op de ring/soort — een nieuwe
+relatiesoort krijgt een eigen baan zónder hier een tak toe te voegen. Geometrie soort-agnostisch **ís**
+de invariant, i.p.v. "regel het per ring". Geborgd door de erven-test (`kaartBanen.test.js`: een
+onbekend relatietype krijgt een eigen baan).
 
 ## Scope voeren op de ids van je eigen domein (LI038)
 
@@ -121,6 +126,16 @@ erop bouwt**, mits ze aantoonbaar **één geheel** zijn (samen ontworpen, samen 
 **stash als vangnet** is. Anders: eerst committen. (Deze sessie: een backend-slice bleef ongecommit
 tot de layout-fix die hij onthulde — ze landden samen in één commit.)
 
+### Verstrengelde werktree ontwarren — precedent + waarom (LI046)
+
+Raken twee slices tóch verstrengeld in **één bestand** (LI046: `LandschapskaartView.vue` = linkerkolom
++ banen), volg CONTRIBUTING.md sectie 7 (niet hier dupliceren): **hunk-niveau splitsen** met
+`git apply --cached` van een slice-only patch (`sed -n '…p' full.patch` → `--check` → `--cached`), per
+commit een **`git diff --cached --stat` + grep-bewijs** dat niets van de andere slice meelift, en een
+**groene suite** tussendoor. **Waaróm:** een commit moet bevatten **wat er getest is**, niet meer —
+anders lift ongetest/ongerelateerd werk mee de historie in. (LI046: `3a72b35` kolom · `6651f1f` banen ·
+`f7929a9` docs — drie schone commits uit één werktree; Bert koos de splitsing expliciet.)
+
 ### Parallelle read-only sporen in een eigen worktree (LI042)
 
 Aansluitend op — niet in strijd met — de root-commit-discipline (CLAUDE.md → Commit-discipline;
@@ -136,6 +151,13 @@ Die discipline blijft **ongewijzigd** voor alles wat muteert.
   **uitsluitend** voor het lezen. Een read-spoor dat een wijziging blijkt te willen: stoppen en als
   eigen `START:` in de bouw-worktree inplannen.
 - Dit is tevens de kiem van het latere **meer-personen-model** (meerdere lezers naast één bouwer).
+- **LI046-bewijs + waar-sta-je-eerst.** Twee shells die in **dezelfde** worktree schreven leverden een
+  feiten-tegenspraak op: een verificatierapport zag "ongecommit" wat een andere shell intussen al had
+  **gecommit** (HEAD was verschoven). Regel bevestigd — **één shell schrijft per repo**; en bij twijfel
+  over de stand eerst read-only **vaststellen waar je staat** (`git branch --show-current`/`log -1`/
+  `cat-file -e <hash>` → branch · HEAD · aanwezige commits · behind-remote) **vóór** je iets schrijft of
+  een "ongecommit"-bevinding opschrijft. Een achterlopende shell laat de bevinding vervallen, niet de
+  werkelijkheid.
 
 ---
 
@@ -158,6 +180,14 @@ Bij elke diagnose **spreekt de code, niet de hypothese**. Een PNA-/instructie-aa
 lezen, een read-only reproductie) en **stopt-en-rapporteert bij discrepantie** — schrijf géén fix
 voor een filter/symbool/bug die niet blijkt te bestaan. (Deze sessie: een "verweesde-org-opruimfilter"
 dat er niet was; een scope-bug die scenario-afhankelijk bleek, geen defect.)
+
+**LI046 — de code wint óók van de OPDRACHT/mockup, niet alleen van een diagnose.** Twee keer weersprak
+de codebase een aanname ín een opdracht, en beide keren was stoppen-en-voorleggen juist: (1) het
+"detailpaneel resolvet op één ring"-vermoeden — wél waar, maar de premisse eromheen niet; (2) de
+mockup-premisse "contract + beheerrol liggen als lijnen tússen twee systemen" — de code tekent contract
+naar een **contractknoop** en beheerrol vanaf een **partij**, niet tussen de twee systemen. Toets een
+mockup/aanname **tegen het model vóór de bouw**; stoppen is geen vertraging maar de **goedkoopste
+correctie** (bouwen op een verkeerde premisse levert een feature die niet doet wat de mockup belooft).
 
 ### Reikwijdte-scan vóór een klasse-fix (LI037)
 
@@ -239,6 +269,14 @@ resultaat). Groene tests ≠ commit-toestemming.
 
 **LI041 = zevende bevestiging:** zeven bevindingen deze sessie, geen enkele zichtbaar in 1200+
 groene tests. De regel is niet nieuw — dit is opnieuw bewijs dat de browsercheck het sluitpunt is.
+
+**LI046 = drie gevallen met dezelfde gemene deler: de test bootst niet na wat de gebruiker doet.**
+(a) de gebruikt-doorklik werd nergens als **keten** getest — alleen de twee helften apart, dus een
+vergeten popup-tak viel niet op; (b) de "de bezoeker wint"-poort werd getest op een component **zonder**
+checklistvragen — een situatie die in de praktijk niet bestaat, dus de aanleiding-wis-bug (die alléén op
+componenten mét vragen optreedt) bleef groen; (c) een per-tak-regel stond in **twee van drie** takken,
+maar de test oefende alleen de gezette takken. Elk geval: assert de **keten** en de **echte** gebruikers-
+staat (mét de feiten die het randgeval dragen), niet de helft of het schone geval.
 
 **Rol-gating toetst met béíde rollen in de echte browser (LI037).** Een mock dekt "welk recht"
 niet: een groene test zag "knop verborgen bij magBewerken=false", maar niet dat verwijderen een

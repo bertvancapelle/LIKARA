@@ -489,3 +489,14 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   een nieuw feit niet geclassificeerd is of op de verkeerde actie guardt. Precedenten:
   `test_classificatie_disjunct_en_verwijder_actie` · `test_primaire_delete_erft_categorie_en_bijt`
   (test_rollengrens_adr050). Zo kan "zeven feiten vergaten de regel" niet opnieuw ontstaan.
+
+## LI046 — groen bewijst geen schone bron (bronbestand-hygiëne)
+
+Een tekstbronbestand (.js/.py/.vue/.md) moet **schone UTF-8** zijn. Groene tests bewijzen dat **niet**:
+Node/vitest parseren een `.js` mét **null-bytes** (` `) probleemloos, dus de suite bleef groen —
+maar git zag `kaartBanen.js` als **binair** (geen diffs, fragiel) en `file` meldde "data". Oorzaak deze
+sessie: Map-key-separators werden per ongeluk ` ` i.p.v. een spatie. **Controleer vóór commit** met
+`file <bestand>` (moet "… text", niet "data") en/of `git diff --cached --stat` (een tekstbestand dat als
+`Bin 0 -> N bytes` verschijnt is verdacht); lokaliseer met `python3 -c "print(open(f,'rb').read().count(b'\\x00'))"`.
+Een unieke sleutel mag elke ASCII-separator gebruiken die niet in de waarden voorkomt (UUIDs bevatten
+geen spatie) — kies bewust, geen onzichtbare control-byte.

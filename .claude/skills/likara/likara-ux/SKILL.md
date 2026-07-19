@@ -809,10 +809,13 @@ in code (zie likara-frontend §LI046 voor het hoe), niet in tekst.
 - **Je landt bij het feit waar je vandaan kwam.** Klik je op de kaart op een relatie/feit, dan land
   je op de plek waar dát feit leeft (de juiste tab, of het gemarkeerde veld) — niet op een kale
   detailpagina. De aanleiding leeft in de URL, dus de landing is **deelbaar en herstelbaar**.
-  - **Geen route beloofd waar niets te landen valt.** Bestaat er geen eerlijke landingsplek (een type
-    zónder detailscherm; een feit zónder anker), dan toont LIKARA **geen link** — nooit kaal landen
-    of "de dichtstbijzijnde tab" openen, want beide liegen. Het gat is zichtbaar (geen affordance),
-    niet verzwegen.
+  - **Wat niets kan doen, staat er niet — geen route beloofd waar niets te landen valt.** Eén regel,
+    twee verschijningsvormen: (a) bestaat er geen eerlijke landingsplek (een type zónder detailscherm;
+    een feit zónder anker), dan toont LIKARA **geen link** — nooit kaal landen of "de dichtstbijzijnde
+    tab", want beide liegen; (b) een **besturing die op dit moment geen werk kan verrichten** wordt
+    níét getoond (niet uitgegrijsd, niet leeg) — de kijkinstellingen-kolom verschijnt alléén bij een
+    getekende kaart (`heeftData`), want een filter zonder verzameling belooft iets wat hij niet kan
+    nakomen. Het gat is zichtbaar (geen affordance), niet verzwegen. (Code: likara-frontend §LI046.)
   - **Een veld-anker markeert, het opent geen bewerk-modus.** `?veld=` markeert het veld op het
     Overzicht met de Bewerken-knop ernaast; het duwt je niet ongevraagd in een invoerscherm. Reden:
     **een gegokte eigenaar is erger dan een lege eigenaar** — LIKARA verzint geen antwoord, het brengt
@@ -826,3 +829,38 @@ in code (zie likara-frontend §LI046 voor het hoe), niet in tekst.
     opnieuw"-uitweg ter plekke, niet een zwijgzaam leeg canvas. Instantie van de eerlijk-gaten-tonen-
     lijn (§LI034 "eerlijk gaten tonen"): een belofte ("je komt terug waar je was") draagt haar eigen
     uitzondering.
+
+## LI046 — de kaart leesbaar houden (linkerkolom + relaties zien)
+
+Alle regels vanuit de gebruiker; het hoe staat in likara-frontend §LI046 (linkerkolom + hoedanigheid).
+Gebouwd `3a72b35` (kolom) + `6651f1f` (banen).
+
+- **Vertrekpunt vs. kijkinstelling — twee bakken.** Een **vertrekpunt** beantwoordt "waar begin ik?" en
+  werkt zónder inhoud (opgeslagen views, zoeken, hele landschap). Een **kijkinstelling** versmalt een
+  beeld dat er al is (filters, ringen, drempels) en werkt alleen mét een getekende kaart. Ze horen niet
+  in dezelfde bak: staan ze bij elkaar, dan gaan de vertrekpunten zwerven en ontstaat dubbeling.
+  (Toegepast: vertrekpunten op het startpaneel `KaartBeginscherm`, kijkinstellingen in de
+  `heeftData`-gegate kolom.)
+- **Eén plek per functie.** De opgeslagen views hadden één bron en **drie** renderplekken met
+  verschillend gedrag — dat waren geen drie weergaven maar drie halve versies (bron van de dubbeling).
+  Beheer (openen/bewerken/verwijderen) hoort op **één** plek te leven (nu het startpaneel). Zusje van de
+  KERNLES-LI038-convergentieregel.
+- **Een verborgen instelling die wél versmalt, laat dat zien.** Een ingeklapte filter (Rol & BIV achter
+  een `<details>`) draagt een zichtbaar merk op de kop zodra hij iets wegneemt (`lk-rolbiv-actief`-badge,
+  spiegel van "+ Filters actief"). Anders versmalt er iets wat de gebruiker niet kan waarnemen — dat is
+  "stiekem verbergen" (§P8), nu voorkomen.
+- **Zichtbaar gaat boven aanklikbaar (KERN).** Wat je niet ziet, klik je niet aan — je klikt niet op
+  iets waarvan je niet weet dat het bestaat. Op de kaart: **meervoud moet zichtbaar zijn, niet
+  ontdekbaar.** Lopen er meerdere relaties tussen twee knopen, dan krijgt **elke hoedanigheid een eigen
+  baan** (een aparte lijn), niet één lijn die je moet aanklikken om de rest te vinden. Een teller telt
+  alléén **binnen** dezelfde soort ("N×"); ongelijksoortige feiten (koppeling · contract · beheer) worden
+  **nooit** opgeteld — dat zou wissen wat de consultant moet weten. Aanvullend: de klik levert altijd
+  **alles onder het paar** ("Tussen deze twee:"), zodat niets verstopt blijft.
+- **Richting is betekenis.** Heen (A→B) en terug (B→A) zijn **twee feiten**, geen dubbeling —
+  samenvoegen wist informatie. Ze krijgen twee gescheiden banen.
+- **De laan is de betekenis — niet "oplossen" als dubbeling.** In een **lanen**weergave (Lagen) mag
+  dezelfde entiteit in meerdere lanen voorkomen — geen dubbeling maar precies het antwoord ("Culemborg
+  als gebruiker" naast "Culemborg als beheerder"; instance-projectie, LI036). **Grens:** in een weergave
+  **zonder** lanen (Overzicht/Praatplaat) hoort de entiteit **één keer** te staan, met de relaties als
+  **gescheiden lijnen** (baan-per-hoedanigheid), niet als meerdere knopen. Een volgende sessie mag de
+  lanen-meervoud niet "oplossen".

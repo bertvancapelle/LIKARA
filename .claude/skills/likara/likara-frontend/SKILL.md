@@ -1526,3 +1526,41 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   toont de view `data-testid="lk-leeg-verdwenen"` ("De eerder gekozen componenten bestaan niet meer" +
   "Begin opnieuw"→`wisSet`) i.p.v. het zwijgzame `lk-leeg`. `setOpgeschoond` verandert het prune-gedrag
   niet; het is het bewijs dat er zojuist iets wég was.
+
+## LI046-patronen (linkerkolom heeftData-gate + relaties gescheiden op hoedanigheid)
+
+*(De UX-regels staan in likara-ux §LI046 "de kaart leesbaar houden"; hier het hoe, geverifieerd.
+Gebouwd `3a72b35`/`6651f1f`.)*
+
+- **Kolom-gate op `heeftData`, niet op `!beginschermOpen`.** De kijkinstellingen-`<aside data-testid="lk-links">`
+  draagt `v-if="heeftData"` (`nodes.length > 0`, `LandschapskaartView.vue:284`) — bewust níét
+  `!beginschermOpen` (dat staat ook open tijdens laden of bij een verdwenen selectie). De aside is een
+  flex-sibling van het `flex-1`-canvas → verbergen reflowt het canvas; de ResizeObserver (`_pasCanvasMaat`:
+  `cy.resize()` + `fit()`, **géén re-layout**) vangt dat op zonder knoop-verspringing. Filter-refs blijven
+  bewaard en grijpen zodra er weer data is. Borging: `LandschapskaartView.test.js` (leeg → geen kolom ·
+  getekend → kolom · `wisSet` → kolom weg).
+- **Views + beheer op het startpaneel; standaardkijk blijft bij de kaart.** `KaartBeginscherm` draagt nu de
+  views-CRUD (`kb-view-bewerk/-verwijder`, prop `magViewsBeheren` + emits `bewerkView`/`verwijderView`); het
+  `lk-views`-kolomblok is weg (één plek). De standaardkijk-opslaan blijft in de kolom — je slaat op wát je
+  op de getekende kaart ziet; toepassen-bij-start gebeurt al in `onMounted`. Rol & BIV in een native
+  `<details data-testid="lk-rolbiv">` met een `lk-rolbiv-actief`-badge bij een gezet filter.
+- **Scheiden op HOEDANIGHEID — zuivere beslissing + soort-agnostische geometrie.** `modules/…/frontend/
+  kaartBanen.js`: `hoedanigheidVan(relatietype)` (default = het relatietype; **alléén** `roltoewijzing →
+  'beheer'`), `baanVerdeling(edges)` groepeert per `(bron,doel,hoedanigheid)` en verdeelt de groepen **per
+  ongeordend knooppaar** over banen met een richting-gecorrigeerde control-point-afstand (`cpd =
+  basis·richting`; de spiegeling zet A→B en B→A op eigen banen). De fan rekent puur op het knooppaar →
+  **ring-agnostisch**: een nieuwe soort erft een eigen baan **zónder code-tak** (invariant-boven-afspraak,
+  werkprotocol §KERNLES LI038 — géén nieuwe les). `CY_STYLE`: `curve-style: 'unbundled-bezier'` +
+  `control-point-distances: 'data(cpd)'` (één hoedanigheid → cpd 0 → rechte lijn). Beheerrollen → één
+  'beheer'-baan (`baanLabel`: ≤`BEHEER_LABEL_MAX`=2 → namen, ≥3 → teller).
+- **Ripple-vrije ingang: groepeer/fan in `_elementen()`, ná de instance-projectie.** Zo blijven de
+  Lagen-rolbanen + rol-tags (die `zichtbareEdges`/`_rollenVanPartij` **vóór** de collapse lezen) ongemoeid.
+  Raak dit patroon nooit vóór de projectie aan — dan breken de rolbanen.
+- **De klik levert alles onder het paar.** `openEdgePopup` bouwt `popupPaarLijst` uit `grafEdges` (de
+  VOLLEDIGE graaf — ook een relatie op een uitgezette ring telt mee) via dezelfde `baanVerdeling`; de popup
+  toont "Tussen deze twee:" met élke hoedanigheid, aanklikbaar (`lk-popup-paar-<hoed>`). Vervangt de oude
+  tap-resolutie op één ring. De flow-master-detail (`api.relaties.lijst`, paar-fetch) blijft ongewijzigd.
+- **Borging = de BESLISSING (LI044-pure-functie-patroon).** `frontend/tests/kaartBanen.test.js` bewijst:
+  twee hoedanigheden → twee onderscheiden geometrische plekken · een **onbekend** relatietype ("toekomstige_
+  soort") erft een eigen baan · beheer-collapse · bidirectioneel gescheiden. De render (unbundled-bezier +
+  `BAAN_STAP`-afstand) is **browsercheck**-materie, geen unit-test.
