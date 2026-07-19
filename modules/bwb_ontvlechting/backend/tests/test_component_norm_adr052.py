@@ -2,7 +2,8 @@
 
 Offline: de kiesbare set + de meegeleverde default-vijf, de signaal-mapping (één bron), de
 uitgestelde toetsing (contract/koppelingen), de seed (idempotent), en de engine-borging
-(import-afwezigheid + read-only bronscan). Live (skip-if-no-DB): de seed zaait exact de default,
+(import-afwezigheid + read-only bronscan). Live (skip-if-no-DB, EIGEN test-tenant zodat de
+norm-teardown het demolandschap niet raakt — zie `_TID`): de seed zaait exact de default,
 en `norm_status` leest "vastgesteld ≠ gevuld" correct (incl. de hostingmodel-sentinel).
 """
 import asyncio
@@ -17,7 +18,12 @@ import app.core.database  # noqa: F401 — registreert de after_begin RLS-hook (
 from services import component_norm_service as cn
 from services import registratiegaten_service as rg
 
-_TID = "11111111-1111-1111-1111-111111111111"
+# Eigen test-tenant (LI047). VERPLICHT hier: `component_norm` hangt aan de TENANT, niet aan een
+# component — de teardown kan zich dus niet tot eigen fixtures beperken en wist onvermijdelijk de
+# hele norm van de tenant waarin hij draait. Op de dev-tenant vaagde dat het demolandschap leeg
+# (de norm was na elke suite-run weg; zie docs/Onderzoek-normdrift-en-taal-V047.md deel A).
+# Zelfde reden en zelfde vorm als test_component_norm_beheer_adr052.py — norm likara-tests §LI039.
+_TID = "99990052-0100-0000-0000-000000000001"
 _LK_APP_URL = "postgresql+asyncpg://lk_app:changeme_dev@localhost:5432/likara"
 
 

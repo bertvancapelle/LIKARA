@@ -1,7 +1,8 @@
 """Tests — ADR-052 slice 2: "bewust geen"-bevinding op een component (koppelingen/contract).
 
 Offline: engine-borging (import-afwezigheid + geen engine-symbolen in de bron) + schema-validatie.
-Live (skip-if-no-DB): de norm-toets is niet meer `toetsing_volgt` maar echt — zonder registratie én
+Live (skip-if-no-DB, EIGEN test-tenant zodat de norm-teardown het demolandschap niet raakt — zie
+`_TID`): de norm-toets is niet meer `toetsing_volgt` maar echt — zonder registratie én
 zonder bevinding = niet_vastgesteld; met bevinding = vastgesteld; met échte koppeling/contract =
 vastgesteld (die wint); en 'bewust geen' náást een echte registratie wordt geweigerd (geen tegenspraak).
 """
@@ -15,7 +16,10 @@ import app.core.database  # noqa: F401 — registreert de after_begin RLS-hook
 from services import component_bevinding_service as cb
 from services import component_norm_service as cn
 
-_TID = "11111111-1111-1111-1111-111111111111"
+# Eigen test-tenant (LI047) — zelfde reden als test_component_norm_adr052.py: `_norm_alles_verplicht`
+# en de teardowns wissen `component_norm` TENANT-breed (die tabel hangt aan de tenant, niet aan een
+# component), dus op de dev-tenant vaagden ze het demolandschap leeg. Norm: likara-tests §LI039.
+_TID = "99990052-0200-0000-0000-000000000002"
 _LK_APP_URL = "postgresql+asyncpg://lk_app:changeme_dev@localhost:5432/likara"
 
 
