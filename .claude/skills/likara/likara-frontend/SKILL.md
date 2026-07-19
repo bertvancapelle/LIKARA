@@ -1068,12 +1068,16 @@ bewezen architectuur") is daarmee ACHTERHAALD:
 
 ## LI023 — Landschapskaart Fase B patronen
 
-### beginschermOpen-vlag (expliciete sluit-actie)
-De zichtbaarheid van KaartBeginscherm is NIET gekoppeld aan de set-grootte.
-Een aparte `beginschermOpen = ref(true)` bepaalt of het beginscherm zichtbaar is.
-Sluiten = alleen via expliciete gebruikersactie ("Toon N componenten op de kaart"-knop).
-Heropenen = wisSet() + elke harde reset.
-Nooit: `v-if="actieveSet.size === 0"` voor het beginscherm.
+### beginschermOpen-vlag (expliciete sluit-actie — aangescherpt LI046)
+De zichtbaarheid van KaartBeginscherm is NIET **reactief** gekoppeld aan de set-grootte
+(nooit `v-if="actieveSet.size === 0"` — spooksluitingen). Een aparte
+`beginschermOpen = ref(true)` bepaalt de zichtbaarheid. Bij **binnenkomst** geldt één
+eenmalige gedeelde regel ná de beslisboom: `beginschermOpen = actieveSet.size === 0` —
+gevulde kaart (handoff/deep-link/herstelde lk-state/toekomstige tak) → beginscherm dicht;
+**terugkeren/herladen mét bewaard werk ís de expliciete actie** (LI046). Per-tak-vlaggen
+bestaan niet meer; een nieuwe tak vult alleen de set en erft de regel. Sluiten tijdens de
+sessie = expliciete gebruikersactie ("Toon N componenten"-knop, view openen, hele landschap);
+heropenen = wisSet() + elke harde reset.
 
 ### Actiebalk bovenaan beginscherm
 De primaire actieknop staat als vaste actiebalk BOVENAAN het beginscherm (niet

@@ -304,11 +304,18 @@ De kaart opent altijd leeg (beginscherm). De gebruiker kiest een startpunt:
 - Organisatie/leverancier zijn **filtercriteria**, geen set-leden.
 - De kaart laadt NOOIT automatisch het hele landschap (schaalt niet).
 
-### beginschermOpen-vlag
+### beginschermOpen-vlag (aangescherpt LI046)
 
 Zichtbaarheid = aparte `beginschermOpen = ref(true)`.
-NIET gekoppeld aan `actieveSet.size === 0` — die koppeling veroorzaakte spooksluitingen.
-Sluiten = alleen via expliciete gebruikersactie; heropenen = wisSet() + harde reset.
+NIET **reactief** gekoppeld aan `actieveSet.size === 0` — die koppeling veroorzaakte
+spooksluitingen. Wél geldt bij **binnenkomst** één EENMALIGE gedeelde regel over álle
+binnenkomst-takken (handoff · deep-link · herstelde lk-state · verse start · elke toekomstige
+tak): **gevulde kaart → beginscherm dicht** (`beginschermOpen = actieveSet.size === 0`, ná de
+beslisboom). **Terugkeren of herladen mét bewaard werk telt als de expliciete gebruikersactie**
+(besluit Bert LI046: "je komt terug waar je was — ook op de kaart"); het beginscherm hoort bij
+een VERSE start, niet bij een terugkeer. Sluiten tijdens de sessie = expliciete actie;
+heropenen = wisSet() + harde reset. Een nieuwe binnenkomst-tak hoeft alleen de set te vullen
+en erft dit — borging: LandschapskaartView.test.js.
 
 ## LI023 — Signalering registratiegaten (ADR-035, V024)
 
