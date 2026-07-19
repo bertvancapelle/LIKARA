@@ -19,6 +19,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { Button, Column, DataTable, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { useRouter } from '@/composables/router'
@@ -146,7 +147,7 @@ async function bevestigVerwijderen() {
 }
 
 function naarOrganisatie(rij) {
-  router.push({ name: 'partij-detail', params: { id: rij.organisatie_id } })
+  router.push(detailRoute('partij', rij.organisatie_id))
 }
 </script>
 

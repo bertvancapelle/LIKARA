@@ -18,6 +18,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { Button, Tag } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
 import { zetKaartHandoff } from '@/composables/kaartHandoff'
@@ -104,7 +105,7 @@ function toonOpKaart() {
         class="flex items-center gap-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]"
       >
         <router-link
-          :to="{ name: 'component-detail', params: { id: c.component_id } }"
+          :to="detailRoute('component', c.component_id)"
           :data-testid="`ga-link-${c.component_id}`"
           class="text-[var(--lk-color-primary)] hover:underline"
         >{{ c.component_naam }}</router-link>

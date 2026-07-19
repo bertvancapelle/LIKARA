@@ -15,6 +15,7 @@ import { onMounted, ref } from 'vue'
 import { Tag } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
+import { detailRoute } from '@/detailIngang'
 import { LIFECYCLE, LIFECYCLE_SEVERITY, label } from '@modules/bwb_ontvlechting/frontend/labels'
 
 const auth = useAuthStore()
@@ -221,7 +222,7 @@ onMounted(laad)
             class="flex items-center gap-[var(--lk-space-md)] bg-[var(--lk-color-surface)] rounded-[var(--lk-radius-card)] shadow-[var(--lk-shadow-sm)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)]"
           >
             <router-link
-              :to="{ name: 'component-detail', params: { id: app.id } }"
+              :to="detailRoute('component', app.id)"
               data-testid="recent-link"
               class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             >

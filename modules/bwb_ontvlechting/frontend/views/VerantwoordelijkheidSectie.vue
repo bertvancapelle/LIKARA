@@ -10,6 +10,7 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Dialog, Tag, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { PARTIJ_AARD, label, partijIdentiteit } from '../labels'
@@ -163,7 +164,7 @@ defineExpose({ items, laad })
         <tr v-for="rij in items" :key="rij.toewijzing_id" class="border-t border-[var(--lk-color-border)]">
           <td class="py-[var(--lk-space-xs)] font-semibold">{{ rij.rol_label }}</td>
           <td>
-            <router-link :to="{ name: 'partij-detail', params: { id: rij.partij_id } }" class="text-[var(--lk-color-primary)] hover:underline">{{ rij.partij_naam }}</router-link>
+            <router-link :to="detailRoute('partij', rij.partij_id)" class="text-[var(--lk-color-primary)] hover:underline">{{ rij.partij_naam }}</router-link>
           </td>
           <td><Tag :value="aardLabel(rij.partij_aard)" severity="info" /></td>
           <td class="text-right">

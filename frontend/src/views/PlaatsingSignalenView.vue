@@ -10,6 +10,7 @@
  */
 import { onMounted, ref } from 'vue'
 import { api } from '@/api'
+import { detailRoute } from '@/detailIngang'
 import { humaniseer } from '@modules/bwb_ontvlechting/frontend/labels'
 
 // Leesbare signaalteksten (geen jargon).
@@ -90,7 +91,7 @@ onMounted(laad)
         >
           <td class="px-[var(--lk-space-md)] py-[var(--lk-space-sm)] font-medium">
             <router-link
-              :to="{ name: 'component-detail', params: { id: s.component_id } }"
+              :to="detailRoute('component', s.component_id)"
               :data-testid="`signaal-link-${s.component_id}`"
               class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             >

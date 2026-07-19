@@ -9,6 +9,7 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Dialog, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
@@ -258,7 +259,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
       <template v-if="valtOnder.length">
         <span class="font-semibold">Valt onder:</span>
         <span v-for="(r, i) in valtOnder" :key="r.koppeling_id">
-          <router-link :to="{ name: 'contract-detail', params: { id: r.contract_id } }" class="text-[var(--lk-color-primary)] hover:underline">{{ r.contractnaam }}</router-link>
+          <router-link :to="detailRoute('contract', r.contract_id)" class="text-[var(--lk-color-primary)] hover:underline">{{ r.contractnaam }}</router-link>
           ({{ r.leverancier_naam }}){{ i < valtOnder.length - 1 ? ', ' : '' }}
         </span>
       </template>
@@ -269,9 +270,9 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
     <div v-if="ketens.length" data-testid="ct-ketens" class="mb-[var(--lk-space-sm)] flex flex-col gap-0.5 text-[length:var(--lk-text-sm)]">
       <p v-for="r in ketens" :key="r.koppeling_id" :data-testid="`ct-keten-${r.koppeling_id}`" class="flex flex-wrap items-center gap-1">
         <template v-if="appNaam"><span class="font-semibold">{{ appNaam }}</span><span class="text-[var(--lk-color-text-muted)]">→</span></template>
-        <router-link :to="{ name: 'contract-detail', params: { id: r.contract_id } }" class="text-[var(--lk-color-primary)] hover:underline">{{ r.contractnaam }}</router-link>
+        <router-link :to="detailRoute('contract', r.contract_id)" class="text-[var(--lk-color-primary)] hover:underline">{{ r.contractnaam }}</router-link>
         <span class="text-[var(--lk-color-text-muted)]">→</span>
-        <router-link :to="{ name: 'contract-detail', params: { id: r.mantelcontract_id } }" class="text-[var(--lk-color-primary)] hover:underline">{{ r.mantelcontract_naam || 'mantelcontract' }}</router-link>
+        <router-link :to="detailRoute('contract', r.mantelcontract_id)" class="text-[var(--lk-color-primary)] hover:underline">{{ r.mantelcontract_naam || 'mantelcontract' }}</router-link>
       </p>
     </div>
 
@@ -288,7 +289,7 @@ defineExpose({ items, laad, dekking, dekkingOpties, bewerkContractId, bewerkSleu
       <tbody>
         <tr v-for="rij in items" :key="rij.koppeling_id" class="border-t border-[var(--lk-color-border)]">
           <td class="py-[var(--lk-space-xs)]">
-            <router-link :to="{ name: 'contract-detail', params: { id: rij.contract_id } }" class="text-[var(--lk-color-primary)] hover:underline">{{ rij.contractnaam }}</router-link>
+            <router-link :to="detailRoute('contract', rij.contract_id)" class="text-[var(--lk-color-primary)] hover:underline">{{ rij.contractnaam }}</router-link>
             <!-- ADR-030 — dekking: algemeen (contract-breed) + per-band (alleen als afwijkend). -->
             <div class="mt-0.5 flex flex-col gap-0.5 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
               <span v-if="dekking[rij.contract_id]?.contract_breed?.length" :data-testid="`ct-dekking-breed-${rij.koppeling_id}`">

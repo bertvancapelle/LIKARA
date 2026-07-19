@@ -11,6 +11,7 @@
  */
 import { ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { api } from '@/api'
 import { LIFECYCLE, LIFECYCLE_SEVERITY, label } from '../labels'
 
@@ -36,7 +37,7 @@ async function analyseer() {
 
 // LI059 Slice 4 — één detailscherm voor élk type.
 function rijRoute(rij) {
-  return { name: 'component-detail', params: { id: rij.component_id } }
+  return detailRoute('component', rij.component_id)
 }
 const lifecycleLabel = (c) => label(LIFECYCLE, c)
 const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'

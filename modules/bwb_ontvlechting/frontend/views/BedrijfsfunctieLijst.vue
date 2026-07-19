@@ -32,6 +32,7 @@ import { Button, Dialog, useToast } from '@/primevue'
 import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
+import { useRoute } from '@/composables/router'
 import { useToonInBoom } from '@/composables/useToonNieuweRij'
 import { api } from '@/api'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
@@ -52,6 +53,7 @@ const magVerwijderen = computed(() => auth.hasRole('beheerder'))
 // gate-1b-RBAC-correctie). Affordance vooraf weren; de backend blijft de handhaver.
 const magInlezen = computed(() => auth.hasRole('beheerder'))
 
+const route = useRoute()
 const alle = ref([]) // platte set (alle pagina's); de boom is een client-side afgeleide
 const laden = ref(false)
 const fout = ref(null)
@@ -879,10 +881,17 @@ async function bevestigInlezen() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   herstelLijstStaat()
-  laad()
+  await laad()
   laadModelStatus() // onvoltooid-signaal (best-effort, parallel aan de boom-laad)
+  // LI046 — focus-landing via de gedeelde ingang (`detailRoute('bedrijfsfunctie', id)` →
+  // `?focus=<id>`): een bedrijfsfunctie heeft geen detailscherm; de aanleiding landt hier,
+  // met het bestaande toon-in-boom-gedrag (takken open + scroll + aanstip). Onbekende of
+  // ontbrekende focus → stil bovenaan, zonder markering (besluit 2). Deep-link wint van de
+  // bewaarde lijststaat (bestaande precedentie), dus geen herstel-conflict.
+  const focus = route.query.focus
+  if (focus != null && focus !== '') toonFunctie(String(focus))
 })
 </script>
 

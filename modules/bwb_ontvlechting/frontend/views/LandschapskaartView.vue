@@ -13,6 +13,7 @@
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from '@/composables/router'
+import { detailRoute } from '@/detailIngang'
 import cytoscape from '@/composables/cytoscape'
 import { api } from '@/api'
 import { useToast } from '@/primevue'
@@ -1132,7 +1133,7 @@ function selecteerNode(id) {
   cy.animate?.({ center: { eles: node }, zoom: Math.max(cy.zoom?.() ?? 1, 1.2), duration: 400, easing: 'ease-in-out-cubic' })
 }
 function openApplicatie() {
-  if (detailNode.value) router.push({ name: 'component-detail', params: { id: detailNode.value.id } })
+  if (detailNode.value) router.push(detailRoute('component', detailNode.value.id))
 }
 
 // ── ADR-033 — selectie-highlight: enkelklik op een knoop kleurt ALLEEN z'n incidente lijnen ──
@@ -1308,16 +1309,22 @@ const fullscreen = ref(false)
 const _heeftComponentDetail = (n) => !!n && (n.element_type === 'applicatie' || n.laag === 'application')
 function _detailLink(node) {
   if (!node) return null
-  const id = node.id
-  switch (node.element_type) {
-    case 'partij': return { label: 'Open partij →', fn: () => router.push({ name: 'partij-detail', params: { id } }) }
-    case 'contract': return { label: 'Open contract →', fn: () => router.push({ name: 'contract-detail', params: { id } }) }
-    case 'gebruikersgroep': return null
-  }
-  // Componenten (applicatie of ander applicatielaag-componenttype) → de component-detailpagina.
-  return _heeftComponentDetail(node)
-    ? { label: 'Open component →', fn: () => router.push({ name: 'component-detail', params: { id } }) }
-    : null
+  // LI046 — de kaart vertaalt zijn node naar de canonieke objectsoort; de ROUTE komt uit de
+  // gedeelde ingang (`detailRoute`). Kaart-nodes dragen het componenttype als `element_type`
+  // (nooit letterlijk 'component'), dus de applicatielaag-drempel blijft hier.
+  const soort =
+    node.element_type === 'partij' || node.element_type === 'contract'
+      ? node.element_type
+      : node.element_type === 'gebruikersgroep'
+        ? null
+        : _heeftComponentDetail(node)
+          ? 'component'
+          : null
+  if (!soort) return null
+  const route = detailRoute(soort, node.id)
+  if (!route) return null
+  const label = { partij: 'Open partij →', contract: 'Open contract →', component: 'Open component →' }[soort]
+  return { label, fn: () => router.push(route) }
 }
 
 function sluitPopup() {

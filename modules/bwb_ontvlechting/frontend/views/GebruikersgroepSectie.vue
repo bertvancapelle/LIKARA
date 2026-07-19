@@ -6,6 +6,7 @@
  */
 import { computed, nextTick, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, InputText, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { useAanstip } from '@/composables/useToonNieuweRij'
 import { api } from '@/api'
@@ -276,7 +277,7 @@ laad({ reset: true })
         <template #body="{ data }">
           <router-link
             v-if="data.organisatie_id"
-            :to="{ name: 'partij-detail', params: { id: data.organisatie_id } }"
+            :to="detailRoute('partij', data.organisatie_id)"
             :data-testid="`gg-org-link-${data.id}`"
             class="text-[var(--lk-color-primary)] hover:underline"
           >

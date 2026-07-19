@@ -11,6 +11,7 @@
  */
 import { computed, provide, ref, watch } from 'vue'
 import { Button, Dialog, Tag, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
@@ -429,7 +430,7 @@ watch(() => props.id, async () => {
                 <dd>
                   <router-link
                     v-if="component.eigenaar_organisatie_id"
-                    :to="{ name: 'partij-detail', params: { id: component.eigenaar_organisatie_id } }"
+                    :to="detailRoute('partij', component.eigenaar_organisatie_id)"
                     data-testid="comp-eigenaar-org-link"
                     class="text-[var(--lk-color-primary)] hover:underline"
                   >{{ component.eigenaar_organisatie_naam }}</router-link>

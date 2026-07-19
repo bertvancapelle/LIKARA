@@ -7,6 +7,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
@@ -224,7 +225,7 @@ onMounted(async () => {
     >
       <Column field="contractnaam" header="Contractnaam" sortable>
         <template #body="{ data }">
-          <router-link :to="{ name: 'contract-detail', params: { id: data.id } }" data-testid="rij-link" class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]">
+          <router-link :to="detailRoute('contract', data.id)" data-testid="rij-link" class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]">
             {{ data.contractnaam }}
           </router-link>
         </template>

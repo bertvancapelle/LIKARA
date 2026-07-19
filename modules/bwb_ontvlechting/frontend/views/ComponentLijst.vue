@@ -13,6 +13,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
@@ -356,14 +357,14 @@ function wisFilters() {
 
 function rijRoute(rij) {
   // LI059 Slice 4 — één detailscherm voor élk type.
-  return { name: 'component-detail', params: { id: rij.id } }
+  return detailRoute('component', rij.id)
 }
 
 // ADR-042 4b — aanmaken als overlay boven de lijst; na opslaan door naar het detail
 // (bestaand gedrag). De oude route `component-nieuw` redirect hierheen met ?nieuw=1.
 const nieuwOverlayOpen = ref(false)
 function onAangemaakt(resultaat) {
-  router.push({ name: 'component-detail', params: { id: resultaat.id } })
+  router.push(detailRoute('component', resultaat.id))
 }
 
 const hosting = (c) => label(HOSTINGMODEL, c)
@@ -723,7 +724,7 @@ onMounted(async () => {
         <template #body="{ data }">
           <router-link
             v-if="data.eigenaar_organisatie_id"
-            :to="{ name: 'partij-detail', params: { id: data.eigenaar_organisatie_id } }"
+            :to="detailRoute('partij', data.eigenaar_organisatie_id)"
             :data-testid="`comp-eigenaar-org-link-${data.id}`"
             class="text-[var(--lk-color-primary)] hover:underline"
           >{{ data.eigenaar_organisatie_naam }}</router-link>

@@ -9,6 +9,7 @@
  */
 import { computed, ref, watch } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
@@ -124,7 +125,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
           <!-- Parent-context: deelcontract → mantelcontract (alleen indien aanwezig). -->
           <p v-if="contract.mantelcontract_id" data-testid="contract-valt-onder" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
             Valt onder
-            <router-link :to="{ name: 'contract-detail', params: { id: contract.mantelcontract_id } }" data-testid="valt-onder-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ mantelNaam || 'mantelcontract' }}</router-link>
+            <router-link :to="detailRoute('contract', contract.mantelcontract_id)" data-testid="valt-onder-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ mantelNaam || 'mantelcontract' }}</router-link>
           </p>
         </template>
       </DetailKop>
@@ -136,7 +137,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
           <dt class="font-semibold">Mantelcontract</dt>
           <dd>
             <router-link
-              :to="{ name: 'contract-detail', params: { id: contract.mantelcontract_id } }"
+              :to="detailRoute('contract', contract.mantelcontract_id)"
               data-testid="mantel-link"
               class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             >
@@ -185,7 +186,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         <DataTable :value="deelcontracten" data-testid="deelcontracten-tabel">
           <Column header="Contractnaam">
             <template #body="{ data }">
-              <router-link :to="{ name: 'contract-detail', params: { id: data.id } }" data-testid="deel-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.contractnaam }}</router-link>
+              <router-link :to="detailRoute('contract', data.id)" data-testid="deel-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.contractnaam }}</router-link>
             </template>
           </Column>
           <Column header="Leverancier"><template #body="{ data }">{{ data.leverancier_naam }}</template></Column>
@@ -202,7 +203,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
           <Column header="Componenten">
             <template #body="{ data }">
               <span class="flex flex-wrap gap-x-[var(--lk-space-sm)]">
-                <router-link v-for="a in data.applicaties" :key="a.id" :to="{ name: 'component-detail', params: { id: a.id } }" :data-testid="`deel-app-${a.id}`" class="text-[var(--lk-color-primary)] hover:underline">{{ a.naam }}</router-link>
+                <router-link v-for="a in data.applicaties" :key="a.id" :to="detailRoute('component', a.id)" :data-testid="`deel-app-${a.id}`" class="text-[var(--lk-color-primary)] hover:underline">{{ a.naam }}</router-link>
                 <span v-if="!data.applicaties?.length">—</span>
               </span>
             </template>
@@ -223,7 +224,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         <DataTable :value="gekoppeldeApps" data-testid="gekoppelde-apps-tabel">
           <Column header="Component">
             <template #body="{ data }">
-              <router-link :to="{ name: 'component-detail', params: { id: data.applicatie_id } }" data-testid="app-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.applicatie_naam }}</router-link>
+              <router-link :to="detailRoute('component', data.applicatie_id)" data-testid="app-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.applicatie_naam }}</router-link>
             </template>
           </Column>
           <Column header="Rol"><template #body="{ data }">{{ data.relatie_rol_label }}</template></Column>

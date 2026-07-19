@@ -14,6 +14,7 @@ import { useRoute } from 'vue-router'
 import { Button, Column, DataTable, Tag } from '@/primevue'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
+import { detailRoute } from '@/detailIngang'
 import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, label } from '@modules/bwb_ontvlechting/frontend/labels'
 
 const route = useRoute()
@@ -100,20 +101,15 @@ function categorieVan(code) {
 // component-detail (tabloos). `markeer` markeert de veroorzakende checklistvraag.
 function detailDoel(data, { markeer = false } = {}) {
   const isApplicatie = data.componenttype === 'applicatie'
-  const query = {}
-  if (markeer) {
-    query.markeer = data.vraag_code
-    if (isApplicatie) {
-      query.tab = 'checklist'
-      query.cat = categorieVan(data.vraag_code)
-    }
-  }
-  return {
-    // LI059 Slice 4 — één detailscherm; de checklist-deep-link (tab/cat) werkt op ComponentDetail.
-    name: 'component-detail',
-    params: { id: data.component_id },
-    query,
-  }
+  // LI046 — via de gedeelde ingang; de aanleiding (markeer/tab/cat) vertaalt naar exact
+  // dezelfde query als voorheen (LI059 Slice 4: de checklist-deep-link werkt op ComponentDetail).
+  const aanleiding = markeer
+    ? {
+        markeer: data.vraag_code,
+        ...(isApplicatie ? { tab: 'checklist', cat: categorieVan(data.vraag_code) } : {}),
+      }
+    : null
+  return detailRoute('component', data.component_id, aanleiding)
 }
 
 const statusLabel = (c) => label(BLOKKADE_STATUS, c)

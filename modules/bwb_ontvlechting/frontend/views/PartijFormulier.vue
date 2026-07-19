@@ -9,6 +9,7 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, InputText, Textarea, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRouter, useRoute } from '@/composables/router'
 import { api } from '@/api'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
@@ -201,7 +202,7 @@ async function opslaan() {
       const q = route.query || {}
       doelId = q.afdeling_id ? String(q.afdeling_id) : q.organisatie_id ? String(q.organisatie_id) : res.id
     }
-    router.push({ name: 'partij-detail', params: { id: doelId } })
+    router.push(detailRoute('partij', doelId))
   } catch (e) {
     if (!_serverveldfouten(e)) _toastFout(e)
   } finally {
@@ -210,7 +211,7 @@ async function opslaan() {
 }
 
 function annuleer() {
-  if (bewerken.value) router.push({ name: 'partij-detail', params: { id: props.id } })
+  if (bewerken.value) router.push(detailRoute('partij', props.id))
   else router.push({ name: 'partij-lijst' })
 }
 

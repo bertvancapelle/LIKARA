@@ -10,6 +10,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable, Tag } from '@/primevue'
 import { api } from '@/api'
+import { detailRoute } from '@/detailIngang'
 import { ARCHIMATE_ASPECT, ARCHIMATE_ELEMENT, ARCHIMATE_LAAG, humaniseer, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import ArchitectuurLagenView from './ArchitectuurLagenView.vue'
 
@@ -48,19 +49,9 @@ const aspectLabel = (c) => (c ? label(ARCHIMATE_ASPECT, c) : '—')
 const elementLabel = (c) => (c ? label(ARCHIMATE_ELEMENT, c) : '—')
 const typeLabel = (c) => humaniseer(c)
 
-// Rij-doorklik naar het detail per element-type (B2). Typen zonder eigen detailpagina
-// (datatype/gebruikersgroep — die leven als sectie onder een applicatie) krijgen geen link.
-const ROUTE_PER_TYPE = {
-  component: 'component-detail',
-  contract: 'contract-detail',
-  partij: 'partij-detail',
-  plateau: 'plateau-detail',
-  gap: 'gap-detail',
-  work_package: 'work-package-detail',
-  deliverable: 'deliverable-detail',
-}
-const elementRoute = (rij) =>
-  ROUTE_PER_TYPE[rij.element_type] ? { name: ROUTE_PER_TYPE[rij.element_type], params: { id: rij.id } } : null
+// Rij-doorklik naar het detail per element-type (B2) — via de gedeelde ingang (LI046).
+// Typen zonder eigen detailpagina (datatype/gebruikersgroep) krijgen geen link.
+const elementRoute = (rij) => detailRoute(rij.element_type, rij.id)
 
 async function laad({ reset = false } = {}) {
   laden.value = true

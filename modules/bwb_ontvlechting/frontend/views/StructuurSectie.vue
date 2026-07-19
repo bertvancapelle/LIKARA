@@ -17,6 +17,7 @@
  */
 import { computed, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, Textarea, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { REGISTER_FOUT, humaniseer } from '../labels'
@@ -78,7 +79,7 @@ async function laad() {
 
 // LI059 Slice 4 — één detailscherm voor élk type.
 function buurRoute(rij) {
-  return { name: 'component-detail', params: { id: rij.component_id } }
+  return detailRoute('component', rij.component_id)
 }
 
 function _reset() {

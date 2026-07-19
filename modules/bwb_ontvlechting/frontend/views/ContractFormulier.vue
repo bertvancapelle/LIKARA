@@ -10,6 +10,7 @@
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Button, InputText, Textarea, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRouter } from '@/composables/router'
 import { api } from '@/api'
 import { CONTRACTTYPE, REGISTER_FOUT, label } from '../labels'
@@ -195,7 +196,7 @@ async function opslaan() {
       ? await api.contracten.werkBij(props.id, data)
       : await api.contracten.maak(data)
     toast.add({ severity: 'success', summary: bewerken.value ? 'Wijzigingen opgeslagen' : 'Contract aangemaakt', life: 3000 })
-    router.push({ name: 'contract-detail', params: { id: res.id } })
+    router.push(detailRoute('contract', res.id))
   } catch (e) {
     if (!_serverfout(e)) _toastFout(e)
   } finally {
@@ -204,7 +205,7 @@ async function opslaan() {
 }
 
 function annuleer() {
-  if (bewerken.value) router.push({ name: 'contract-detail', params: { id: props.id } })
+  if (bewerken.value) router.push(detailRoute('contract', props.id))
   else router.push({ name: 'contract-lijst' })
 }
 

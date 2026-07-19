@@ -11,6 +11,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api'
+import { detailRoute } from '@/detailIngang'
 import { humaniseer, label, NORM_FEIT_LABEL } from '@modules/bwb_ontvlechting/frontend/labels'
 import PlaatsingSignalenView from '@/views/PlaatsingSignalenView.vue'
 import WerkvoorraadPlekView from '@modules/bwb_ontvlechting/frontend/views/WerkvoorraadPlekView.vue'
@@ -50,15 +51,13 @@ const totaal = computed(() => {
   return n
 })
 function linkVoor(item, soort) {
-  if (soort === 'component') return { name: 'component-detail', params: { id: item.id } }
+  // LI046 — via de gedeelde ingang; een soort zonder detailscherm geeft null (geen link).
+  if (soort === 'component') return detailRoute('component', item.id)
   // ADR-036 — het grof-feit-item draagt zijn eigen id (v-key) + de applicatie als linkdoel.
-  if (soort === 'applicatie') return { name: 'component-detail', params: { id: item.applicatie_id } }
-  if (soort === 'contract') return { name: 'contract-detail', params: { id: item.id } }
-  if (soort === 'object') {
-    if (item.entiteit_type === 'component') return { name: 'component-detail', params: { id: item.id } }
-    if (item.entiteit_type === 'contract') return { name: 'contract-detail', params: { id: item.id } }
-  }
-  return null // gebruikersgroep heeft (nog) geen detail-pagina → geen link
+  if (soort === 'applicatie') return detailRoute('component', item.applicatie_id)
+  if (soort === 'contract') return detailRoute('contract', item.id)
+  if (soort === 'object') return detailRoute(item.entiteit_type, item.id)
+  return null
 }
 
 async function laadGaten() {
@@ -158,7 +157,7 @@ onMounted(laadGaten)
               :data-testid="`sig-verschoven-${rij.feit}-${c.id}`"
               class="text-[length:var(--lk-text-sm)]"
             >
-              <router-link :to="{ name: 'component-detail', params: { id: c.id } }" class="text-[var(--lk-color-primary)] hover:underline">{{ c.naam }}</router-link>
+              <router-link :to="detailRoute('component', c.id)" class="text-[var(--lk-color-primary)] hover:underline">{{ c.naam }}</router-link>
             </li>
           </ul>
         </div>

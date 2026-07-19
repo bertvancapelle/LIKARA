@@ -8,6 +8,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { Button, Column, DataTable } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
@@ -191,7 +192,7 @@ onMounted(() => {
       <Column field="naam" header="Naam" sortable>
         <template #body="{ data }">
           <router-link
-            :to="{ name: 'partij-detail', params: { id: data.id } }"
+            :to="detailRoute('partij', data.id)"
             data-testid="rij-link"
             class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
           >
@@ -213,7 +214,7 @@ onMounted(() => {
         <template #body="{ data }">
           <router-link
             v-if="data.contactpersoon_id"
-            :to="{ name: 'partij-detail', params: { id: data.contactpersoon_id } }"
+            :to="detailRoute('partij', data.contactpersoon_id)"
             data-testid="rij-contactpersoon-link"
             class="text-[var(--lk-color-primary)] hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
           >{{ data.contactpersoon_naam || '—' }}</router-link>

@@ -9,6 +9,7 @@
  */
 import { computed, reactive, ref, watch } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { useTerugNavigatie } from '@/composables/useTerugNavigatie'
@@ -260,7 +261,7 @@ const RIJEN = [
           <!-- Parent-context als subtitelregel in de header (ADR-024) -->
           <p v-if="ouderOrgNaam" data-testid="partij-hoortbij" class="mt-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
             Hoort bij:
-            <router-link :to="{ name: 'partij-detail', params: { id: partij.organisatie_id } }" data-testid="hoortbij-org-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderOrgNaam }}</router-link><span v-if="ouderAfdelingNaam"> › <router-link :to="{ name: 'partij-detail', params: { id: partij.afdeling_id } }" data-testid="hoortbij-afd-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderAfdelingNaam }}</router-link></span>
+            <router-link :to="detailRoute('partij', partij.organisatie_id)" data-testid="hoortbij-org-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderOrgNaam }}</router-link><span v-if="ouderAfdelingNaam"> › <router-link :to="detailRoute('partij', partij.afdeling_id)" data-testid="hoortbij-afd-link" class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline">{{ ouderAfdelingNaam }}</router-link></span>
           </p>
         </template>
       </DetailKop>
@@ -277,7 +278,7 @@ const RIJEN = [
           <dd data-testid="detail-aanspreekpunt">
             <router-link
               v-if="partij.contactpersoon_id"
-              :to="{ name: 'partij-detail', params: { id: partij.contactpersoon_id } }"
+              :to="detailRoute('partij', partij.contactpersoon_id)"
               data-testid="detail-aanspreekpunt-link"
               class="rounded px-1 text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)] hover:underline"
             >{{ contactpersoonNaam || 'Aanspreekpunt' }}</router-link>
@@ -308,7 +309,7 @@ const RIJEN = [
           <DataTable :value="afdelingen.items" data-testid="partij-afdelingen-tabel" lazy :sort-field="afdelingen.sortVeld" :sort-order="primeSort(afdelingen)" @sort="onAfdelingenSort">
             <Column field="naam" header="Naam" sortable>
               <template #body="{ data }">
-                <router-link :to="{ name: 'partij-detail', params: { id: data.id } }" data-testid="partij-afdeling-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.naam }}</router-link>
+                <router-link :to="detailRoute('partij', data.id)" data-testid="partij-afdeling-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.naam }}</router-link>
               </template>
             </Column>
             <template #empty><span data-testid="partij-afdelingen-leeg">Geen afdelingen.</span></template>
@@ -327,7 +328,7 @@ const RIJEN = [
           <DataTable :value="personen.items" data-testid="partij-personen-tabel" lazy :sort-field="personen.sortVeld" :sort-order="primeSort(personen)" @sort="onPersonenSort">
             <Column field="naam" header="Naam" sortable>
               <template #body="{ data }">
-                <router-link :to="{ name: 'partij-detail', params: { id: data.id } }" data-testid="partij-persoon-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.naam }}</router-link>
+                <router-link :to="detailRoute('partij', data.id)" data-testid="partij-persoon-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.naam }}</router-link>
               </template>
             </Column>
             <Column header="E-mail"><template #body="{ data }">{{ data.email || '—' }}</template></Column>
@@ -361,7 +362,7 @@ const RIJEN = [
         <DataTable :value="contracten" data-testid="partij-contracten-tabel">
           <Column header="Contractnaam">
             <template #body="{ data }">
-              <router-link :to="{ name: 'contract-detail', params: { id: data.id } }" data-testid="partij-contract-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.contractnaam }}</router-link>
+              <router-link :to="detailRoute('contract', data.id)" data-testid="partij-contract-link" class="text-[var(--lk-color-primary)] hover:underline">{{ data.contractnaam }}</router-link>
             </template>
           </Column>
           <Column header="Type"><template #body="{ data }"><Tag :value="label(CONTRACTTYPE, data.contracttype)" :severity="CONTRACTTYPE_SEVERITY[data.contracttype] || 'info'" /></template></Column>
@@ -377,7 +378,7 @@ const RIJEN = [
         <h2 id="sectie-partij-componenten" class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]">Componenten</h2>
         <ul v-if="leverancierComponenten.length" class="flex flex-col gap-[var(--lk-space-xs)]">
           <li v-for="r in leverancierComponenten" :key="`${r.component_id}-${r.contract_id}`" :data-testid="`partij-component-${r.component_id}`" class="text-[length:var(--lk-text-sm)]">
-            <router-link :to="{ name: 'component-detail', params: { id: r.component_id } }" data-testid="partij-component-link" class="text-[var(--lk-color-primary)] hover:underline">{{ r.component_naam }}</router-link>
+            <router-link :to="detailRoute('component', r.component_id)" data-testid="partij-component-link" class="text-[var(--lk-color-primary)] hover:underline">{{ r.component_naam }}</router-link>
             <span class="text-[var(--lk-color-text-muted)]"> (via {{ r.contract_naam }})</span>
           </li>
         </ul>

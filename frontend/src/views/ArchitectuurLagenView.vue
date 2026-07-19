@@ -9,6 +9,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { api } from '@/api'
+import { detailRoute } from '@/detailIngang'
 import { ARCHIMATE_LAAG, humaniseer } from '@modules/bwb_ontvlechting/frontend/labels'
 
 // Bandvolgorde (boven → onder) + kleur per laag (conform de PNA-demo).
@@ -18,13 +19,8 @@ const BANDEN = [
   { laag: 'application', kleur: '#0F6E56', migratie: false },
   { laag: 'technology', kleur: '#5F5E5A', migratie: false },
 ]
-// Doorklik per element-type (typen zonder eigen detailpagina → geen link).
-const ROUTE_PER_TYPE = {
-  component: 'component-detail', contract: 'contract-detail', partij: 'partij-detail',
-  plateau: 'plateau-detail', gap: 'gap-detail', work_package: 'work-package-detail', deliverable: 'deliverable-detail',
-}
-const elementRoute = (el) =>
-  ROUTE_PER_TYPE[el.element_type] ? { name: ROUTE_PER_TYPE[el.element_type], params: { id: el.id } } : null
+// Doorklik per element-type via de gedeelde ingang (LI046; typen zonder detailpagina → geen link).
+const elementRoute = (el) => detailRoute(el.element_type, el.id)
 
 const ASPECT_KNOPPEN = [
   { waarde: '', tekst: 'Alle' },

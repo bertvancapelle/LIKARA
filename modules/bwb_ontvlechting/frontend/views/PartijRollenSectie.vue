@@ -9,6 +9,7 @@
  */
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Column, DataTable, Dialog, Tag, useToast } from '@/primevue'
+import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { humaniseer } from '../labels'
@@ -27,8 +28,8 @@ const laden = ref(false)
 // Object-type → detail-route (subtype-componenten linken net als elders naar component-detail).
 const objectRoute = (rij) =>
   rij.object_type === 'contract'
-    ? { name: 'contract-detail', params: { id: rij.object_id } }
-    : { name: 'component-detail', params: { id: rij.object_id } }
+    ? detailRoute('contract', rij.object_id)
+    : detailRoute('component', rij.object_id)
 const typeLabel = (t) => humaniseer(t)
 
 // Object-keuze: één zoekveld over componenten ÉN contracten (de twee toegestane object-typen).
