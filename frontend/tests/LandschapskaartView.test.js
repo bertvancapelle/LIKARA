@@ -1405,11 +1405,12 @@ describe('LandschapskaartView v3', () => {
       expect(w.find('[data-testid="lk-res-naam-a2"]').exists()).toBe(true) // Documentbeheer
     })
 
-    it('beginscherm open → blok NIET zichtbaar (beginscherm heeft eigen zoek)', async () => {
-      const { w } = await mountView({ heleLandschap: false }) // beginschermOpen blijft true
-      await w.find('[data-testid="lk-zoek"]').setValue('doc')
-      await flushPromises()
+    it('LI046 — op het lege beginscherm is er geen kolom (dus geen kolom-zoek/kaartzoek); het startpaneel heeft zijn eigen zoek', async () => {
+      const { w } = await mountView({ heleLandschap: false }) // beginschermOpen blijft true, lege kaart
+      expect(w.find('[data-testid="lk-links"]').exists()).toBe(false) // geen kijkinstellingen-kolom op de lege kaart
+      expect(w.find('[data-testid="lk-zoek"]').exists()).toBe(false) // dus ook geen kolom-zoek
       expect(w.find('[data-testid="lk-kaartzoek"]').exists()).toBe(false)
+      expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true) // het startpaneel (met eigen zoek)
     })
 
     it('kaart-modus zonder zoekterm én zonder filter → blok NIET zichtbaar', async () => {
@@ -1751,22 +1752,24 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-beginscherm"]').exists()).toBe(true)
   })
 
-  it('ADR-033 2c — views-lijst toont eigen + gedeelde; herkomst + beheer alleen bij is_eigenaar', async () => {
+  it('LI046 — views-lijst leeft op het startpaneel; herkomst + beheer alleen bij is_eigenaar', async () => {
     api.impactViews.lijst.mockResolvedValue([
       VIEW({ id: 'v1', naam: 'Eigen' }),
       VIEW({ id: 'v2', naam: 'Van collega', gedeeld: true, maker_naam: 'Jan', is_eigenaar: false }),
     ])
     const { w } = await mountView({ heleLandschap: false }) // beginscherm + startscherm-flow
-    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click') // sluit startscherm
+    await w.find('[data-testid="lk-startscherm-zelf"]').trigger('click') // onthul het startpaneel (KaartBeginscherm)
     await flushPromises()
-    expect(w.find('[data-testid="lk-view-open-v1"]').text()).toBe('Eigen')
-    expect(w.find('[data-testid="lk-view-open-v2"]').text()).toBe('Van collega')
-    expect(w.find('[data-testid="lk-view-gedeeld-v2"]').text()).toContain('gedeeld door Jan')
-    expect(w.find('[data-testid="lk-view-gedeeld-v1"]').exists()).toBe(false) // eigen → geen herkomst
-    expect(w.find('[data-testid="lk-view-bewerk-v1"]').exists()).toBe(true) // eigen → beheer
-    expect(w.find('[data-testid="lk-view-verwijder-v1"]').exists()).toBe(true)
-    expect(w.find('[data-testid="lk-view-bewerk-v2"]').exists()).toBe(false) // van ander → geen beheer
-    expect(w.find('[data-testid="lk-view-verwijder-v2"]').exists()).toBe(false)
+    expect(w.find('[data-testid="kb-view-v1"]').text()).toBe('Eigen')
+    expect(w.find('[data-testid="kb-view-v2"]').text()).toBe('Van collega')
+    expect(w.find('[data-testid="kb-view-gedeeld-v2"]').text()).toContain('gedeeld door Jan')
+    expect(w.find('[data-testid="kb-view-gedeeld-v1"]').exists()).toBe(false) // eigen → geen herkomst
+    expect(w.find('[data-testid="kb-view-bewerk-v1"]').exists()).toBe(true) // eigen → beheer
+    expect(w.find('[data-testid="kb-view-verwijder-v1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="kb-view-bewerk-v2"]').exists()).toBe(false) // van ander → geen beheer
+    expect(w.find('[data-testid="kb-view-verwijder-v2"]').exists()).toBe(false)
+    // LI046 — geen tweede knip: het viewsbeheer leeft NIET meer in de linkerkolom.
+    expect(w.find('[data-testid="lk-view-bewerk-v1"]').exists()).toBe(false)
   })
 
   it('ADR-040 2c — een view openen zet de bewaarde selectie als actieve set → Overzicht', async () => {
@@ -1780,42 +1783,59 @@ describe('LandschapskaartView v3', () => {
     expect(w.find('[data-testid="lk-startscherm"]').exists()).toBe(false) // startscherm dicht
   })
 
-  it('ADR-033 2c — bewerken stuurt naam + gedeeld; selectie-bijwerken voegt de huidige set toe', async () => {
-    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Oud', component_ids: ['a1'] })])
+  it('LI046 — bewerken vanaf het startpaneel stuurt naam + gedeeld (lege set → geen selectie-bijwerken)', async () => {
+    api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Oud' })])
     const { w } = await mountView({ heleLandschap: false })
-    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await w.find('[data-testid="lk-startscherm-zelf"]').trigger('click')
     await flushPromises()
-    await kies(w, 'a2') // actieve set {a2} (afwijkend van de view-selectie)
-    await w.find('[data-testid="lk-view-bewerk-v1"]').trigger('click')
+    await w.find('[data-testid="kb-view-bewerk-v1"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="lk-view-dialog"]').exists()).toBe(true) // dialoog (z-50) boven het startpaneel
+    expect(w.find('[data-testid="lk-view-selectie-bijwerken"]').exists()).toBe(false) // geen set → optie verborgen (geen leeg-maak)
     await w.find('[data-testid="lk-view-naam"]').setValue('Nieuw')
     await w.find('[data-testid="lk-view-gedeeld-toggle"]').setValue(true)
-    await w.find('[data-testid="lk-view-selectie-bijwerken"]').setValue(true)
     await w.find('[data-testid="lk-view-bewaar"]').trigger('click')
     await flushPromises()
-    expect(api.impactViews.werkBij).toHaveBeenCalledWith('v1', { naam: 'Nieuw', gedeeld: true, component_ids: ['a2'] })
+    expect(api.impactViews.werkBij).toHaveBeenCalledWith('v1', { naam: 'Nieuw', gedeeld: true })
   })
 
-  it('ADR-033 2c — een eigen view verwijderen roept de API en herlaadt de lijst', async () => {
+  it('LI046 — een eigen view verwijderen vanaf het startpaneel roept de API en herlaadt', async () => {
     api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Weg' })])
     const { w } = await mountView({ heleLandschap: false })
-    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await w.find('[data-testid="lk-startscherm-zelf"]').trigger('click')
     await flushPromises()
-    await w.find('[data-testid="lk-view-verwijder-v1"]').trigger('click')
+    await w.find('[data-testid="kb-view-verwijder-v1"]').trigger('click')
     await flushPromises()
     expect(api.impactViews.verwijder).toHaveBeenCalledWith('v1')
     expect(api.impactViews.lijst).toHaveBeenCalledTimes(2) // mount + na verwijderen
   })
 
-  it('ADR-033 2c — een viewer ziet geen opslaan/beheer-affordances (alleen openen)', async () => {
+  it('LI046 — een viewer ziet op het startpaneel wel openen, geen beheer', async () => {
     api.impactViews.lijst.mockResolvedValue([VIEW({ id: 'v1', naam: 'Eigen' })])
     const { w } = await mountView({ rollen: ['viewer'], heleLandschap: false })
-    await w.find('[data-testid="lk-startscherm-hele-kaart"]').trigger('click')
+    await w.find('[data-testid="lk-startscherm-zelf"]').trigger('click')
     await flushPromises()
-    await kies(w, 'a1') // actieve set
-    expect(w.find('[data-testid="lk-view-opslaan"]').exists()).toBe(false) // geen opslaan
-    expect(w.find('[data-testid="lk-view-bewerk-v1"]').exists()).toBe(false) // geen beheer
-    expect(w.find('[data-testid="lk-view-verwijder-v1"]').exists()).toBe(false)
-    expect(w.find('[data-testid="lk-view-open-v1"]').exists()).toBe(true) // openen mag wel
+    expect(w.find('[data-testid="kb-view-v1"]').exists()).toBe(true) // openen mag wel
+    expect(w.find('[data-testid="kb-view-bewerk-v1"]').exists()).toBe(false) // geen beheer
+    expect(w.find('[data-testid="kb-view-verwijder-v1"]').exists()).toBe(false)
+  })
+
+  it('LI046 — een viewer ziet geen "View opslaan" op de getekende kaart', async () => {
+    const { w } = await mountView({ rollen: ['viewer'] }) // hele landschap → getekend
+    await kies(w, 'a1')
+    expect(w.find('[data-testid="lk-view-opslaan"]').exists()).toBe(false)
+  })
+
+  it('LI046 — de kijkinstellingen-kolom staat er alléén bij een getekende kaart', async () => {
+    api.impactViews.lijst.mockResolvedValue([]) // 0 views → direct het beginscherm, geen startscherm
+    const { w } = await mountView({ heleLandschap: false })
+    expect(w.find('[data-testid="lk-links"]').exists()).toBe(false) // verse lege kaart → geen kolom
+    w.vm.toonHeleLandschap()
+    await flushPromises()
+    expect(w.find('[data-testid="lk-links"]').exists()).toBe(true) // getekend → kolom verschijnt
+    w.vm.wisSet()
+    await flushPromises()
+    expect(w.find('[data-testid="lk-links"]').exists()).toBe(false) // selectie weg → kolom weer weg
   })
 
   it('ADR-033 2c — 422 op opslaan toont een inline veldfout op de naam (dialog blijft open)', async () => {
@@ -2367,11 +2387,10 @@ describe('LandschapskaartView v3', () => {
       expect(w.vm.grafNodes.length).toBe(5)
     })
 
-    it('zoek errort niet zonder geladen graaf (beginscherm) — geen resultaten, geen crash', async () => {
+    it('LI046 — geen kolom-zoek zonder getekende kaart; het beginscherm blijft staan (geen crash)', async () => {
       const { w } = await mountView({ heleLandschap: false })
-      await w.find('[data-testid="lk-zoek"]').setValue('zaak')
-      await flushPromises()
       expect(w.vm.beginscherm).toBe(true)
+      expect(w.find('[data-testid="lk-zoek"]').exists()).toBe(false) // geen kolom-zoek op de lege kaart
       expect(w.findAll('[data-testid^="lk-res-naam-"]').length).toBe(0)
     })
   })

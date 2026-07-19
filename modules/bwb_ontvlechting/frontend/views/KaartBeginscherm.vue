@@ -28,8 +28,11 @@ const props = defineProps({
   eigenaarOpties: { type: Array, default: () => [] },
   // Aantal componenten in de actieve set — voedt de "Toon op de kaart"-knop (label + disabled-staat).
   setGrootte: { type: Number, default: 0 },
+  // LI046 — mag de gebruiker views beheren (bewerken/verwijderen)? Spiegelt de rol-gate van de parent
+  // (medewerker/beheerder). Het viewsbeheer verhuisde hierheen; het leefde eerst in de linkerkolom.
+  magViewsBeheren: { type: Boolean, default: false },
 })
-const emit = defineEmits(['voegComponentenToe', 'openView', 'toonHeleLandschap', 'sluit'])
+const emit = defineEmits(['voegComponentenToe', 'openView', 'bewerkView', 'verwijderView', 'toonHeleLandschap', 'sluit'])
 
 // Gesloten enum-lijsten (≤10 vaste opties → native <select>, conform ZoekSelect-standaard).
 const LAAG_OPTIES = ['application', 'technology', 'business', 'implementation_migration']
@@ -321,16 +324,18 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
       <section v-if="opgeslagenViews.length" data-testid="kb-views" class="flex flex-col gap-[var(--lk-space-sm)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-md)]">
         <p class="text-[length:var(--lk-text-sm)] font-semibold">Opgeslagen views</p>
         <ul class="flex flex-col gap-1">
-          <li v-for="v in opgeslagenViews" :key="v.id">
-            <button
-              type="button"
-              :data-testid="`kb-view-${v.id}`"
-              class="flex w-full items-center gap-2 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-2 text-left text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]"
-              @click="emit('openView', v)"
-            >
-              <span class="grow truncate">{{ v.naam }}</span>
-              <span v-if="!v.is_eigenaar && v.gedeeld" class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">gedeeld door {{ v.maker_naam || '—' }}</span>
-            </button>
+          <li
+            v-for="v in opgeslagenViews"
+            :key="v.id"
+            :data-testid="`kb-view-row-${v.id}`"
+            class="flex items-center gap-2 rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-2 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]"
+          >
+            <button type="button" :data-testid="`kb-view-${v.id}`" class="grow truncate text-left" :title="v.naam" @click="emit('openView', v)">{{ v.naam }}</button>
+            <span v-if="!v.is_eigenaar && v.gedeeld" :data-testid="`kb-view-gedeeld-${v.id}`" class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">gedeeld door {{ v.maker_naam || '—' }}</span>
+            <template v-if="v.is_eigenaar && magViewsBeheren">
+              <button type="button" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)]" :data-testid="`kb-view-bewerk-${v.id}`" aria-label="View bewerken" title="Bewerken" @click="emit('bewerkView', v)">✎</button>
+              <button type="button" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)]" :data-testid="`kb-view-verwijder-${v.id}`" aria-label="View verwijderen" title="Verwijderen" @click="emit('verwijderView', v)">×</button>
+            </template>
           </li>
         </ul>
       </section>

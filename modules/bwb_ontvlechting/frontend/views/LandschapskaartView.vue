@@ -2849,8 +2849,15 @@ const typeLabel = (t) => humaniseer(t)
     </div>
 
     <div class="flex min-h-0 flex-1">
-      <!-- Linkerpaneel: zoek + filters + resultaten -->
-      <aside class="flex w-60 flex-shrink-0 flex-col gap-[var(--lk-space-sm)] overflow-y-auto border-r border-[var(--lk-color-border)] bg-white p-[var(--lk-space-md)]" data-testid="lk-links">
+      <!-- Linkerpaneel: zoek + filters + resultaten.
+           LI046 / ADR-054 — KIJKINSTELLINGEN verschijnen alléén bij een getekende kaart
+           (`heeftData` = nodes aanwezig; niet `!beginschermOpen`, dat kan ook openstaan tijdens
+           laden of bij een verdwenen selectie). Een filter versmalt een verzameling; is er geen
+           verzameling, dan kan hij niets — dus staat hij er niet ("niets beloven waar niets te
+           doen valt"). De filter-refs blijven bewaard en grijpen zodra er weer data is; de
+           VERTREKPUNTEN (opgeslagen views + beheer) leven in het startpaneel (KaartBeginscherm),
+           niet hier. -->
+      <aside v-if="heeftData" class="flex w-60 flex-shrink-0 flex-col gap-[var(--lk-space-sm)] overflow-y-auto border-r border-[var(--lk-color-border)] bg-white p-[var(--lk-space-md)]" data-testid="lk-links">
         <!-- LI034/ADR-041 — persoonlijke standaardkijk: sla de huidige kijk (filters/ringen/diepte/kleur)
              op als je standaard; komt terug bij een verse kaart-start en bij "Begin opnieuw". -->
         <div data-testid="lk-standaardkijk" class="flex flex-col gap-1 border-b border-[var(--lk-color-border)] pb-[var(--lk-space-sm)]">
@@ -2874,22 +2881,10 @@ const typeLabel = (t) => humaniseer(t)
           >Herroep standaardkijk (terug naar kale default)</button>
           <p v-if="kijkFout" role="alert" data-testid="lk-standaardkijk-fout" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)]">{{ kijkFout }}</p>
         </div>
-        <!-- ADR-033 2c — opgeslagen views (eigen + gedeeld; server filtert). Openen = de bewaarde
-             selectie wordt de actieve set → de adaptieve weergave volgt. Beheer (✎/×) alleen voor
-             de maker (is_eigenaar) mét beheer-recht. -->
-        <div v-if="opgeslagenViews.length" data-testid="lk-views" class="flex flex-col gap-1 border-b border-[var(--lk-color-border)] pb-[var(--lk-space-sm)]">
-          <p class="font-semibold text-[length:var(--lk-text-sm)]">Opgeslagen views</p>
-          <ul class="flex flex-col gap-0.5">
-            <li v-for="v in opgeslagenViews" :key="v.id" :data-testid="`lk-view-${v.id}`" class="flex items-center gap-1 text-[length:var(--lk-text-sm)]">
-              <button type="button" class="grow truncate text-left hover:underline" :data-testid="`lk-view-open-${v.id}`" :title="v.naam" @click="openView(v)">{{ v.naam }}</button>
-              <span v-if="!v.is_eigenaar && v.gedeeld" :data-testid="`lk-view-gedeeld-${v.id}`" class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]" :title="`gedeeld door ${v.maker_naam || '—'}`">gedeeld door {{ v.maker_naam || '—' }}</span>
-              <template v-if="v.is_eigenaar && magViewsBeheren">
-                <button type="button" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-primary)]" :data-testid="`lk-view-bewerk-${v.id}`" aria-label="View bewerken" title="Bewerken" @click="openBewerk(v)">✎</button>
-                <button type="button" class="shrink-0 text-[var(--lk-color-text-muted)] hover:text-[var(--lk-color-danger)]" :data-testid="`lk-view-verwijder-${v.id}`" aria-label="View verwijderen" title="Verwijderen" @click="verwijderView(v)">×</button>
-              </template>
-            </li>
-          </ul>
-        </div>
+        <!-- LI046 — opgeslagen views (openen + beheren) leven vanaf nu op ÉÉN plek: het startpaneel
+             (KaartBeginscherm). Ze zijn een VERTREKPUNT ("waar begin ik?") en horen niet bij de
+             kijkinstellingen die een getekend beeld versmallen. Zo verdwijnt de dubbeling én blijft
+             het beheer bereikbaar wanneer de kolom er (op de lege kaart) niet is. -->
 
         <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="lk-veld" />
 
@@ -2985,34 +2980,44 @@ const typeLabel = (t) => humaniseer(t)
             testid="lk-filter-lifecycle"
           />
         </label>
-        <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-          <span class="font-semibold">Rol</span>
-          <ZoekMultiSelect
-            v-model="filterRollen"
-            :zoek-functie="zoekRollen"
-            :weergave="(o) => o.label"
-            id-veld="optie_sleutel"
-            :chip-label="(v) => rolLabelMap[v] || v"
-            placeholder="Zoek rol…"
-            testid="lk-filter-rol"
-          />
-        </label>
-        <label
-          v-for="a in BIV_ASPECTEN"
-          :key="a.veld"
-          class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
-        >
-          <span class="font-semibold">{{ a.label }} ≥</span>
-          <select
-            v-model="a.ref.value"
-            :data-testid="`lk-filter-${a.veld}`"
-            :aria-label="`Filter op minimaal ${a.label}`"
-            class="lk-veld"
+        <!-- LI046 — Rol & BIV achter een inklap (audit-lens: in de praktijk zelden bruikbaar — rol
+             vaak uniform, BIV vaak nog niet geclassificeerd — maar echt, dus niet geschrapt). Dicht
+             by default; een 'actief'-badge op de kop verraadt een gezet filter, zodat een verborgen
+             filter nooit stiekem versmalt (spiegel van het '+ Filters actief'-patroon op het startpaneel). -->
+        <details data-testid="lk-rolbiv" class="flex flex-col gap-[var(--lk-space-sm)]">
+          <summary class="cursor-pointer text-[length:var(--lk-text-sm)] font-semibold text-[var(--lk-color-primary)]">
+            Rol &amp; BIV
+            <span v-if="filterRollen.length || filterBivB || filterBivI || filterBivV" data-testid="lk-rolbiv-actief" class="ml-1 rounded-full bg-[var(--lk-color-primary)] px-1.5 text-[length:var(--lk-text-xs)] text-white">actief</span>
+          </summary>
+          <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+            <span class="font-semibold">Rol</span>
+            <ZoekMultiSelect
+              v-model="filterRollen"
+              :zoek-functie="zoekRollen"
+              :weergave="(o) => o.label"
+              id-veld="optie_sleutel"
+              :chip-label="(v) => rolLabelMap[v] || v"
+              placeholder="Zoek rol…"
+              testid="lk-filter-rol"
+            />
+          </label>
+          <label
+            v-for="a in BIV_ASPECTEN"
+            :key="a.veld"
+            class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]"
           >
-            <option value="">— Alle —</option>
-            <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
-          </select>
-        </label>
+            <span class="font-semibold">{{ a.label }} ≥</span>
+            <select
+              v-model="a.ref.value"
+              :data-testid="`lk-filter-${a.veld}`"
+              :aria-label="`Filter op minimaal ${a.label}`"
+              class="lk-veld"
+            >
+              <option value="">— Alle —</option>
+              <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
+            </select>
+          </label>
+        </details>
 
         <label v-if="modus === 'geheel'" class="flex items-center gap-2 text-[length:var(--lk-text-sm)]">
           <input type="checkbox" :checked="!opbouwModus" data-testid="lk-afpel-toggle" @change="opbouwModus = !opbouwModus" />Afpel-modus (begint vol)
@@ -3366,8 +3371,11 @@ const typeLabel = (t) => humaniseer(t)
           :component-opties="typeCatalogus"
           :eigenaar-opties="[]"
           :set-grootte="actieveSetNodes.length"
+          :mag-views-beheren="magViewsBeheren"
           @voeg-componenten-toe="voegComponentenToeAanSet"
           @open-view="openView"
+          @bewerk-view="openBewerk"
+          @verwijder-view="verwijderView"
           @toon-hele-landschap="toonHeleLandschap"
           @sluit="beginschermOpen = false"
         />
