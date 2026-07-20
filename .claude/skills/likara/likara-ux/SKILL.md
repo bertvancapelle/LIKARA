@@ -105,13 +105,25 @@ Elke lege lijst krijgt een lege-staat die óf een route naar de actie biedt ("+ 
 applicatie of het contract."). **Een lege lijst zonder knop en zonder uitleg is een bug,
 geen neutrale toestand.**
 
-**Nul is een uitkomst, geen storing — ook bij BLOKKEN en TELLERS (LI047).** Een blok met nul punten
-**blijft bestaan**, toont "0" in zijn naam en zegt geopend wát er niets open is ("Er staat niets meer
-open dat uw organisatie verplicht heeft gesteld."); verbergen laat de lezer twijfelen of het blok
-bestaat of stuk is. Een **teller** doet het omgekeerde: bij nul draagt hij **géén** getal, want een
-"0" vraagt aandacht voor niets — de rust ís het signaal dat het schoon is.
-**Vuistregel: een lijst legt uit, een teller zwijgt.** (Referentie: `OpenPuntenSectie` — drie blokken
-met hun aantal in de tabnaam; `ComponentDetail` — de knop "Open punten" zonder getal bij nul.)
+**Nul is een uitkomst, geen storing — ook bij BLOKKEN en TELLERS (LI047, herzien LI048).** Een blok
+met nul punten **blijft bestaan**, toont "0" in zijn naam en zegt geopend wát er niets open is ("Er
+staat niets meer open dat uw organisatie verplicht heeft gesteld."); verbergen laat de lezer
+twijfelen of het blok bestaat of stuk is.
+
+**De knip loopt niet tussen lijst en teller, maar tussen een teller die ERGENS BIJ hangt en een
+teller die een PLEK benoemt (LI048 besluit 3).**
+- Een **badge op een knop of object** (een aantal dat een bestaand ding aankleedt) **zwijgt bij
+  nul**: de "0" vraagt aandacht voor niets — de rust ís het signaal dat het schoon is.
+- Een **plek-label** (tabnaam, sectiekop, filterchip) draagt het getal **altijd, ook bij nul**. In
+  een rij van twaalf tabbladen leest "geen getal" niet als *nul* maar als *"dit tabblad telt
+  niets"* — dat verschil is onzichtbaar, dus klikt de gebruiker alsnog. Precies het klikken dat de
+  teller moest besparen.
+
+⚠ De oude vuistregel *"een lijst legt uit, een teller zwijgt"* was te grof: hij liet één scherm twee
+tegengestelde dingen doen. Vóór LI048 stond `Open punten` (kop-knop, zwijgend bij nul) recht boven
+`Dit moet nog (0)` (tabblad, sprekend bij nul) — dezelfde vorm, tegengesteld gedrag, één blik.
+(Referentie nu: `ComponentDetail` — tabblad `Open punten (0)`; `OpenPuntenSectie` — drie blokken met
+hun aantal in de tabnaam. Beide plek-labels, dus beide sprekend.)
 
 **Een weigering zegt WÁT er aan de hand is (LI047).** "Er is niets" en "die vraag geldt hier niet"
 zijn **verschillende antwoorden**; ze door elkaar halen kost vertrouwen. Een 404 op een bestaand

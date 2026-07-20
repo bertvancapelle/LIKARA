@@ -68,9 +68,10 @@ const bezig = ref(false)
 // ADR-022 Fase C: read-only "wat verdwijnt"-samenvatting in de bevestiging.
 const verwijderImpact = ref(null)
 // ADR-035 Slice 1 — registratiegaten-badge (read-only; faalt zacht, geen invloed op de detail-laad).
-// LI047 snede 2 — de open punten van dít component; ÉÉN bron voor de teller op de kopknop én
-// het tabblad. Verving het rode signaleringsbolletje: dat telde iets anders (het honoreerde geen
-// bewuste vaststelling en telde een ontbrekende verantwoordelijke dubbel) en klikte nergens heen.
+// LI047 snede 2 — de open punten van dít component; ÉÉN bron voor het getal in het TABLABEL én
+// de lijst in het paneel (LI048: het getal stond tot deze slice op een knop in de detailkop).
+// Verving het rode signaleringsbolletje: dat telde iets anders (het honoreerde geen bewuste
+// vaststelling en telde een ontbrekende verantwoordelijke dubbel) en klikte nergens heen.
 // Twee tellers die verschillende getallen roepen over hetzelfde component is een tweede waarheid.
 const openPunten = ref(null)
 const moetNog = computed(() => openPunten.value?.moet_nog?.aantal ?? 0)
@@ -135,8 +136,8 @@ async function laad() {
   try {
     component.value = await api.componenten.haal(props.id)
     await laadNorm() // slice 4c — welke feiten staan op de lat (voor de sectiekop-aanduiding)
-    // LI047 snede 2 — HET laadpunt voor de open punten: voedt zowel de teller op de kopknop als
-    // het tabblad. Read-only + optioneel: een fout hierin mag de detail-laad niet breken.
+    // LI047 snede 2 — HET laadpunt voor de open punten: voedt zowel het getal in het tablabel als
+    // de lijst in het paneel. Read-only + optioneel: een fout hierin mag de detail-laad niet breken.
     try {
       openPunten.value = await api.componentNormen.openPunten(props.id)
     } catch { /* overzicht optioneel */ }
@@ -209,17 +210,21 @@ async function bevestigVerwijderen() {
 // ── 2-laags tabnavigatie (LI059 Slice 4, geport uit ApplicatieDetail) ────────
 // Tabs conditioneel per type: applicatie-eigen tabs (datatypes/gebruikersgroepen/
 // koppelingen) alleen bij een subtype; checklist/blokkades alleen bij checklist-dragend.
-// LI047 — plekken die WÉL in het adres leven maar GEEN tabblad zijn. "Open punten" toont geen
-// onderdeel van het component (zoals de koppelingen of de contracten) maar wat eraan mankeert:
-// een werkvoorraad. Zijn ingang staat in de kop, naast Bewerken en Geschiedenis — bij wat je met
-// dit component DOET. De tabrij was bovendien al elf breed en liep over twee regels.
-// Deze lijst is de ene bron voor de drie plekken die zo'n plek moeten herkennen: de deep-link-
-// lezer, het vangnet dat terugvalt op Overzicht, en de URL-terugschrijf.
-const PLEKKEN_ZONDER_TAB = ['open-punten']
-const isGeldigePlek = (k) => topTabs.value.some((x) => x.key === k) || PLEKKEN_ZONDER_TAB.includes(k)
-
+// LI048 besluit 1 — Open punten is een TABBLAD, het tweede in de rij. Dit herroept de
+// LI047-keuze om er een plek zónder tabblad van te maken (`PLEKKEN_ZONDER_TAB`, verwijderd):
+// het onderscheid "onderdeel versus werkvoorraad" leefde in het model, niet op het scherm. De
+// gebruiker zag alleen inhoud die bij geen enkel tabblad hoorde — en erger: met een `modelValue`
+// die geen enkele tab matchte kreeg ÉLKE tab `tabindex="-1"` (AppTabs.vue), waardoor de hele
+// tabrij uit de toetsenbordvolgorde viel. Eén gekozen tabblad is nu structureel gegarandeerd.
 const topTabs = computed(() => {
   const t = [{ key: 'overzicht', label: 'Overzicht' }]
+  // LI048 besluit 3 — het getal staat er ALTIJD, ook bij nul. Dit herziet bewust de LI047-regel
+  // "een teller zwijgt bij nul" voor deze plek: in een rij van twaalf tabbladen leest "geen
+  // getal" niet als nul maar als "dit tabblad telt niets" — dat verschil is onzichtbaar, dus
+  // klikt de gebruiker alsnog. Het tabblad en de drie blokken erbinnen (OpenPuntenSectie) doen
+  // hiermee hetzelfde. Het getal komt uit `moetNog`, dus uit HET ene laadpunt — nooit een
+  // tweede telling naast de lijst in het paneel.
+  t.push({ key: 'open-punten', label: `Open punten (${moetNog.value})` })
   // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het systeem én de
   // bestemming van de werkvoorraad; daarom een EIGEN tab, direct na Overzicht (component-breed,
   // net als Gebruik) i.p.v. een blok onder de vouw.
@@ -251,11 +256,11 @@ const topTabs = computed(() => {
 const activeTop = ref('overzicht')
 const activeCat = ref(null) // categorie_nr als string-key
 
-// Zodra de tabset wijzigt (na laden): houd activeTop geldig (default = Overzicht).
+// Zodra de tabset wijzigt (na laden): houd activeTop geldig (default = Overzicht). Sinds LI048
+// kent dit vangnet géén uitzondering meer — élke plek is een tabblad, dus wat hier uit `tabs`
+// valt hóórt terug naar Overzicht. Dat is precies wat de invariant "altijd één gekozen tabblad"
+// afdwingt (borging: ComponentDetail.test.js).
 watch(topTabs, (tabs) => {
-  // Een plek zónder tabblad (open-punten) mag hier NIET uit vallen — die staat per definitie niet
-  // in `tabs`, en zonder deze uitzondering zou het scherm de bezoeker meteen terugzetten.
-  if (PLEKKEN_ZONDER_TAB.includes(activeTop.value)) return
   if (!tabs.some((t) => t.key === activeTop.value)) activeTop.value = 'overzicht'
 })
 
@@ -272,7 +277,7 @@ watch(categorieTabs, (tabs) => {
 // Deep-link initialiseren uit de URL (na mount; de scoreSectie laadt async).
 function _initVanafQuery() {
   const t = String(route.query.tab ?? '')
-  if (isGeldigePlek(t)) activeTop.value = t  // incl. de plekken zonder tabblad
+  if (topTabs.value.some((x) => x.key === t)) activeTop.value = t
   if (route.query.cat != null) activeCat.value = String(route.query.cat)
   // Deep-link vanuit de tenant-brede blokkadelijst markeert een checklistvraag.
   if (route.query.markeer != null) {
@@ -390,22 +395,9 @@ watch(() => props.id, async () => {
         </template>
         <template #acties>
           <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="naarBewerken" />
-          <!-- LI047 snede 2 — de ingang: hier ligt werk, en zoveel. Geen pijl: deze knop brengt je
-               naar een tabblad op DIT scherm, en een pijl belooft dat je het scherm verlaat.
-               Nul draagt geen getal — rust is het signaal dat het schoon is. Het getal is "Dit moet
-               nog", niet de som van drie blokken: dan weet je niet of er iets MOET of dat het meevalt. -->
-          <Button
-            severity="secondary"
-            data-testid="open-punten-knop"
-            @click="activeTop = 'open-punten'"
-          >
-            <span>Open punten</span>
-            <span
-              v-if="moetNog"
-              data-testid="open-punten-teller"
-              class="ml-[var(--lk-space-xs)] inline-flex min-w-5 items-center justify-center rounded-[var(--lk-radius-badge)] bg-[var(--lk-color-danger)] px-[var(--lk-space-xs)] font-semibold text-white"
-            >{{ moetNog }}</span>
-          </Button>
+          <!-- LI048 besluit 1 — de Open punten-INGANG stond hier als knop (LI047 snede 2) en is
+               een tabblad geworden: één ingang, en de tabrij draagt weer altijd een keuze. In de
+               kop staan nu uitsluitend acties óp het component en wegwijzers naar buiten. -->
           <!-- Statusovergangen: verschijnen ALLEEN wanneer ze kunnen (geen grijze knop). -->
           <Button
             v-if="magStarten"
@@ -566,12 +558,15 @@ watch(() => props.id, async () => {
         <!-- "Waarvoor gebruiken we het" is verhuisd naar een eigen tab "Bedrijfsfunctie" (G2). -->
       </div>
 
-      <!-- LI047 — alles wat dit component nog nodig heeft, op één plek (besluit 6). -->
+      <!-- LI047 — alles wat dit component nog nodig heeft, op één plek (besluit 6).
+           LI048 — nu een echt tabpaneel: `role="tabpanel"` gekoppeld aan zijn tabblad, zoals elk
+           ander paneel hier. Het droeg `role="region"` + de eigen sectiekop als label omdat het
+           géén tabblad hád; die uitzondering bestaat niet meer. -->
       <div
         v-show="activeTop === 'open-punten'"
         id="detailtabs-panel-open-punten"
-        role="region"
-        aria-labelledby="open-punten-titel"
+        role="tabpanel"
+        aria-labelledby="detailtabs-tab-open-punten"
         data-testid="panel-open-punten"
       >
         <OpenPuntenSectie :component-id="props.id" :data="openPunten" @ga-naar="gaNaarPunt" />

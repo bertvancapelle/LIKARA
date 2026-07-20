@@ -17,9 +17,10 @@ import { NORM_FEIT_LABEL } from '../labels'
 import AppTabs from './AppTabs.vue'
 
 // LI047 snede 2 — ÉÉN laadpunt: `ComponentDetail` haalt de open punten op en voedt hiermee zowel
-// de teller op de kopknop als deze lijst. Deze sectie laadt dus NIET zelf; een tweede aanroep zou
-// twee laadmomenten geven die na een mutatie uiteen kunnen lopen, en dan zegt de knop "4" terwijl
-// het tabblad drie regels toont — een leugen die niemand opmerkt.
+// het getal in het tablabel "Open punten (N)" als deze lijst. Deze sectie laadt dus NIET zelf; een
+// tweede aanroep zou twee laadmomenten geven die na een mutatie uiteen kunnen lopen, en dan zegt
+// het tabblad "4" terwijl het paneel drie regels toont — een leugen die niemand opmerkt.
+// (LI048: het getal stond tot dan op een knop in de detailkop; de bron is dezelfde gebleven.)
 const props = defineProps({
   componentId: { type: String, required: true },
   data: { type: Object, default: null },

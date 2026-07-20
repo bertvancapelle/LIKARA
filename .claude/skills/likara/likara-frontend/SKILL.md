@@ -515,7 +515,16 @@ backend-borging `test_rollengrens_adr050`.)
   **én** selecteren direct (panelen zijn gemount, dus goedkoop); Enter/Space selecteren het
   gefocuste tabblad eveneens (idempotent — het is dan al geselecteerd). Props
   `tabs`/`modelValue`/`ariaLabel`/`orientation`/`idPrefix`; `--lk-`-tokens, geen `<style>`. [CD022]
-- **2-laags tabs + deep-link** (ApplicatieDetail, CD022): top- én sub-niveau zijn elk een echte
+- **Eén gekozen tabblad is een INVARIANT, geen afspraak (LI048).** `AppTabs` dwingt niets af: een
+  `modelValue` die bij géén tab hoort geeft `aria-selected="false"` op álle tabs én — venijniger —
+  `tabindex="-1"` op álle tabs, waardoor de hele rij **uit de toetsenbordvolgorde valt**. LI047 had
+  hier bewust een uitzondering (`PLEKKEN_ZONDER_TAB`, "Open punten" als plek zónder tabblad); die is
+  met LI048 herroepen. Elke plek in het adres is een tabblad. Borging: `ComponentDetail.test.js`
+  telt over **élke** `role="tablist"` en elke bereikbare staat (binnenkomst · elk tabblad geklikt ·
+  deep-link incl. een onzin-`?tab=`) dat er precies één `aria-selected="true"` én precies één
+  `tabindex="0"` is — aantoonbaar bijtend (een heringevoerde uitzondering laat de telling naar 0
+  zakken).
+- **2-laags tabs + deep-link** (ComponentDetail; herkomst CD022/ApplicatieDetail): top- én sub-niveau zijn elk een echte
   `AppTabs`; de actieve tab(s) in de URL via query-params (`?tab=`/`&cat=`), `router.replace`
   (geen history-spam), default = schone URL. Alle panelen blijven **gemount** (`v-show`) → geen
   state-verlies bij wisselen, en refs/voortgang-tellers blijven geldig. De 12 categorie-tabs
@@ -1499,9 +1508,12 @@ opmerkt omdat beide getallen op zichzelf kloppen.
 **Regel: één laadpunt in het scherm dat beide voedt, doorgegeven als prop.** De kindsectie laadt
 niet zelf. Referentie: `ComponentDetail.vue` haalt `api.componentNormen.openPunten()` op en geeft
 het als `:data` aan `OpenPuntenSectie`; teller én lijst lezen daarna letterlijk hetzelfde object.
-Borging: een test die het getal op de knop tegen het **aantal regels** legt (`ComponentDetail.test.js`
-— "het getal op de knop is exact het aantal regels in Dit moet nog"); die valt om zodra iemand een
-tweede laadpunt introduceert.
+Borging: een test die het getal tegen het **aantal regels** legt (`ComponentDetail.test.js` — "het
+getal in het tablabel is exact het aantal regels in Dit moet nog"); die valt om zodra iemand een
+tweede laadpunt introduceert. **De regel is vorm-onafhankelijk gebleken:** in LI048 verhuisde de
+teller van een kopknop naar het tablabel `Open punten (N)` — zelfde `moetNog`-computed, zelfde
+laadpunt, alleen een andere drager. Verhuist een teller, controleer dan dat hij zijn **bron**
+meeneemt en er geen tweede aanroep bij ontstaat.
 
 ⚠ **Bewijs dat de tekst dit niet dekte:** in LI047 werd snede 1 met een zelfladende sectie gebouwd en
 snede 2 met één laadpunt — het verschil stond nergens, terwijl de LI041-norm ("teller en lijst delen
