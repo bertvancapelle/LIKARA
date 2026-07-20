@@ -186,9 +186,14 @@ laad()
 
 <template>
   <section aria-labelledby="rk-titel">
-    <h1 id="rk-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
-      Relatie-kenmerk-catalogus
-    </h1>
+    <!-- LI047 — het dimensie-begrip bepaalt waarvoor élke sectie hieronder geldt; daarom ÉÉN
+         aanduiding op de paginakop en niet per dimensie-sectie (dat zou dezelfde uitleg 3× tonen). -->
+    <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-sm)]">
+      <h1 id="rk-titel" class="text-[length:var(--lk-text-xl)] font-semibold">
+        Relatie-kenmerk-catalogus
+      </h1>
+      <VeldUitleg veld="dimensie" testid="uitleg-dimensie" />
+    </div>
 
     <p v-if="fout" role="alert" data-testid="rk-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
     <p v-if="laden" data-testid="rk-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>

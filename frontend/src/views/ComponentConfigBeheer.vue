@@ -285,6 +285,9 @@ laadTyperingOpties()
       >
         <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
           <h2 :id="`cat-kop-${dim.key}`" class="text-[length:var(--lk-text-lg)] font-semibold">{{ dim.label }}</h2>
+          <!-- LI047 — alléén deze dimensie draagt een systeem-sleutel (`applicatie`, zie isSysteem),
+               dus staat de aanduiding hier en niet op elke sectiekop. Verving de tooltip-only uitleg. -->
+          <VeldUitleg v-if="dim.key === 'componenttype'" veld="systeem_sleutel" testid="uitleg-systeem-sleutel" />
           <Button
             v-if="magBeheren"
             label="Optie toevoegen"
@@ -351,12 +354,14 @@ laadTyperingOpties()
               <td class="text-right">
                 <div v-if="magBeheren" class="flex items-center justify-end gap-[var(--lk-space-xs)]">
                   <Button label="Bewerken" severity="secondary" :data-testid="`cat-bewerk-${optie.id}`" @click="openBewerken(optie)" />
+                  <!-- LI047 — geen uitleg-tooltip meer (zie de "i" bij de sectiekop). De oude tekst
+                       noemde bovendien het "subtype-mechanisme"; dat bestaat niet meer sinds de
+                       applicatie-subtabel is opgeheven (migratie 0047_li059_drop_applicatie). -->
                   <Tag
                     v-if="isSysteem(optie)"
                     :data-testid="`cat-systeem-${optie.id}`"
                     value="Systeem"
                     severity="info"
-                    title="Systeem-sleutel — gekoppeld aan het subtype-mechanisme; niet deactiveerbaar."
                   />
                   <template v-else>
                     <Button

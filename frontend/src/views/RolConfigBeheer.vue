@@ -192,6 +192,10 @@ laad()
     <section class="card" data-testid="rol-sectie">
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
         <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Rol-opties</h2>
+        <!-- LI047 — de "Systeem"-markering in deze tabel had alleen een tooltip; kern-inhoud hoort
+             niet in een title-attribuut (onvindbaar, breekt op touch/toetsenbord/schermlezer). Eén
+             aanduiding op de sectiekop = het kleinste element dat de markering omvat. -->
+        <VeldUitleg veld="systeem_sleutel" testid="uitleg-systeem-sleutel" />
         <Button v-if="magBeheren" label="Optie toevoegen" data-testid="rol-toevoegen" class="ml-auto" @click="openToevoegen" />
       </div>
 
@@ -222,12 +226,14 @@ laad()
             <td class="text-right">
               <div v-if="magBeheren" class="flex items-center justify-end gap-[var(--lk-space-xs)]">
                 <Button label="Bewerken" severity="secondary" :data-testid="`rol-bewerk-${optie.id}`" @click="openBewerken(optie)" />
+                <!-- LI047 — geen uitleg-tooltip meer: die tekst leeft nu op ÉÉN plek, de "i" bij de
+                     sectiekop. De tag zelf blijft benoembaar (het woord "Systeem" is zichtbare
+                     tekst); wát de markering betekent, legt de "i" uit. -->
                 <Tag
                   v-if="isSysteem(optie)"
                   :data-testid="`rol-systeem-${optie.id}`"
                   value="Systeem"
                   severity="info"
-                  title="Beschermde standaard-rol — niet deactiveerbaar."
                 />
                 <template v-else>
                   <Button v-if="optie.actief" label="Deactiveren" severity="danger" :data-testid="`rol-deactiveer-${optie.id}`" @click="vraagDeactiveren(optie)" />
