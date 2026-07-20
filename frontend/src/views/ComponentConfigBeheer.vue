@@ -268,7 +268,7 @@ laadTyperingOpties()
 
 <template>
   <section aria-labelledby="cat-titel">
-    <h1 id="cat-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="cat-titel" class="mb-[var(--lk-space-md)]">
       Componentcatalogus
     </h1>
 
@@ -283,8 +283,8 @@ laadTyperingOpties()
         :data-testid="`cat-sectie-${dim.key}`"
         :aria-labelledby="`cat-kop-${dim.key}`"
       >
-        <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-          <h2 :id="`cat-kop-${dim.key}`" class="text-[length:var(--lk-text-lg)] font-semibold">{{ dim.label }}</h2>
+        <div class="lk-kop-rij gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
+          <h2 :id="`cat-kop-${dim.key}`">{{ dim.label }}</h2>
           <!-- LI047 — alléén deze dimensie draagt een systeem-sleutel (`applicatie`, zie isSysteem),
                dus staat de aanduiding hier en niet op elke sectiekop. Verving de tooltip-only uitleg. -->
           <VeldUitleg v-if="dim.key === 'componenttype'" veld="systeem_sleutel" testid="uitleg-systeem-sleutel" />
@@ -392,7 +392,7 @@ laadTyperingOpties()
 
       <!-- ADR-027 Deel 4 — kenmerk-definitie per relatietype: READ-ONLY inzage (code-eigendom). -->
       <section class="card" data-testid="cat-kenmerk-viewer" aria-labelledby="cat-kenmerk-kop">
-        <h2 id="cat-kenmerk-kop" class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-xs)]">
+        <h2 id="cat-kenmerk-kop" class="mb-[var(--lk-space-xs)]">
           Relatie-kenmerken per relatietype
         </h2>
         <p class="mb-[var(--lk-space-sm)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">

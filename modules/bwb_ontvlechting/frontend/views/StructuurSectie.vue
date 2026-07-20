@@ -175,7 +175,7 @@ laad()
 <template>
   <section class="card" aria-labelledby="sectie-opbouw">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-opbouw" class="text-[length:var(--lk-text-lg)] font-semibold">Opbouw</h2>
+      <h2 id="sectie-opbouw">Opbouw</h2>
       <Button v-if="mag" label="Draait-op toevoegen" severity="secondary" data-testid="st-toevoegen" class="ml-auto" @click="openNieuw" />
     </div>
 

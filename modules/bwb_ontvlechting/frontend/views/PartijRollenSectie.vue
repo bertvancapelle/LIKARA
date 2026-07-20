@@ -131,7 +131,7 @@ defineExpose({ items, laad })
 <template>
   <section class="card" aria-labelledby="sectie-partij-rollen" data-testid="pr-sectie">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-partij-rollen" class="text-[length:var(--lk-text-lg)] font-semibold">
+      <h2 id="sectie-partij-rollen">
         Rollen op objecten
       </h2>
       <Button v-if="mag" label="Rol toevoegen" severity="secondary" data-testid="pr-toevoegen" class="ml-auto" @click="openToevoegen" />

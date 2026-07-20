@@ -141,8 +141,8 @@ defineExpose({ items, laad })
 
 <template>
   <section class="card" aria-labelledby="sectie-verantwoordelijkheden" data-testid="vw-sectie">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-verantwoordelijkheden" class="text-[length:var(--lk-text-lg)] font-semibold">
+    <div class="lk-kop-rij gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
+      <h2 id="sectie-verantwoordelijkheden">
         Verantwoordelijkheden
       </h2>
       <VeldUitleg veld="verantwoordelijke" norm-feit="verantwoordelijke" />

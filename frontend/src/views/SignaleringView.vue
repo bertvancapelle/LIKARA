@@ -86,7 +86,7 @@ onMounted(laadGaten)
   <section aria-labelledby="signalering-titel">
     <h1
       id="signalering-titel"
-      class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]"
+      class="mb-[var(--lk-space-sm)] text-[var(--lk-color-primary)]"
     >
       Signalering
     </h1>
@@ -126,7 +126,7 @@ onMounted(laadGaten)
         data-testid="sig-verschoven-lat"
         class="mb-[var(--lk-space-lg)] rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-md)] py-[var(--lk-space-md)]"
       >
-        <h2 class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-lg)] font-semibold text-[var(--lk-color-text-muted)]">
+        <h2 class="flex items-center gap-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)]">
           <span aria-hidden="true">↔</span> De lat is verschoven
         </h2>
         <p class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
@@ -171,7 +171,7 @@ onMounted(laadGaten)
 
       <template v-else-if="eersteGeladen && !laden">
         <section v-for="ernst in ['kritiek', 'aandacht']" :key="ernst" class="mb-[var(--lk-space-lg)]" :data-testid="`sig-ernst-${ernst}`">
-          <h2 class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-lg)] font-semibold">
+          <h2 class="mb-[var(--lk-space-sm)]">
             {{ ernst === 'kritiek' ? '🔴 Kritiek' : '🟡 Aandacht' }}
           </h2>
           <template v-for="g in GROEPEN[ernst]" :key="g.key">

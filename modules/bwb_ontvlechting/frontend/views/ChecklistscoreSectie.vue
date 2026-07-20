@@ -363,7 +363,7 @@ laad()
 <template>
   <section class="card" aria-labelledby="sectie-checklist">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-checklist" class="text-[length:var(--lk-text-lg)] font-semibold">Checklist</h2>
+      <h2 id="sectie-checklist">Checklist</h2>
       <span data-testid="cs-voortgang" class="ml-auto text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]">
         {{ aantalGescoord }}/{{ aantalVragen }} gescoord
       </span>

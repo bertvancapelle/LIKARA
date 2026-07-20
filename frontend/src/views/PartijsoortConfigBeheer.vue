@@ -172,7 +172,7 @@ laad()
 
 <template>
   <section aria-labelledby="ps-titel">
-    <h1 id="ps-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="ps-titel" class="mb-[var(--lk-space-md)]">
       Partijsoort-catalogus
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
@@ -184,7 +184,7 @@ laad()
 
     <section class="card" data-testid="ps-sectie">
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Partijsoort-opties</h2>
+        <h2>Partijsoort-opties</h2>
         <Button v-if="magBeheren" label="Optie toevoegen" data-testid="ps-toevoegen" class="ml-auto" @click="openToevoegen" />
       </div>
 

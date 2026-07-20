@@ -245,14 +245,20 @@ onMounted(laad)
       <p v-if="gap.toelichting" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text)]">{{ gap.toelichting }}</p>
 
       <div class="mb-[var(--lk-space-sm)] grid gap-[var(--lk-space-md)] sm:grid-cols-2">
-        <div data-testid="readiness-technisch" class="rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]">
-          <h2 class="mb-1 text-[length:var(--lk-text-sm)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Technische gereedheid</h2>
-          <p class="text-[length:var(--lk-text-lg)]">{{ readinessTekst(gap.readiness_technisch) }}</p>
-        </div>
-        <div data-testid="readiness-contractueel" class="rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]">
-          <h2 class="mb-1 text-[length:var(--lk-text-sm)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Contractuele gereedheid</h2>
-          <p class="text-[length:var(--lk-text-lg)]">{{ readinessTekst(gap.readiness_contractueel) }}</p>
-        </div>
+        <!-- LI047 — GEEN koppen: dit zijn stat-tegels. Het woord is het naamplaatje, het cijfer het
+             antwoord; onder het label hangt niets behalve die ene waarde, dus een kop zou iets
+             beloven wat er niet is — en hij moest daarom kleiner zijn dan zijn eigen waarde, een
+             uitzondering op de gedeelde kopstijl. Nu een definitielijst: `dt` en `dd` binden label
+             en waarde, zodat een schermlezer nooit een los "3 van 4 (75%)" aankondigt. Visueel
+             identiek aan de oude tegel (de globale reset nult de `dd`-inspringing). -->
+        <dl data-testid="readiness-technisch" class="rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]">
+          <dt class="mb-1 text-[length:var(--lk-text-sm)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Technische gereedheid</dt>
+          <dd class="text-[length:var(--lk-text-lg)]">{{ readinessTekst(gap.readiness_technisch) }}</dd>
+        </dl>
+        <dl data-testid="readiness-contractueel" class="rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]">
+          <dt class="mb-1 text-[length:var(--lk-text-sm)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Contractuele gereedheid</dt>
+          <dd class="text-[length:var(--lk-text-lg)]">{{ readinessTekst(gap.readiness_contractueel) }}</dd>
+        </dl>
       </div>
       <p data-testid="readiness-uitleg" class="mb-[var(--lk-space-lg)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
         Deze cijfers worden automatisch afgeleid uit de stand van de gekoppelde leden (technisch: componenten die migratieklaar
@@ -260,7 +266,7 @@ onMounted(laad)
       </p>
 
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Leden</h2>
+        <h2>Leden</h2>
         <Button v-if="magBeheren" label="+ Lid koppelen" severity="secondary" data-testid="gap-lid-koppelen" class="ml-auto" @click="openKoppelen" />
       </div>
       <DataTable :value="leden" data-testid="gap-leden-tabel" class="bg-[var(--lk-color-surface)] rounded-[var(--lk-radius-card)] shadow-[var(--lk-shadow-sm)]">

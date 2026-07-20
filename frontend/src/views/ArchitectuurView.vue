@@ -103,7 +103,7 @@ onMounted(() => { if (weergave.value === 'tabel') laad({ reset: true }) })
   <section aria-labelledby="arch-titel">
     <h1
       id="arch-titel"
-      class="mb-[var(--lk-space-md)] text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]"
+      class="mb-[var(--lk-space-md)] text-[var(--lk-color-primary)]"
     >
       Architectuur — lagen
     </h1>

@@ -420,7 +420,7 @@ onMounted(async () => {
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
       <h1
         id="componenten-titel"
-        class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]"
+        class="text-[var(--lk-color-primary)]"
       >
         Componenten
       </h1>

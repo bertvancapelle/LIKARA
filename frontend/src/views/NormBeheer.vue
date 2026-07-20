@@ -86,7 +86,7 @@ laad()
 
 <template>
   <section aria-labelledby="norm-titel">
-    <h1 id="norm-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-sm)]">
+    <h1 id="norm-titel" class="mb-[var(--lk-space-sm)]">
       Migratienorm
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">

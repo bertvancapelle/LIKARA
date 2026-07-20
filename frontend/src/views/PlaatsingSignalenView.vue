@@ -47,7 +47,7 @@ onMounted(laad)
   <section aria-labelledby="signalen-titel">
     <h1
       id="signalen-titel"
-      class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]"
+      class="mb-[var(--lk-space-sm)] text-[var(--lk-color-primary)]"
     >
       Plaatsingssignalen
     </h1>

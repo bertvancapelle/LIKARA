@@ -175,7 +175,7 @@ laad()
 
 <template>
   <section aria-labelledby="biv-titel">
-    <h1 id="biv-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="biv-titel" class="mb-[var(--lk-space-md)]">
       BIV-schaal
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
@@ -189,7 +189,7 @@ laad()
 
     <section class="card" data-testid="biv-sectie">
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">BIV-niveaus (oplopend)</h2>
+        <h2>BIV-niveaus (oplopend)</h2>
         <Button v-if="magBeheren" label="Niveau toevoegen" data-testid="biv-toevoegen" class="ml-auto" @click="openToevoegen" />
       </div>
 

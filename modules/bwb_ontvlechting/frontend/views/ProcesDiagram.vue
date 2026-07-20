@@ -505,7 +505,7 @@ defineExpose({
         @mousedown="onPopupSleep"
       >
         <div class="flex items-start gap-[var(--lk-space-xs)]">
-          <h2 class="font-semibold text-[var(--lk-color-primary)]" data-testid="diagram-popup-naam">{{ popupProces.naam }}</h2>
+          <h2 class="text-[var(--lk-color-primary)]" data-testid="diagram-popup-naam">{{ popupProces.naam }}</h2>
           <button
             type="button"
             aria-label="Sluit details"

@@ -401,7 +401,7 @@ watch(() => props.id, async () => {
         <div class="grid grid-cols-1 gap-[var(--lk-space-lg)] md:grid-cols-2 md:items-start">
           <!-- 1. Wat is dit -->
           <section class="card" aria-labelledby="blok-wat-titel" data-testid="blok-wat-is-dit">
-            <h2 id="blok-wat-titel" class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-lg)] font-semibold">Wat is dit</h2>
+            <h2 id="blok-wat-titel" class="mb-[var(--lk-space-sm)]">Wat is dit</h2>
             <dl class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
               <dt class="font-semibold">Type</dt>
               <dd>{{ component.componenttype_label }}</dd>
@@ -458,7 +458,7 @@ watch(() => props.id, async () => {
           <div class="flex flex-col gap-[var(--lk-space-lg)]">
             <!-- 2. Wie is verantwoordelijk — READ-ONLY; registreren blijft op het tabblad. -->
             <section class="card" aria-labelledby="blok-wie-titel" data-testid="blok-verantwoordelijk">
-              <h2 id="blok-wie-titel" class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-lg)] font-semibold">Wie is verantwoordelijk</h2>
+              <h2 id="blok-wie-titel" class="mb-[var(--lk-space-sm)]">Wie is verantwoordelijk</h2>
               <dl class="grid grid-cols-[max-content_1fr] gap-x-[var(--lk-space-lg)] gap-y-[var(--lk-space-sm)]">
                 <dt id="veld-eigenaar" class="font-semibold" :class="veldKlas('eigenaar')">Eigenaar-organisatie</dt>
                 <dd :class="veldKlas('eigenaar')" @click="wisVeldMarkering">

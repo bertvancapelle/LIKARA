@@ -186,7 +186,7 @@ onMounted(laad)
       <p v-if="wp.toelichting" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text)]">{{ wp.toelichting }}</p>
 
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Subpakketten ({{ directeSubpakketten.length }} direct)</h2>
+        <h2>Subpakketten ({{ directeSubpakketten.length }} direct)</h2>
         <Button v-if="magBeheren" label="+ Sub-werkpakket" severity="secondary" data-testid="wp-sub-toevoegen" class="ml-auto" @click="openSub" />
       </div>
       <DataTable :value="subboom" data-testid="wp-subboom-tabel" class="bg-[var(--lk-color-surface)] rounded-[var(--lk-radius-card)] shadow-[var(--lk-shadow-sm)]">

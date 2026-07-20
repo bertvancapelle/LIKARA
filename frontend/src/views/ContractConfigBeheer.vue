@@ -188,7 +188,7 @@ laad()
 
 <template>
   <section aria-labelledby="cat-titel">
-    <h1 id="cat-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="cat-titel" class="mb-[var(--lk-space-md)]">
       Contractcatalogus
     </h1>
 
@@ -204,7 +204,7 @@ laad()
         :aria-labelledby="`cat-kop-${dim.key}`"
       >
         <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-          <h2 :id="`cat-kop-${dim.key}`" class="text-[length:var(--lk-text-lg)] font-semibold">{{ dim.label }}</h2>
+          <h2 :id="`cat-kop-${dim.key}`">{{ dim.label }}</h2>
           <Button
             v-if="magBeheren"
             label="Optie toevoegen"

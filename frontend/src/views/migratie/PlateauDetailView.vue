@@ -241,7 +241,7 @@ onMounted(() => {
       <p v-if="plateau.toelichting" class="mb-[var(--lk-space-lg)] text-[var(--lk-color-text)]">{{ plateau.toelichting }}</p>
 
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Leden</h2>
+        <h2>Leden</h2>
         <Button v-if="magBeheren" label="+ Lid koppelen" severity="secondary" data-testid="lid-koppelen" class="ml-auto" @click="openKoppelen" />
       </div>
 

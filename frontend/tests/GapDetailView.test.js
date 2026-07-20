@@ -100,6 +100,36 @@ describe('GapDetailView — render + readiness', () => {
     expect(blok.find('button').exists()).toBe(false)
   })
 
+  // LI047 — de readiness-tegels zijn GEEN koppen meer (een kop belooft iets eronder; hier hangt
+  // er alleen die ene waarde). Voor wie kíjkt verandert er niets; voor wie LUISTERT moet het
+  // naamplaatje aan zijn waarde vastzitten, anders klinkt er los "3 van 5 (60%)" zonder waarvan.
+  // Deze test toetst die koppeling — niet dát er een element staat, maar dat label en waarde als
+  // één definitiepaar in één lijst zitten, wat een schermlezer samen aankondigt.
+  it('readiness-tegel: label en waarde zijn één definitiepaar (hoorbaar verbonden)', async () => {
+    const { w } = await mountDetail()
+    for (const [testid, verwachtLabel, verwachteWaarde] of [
+      ['readiness-technisch', 'Technische gereedheid', '3 van 5 (60%)'],
+      ['readiness-contractueel', 'Contractuele gereedheid', 'Nog geen leden'],
+    ]) {
+      const tegel = w.find(`[data-testid="${testid}"]`)
+      expect(tegel.element.tagName).toBe('DL')          // de lijst die het paar bindt
+      const dts = tegel.findAll('dt')
+      const dds = tegel.findAll('dd')
+      expect(dts).toHaveLength(1)                        // precies één naamplaatje…
+      expect(dds).toHaveLength(1)                        // …bij precies één waarde
+      expect(dts[0].text()).toBe(verwachtLabel)
+      expect(dds[0].text()).toContain(verwachteWaarde)
+      // dt en dd zijn directe kinderen van dezelfde dl — een dd in een geneste lijst zou de
+      // koppeling verbreken zonder dat de tekst-assertie dat merkt.
+      expect(dts[0].element.parentElement).toBe(tegel.element)
+      expect(dds[0].element.parentElement).toBe(tegel.element)
+      // en de waarde volgt direct op zijn label (geen ander paar ertussen)
+      expect(dts[0].element.nextElementSibling).toBe(dds[0].element)
+      // geen kop meer in de tegel: die belofte doen we hier niet
+      expect(tegel.find('h1, h2, h3, h4, h5, h6').exists()).toBe(false)
+    }
+  })
+
   it('viewer ziet geen beheer-acties', async () => {
     const { w } = await mountDetail({ rollen: ['viewer'] })
     expect(w.find('[data-testid="gap-bewerken"]').exists()).toBe(false)

@@ -13,8 +13,14 @@
     background: var(--lk-color-bg);
     color: var(--lk-color-text);
   }
-  h1 { margin-bottom: 1rem; color: var(--lk-color-primary); }
-  h2 { margin-bottom: 0.75rem; font-size: var(--lk-text-lg); }
+  /* LI047 — DE ENE BRON voor kop-typografie. Tailwind-preflight zet h1..h6 op
+     `font-size: inherit; font-weight: inherit`; herstelden we dat hier niet, dan koos élk scherm
+     zijn eigen maat — en dat gebeurde ook: 30 h1's, 17 op 2xl en 13 op xl, waardoor het beheer als
+     een ander product las. Maat en gewicht leven vanaf nu hier; schermen zetten ze NIET zelf (de
+     kopstijl-bron-scan in check-css-build.mjs dwingt dat af). Kleur/marge blijven ongewijzigd;
+     positionering (break-words, min-w-0, uitlijning) blijft per call-site. */
+  h1 { margin-bottom: 1rem; font-size: var(--lk-text-2xl); font-weight: var(--lk-font-weight-kop); color: var(--lk-color-primary); }
+  h2 { margin-bottom: 0.75rem; font-size: var(--lk-text-lg); font-weight: var(--lk-font-weight-kop); }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--lk-color-border, #e5e7eb); }
   thead { background: var(--lk-color-primary); }
@@ -92,6 +98,23 @@
     background-repeat: no-repeat;
     background-size: 100% 36px, 100% 36px, 100% 12px, 100% 12px;
     background-attachment: local, local, scroll, scroll;
+  }
+
+  /* Kop-met-uitleg-rij (LI047) — de "i" hoort BIJ zijn kop, niet ernaast.
+     Een kop draagt een ondermarge (h1/h2, basislaag hierboven). In een `items-center`-rij
+     centreert `align-items` de MARGEbox mee: de kop komt daardoor een halve ondermarge
+     omhoog en het icoon hangt precies zoveel te laag (h2: 6px, h1: 8px). Acht schermen
+     bouwden deze rij met de hand na, dus stond hij overal even scheef — en juist hier is
+     deze sessie de uitleg naartoe verhuisd, weg uit de tooltips. Binnen de rij draagt de
+     kop geen marge; de afstand ONDER de rij blijft een keuze van de call-site (`mb-*`),
+     net als gap en uitlijning. De bron-scan in check-css-build.mjs dwingt af dat elke
+     kop-met-uitleg deze klasse gebruikt. */
+  .lk-kop-rij {
+    display: flex;
+    align-items: center;
+  }
+  .lk-kop-rij > :is(h1, h2) {
+    margin-bottom: 0;
   }
 
   /* Aanstip van een zojuist vastgelegde rij (LI039 — "wat je zojuist hebt vastgelegd,

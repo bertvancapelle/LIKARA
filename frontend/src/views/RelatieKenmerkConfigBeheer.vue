@@ -188,8 +188,11 @@ laad()
   <section aria-labelledby="rk-titel">
     <!-- LI047 — het dimensie-begrip bepaalt waarvoor élke sectie hieronder geldt; daarom ÉÉN
          aanduiding op de paginakop en niet per dimensie-sectie (dat zou dezelfde uitleg 3× tonen). -->
-    <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-sm)]">
-      <h1 id="rk-titel" class="text-[length:var(--lk-text-xl)] font-semibold">
+    <!-- De rij draagt nu de volledige afstand onder de titel: de 16px die de h1-ondermarge
+         bíjdroeg zat vóór deze wijziging binnen de rij, nu erbuiten (md → xl, samen 32px —
+         dezelfde afstand als onder een losse h1 op de andere beheerschermen). -->
+    <div class="lk-kop-rij gap-[var(--lk-space-sm)] mb-[var(--lk-space-xl)]">
+      <h1 id="rk-titel">
         Relatie-kenmerk-catalogus
       </h1>
       <VeldUitleg veld="dimensie" testid="uitleg-dimensie" />
@@ -207,7 +210,7 @@ laad()
         :aria-labelledby="`rk-kop-${dim.key}`"
       >
         <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-          <h2 :id="`rk-kop-${dim.key}`" class="text-[length:var(--lk-text-lg)] font-semibold">{{ dim.label }}</h2>
+          <h2 :id="`rk-kop-${dim.key}`">{{ dim.label }}</h2>
           <Button
             v-if="magBeheren"
             label="Optie toevoegen"

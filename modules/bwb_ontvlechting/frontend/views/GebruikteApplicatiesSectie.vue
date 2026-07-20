@@ -82,7 +82,7 @@ function toonOpKaart() {
 <template>
   <section class="card" aria-labelledby="sectie-gebruikte-componenten" data-testid="gebruikte-applicaties-sectie">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-gebruikte-componenten" class="text-[length:var(--lk-text-lg)] font-semibold">Gebruikte componenten</h2>
+      <h2 id="sectie-gebruikte-componenten">Gebruikte componenten</h2>
       <Button
         v-if="items.length"
         label="Toon op de landschapskaart"

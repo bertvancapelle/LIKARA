@@ -59,7 +59,7 @@ onMounted(laad)
   <section aria-labelledby="dashboard-titel">
     <h1
       id="dashboard-titel"
-      class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)] mb-[var(--lk-space-sm)]"
+      class="text-[var(--lk-color-primary)] mb-[var(--lk-space-sm)]"
     >
       Welkom<span v-if="auth.user?.email">, {{ auth.user.email }}</span>
     </h1>
@@ -94,7 +94,7 @@ onMounted(laad)
       <div aria-labelledby="dashboard-readiness-titel">
         <h2
           id="dashboard-readiness-titel"
-          class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]"
+          class="mb-[var(--lk-space-sm)]"
         >
           Gereedheid per componenttype
         </h2>
@@ -148,7 +148,7 @@ onMounted(laad)
       <div aria-labelledby="dashboard-blokkades-titel">
         <h2
           id="dashboard-blokkades-titel"
-          class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]"
+          class="mb-[var(--lk-space-sm)]"
         >
           Actieve blokkades
         </h2>
@@ -173,7 +173,7 @@ onMounted(laad)
       <div aria-labelledby="dashboard-klaarverklaring-titel">
         <h2
           id="dashboard-klaarverklaring-titel"
-          class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]"
+          class="mb-[var(--lk-space-sm)]"
         >
           Migratiegereedheid
         </h2>
@@ -207,7 +207,7 @@ onMounted(laad)
       <div aria-labelledby="dashboard-recent-titel">
         <h2
           id="dashboard-recent-titel"
-          class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]"
+          class="mb-[var(--lk-space-sm)]"
         >
           Recent gewijzigd
         </h2>

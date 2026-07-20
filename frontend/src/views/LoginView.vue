@@ -52,7 +52,7 @@ function inloggen() {
     >
       <h1
         id="login-titel"
-        class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)] mb-[var(--lk-space-sm)]"
+        class="text-[var(--lk-color-primary)] mb-[var(--lk-space-sm)]"
       >
         LIKARA
       </h1>

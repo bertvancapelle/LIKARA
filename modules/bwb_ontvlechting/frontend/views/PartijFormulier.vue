@@ -231,7 +231,7 @@ const TEKSTVELDEN = [
   <section aria-labelledby="partij-form-titel">
     <h1
       id="partij-form-titel"
-      class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)] mb-[var(--lk-space-lg)]"
+      class="text-[var(--lk-color-primary)] mb-[var(--lk-space-lg)]"
     >
       {{ bewerken ? 'Partij bewerken' : 'Nieuwe partij' }}
     </h1>

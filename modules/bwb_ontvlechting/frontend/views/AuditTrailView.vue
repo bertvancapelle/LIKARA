@@ -91,7 +91,7 @@ laad()
 
 <template>
   <section aria-labelledby="audit-titel">
-    <h1 id="audit-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">Auditlog</h1>
+    <h1 id="audit-titel" class="mb-[var(--lk-space-md)]">Auditlog</h1>
 
     <!-- Filterbalk -->
     <div class="flex flex-wrap items-end gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">

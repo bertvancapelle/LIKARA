@@ -34,7 +34,7 @@ defineProps({
     <div class="flex flex-wrap items-center gap-[var(--lk-space-md)]">
       <h1
         :id="titelId"
-        class="min-w-0 break-words text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]"
+        class="min-w-0 break-words text-[var(--lk-color-primary)]"
         data-testid="detail-kop-naam"
       >{{ naam }}</h1>
       <slot name="badges" />

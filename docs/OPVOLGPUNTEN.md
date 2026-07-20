@@ -1842,7 +1842,26 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
 - **ADR-032 "Start vanuit..."-wijzer** — scope besloten (5 ingangen), open subknopen
   nog te beslissen vóór de bouw.
 
+## LI047 — Openstaande punten
+
 ### Parkeer-items (geen actie tot opgepakt)
+- **Uitleg-icoon schaalt niet mee met zijn buur** — de "i" in `VeldUitleg.vue:129` is vast
+  20 px (`h-5 w-5`) met 12 px tekst (`--lk-text-xs`), ongeacht of hij naast een kop van 24 px
+  of een veldlabel van 16 px staat. Meeschalen vraagt een relatieve maat (`em`) plus een rij
+  die de kopgrootte draagt, en raakt **alle 60 call-sites** — óók de 52 waar het icoon naast
+  een gewoon veldlabel staat en waar niets mis is. Eigen afweging, geen bijvangst van de
+  kop-rij-slice (LI047).
+  **Vaststelling: pas de moeite als er een aanleiding voor komt** — de uitlijning is met
+  `.lk-kop-rij` verholpen, en dat was de klacht. De maat op zichzelf is niet gemeld als
+  probleem.
+- **`font-mono` staat buiten het tokenstelsel** — 25 vermeldingen (sleutelkolommen,
+  sleutelinvoervelden, bevestigingsdialogen in de 9 config-beheerschermen +
+  `GebruikersbeheerView.vue:465,498`) gebruiken Tailwinds `--font-mono`; er is geen
+  `--lk-font-mono`. Consequent toegepast en inhoudelijk verdedigbaar (sleutels lees je teken
+  voor teken), maar de reden staat nergens vastgelegd — geen ADR, commit-bericht of
+  commentaar. Kleinste stap: token toevoegen mét de reden, de 25 plekken erop laten wijzen.
+
+## LI018 — Parkeer-items (geen actie tot opgepakt)
 - Dedicated vitest-tests voor edge-popup-per-ring + groepeer-toggle Landschapskaart.
 - Aardsortering "Afdeling" sorteert op enum-positie i.p.v. label-alfabetisch.
 - COMPLIDATA_TEST_MODE → LIKARA_TEST_MODE (optioneel, feature-flag geen identifier).

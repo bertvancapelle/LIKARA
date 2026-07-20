@@ -193,7 +193,7 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
     <div class="flex-1 overflow-y-auto px-[var(--lk-space-lg)] py-[var(--lk-space-md)]">
     <div class="mx-auto flex w-full max-w-2xl flex-col gap-[var(--lk-space-lg)]">
       <header class="flex flex-col gap-1">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Begin je verkenning</h2>
+        <h2>Begin je verkenning</h2>
         <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
           Zoek een component, kies via leverancier, contract of gebruikerscontext, open een opgeslagen view — of toon het hele landschap.
         </p>

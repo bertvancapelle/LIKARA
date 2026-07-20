@@ -183,7 +183,7 @@ laad({ reset: true })
 <template>
   <section class="card" aria-labelledby="sectie-blokkades">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-blokkades" class="text-[length:var(--lk-text-lg)] font-semibold">Blokkades</h2>
+      <h2 id="sectie-blokkades">Blokkades</h2>
       <span data-testid="bk-open-teller" class="ml-auto text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]">{{ aantalOpen }} open</span>
     </div>
 

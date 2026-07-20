@@ -77,4 +77,7 @@
   --lk-text-lg: 1.125rem;
   --lk-text-xl: 1.25rem;
   --lk-text-2xl: 1.5rem;
+  /* LI047 — het gewicht van een kop. Tailwind-preflight strípt `font-weight` van h1..h6, dus de
+     basislaag zet hem terug; zonder token zou elk scherm opnieuw `font-semibold` moeten kiezen. */
+  --lk-font-weight-kop: 600;
 }

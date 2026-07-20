@@ -232,7 +232,7 @@ laad()
 <template>
   <section aria-labelledby="beheer-titel">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1 id="beheer-titel" class="text-[length:var(--lk-text-xl)] font-semibold">Checklistvragen</h1>
+      <h1 id="beheer-titel">Checklistvragen</h1>
       <label class="ml-auto flex items-center gap-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]">
         Categorie
         <select

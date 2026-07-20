@@ -303,7 +303,7 @@ const RIJEN = [
         <!-- Afdelingen — alleen onder een organisatie(-achtige) -->
         <section v-if="isOrganisatieAchtig" class="card mt-[var(--lk-space-lg)]" data-testid="partij-afdelingen-sectie" aria-labelledby="sectie-partij-afdelingen">
           <div class="flex items-center gap-[var(--lk-space-sm)] mb-[var(--lk-space-sm)]">
-            <h2 id="sectie-partij-afdelingen" class="text-[length:var(--lk-text-lg)] font-semibold">Afdelingen</h2>
+            <h2 id="sectie-partij-afdelingen">Afdelingen</h2>
             <Button v-if="magAanmaken" label="+ Afdeling" severity="secondary" data-testid="lid-afdeling" class="ml-auto" @click="nieuwLid('organisatie_eenheid')" />
           </div>
           <DataTable :value="afdelingen.items" data-testid="partij-afdelingen-tabel" lazy :sort-field="afdelingen.sortVeld" :sort-order="primeSort(afdelingen)" @sort="onAfdelingenSort">
@@ -322,7 +322,7 @@ const RIJEN = [
         <!-- Personen — onder een organisatie of afdeling; met e-mail + telefoon -->
         <section class="card mt-[var(--lk-space-lg)]" data-testid="partij-personen-sectie" aria-labelledby="sectie-partij-personen">
           <div class="flex items-center gap-[var(--lk-space-sm)] mb-[var(--lk-space-sm)]">
-            <h2 id="sectie-partij-personen" class="text-[length:var(--lk-text-lg)] font-semibold">Personen</h2>
+            <h2 id="sectie-partij-personen">Personen</h2>
             <Button v-if="magAanmaken" label="+ Persoon" severity="secondary" data-testid="lid-persoon" class="ml-auto" @click="nieuwLid('persoon')" />
           </div>
           <DataTable :value="personen.items" data-testid="partij-personen-tabel" lazy :sort-field="personen.sortVeld" :sort-order="primeSort(personen)" @sort="onPersonenSort">
@@ -358,7 +358,7 @@ const RIJEN = [
 
       <!-- Contracten (tegenpartij-koppeling) — alleen voor een externe partij -->
       <section v-if="isExternePartij" class="card mt-[var(--lk-space-lg)]" aria-labelledby="sectie-partij-contracten" data-testid="partij-contracten-sectie">
-        <h2 id="sectie-partij-contracten" class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]">Contracten</h2>
+        <h2 id="sectie-partij-contracten" class="mb-[var(--lk-space-sm)]">Contracten</h2>
         <DataTable :value="contracten" data-testid="partij-contracten-tabel">
           <Column header="Contractnaam">
             <template #body="{ data }">
@@ -375,7 +375,7 @@ const RIJEN = [
 
       <!-- LI019 — Componenten via de contract-keten — alleen voor een externe partij (leverancier) -->
       <section v-if="isExternePartij" class="card mt-[var(--lk-space-lg)]" aria-labelledby="sectie-partij-componenten" data-testid="partij-componenten-sectie">
-        <h2 id="sectie-partij-componenten" class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]">Componenten</h2>
+        <h2 id="sectie-partij-componenten" class="mb-[var(--lk-space-sm)]">Componenten</h2>
         <ul v-if="leverancierComponenten.length" class="flex flex-col gap-[var(--lk-space-xs)]">
           <li v-for="r in leverancierComponenten" :key="`${r.component_id}-${r.contract_id}`" :data-testid="`partij-component-${r.component_id}`" class="text-[length:var(--lk-text-sm)]">
             <router-link :to="detailRoute('component', r.component_id)" data-testid="partij-component-link" class="text-[var(--lk-color-primary)] hover:underline">{{ r.component_naam }}</router-link>

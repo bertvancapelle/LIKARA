@@ -51,6 +51,10 @@ const VEREIST = [
   // LI040 — veldbouwsteen: handgeschreven main.css-klassen (geen vals-groen-risico).
   { naam: 'veldbouwsteen', match: '.lk-veld' },
   { naam: 'veldbouwsteen-tekstvlak', match: '.lk-veld-tekstvlak' },
+  // LI047 — kop-met-uitleg-rij: de margeneutralisatie is het hele punt van de klasse.
+  // Sneuvelt juist die regel, dan zakt het icoon weer stilletjes 6px — dus toetsen we
+  // de nakomeling-selector, niet alleen de klassenaam.
+  { naam: 'kop-rij-margeneutralisatie', match: '.lk-kop-rij>:is(h1,h2)' },
 ]
 
 console.log('[css-build-check] productie-build draaien…')
@@ -337,3 +341,196 @@ if (kopOvertredingen.length > 0) {
   process.exit(1)
 }
 console.log(`[css-build-check] OK — detailkop-scan: ${detailGescand} detailschermen op de bouwsteen (object-acties in de kop).`)
+
+// ── LI047: kopstijl-bron-scan — één maat voor de paginatitel ────────────────────────────────
+// Tailwind-preflight zet h1..h6 op `font-size: inherit; font-weight: inherit`; de basislaag
+// (assets/main.css) herstelt maat + gewicht. Dáár leeft de kopstijl — een scherm dat 'm zelf
+// zet negeert de bron, óók als het toevallig dezelfde maat kiest. Zo ontstond het verschil dat
+// het beheer als een ander product liet lezen: 30 h1's, 17 op 2xl en 13 op xl.
+// Meerregelig-bewust: een h1-tag die over vier regels loopt (DetailKop) moet net zo hard worden
+// gevangen als een eenregelige — een regel-gebaseerde lezing zat er eerder tien mis.
+const KOPSTIJL_TAG = /<(h[12])\b/g
+const KOPSTIJL_VERBODEN = /^(?:text-\[length:var\(--lk-text-[a-z0-9]+\)\]|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black))$/
+
+function scanKopstijlOvertredingen(bron, label) {
+  const overtredingen = []
+  const tmpl = /<template>([\s\S]*)<\/template>/.exec(bron)
+  if (!tmpl) return overtredingen
+  const t = tmpl[1].replace(/<!--[\s\S]*?-->/g, '') // HTML-comments tellen niet
+  KOPSTIJL_TAG.lastIndex = 0
+  let m
+  while ((m = KOPSTIJL_TAG.exec(t)) !== null) {
+    const einde = vindTagEinde(t, m.index)
+    if (einde < 0) continue
+    const tag = t.slice(m.index, einde)
+    const regel = bron.slice(0, bron.indexOf(tag)).split('\n').length
+    const clsM = /(?<![:-])class="([^"]*)"/.exec(tag)
+    if (!clsM) continue
+    for (const k of clsM[1].split(/\s+/).filter(Boolean)) {
+      if (KOPSTIJL_VERBODEN.test(k)) {
+        overtredingen.push(`${label}:${regel} <${m[1]}> zet een eigen titelmaat/-gewicht: "${k}"`)
+      }
+    }
+  }
+  return overtredingen
+}
+
+// Zelftest — bewijs dat de scan bijt, bij ÉLKE run: (a) een eigen maat wordt gevangen, ook als
+// het de JUISTE maat is (een scherm dat 24px hardcodeert negeert de bron evengoed); (b) een eigen
+// gewicht wordt gevangen; (c) een kop die alleen kleur/positionering draagt passeert; (d) een
+// MEERREGELIGE tag wordt gelezen (de val waar de eerste telling tien mis zat); (e) een h1 in een
+// HTML-comment telt niet; (f) een `text-[var(--lk-color-…)]` is kleur, geen maat — geen vals alarm.
+const KOPSTIJL_ZELFTEST = [
+  { naam: 'eigen-maat-gevangen', verwacht: 1, bron: '<template><h1 class="text-[length:var(--lk-text-xl)]">X</h1></template>' },
+  { naam: 'juiste-maat-óók-gevangen', verwacht: 1, bron: '<template><h1 class="text-[length:var(--lk-text-2xl)]">X</h1></template>' },
+  { naam: 'eigen-gewicht-gevangen', verwacht: 1, bron: '<template><h2 class="font-semibold">X</h2></template>' },
+  { naam: 'kleur-en-positie-passeren', verwacht: 0, bron: '<template><h1 class="min-w-0 break-words text-[var(--lk-color-primary)]">X</h1></template>' },
+  {
+    naam: 'meerregelige-tag-gevangen', verwacht: 2,
+    bron: '<template><h1\n  :id="t"\n  class="text-[length:var(--lk-text-2xl)] font-semibold"\n  data-testid="x"\n>{{ n }}</h1></template>',
+  },
+  { naam: 'comment-telt-niet', verwacht: 0, bron: '<template><!-- <h1 class="font-bold">X</h1> --><p /></template>' },
+  { naam: 'kleur-token-geen-vals-alarm', verwacht: 0, bron: '<template><h2 class="text-[var(--lk-color-text-muted)]">X</h2></template>' },
+]
+let kopstijlZelftestFouten = 0
+for (const { naam, verwacht, bron } of KOPSTIJL_ZELFTEST) {
+  const n = scanKopstijlOvertredingen(bron, 'zelftest').length
+  if (n !== verwacht) {
+    console.error(`  ✗ zelftest "${naam}": ${n} overtreding(en), verwacht ${verwacht} — de kopstijl-scan bijt niet zoals bedoeld`)
+    kopstijlZelftestFouten++
+  }
+}
+if (kopstijlZelftestFouten > 0) {
+  console.error('\n[css-build-check] FAAL: de kopstijl-bron-scan doorstaat zijn eigen zelftest niet.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — kopstijl-scan-zelftest: ${KOPSTIJL_ZELFTEST.length}/${KOPSTIJL_ZELFTEST.length} (de scan bijt).`)
+
+// ── LI047: kop-rij-bron-scan — de "i" hoort bij zijn kop ────────────────────────────────────
+// Een kop draagt een ondermarge; in een `items-center`-rij centreert `align-items` de MARGEbox
+// mee, waardoor het uitleg-icoon precies een halve ondermarge te laag hangt (h2: 6px). Acht
+// schermen bouwden die rij met de hand na, dus stond hij overal even scheef. De rij leeft nu op
+// één plek (.lk-kop-rij, assets/main.css). Regel: staat een <VeldUitleg> als DIRECTE broer van
+// een <h1>/<h2>, dan moet hun gezamenlijke ouder .lk-kop-rij dragen.
+// Directe-broer is het juiste criterium: alleen dán delen ze een flex-regel. Een VeldUitleg die
+// dieper genest zit (bv. naast een veldlabel in een sectie die óók een kop heeft) staat niet in
+// die regel en hoort niet gevangen te worden — vandaar de diepte-telling i.p.v. regel-nabijheid.
+const KOPRIJ_TAG = /<\/?([A-Za-z][\w.-]*)/g
+const KOPRIJ_VOID = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'source', 'area', 'base', 'col', 'embed', 'param', 'track', 'wbr'])
+
+function scanKoprijOvertredingen(bron, label) {
+  const overtredingen = []
+  const tmpl = /<template>([\s\S]*)<\/template>/.exec(bron)
+  if (!tmpl) return overtredingen
+  const t = tmpl[1].replace(/<!--[\s\S]*?-->/g, '') // HTML-comments tellen niet
+  const stapel = []
+  KOPRIJ_TAG.lastIndex = 0
+  let m
+  while ((m = KOPRIJ_TAG.exec(t)) !== null) {
+    const naam = m[1]
+    if (t[m.index + 1] === '/') {
+      // Sluittag: rol af tot en met het bijpassende open element.
+      for (let i = stapel.length - 1; i >= 0; i--) {
+        if (stapel[i].naam !== naam) continue
+        const el = stapel[i]
+        stapel.length = i
+        if (el.kop && el.uitleg && !el.klassen.includes('lk-kop-rij')) {
+          overtredingen.push(
+            `${label}:${el.regel} <${el.naam}> zet een kop en een VeldUitleg naast elkaar zonder .lk-kop-rij — het icoon hangt dan een halve kopmarge te laag`,
+          )
+        }
+        break
+      }
+      continue
+    }
+    const einde = vindTagEinde(t, m.index)
+    if (einde < 0) continue
+    const tag = t.slice(m.index, einde)
+    const ouder = stapel[stapel.length - 1]
+    if (ouder) {
+      if (/^h[12]$/.test(naam)) ouder.kop = true
+      if (naam === 'VeldUitleg') ouder.uitleg = true
+    }
+    if (!/\/>\s*$/.test(tag) && !KOPRIJ_VOID.has(naam.toLowerCase())) {
+      const clsM = /(?<![:-])class="([^"]*)"/.exec(tag)
+      stapel.push({
+        naam,
+        klassen: clsM ? clsM[1].split(/\s+/).filter(Boolean) : [],
+        kop: false,
+        uitleg: false,
+        regel: bron.slice(0, bron.indexOf(tag)).split('\n').length,
+      })
+    }
+    KOPRIJ_TAG.lastIndex = einde // attributen niet opnieuw als tag lezen
+  }
+  return overtredingen
+}
+
+// Zelftest — bewijs dat de scan bijt, bij ÉLKE run: (a) een kop-rij zonder de klasse wordt
+// gevangen; (b) mét de klasse passeert; (c) een VeldUitleg zonder kop-broer (het gewone geval,
+// 52 van de 60 plekken) geeft geen vals alarm; (d) een MEERREGELIGE containertag wordt gelezen;
+// (e) genest telt niet als broer — kop in de buitenste div, uitleg in een binnenste; (f) een
+// kop-rij in een HTML-comment telt niet; (g) twee kop-rijen fout in één bestand → twee meldingen.
+const KOPRIJ_ZELFTEST = [
+  { naam: 'koprij-zonder-klasse-gevangen', verwacht: 1, bron: '<template><div class="flex items-center"><h2>X</h2><VeldUitleg veld="a" /></div></template>' },
+  { naam: 'koprij-met-klasse-passeert', verwacht: 0, bron: '<template><div class="lk-kop-rij gap-2"><h2>X</h2><VeldUitleg veld="a" /></div></template>' },
+  { naam: 'uitleg-zonder-kop-geen-vals-alarm', verwacht: 0, bron: '<template><div class="flex items-center"><label>X</label><VeldUitleg veld="a" /></div></template>' },
+  {
+    naam: 'meerregelige-containertag-gelezen', verwacht: 1,
+    bron: '<template><div\n  :id="x"\n  class="flex items-center gap-[var(--lk-space-md)]"\n><h1>X</h1><VeldUitleg veld="a" /></div></template>',
+  },
+  { naam: 'genest-telt-niet-als-broer', verwacht: 0, bron: '<template><div class="card"><h2>X</h2><div class="flex"><label>L</label><VeldUitleg veld="a" /></div></div></template>' },
+  { naam: 'comment-telt-niet', verwacht: 0, bron: '<template><!-- <div class="flex"><h2>X</h2><VeldUitleg veld="a" /></div> --><p /></template>' },
+  {
+    naam: 'twee-fouten-twee-meldingen', verwacht: 2,
+    bron: '<template><div><div class="flex"><h2>A</h2><VeldUitleg veld="a" /></div><div class="flex"><h2>B</h2><VeldUitleg veld="b" /></div></div></template>',
+  },
+]
+let koprijZelftestFouten = 0
+for (const { naam, verwacht, bron } of KOPRIJ_ZELFTEST) {
+  const n = scanKoprijOvertredingen(bron, 'zelftest').length
+  if (n !== verwacht) {
+    console.error(`  ✗ zelftest "${naam}": ${n} overtreding(en), verwacht ${verwacht} — de kop-rij-scan bijt niet zoals bedoeld`)
+    koprijZelftestFouten++
+  }
+}
+if (koprijZelftestFouten > 0) {
+  console.error('\n[css-build-check] FAAL: de kop-rij-bron-scan doorstaat zijn eigen zelftest niet.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — kop-rij-scan-zelftest: ${KOPRIJ_ZELFTEST.length}/${KOPRIJ_ZELFTEST.length} (de scan bijt).`)
+
+let kopstijlOvertredingen = []
+let koprijOvertredingen = []
+let koprijGescand = 0
+let kopstijlGescand = 0
+for (const wortel of SCAN_WORTELS) {
+  for (const bestand of vueBestanden(path.join(FRONTEND, wortel))) {
+    const bron = readFileSync(bestand, 'utf8')
+    if (/<VeldUitleg\b/.test(bron)) {
+      koprijGescand++
+      koprijOvertredingen = koprijOvertredingen.concat(
+        scanKoprijOvertredingen(bron, path.relative(FRONTEND, bestand)),
+      )
+    }
+    if (!/<h[12]\b/.test(bron)) continue
+    kopstijlGescand++
+    kopstijlOvertredingen = kopstijlOvertredingen.concat(
+      scanKopstijlOvertredingen(bron, path.relative(FRONTEND, bestand)),
+    )
+  }
+}
+if (koprijOvertredingen.length > 0) {
+  console.error(`\n[css-build-check] FAAL: ${koprijOvertredingen.length} kop-rij-afwijking(en):`)
+  for (const o of koprijOvertredingen) console.error(`  ✗ ${o}`)
+  console.error('De kop-met-uitleg-rij leeft in de componentenlaag (src/assets/main.css, .lk-kop-rij) — bouw hem niet per scherm na.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — kop-rij-scan: ${koprijGescand} schermen met uitleg-iconen, elke kop-met-uitleg op de gedeelde rij.`)
+if (kopstijlOvertredingen.length > 0) {
+  console.error(`\n[css-build-check] FAAL: ${kopstijlOvertredingen.length} kopstijl-afwijking(en):`)
+  for (const o of kopstijlOvertredingen) console.error(`  ✗ ${o}`)
+  console.error('De titelmaat leeft in de basislaag (src/assets/main.css) — zet hem niet per scherm.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — kopstijl-scan: ${kopstijlGescand} schermen met koppen, allemaal op de gedeelde maat.`)

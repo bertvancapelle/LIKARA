@@ -173,7 +173,7 @@ laad()
 
 <template>
   <section aria-labelledby="af-titel">
-    <h1 id="af-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="af-titel" class="mb-[var(--lk-space-md)]">
       Applicatiefuncties
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
@@ -187,7 +187,7 @@ laad()
 
     <section class="card" data-testid="af-sectie">
       <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Applicatiefunctie-opties</h2>
+        <h2>Applicatiefunctie-opties</h2>
         <Button v-if="magBeheren" label="Optie toevoegen" data-testid="af-toevoegen" class="ml-auto" @click="openToevoegen" />
       </div>
 

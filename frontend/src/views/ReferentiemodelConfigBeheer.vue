@@ -124,7 +124,7 @@ laad()
 
 <template>
   <section aria-labelledby="rm-titel">
-    <h1 id="rm-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="rm-titel" class="mb-[var(--lk-space-md)]">
       Referentiemodellen
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
@@ -138,7 +138,7 @@ laad()
     <p v-if="laden" data-testid="rm-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <section class="card" data-testid="rm-sectie">
-      <h2 class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]">Aangeboden modellen</h2>
+      <h2 class="mb-[var(--lk-space-sm)]">Aangeboden modellen</h2>
 
       <table class="w-full text-[length:var(--lk-text-sm)]" data-testid="rm-tabel">
         <thead>

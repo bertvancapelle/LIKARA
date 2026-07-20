@@ -180,7 +180,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         aria-labelledby="sectie-deelcontracten"
         data-testid="deelcontracten-sectie"
       >
-        <h2 id="sectie-deelcontracten" class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]">
+        <h2 id="sectie-deelcontracten" class="mb-[var(--lk-space-sm)]">
           Deelcontracten
         </h2>
         <DataTable :value="deelcontracten" data-testid="deelcontracten-tabel">
@@ -218,7 +218,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
         aria-labelledby="sectie-gekoppelde-apps"
         data-testid="gekoppelde-apps-sectie"
       >
-        <h2 id="sectie-gekoppelde-apps" class="text-[length:var(--lk-text-lg)] font-semibold mb-[var(--lk-space-sm)]">
+        <h2 id="sectie-gekoppelde-apps" class="mb-[var(--lk-space-sm)]">
           Gekoppelde componenten
         </h2>
         <DataTable :value="gekoppeldeApps" data-testid="gekoppelde-apps-tabel">

@@ -356,8 +356,8 @@ laadBeide()
 
 <template>
   <section class="card" aria-labelledby="sectie-koppelingen">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-koppelingen" class="text-[length:var(--lk-text-lg)] font-semibold">Koppelingen</h2>
+    <div class="lk-kop-rij gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
+      <h2 id="sectie-koppelingen">Koppelingen</h2>
       <VeldUitleg veld="koppelingen" norm-feit="koppelingen" />
       <Button v-if="mag" label="Toevoegen" severity="secondary" data-testid="kp-toevoegen" class="ml-auto" @click="openNieuw" />
     </div>

@@ -225,7 +225,7 @@ const typeLabel = (c) => label(CONTRACTTYPE, c)
 
 <template>
   <section aria-labelledby="contract-form-titel">
-    <h1 id="contract-form-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)] mb-[var(--lk-space-lg)]">
+    <h1 id="contract-form-titel" class="text-[var(--lk-color-primary)] mb-[var(--lk-space-lg)]">
       {{ bewerken ? 'Contract bewerken' : 'Nieuw contract' }}
     </h1>
 

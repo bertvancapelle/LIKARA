@@ -898,7 +898,7 @@ onMounted(async () => {
 <template>
   <section aria-labelledby="bedrijfsfuncties-titel">
     <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="bedrijfsfuncties-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
+      <h1 id="bedrijfsfuncties-titel" class="text-[var(--lk-color-primary)]">
         Bedrijfsfuncties
       </h1>
       <div

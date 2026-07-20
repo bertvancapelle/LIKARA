@@ -215,8 +215,8 @@ watch(() => props.componentId, () => laad(), { immediate: true })
          daarom in de kop-rij (items-center op de h2), niet in het ondertitel-blok — zo schuift hij niet
          mee met de ondertitel. Het woord komt uit NORM_FEIT_LABEL: exact wat de werkvoorraad toont. -->
     <div class="mb-[var(--lk-space-sm)]">
-      <div class="flex items-center gap-[var(--lk-space-xs)]">
-        <h2 id="comp-bf-titel" class="text-[length:var(--lk-text-lg)] font-semibold">
+      <div class="lk-kop-rij gap-[var(--lk-space-xs)]">
+        <h2 id="comp-bf-titel">
           Waarvoor gebruiken we het
         </h2>
         <VeldUitleg veld="bedrijfsfunctie" testid="uitleg-bedrijfsfunctie-comp" norm-feit="bedrijfsfunctie" />

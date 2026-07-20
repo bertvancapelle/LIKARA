@@ -46,7 +46,7 @@ const lifecycleSeverity = (c) => LIFECYCLE_SEVERITY[c] || 'info'
 <template>
   <section class="card" aria-labelledby="sectie-impact">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-impact" class="text-[length:var(--lk-text-lg)] font-semibold">Impactanalyse</h2>
+      <h2 id="sectie-impact">Impactanalyse</h2>
       <Button label="Impactanalyse" data-testid="im-analyseer" class="ml-auto" :disabled="laden" @click="analyseer" />
     </div>
 

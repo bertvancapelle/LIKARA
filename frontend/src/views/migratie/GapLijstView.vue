@@ -97,7 +97,7 @@ onMounted(() => laad({ reset: true }))
 <template>
   <section aria-labelledby="gaps-titel">
     <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="gaps-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">Gaps</h1>
+      <h1 id="gaps-titel" class="text-[var(--lk-color-primary)]">Gaps</h1>
       <Button v-if="magAanmaken" label="+ Nieuwe gap" data-testid="gap-nieuw" class="ml-auto" @click="openNieuw" />
     </div>
 

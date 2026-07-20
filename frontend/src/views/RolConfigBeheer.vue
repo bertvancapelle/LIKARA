@@ -178,7 +178,7 @@ laad()
 
 <template>
   <section aria-labelledby="rol-titel">
-    <h1 id="rol-titel" class="text-[length:var(--lk-text-xl)] font-semibold mb-[var(--lk-space-md)]">
+    <h1 id="rol-titel" class="mb-[var(--lk-space-md)]">
       Componentrollen
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
@@ -190,8 +190,8 @@ laad()
     <p v-if="laden" data-testid="rol-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>
 
     <section class="card" data-testid="rol-sectie">
-      <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-        <h2 class="text-[length:var(--lk-text-lg)] font-semibold">Rol-opties</h2>
+      <div class="lk-kop-rij gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
+        <h2>Rol-opties</h2>
         <!-- LI047 — de "Systeem"-markering in deze tabel had alleen een tooltip; kern-inhoud hoort
              niet in een title-attribuut (onvindbaar, breekt op touch/toetsenbord/schermlezer). Eén
              aanduiding op de sectiekop = het kleinste element dat de markering omvat. -->

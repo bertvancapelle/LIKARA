@@ -135,7 +135,7 @@ onMounted(() => {
     <div class="flex items-center flex-wrap gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
       <h1
         id="blokkades-titel"
-        class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]"
+        class="text-[var(--lk-color-primary)]"
       >
         Blokkades
       </h1>

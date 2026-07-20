@@ -213,7 +213,7 @@ laad({ reset: true })
 <template>
   <section class="card" aria-labelledby="sectie-datatypes">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-sm)]">
-      <h2 id="sectie-datatypes" class="text-[length:var(--lk-text-lg)] font-semibold">Datatypes</h2>
+      <h2 id="sectie-datatypes">Datatypes</h2>
       <Button v-if="mag" label="Toevoegen" severity="secondary" data-testid="dt-toevoegen" class="ml-auto" @click="openNieuw" />
     </div>
 

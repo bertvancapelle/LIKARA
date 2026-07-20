@@ -82,7 +82,7 @@ onMounted(() => laad({ reset: true }))
 <template>
   <section aria-labelledby="plateaus-titel">
     <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="plateaus-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
+      <h1 id="plateaus-titel" class="text-[var(--lk-color-primary)]">
         Plateaus
       </h1>
       <Button v-if="magAanmaken" label="+ Nieuw plateau" data-testid="plateau-nieuw" class="ml-auto" @click="openNieuw" />

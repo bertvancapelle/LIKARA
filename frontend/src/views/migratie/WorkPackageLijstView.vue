@@ -88,7 +88,7 @@ onMounted(() => laad({ reset: true }))
 <template>
   <section aria-labelledby="wp-titel">
     <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="wp-titel" class="text-[length:var(--lk-text-2xl)] font-semibold text-[var(--lk-color-primary)]">
+      <h1 id="wp-titel" class="text-[var(--lk-color-primary)]">
         Werkpakketten
       </h1>
       <Button v-if="magAanmaken" label="+ Nieuw werkpakket" data-testid="wp-nieuw" class="ml-auto" @click="openNieuw" />

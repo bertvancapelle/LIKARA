@@ -329,7 +329,7 @@ onMounted(laad)
 <template>
   <section aria-labelledby="gebr-titel">
     <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1 id="gebr-titel" class="text-[length:var(--lk-text-xl)] font-semibold">Gebruikersbeheer</h1>
+      <h1 id="gebr-titel">Gebruikersbeheer</h1>
       <Button
         v-if="magBeheren"
         label="Gebruiker toevoegen"
@@ -483,7 +483,7 @@ onMounted(laad)
       <div v-if="geselecteerd" class="flex flex-col gap-[var(--lk-space-lg)] min-w-[26rem]">
         <!-- 1. Wachtwoord opnieuw instellen -->
         <section class="flex flex-col gap-[var(--lk-space-sm)]" data-testid="gebr-beheer-wachtwoord">
-          <h2 class="font-semibold">Wachtwoord opnieuw instellen</h2>
+          <h2>Wachtwoord opnieuw instellen</h2>
           <template v-if="!resetWachtwoord">
             <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)] max-w-prose">
               Genereert een nieuw eenmalig wachtwoord; de gebruiker wijzigt het verplicht bij de eerstvolgende login.
@@ -503,7 +503,7 @@ onMounted(laad)
 
         <!-- 2. Rol wijzigen -->
         <section class="flex flex-col gap-[var(--lk-space-sm)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-md)]" data-testid="gebr-beheer-rol">
-          <h2 class="font-semibold">Rol</h2>
+          <h2>Rol</h2>
           <template v-if="isEigenAccount && isBeheerderRij">
             <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]" data-testid="gebr-rol-eigen-note">Je kunt jezelf niet de beheerrol ontnemen.</p>
           </template>
@@ -520,7 +520,7 @@ onMounted(laad)
 
         <!-- 3. Uit-/inschakelen -->
         <section v-if="!isEigenAccount" class="flex flex-col gap-[var(--lk-space-sm)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-md)]" data-testid="gebr-beheer-status">
-          <h2 class="font-semibold">Toegang</h2>
+          <h2>Toegang</h2>
           <template v-if="geselecteerd.enabled === false">
             <Button label="Inschakelen" severity="secondary" :disabled="beheerBezig" data-testid="gebr-inschakelen" class="self-start" @click="doeStatus(true)" />
           </template>
@@ -536,7 +536,7 @@ onMounted(laad)
 
         <!-- 4. Gegevens corrigeren -->
         <section class="flex flex-col gap-[var(--lk-space-sm)] border-t border-[var(--lk-color-border)] pt-[var(--lk-space-md)]" data-testid="gebr-beheer-gegevens">
-          <h2 class="font-semibold">Gegevens</h2>
+          <h2>Gegevens</h2>
           <div class="flex flex-col gap-[var(--lk-space-xs)]">
             <label for="gebr-beheer-naam" class="font-semibold">Naam *</label>
             <InputText id="gebr-beheer-naam" v-model="beheerNaam" data-testid="gebr-beheer-naam" :aria-invalid="!!beheerFouten.naam" aria-describedby="gebr-beheer-fout-naam" />
