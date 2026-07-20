@@ -80,7 +80,9 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 > **LI045 top-5 — eindstand (de LI046 top-5 staat in `NEXT_SESSION.md`):**
 > 1. ✅ **Slice 4 — norm-beheerscherm** — geland (4a/4b/4c, `aaeeb15`/`d748fcf`/`f8a9142`); ADR-052 af.
-> 2. **Open-punten-overzicht per component** — nog **open** (draagt naar LI046).
+> 2. **Open-punten-overzicht per component** — ✅ **gebouwd (LI047)**: drie blokken uit één
+>    afleiding + kopknop met teller (`e89a417`/`218b9fd`). Ongewogen, op de bestaande signalen; de
+>    gewogen grondslag blijft post-MVP.
 > 3. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — nog **open** (draagt naar LI046).
 > 4. **Dev-seed vertelt het volledige verhaal (L4)** — deels: het **schone geval** (S1, `6a0931a`) is
 >    toegevoegd; het gate-3-verhaal (koppelingen/"hier draait niets"/noodoplossing) blijft **open**.
@@ -169,8 +171,9 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
      default-grondslag)?
    - **Verband:** vervangt het smalle wegwijzer-idee; bouwt op de checklist-/registratiegaten-signalen die er
      al zijn; raakt de "Lifecycle → Beoordelingsstatus"-hernoeming (aparte, kleine fix — mag vooruit).
-   - **Status:** groot **post-MVP** ontwerpspoor. Het open-punten-overzicht kan desgewenst **eerder** op de
-     bestaande (ongewogen) signalen landen en later de weging krijgen; de grondslag zelf is het fundament.
+   - **Status:** groot **post-MVP** ontwerpspoor. ✅ **Het ongewogen overzicht is in LI047 gebouwd** op de
+     bestaande signalen (`component_open_punten_service`); de **weging** en de grondslag zelf blijven het
+     post-MVP-fundament.
 
 ### Nieuw uit LI040 (2026-07-14) — ADR-046 levensfase, bedoeling en uitstap
 
@@ -1844,20 +1847,15 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
 
 ## LI047 — Openstaande punten
 
-### Namen die nog "applicatie" zeggen waar "component" wordt bedoeld (ADR-055 open punt 1)
-- **Foutcode `GROEP_ZONDER_APPLICATIE`** (`gebruikersgroep_service.py`) — de gebruikerstekst is
-  hersteld naar "component", de CODE niet. Een foutcode is machine-leesbaar contract: hernoemen
-  raakt afnemers zonder dat er voor de gebruiker iets tegenover staat. Meenemen wanneer er tóch
-  een contractwijziging op dat endpoint plaatsvindt.
+### VÓÓR PRODUCTIE oplossen — niet parkeren
+
+*Deze kop bevat uitsluitend wat níét mee mag naar productie. Alles wat kán wachten staat onder
+Parkeer-items — laat die twee niet door elkaar lopen.*
+
 - **Kolom `organisatiegebruik.applicatie_id`** (`models.py`, klasse `Organisatiegebruik`) — een
   ECHTE databasekolom die het id van elk componenttype draagt (ADR-041 maakte de grove laag al
   component-breed; de kolomnaam bleef, met de opmerking "de kolomnaam is historisch").
-  **Dit is een schemastap met migratie** — eigen besluit, niet meeliften.
-- **`heeft_applicatie_subtype`** (API-veld, `ComponentRead`/`ComponentLijstItem`) — staat al
-  langer op deze lijst; eigen betekenisvraag (het veld zegt "subtype" terwijl er geen subtabel
-  meer is), dus niet zomaar een hernoeming.
-
-### VÓÓR PRODUCTIE oplossen — niet parkeren
+  **Schemastap met migratie — eigen besluit van Bert**, niet meeliften.
 - **De namenkaart in `KoppelingSectie.vue` haalt 100 componenten op zonder paginering**
   (`api.componenten.lijst({ limit: 100 })` in `_zorgCompNamen`). Die kaart resolveert de naam van
   de tegenpartij, want de flow-relatie draagt geen endpoint-namen.
@@ -1871,6 +1869,33 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   **Oplossingsrichting:** de namen per pagina meeleveren vanuit de relatie-respons, of de kaart
   gericht opvragen voor de id's die daadwerkelijk in beeld zijn — niet het limiet ophogen, want
   dan verschuift de grens alleen.
+
+### Opruiming die is vrijgekomen (LI047)
+
+- **`SignaleringBadge` is sinds LI047 ongebruikt.** De kopknop "Open punten" verving het rode
+  bolletje op het componentdetailscherm; dat was de enige consument. Ongebruikt: de component
+  `SignaleringBadge.vue`, `frontend/tests/SignaleringBadge.test.js`,
+  `api.signalering.badgeComponent` (`api.js:362`) en de verwijzing in de docstring van
+  `DetailKop.vue:13`. **Bewust laten staan** — een bouwsteen weggooien is onomkeerbaarder dan hem
+  niet meer mounten; de tenant-brede Signalering leest een ándere bron en is ongemoeid.
+
+### Kleine, benoemde punten (LI047)
+
+- **Foutcode `GROEP_ZONDER_APPLICATIE`** (`gebruikersgroep_service.py`) — de gebruikerstekst is
+  hersteld naar "component", de CODE niet. Machine-leesbaar contract: hernoemen raakt afnemers
+  zonder dat er voor de gebruiker iets tegenover staat. Meenemen bij een volgende contractwijziging
+  op dat endpoint.
+- **`heeft_applicatie_subtype`** (API-veld, `ComponentRead`/`ComponentLijstItem`) — eigen
+  betekenisvraag (het veld zegt "subtype" terwijl er geen subtabel meer is), dus geen simpele
+  hernoeming.
+- **"door onbekend · datum"** in `MigratiegereedheidSectie.vue:215` — geen gat (grammaticaal
+  correct), maar "onbekend" leest als een persoon. De open-punten-zin lost dit anders op ("wie dat
+  deed is niet vastgelegd"), maar dat is een volzin waar dit een compacte metaregel is.
+  **Alleen zinvol als dat blok blijft bestaan** — de kopknop van LI047 vervangt het mogelijk.
+- **`likara-werkprotocol` staat op 595 regels**, met vier nieuwe koppen onder §Gate-discipline na
+  LI047. Een sectie met vier nieuwe koppen beschrijft niet meer één ding. **Wie er patronen bij wil
+  zetten, consolideert eerst** — een protocol dat niemand meer leest geeft schijnzekerheid, en elke
+  discipline die erop leunt leunt dan op niets. Staat als punt 0 in NEXT_SESSION.
 
 ### Parkeer-items (geen actie tot opgepakt)
 - **Uitleg-icoon schaalt niet mee met zijn buur** — de "i" in `VeldUitleg.vue:129` is vast

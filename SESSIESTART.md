@@ -1,6 +1,6 @@
-# SESSIESTART — LIKARA V047
+# SESSIESTART — LIKARA V048
 
-**Datum**: 2026-07-19
+**Datum**: 2026-07-20
 **Platform**: LIKARA — een product van G. van Capelle Beheer B.V.
 
 ---
@@ -13,7 +13,7 @@
    - Zo ja: normale modus — lees alle likara-skills + engineering/security
    - Zo nee: bootstrap-modus — lees alleen engineering/security
 3. Lees SESSIE_BRIEFING.md voor de actuele projectstatus
-4. Bevestig: "Sessiestart compleet — LIKARA V047 — [N] skills geladen"
+4. Bevestig: "Sessiestart compleet — LIKARA V048 — [N] skills geladen"
 5. Wacht op START: [naam] van Bert
 
 ---
@@ -40,9 +40,9 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 ---
 
-# SESSIE_BRIEFING.md — LIKARA V047
+# SESSIE_BRIEFING.md — LIKARA V048
 
-**Gegenereerd**: 2026-07-19
+**Gegenereerd**: 2026-07-20
 
 ---
 
@@ -52,11 +52,11 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 
 | Veld | Waarde |
 |------|--------|
-| Build | V047 |
+| Build | V048 |
 | Datum | July 2026 |
-| Commit | aca7cb1 |
-| Tests | backend 1159 passed / 2 skipped · frontend 97 files / 1248 passed · vite build OK · css-build OK |
-| TST-rapport | TST-V047-Validatierapport.md |
+| Commit | f11fd1c |
+| Tests | backend 1179 passed / 2 skipped · frontend 98 files / 1275 passed · vite build OK · css-build OK |
+| TST-rapport | TST-V048-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -64,152 +64,199 @@ claude.ai levert elke CC-opdracht ALTIJD aan als een .md-bestand
 ## Recente commits
 
 ```
-aca7cb1 [skills] LI046-patronen vastgelegd — kaart-leesbaarheid (linkerkolom + relaties op hoedanigheid) + werkwijze-lessen
-f7929a9 [docs] LI046 read-only checkpoints — linkerkolom (kijkinstellingen vs vertrekpunten) + hertekenen/overlappende lijnen
-6651f1f [frontend] LI046 — relaties tussen twee knopen gescheiden op hoedanigheid + de klik levert alles onder het paar
-3a72b35 [frontend] LI046 — kijkinstellingen-kolom alléén bij een getekende kaart; views + beheer naar het startpaneel; BIV/Rol achter een inklap
-70f2cbb [skills] LI046-patronen vastgelegd — één-ingang/aanleiding-in-URL/veld-anker/popup-takken-scan/de-bezoeker-wint + rm→find-fix + invariant-boven-afspraak — ADR-054
+f11fd1c [skills] LI047-patronen vastgelegd — dertien lessen, elk getoetst tegen de code
+134fd6c [herstel] LI047 — de seed werkt weer, en de verantwoording zegt wie én wanneer
+218b9fd [frontend] LI047 snede 2 — de ingang in de kop, en dan ook maar één
+529c122 [frontend] LI047 — koppelingen kun je bij elk component vastleggen
+e89a417 [backend+frontend] LI047 snede 1 — het tabblad "Open punten" per component
 ```
 
 ---
 
 ## Prioriteiten volgende sessie
 
-# NEXT_SESSION.md — LIKARA V047
+# NEXT_SESSION.md — LIKARA V048
 
-**Gegenereerd**: 2026-07-19
-**Vorige build**: V046 → **V047**
+**Gegenereerd**: 2026-07-20
+**Vorige build**: V047 → **V048**
 **Branch**: master
-**Laatste commit (code)**: `6651f1f` relaties op hoedanigheid · `3a72b35` linkerkolom-gate ·
-`9ee6fcb` terugkeer landt in de kaart · `61665a4` derde uitgang · `466eb7b`/`4dd1387`/`80d0038` slice 3/2/1
-**Laatste commit (docs)**: `aca7cb1` LI046-patronen · `f7929a9` checkpoints · `bf67e67` ADR-054 + register ·
-afsluiting: deze sessie-commit
+**Laatste commit (code)**: `134fd6c` seedherstel + verantwoordingszin · `218b9fd` kopknop + één ingang ·
+`529c122` koppelingen component-breed · `e89a417` open-punten-tabblad · `14e1dbe` `component_id` ·
+`388f3da` ADR-055 gebouwd · `1dfe435` kopstijl + kop-rij
+**Laatste commit (docs/skills)**: `f11fd1c` LI047-patronen · `56aa06f` ADR-055 + register ·
+`e26d150` checkpoint gebruik-component-breed
 
-> **Sessie LI046 — de kaart vertelt, en het component verandert: één ingang naar het detailscherm, een
-> linkerkolom die alleen verschijnt als er iets te zien is, en relaties die je per hoedanigheid uit elkaar
-> ziet lopen.**
+> **Sessie LI047 — de consultant ziet nu per component wat er nog nodig is, met per punt een weg
+> erheen. En wat hij ooit bewust heeft beantwoord, telt als beantwoord.**
 >
-> Wat een gebruiker ná LI046 kan dat hij vanochtend niet kon (gebruikerstaal):
-> - **Vanaf de kaart naar een detailscherm gaat nu langs één deur, met de aanleiding erbij (ADR-054).**
->   Klik je door op een systeem, dan land je op het detailscherm mét de reden waarom je er bent — de
->   aanleiding staat in de URL, het aangeraakte veld is gemarkeerd, en er bestaat geen route die je zonder
->   landing binnenlaat. De kaart vertelt; het component verandert. Kom je terug, dan land je bij je bewaarde
->   beeld — en verdween je selectie helemaal, dan krijg je dat eerlijk te zien in plaats van een lege kaart.
-> - **De kijkinstellingen-kolom verschijnt alleen bij een getekende kaart.** Zolang er niets getekend is,
->   is er ook geen linkerkolom vol knoppen die nergens op slaan; opgeslagen kijken en het beheer ervan
->   staan nu op het startpaneel, en het Rol/BIV-filter zit achter een rustige inklap. De kolom gaat over
->   *kijken*, niet over *binnenkomen* — hij hangt aan "is er data", niet aan "staat het beginscherm open".
-> - **Twee systemen die op meer dan één manier met elkaar te maken hebben, zie je nu uit elkaar lopen.**
->   Een beheerrelatie en een gebruiksrelatie tussen dezelfde twee knopen liggen niet meer op één lijn maar
->   als aparte banen, elk met de juiste richting; klik je op zo'n baan, dan krijg je *alles* wat tussen dat
->   paar loopt. Roltoewijzing telt als beheer-hoedanigheid mee.
-> - **Vastgelegd, nog te bouwen:** het **open-punten-overzicht per component** — "alles wat dít systeem nog
->   nodig heeft" als één lijst; het fundament (`norm_status` + registratiegaten per component) staat er.
+> Wat een gebruiker ná LI047 kan dat hij vanochtend niet kon:
+> - **Eén blik op wat dit component nog nodig heeft.** Het stond verspreid over zes tot acht plekken —
+>   velden op het Overzicht, de contracten, de verantwoordelijkheden, de koppelingen, de checklist. Nu
+>   staat het bij elkaar in drie blokken, met **per punt een knop naar de plek waar je het vastlegt**.
+>   Wat hij bewust heeft beantwoord ("bewust geen koppelingen") telt als antwoord: het verdwijnt uit de
+>   lijst én uit "Dit valt op", zodat het scherm zichzelf niet tegenspreekt over hetzelfde feit.
+> - **De kop zegt zonder klikken of er werk ligt.** Een knop "Open punten" met een getal — en dat getal
+>   **kan niet uit de pas lopen** met de lijst eronder, want beide lezen hetzelfde object. Is er niets
+>   open, dan draagt de knop géén getal: de rust is het signaal. Het rode signaleringsbolletje is weg;
+>   twee tellers die verschillende getallen roepen over hetzelfde component was een tweede waarheid.
+> - **Bij élk component vastleggen wie het gebruikt en welke koppelingen er zijn.** Ook bij een gedeelde
+>   fileshare of een databaseserver — precies waar dat bij een ontvlechting het hardst speelt. Wat de
+>   registratie tegenhield bleek geen domeinregel maar een restant van een structuur die niet meer
+>   bestaat (ADR-055). Waar de vraag inhoudelijk niet geldt, wordt hij ook niet gesteld.
+> - **Het beheer leest niet langer als een ander product.** Eén bron voor de titelmaat (30 schermen
+>   kozen zelf), en het uitleg-icoon hangt niet meer los naast zijn kop.
+> - **Geen tekst meer die niemand leest, en geen melding die iets beweert wat niet meer waar is.**
+>   Dode passages weg, uitleg op één plek, en de foutmelding die "applicatie" zei terwijl je naar een
+>   fileshare kijkt is rechtgezet.
+> - **Het demolandschap is weer volledig op te bouwen uit de seed** — inclusief de gevallen die de
+>   browserchecks nodig hebben (schoon · beide soorten afwijking · alleen verschoven · bewuste
+>   vaststelling · de fileshare mét gebruikersgroep · de gebundelde checklistregel).
 
 ---
 
-## Vertrekpunt LI047 — welk gat voelt de gebruiker nu als eerste?
+## Vertrekpunt LI048 — begin hier
 
-De consultant ziet nu **per feit** of het vastgesteld is (badges, de norm-"i"), en de kaart vertelt hem
-netjes waar hij is. Maar er is nog steeds **geen scherm dat per systeem bundelt "alles wat dít systeem nog
-nodig heeft"**. Hij leest zijn werkvoorraad feit-voor-feit, niet component-voor-component. Dát blijft het
-eerstvolgende gat — en het fundament ervoor (`norm_status` + registratiegaten per component) staat er nu.
+### 0. Consolideer het werkprotocol vóór je er iets bij zet
 
-## Top-5 prioriteiten volgende sessie (LI047)
+**Dit gaat vóór alles wat hieronder staat.** `likara-werkprotocol` staat op **595 regels**, en
+§Gate-discipline kreeg deze sessie **vier nieuwe koppen** erbij. Een sectie met vier nieuwe koppen
+beschrijft niet meer één ding — die is een verzameling geworden.
 
-> **Functionele volgorde: eerst het gat dat de consultant voelt, dan meteen de seed — want de rest van de
-> lijst wordt in de browser afgemeld en leunt dus op een seed die het geval kent — en pas daarna de laatste
-> MVP-feiten.**
+**Regel voor LI048: wie er patronen bij wil zetten, consolideert eerst.**
 
-1. **Open-punten-overzicht per component.** *Nu de norm per component leesbaar is welke feiten niet
-   vastgesteld zijn, kan "alles wat dit systeem nog nodig heeft" eindelijk als één lijst bestaan.* Dit is
-   waar de consultant het hardst "de weg kwijt" bleek. Start met een **mockup** (Bert beslist op beeld);
-   fundament = `norm_status` + `registratiegaten` per component (geen schema).
+Waarom dit vooropgaat: een protocol dat niemand meer leest geeft **schijnzekerheid**. Elke discipline
+die erop leunt — de gate, de browsercheck, de commit-trigger — leunt dan op niets. Het signaal komt nu,
+terwijl het nog leesbaar is; dat is het goede moment, niet als het al te laat is.
 
-2. **Dev-seed vertelt het volledige verhaal (L4).** *Randvoorwaarde voor de rest van de lijst: bij vrijwel
-   elke prioriteit is browserverificatie het afmeldpunt, en een seed die het geval niet kent maakt van elke
-   browsercheck een gok.* Het schone geval (S1) is er; het gate-3-verhaal nog niet. Vul de seed zodat een
-   verse DB toont:
-   - koppelingen, "hier draait niets" en de noodoplossing (het gate-3-verhaal);
-   - een **partij die van hetzelfde systeem eigenaar én gebruiker is en meerdere beheerrollen draagt** — het
-     geval waarvoor de baan-scheiding op hoedanigheid (LI046) gebouwd is, nu alleen zichtbaar na handmatig
-     vastleggen;
-   - een **knooppaar met relaties van meerdere hoedanigheden** — cross-ring overlap komt in de dev-data 0×
-     voor, dus dat gedrag is er niet te zien;
-   - een component met **openstaande punten** (voor prioriteit 1) en een **gebruiksrelatie met een
-     uitstap-stand** (voor prioriteit 4).
+Aanknopingspunten: de vier LI047-koppen onder §Gate-discipline horen waarschijnlijk bij elkaar onder één
+noemer ("wat je vaststelt vóór je bouwt"), en §Browsercheck draagt inmiddels drie verschillende soorten
+regels (voorbereiden, uitvoeren, en het draaiboek zelf).
 
-3. **Archiefwet-feit bouwen (ADR-053).** *De norm-slices zijn geland — het feit kan erin.* Eén hard
-   componentfeit "draagt dit systeem archiefbescheiden" (`ja` / `bewust geen` / `null` = niet gekeken),
-   in de platform-default maar **niet** standaard verplicht (de tenant zet de lat zelf). Eigen enum-kolom
-   op het component (géén "bewust geen"-relatie-mechanisme — dat is relatie-verankerd). Subknopen open;
-   grond: `docs/adr/ADR-053_Archiefwet-als-hard-componentfeit.md`. Raakt schema (nieuwe kolom + migratie) → gate.
+---
 
-4. **Laatste MVP-laag op de functie-as (ADR-046 stuk 3 → 5 → 4).** *Maakt de MVP af; lag bewust ná gate 4.*
-   Uitstap-stand op de gebruiksrelatie (`organisatiegebruik`, stuk 3) → afgeleide zwaarte-telling (stuk 5,
-   nooit opgeslagen) → tranche (stuk 4). Grond: OPVOLGPUNTEN LI040/LI041-blokken, ADR-046.
+## Vóór productie oplossen — niet parkeren
 
-5. **Terugweg-fijnslijpen (open ontwerpbesluiten LI046).** *De kaart landt nu terug, maar niet alles reist
-   mee.* Beslis wat er wél/niet in `lk-state` hoort: org-scope, Rol/BIV-filter, weergavekeuze, zoom/pan;
-   en of view-verwijderen een bevestiging krijgt en "selectie bijwerken" een ingang. Grond: OPVOLGPUNTEN
-   §"Nieuw uit LI046" (punten 1–5).
+- **De namenkaart zonder paginering** (`KoppelingSectie.vue`, `_zorgCompNamen`): haalt 100 componenten
+  op zonder paginering, terwijl die kaart de naam van de tegenpartij resolveert. Bij 19 componenten
+  merkt niemand iets; een echte organisatie zit daar zo overheen. Het gevolg is **stil** — er breekt
+  niets en er komt geen foutmelding; de tegenpartij-kolom toont een **lege naam**, en de consultant
+  concludeert dat de koppeling naar een naamloos component wijst. Een fout die zichzelf verbergt kost
+  meer dan een die klapt. *Oplossingsrichting: namen per pagina meeleveren vanuit de relatie-respons,
+  of de kaart gericht opvragen voor de id's die in beeld zijn — niet het limiet ophogen, want dan
+  verschuift de grens alleen.*
+- **`organisatiegebruik.applicatie_id`**: een echte databasekolom die het id van elk componenttype
+  draagt (ADR-041 maakte de grove laag al component-breed; de naam bleef). **Schemastap met migratie —
+  eigen besluit van Bert**, niet meeliften.
+
+## Vrijgekomen opruiming (sinds LI047 ongebruikt)
+
+`SignaleringBadge.vue`, `frontend/tests/SignaleringBadge.test.js`, `api.signalering.badgeComponent`
+(`api.js:362`) en de verwijzing in de docstring van `DetailKop.vue:13`. Bewust laten staan: een
+bouwsteen weggooien is onomkeerbaarder dan hem niet meer mounten.
+
+## Kleine, benoemde punten
+
+- **De tekstkeuze op het migratiegereedheid-blok** — `MigratiegereedheidSectie.vue:215` schrijft
+  "door onbekend · datum". Geen gat (grammaticaal correct), maar "onbekend" leest als een persoon.
+  **Alleen zinvol als dat blok blijft bestaan** — snede 2 vervangt het mogelijk.
+- **Foutcode `GROEP_ZONDER_APPLICATIE`** — de gebruikerstekst is hersteld naar "component", de code
+  niet. Machine-leesbaar contract: meenemen bij een volgende contractwijziging op dat endpoint.
+- **`heeft_applicatie_subtype`** — API-veld met een eigen betekenisvraag (het zegt "subtype" terwijl er
+  geen subtabel meer is), dus geen simpele hernoeming.
+
+---
+
+## Top-5 prioriteiten LI048
+
+> **Volgorde: eerst de leesbaarheid van het protocol waar alles op leunt (0), dan de MVP-feiten die nog
+> ontbreken.**
+
+1. **Archiefwet-feit bouwen (ADR-053).** *De norm-slices zijn geland; het feit kan erin.* Eén hard
+   componentfeit "draagt dit component archiefbescheiden" (`ja` / `bewust geen` / `null` = niet
+   gekeken), in de platform-default maar **niet** standaard verplicht — de tenant zet de lat zelf.
+   Eigen enum-kolom op het component (géén "bewust geen"-relatiemechanisme; dat is relatie-verankerd).
+   Subknopen open. Grond: `docs/adr/ADR-053_Archiefwet-als-hard-componentfeit.md`.
+   **Raakt schema (kolom + migratie) → gate.**
+
+2. **Laatste MVP-laag op de functie-as (ADR-046 stuk 3 → 5 → 4).** *Maakt de MVP af; lag bewust ná
+   gate 4.* Uitstap-stand op de gebruiksrelatie (`organisatiegebruik`, stuk 3) → afgeleide
+   zwaarte-telling (stuk 5, nooit opgeslagen) → tranche (stuk 4). Grond: ADR-046, OPVOLGPUNTEN
+   LI040/LI041.
+
+3. **ADR-register bijwerken naar de gebouwde realiteit.** ADR-055 staat op "Besloten — gebouwd", maar
+   ADR-052 (open-punten-overzicht) en ADR-054 verdienen een statusregel die klopt met wat LI047 heeft
+   opgeleverd. Werkprotocol §ADR-onderhoud.
+
+4. **Terugweg-fijnslijpen (open ontwerpbesluiten LI046).** *De kaart landt terug, maar niet alles reist
+   mee.* Beslis wat er wél/niet in `lk-state` hoort: org-scope, Rol/BIV-filter, weergavekeuze,
+   zoom/pan; en of view-verwijderen een bevestiging krijgt en "selectie bijwerken" een ingang.
+
+5. **Dev-seed: het gate-3-verhaal (L4-restant).** Het schone geval (S1) staat er, en LI047 voegde het
+   fileshare-geval toe. Nog niet in de seed: koppelingen + "hier draait niets" + de noodoplossing; een
+   **partij die van hetzelfde component eigenaar én gebruiker is** met meerdere beheerrollen (het geval
+   waarvoor de baan-scheiding op hoedanigheid is gebouwd); en een **knooppaar met relaties van meerdere
+   hoedanigheden** (cross-ring overlap komt 0× voor in de dev-data).
 
 ---
 
 ## Openstaande beslissingen
 
-- **Terugweg naar de kaart (LI046, punten 1–5).** Bij terugkeer landt de bewaarde selectie (ADR-054), maar
-  org-scope, Rol/BIV-filter, weergavekeuze en zoom/pan reizen niet mee; een gedeeltelijk verdwenen selectie
-  wordt stil kleiner getekend; view-verwijderen vraagt niet om bevestiging; "selectie bijwerken" heeft geen
-  ingang. Allemaal **open ontwerpbesluiten** — geen oplossingsvoorkeur vastgelegd.
-- **"Bewust geen" op de gebruiksrelatie.** Het gebruiksdata-model (`organisatiegebruik`) kent geen "bewust
-  geen"-stand, anders dan het Archiefwet-feit (ADR-053). Of die drieslag ook op de gebruiksrelatie hoort is
-  een **eigen, nog te nemen besluit** (OPVOLGPUNTEN LI046-4).
-- **Reikwijdte norm-afwijking (B5/D4, besloten LI044).** Niet samengevoegd met `klaar_met_afwijking` in de
-  dashboardteller (twee semantisch verschillende afwijkingen). Uitbreiding naar een dashboard-/lijstsignaal
-  is een **eigen, nog te nemen besluit** (ADR-052 §Reikwijdte).
-- **Archiefwet-subknopen (ADR-053).** De vorm is besloten (eigen enum-feit); de subknopen (waar in de
-  norm-UI, hoe de "bewust geen"-taal luidt, of het default-verplicht wordt) zijn open.
-- **Beoordelingsgrondslag (post-MVP).** ADR-052 is de smalle MVP-voorloper; de volle gewogen waarde-norm
-  blijft het grote post-MVP-spoor (OPVOLGPUNTEN LI043-1).
+- **Terugweg naar de kaart (LI046, punten 1–5).** Bij terugkeer landt de bewaarde selectie (ADR-054),
+  maar org-scope, Rol/BIV-filter, weergavekeuze en zoom/pan reizen niet mee; een gedeeltelijk verdwenen
+  selectie wordt stil kleiner getekend. Open ontwerpbesluiten, geen oplossingsvoorkeur vastgelegd.
+- **"Bewust geen" op de gebruiksrelatie.** `organisatiegebruik` kent die stand niet, anders dan het
+  Archiefwet-feit (ADR-053). Of die drieslag daar hoort is een eigen besluit.
+- **Reikwijdte norm-afwijking (B5/D4).** Niet samengevoegd met `klaar_met_afwijking` in de
+  dashboardteller. Uitbreiding naar een dashboard-/lijstsignaal is een eigen besluit (ADR-052).
+- **Archiefwet-subknopen (ADR-053).** Vorm besloten (eigen enum-feit); de subknopen open.
+- **Beoordelingsgrondslag (post-MVP).** ADR-052 is de smalle voorloper; de volle gewogen waarde-norm
+  blijft het grote post-MVP-spoor.
 
 ---
 
 ## Bekende risico's en aandachtspunten
 
-- **Geen verstrengelde werktree** — alle LI046-bouw is per opdracht apart geland (`3a72b35`, `6651f1f`,
-  `9ee6fcb`, `61665a4`, `466eb7b`, `4dd1387`, `80d0038`); docs/skills apart (`aca7cb1`, `f7929a9`,
-  `bf67e67`, `3b7941f`, `70f2cbb`). Schone start.
-- **Suites groen:** backend 1159 passed / 2 skipped · frontend 97 files / 1248 passed · vite build OK ·
-  css-build OK · alembic 1 head (`0073`), 0 branches.
-- **Kaart-leesbaarheid is invariant, geen afspraak** — de baanverdeling (`baanVerdeling`) en de
-  `heeftData`-kolomgate leunen niet op een ring- of laag-aanname; een nieuwe relatiesoort of projectie
-  erft het gedrag zonder losse regel (frontend §LI046, werkprotocol §KERNLES LI038).
+- **Geen verstrengelde werktree** — alle LI047-bouw is per opdracht apart geland; docs/skills apart
+  (`f11fd1c`, `56aa06f`, `e26d150`). Schone start.
+- **Suites groen:** backend **1179 passed / 2 skipped** · frontend **98 files / 1275 passed** ·
+  vite build OK · css-build OK (vier bronscans, elk met zelftest) · alembic 1 head (`0073`), 0 branches.
+- **Migraties deze sessie: 0.** ADR-055 en de `component_id`-hernoeming zijn beide zonder
+  schemawijziging gebouwd — dat was in beide gevallen het bewijs dat het om een applicatielaag-restant
+  ging.
+- **Tellingen in gate-rapporten zijn momentopnamen.** Wie ze later als stand overneemt, zit ernaast —
+  hermeten binnen de tenant-context is de regel. Dit ging LI047 **drie keer** mis, telkens in een andere
+  vorm (werkprotocol §Meet tenant-data binnen de tenant-context).
 - **Norm-borging is per scherm** — een nieuw scherm dat norm-feiten toont heeft zijn **eigen** tellende
   test nodig; er is geen globale scan (OPVOLGPUNTEN LI045-2/3).
 - **Open verificatie GEMMA** — of de publieke GEMMA Archi-repo méér functie↔proces-relaties draagt dan
-  ons AMEFF-bestand (4% gemeten) staat nog open (OPVOLGPUNTEN LI045-5).
+  ons AMEFF-bestand (4% gemeten) staat nog open.
 
 ---
 
 ## Geleerde patronen deze sessie
 
-Verankerd in de likara-skills (LI046-vastlegging, `aca7cb1` · `70f2cbb`), geen memory-duplicaat:
-- **De kaart vertelt, het component verandert** — één gedeelde detail-ingang (`detailRoute`), de aanleiding
-  in de URL, geen route zonder landing, het veld-anker markeert (ux/frontend §LI046, ADR-054).
-- **De bezoeker wint** — een vaste volgorde-invariant bij binnenkomst; het beginscherm-binnenkomstmoment is
-  één eenmalige regel ná de beslisboom, niet per tak (frontend §LI046).
-- **Een kijk-kolom hangt aan "is er data", niet aan "staat het beginscherm open"** — `heeftData`, bewust
-  níét `!beginschermOpen`; kijken ≠ binnenkomen (ux/frontend §LI046).
-- **Richting is betekenis, de laan is de betekenis** — relaties gescheiden op hoedanigheid met
-  richting-gecorrigeerde banen; ring-agnostisch, invariant boven afspraak (frontend §LI046).
-- **De klik levert alles onder het paar** — klik op een baan toont álle relaties tussen die twee knopen,
-  niet alleen de aangeklikte (ux §LI046).
-- **Groen bewijst geen schone bron** — tests groen terwijl de bron null-bytes droeg; controleer het bestand
-  zelf (`file`, hexdump) vóór commit (werkprotocol §LI046).
-- **Eén shell schrijft per repo** — stel eerst "waar sta ik" vast; een tweede shell die commit maakt je
-  "ongecommit"-lezing onbetrouwbaar (werkprotocol §LI046).
-- **`rm` is geweigerd — `find … -delete`** voor de Vite-modulecache (werkprotocol §LI046).
+Verankerd in de likara-skills (`f11fd1c`), geen memory-duplicaat. Dertien patronen; de scherpste:
+
+- **Een bewijs over de gewijzigde bestanden zegt niets over wie ze gebruikt** — de AST-vergelijking bij
+  een hernoeming was correct en gaf daardoor *valse* zekerheid; de seed brak en 1176 groene tests
+  raakten het niet (werkprotocol §Gate-discipline).
+- **Sneden die dezelfde functie ontsluiten, beoordeel je op één beeld** — beide sneden waren afzonderlijk
+  goedgekeurd en samen fout; geen test vangt dat (werkprotocol §Gate-discipline).
+- **Meet tenant-data binnen de tenant-context; een rapport is geen meting** (werkprotocol).
+- **Een typegebonden beperking zónder ADR is vaak een restant** — zoek de herkomst én het precedent
+  (werkprotocol, ADR-055).
+- **Teller en lijst uit één laadpunt, niet alleen één bron** — twee aanroepen zijn geen tweede waarheid
+  maar wél twee laadmomenten (frontend §LI047).
+- **Een scan met een benoemde uitzondering is een achterdeur** — derde eis naast bijten en
+  geen-vals-positieven (frontend).
+- **Nul is een uitkomst: een lijst legt uit, een teller zwijgt** (ux).
+- **Een weigering zegt wát er aan de hand is** — "er is niets" en "die vraag geldt hier niet" zijn
+  verschillende antwoorden (ux).
+- **Wat je zelf onwaar maakt, herstel je in dezelfde commit** — strenger dan verergeren (werkprotocol).
+- **Een bestandsoperatie doet niet wat hij leest** — vier faalvormen; de verificatie achteráf is de
+  belangrijkere helft (werkprotocol §Browsercheck).
+- **Een draaiboekstap is een claim over de code** — toets hem vóór je hem opschrijft (werkprotocol).
+- **`vi.clearAllMocks()` wist aanroepen, niet implementaties** (tests §LI047).
 
 
 ---
@@ -218,6 +265,6 @@ Verankerd in de likara-skills (LI046-vastlegging, `aca7cb1` · `70f2cbb`), geen 
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V047"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V048"
 4. Wacht op START: [naam] van Bert
 

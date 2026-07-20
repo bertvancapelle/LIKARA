@@ -5,24 +5,63 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V047 · 2026-07-19
-- **Commit:** code `6651f1f` relaties op hoedanigheid · `3a72b35` linkerkolom-gate · `9ee6fcb` terugkeer
-  landt in de kaart · `61665a4` derde uitgang · `466eb7b`/`4dd1387`/`80d0038` slice 3/2/1; docs `aca7cb1`
-  LI046-patronen · `f7929a9` checkpoints · `bf67e67` ADR-054 + register · `3b7941f`/`70f2cbb` skills.
-  Afsluitcommit LI046 (TST-V047 + NEXT_SESSION + OPVOLGPUNTEN + PROJECTGEHEUGEN + build) volgt in deze afsluiting.
-- **Tests:** backend **1159 passed, 2 skipped, 0 failed** · frontend **97 files / 1248 passed** ·
-  `vite build` ✅ · `test:css-build` ✅ · 0 kritieken.
-- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). LI046 was **puur frontend**
-  (kaart-leesbaarheid + één-ingang) — géén schema- of migratiewijziging.
-- **TST-rapport:** `docs/TST-V047-Validatierapport.md` (0 kritieken).
-- **Dev-DB:** GEMMA-model intact. De dev-seed draagt norm + "bewust geen" + demo-klaarverklaringen die de
-  vier normgevallen tonen (Archiefbeheer/DMS/Zaaksysteem = beide; Klantportaal = pure verschoven lat;
-  **HR-systeem = SCHOON: norm-compleet → géén signaal**, het ijkbeeld van "in orde" — S1/LI045). ⚠ Het
-  volledige gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog
-  onzichtbaar (L4).
-- **Werktree:** **schoon** — alle LI046-bouw is per opdracht apart geland (één opdracht per commit).
+- **Build:** V048 · 2026-07-20
+- **Commit:** code `134fd6c` seedherstel + verantwoordingszin · `218b9fd` kopknop + één ingang ·
+  `529c122` koppelingen component-breed · `e89a417` open-punten-tabblad · `14e1dbe` `component_id` ·
+  `388f3da` ADR-055 gebouwd · `1dfe435` kopstijl + kop-rij; docs/skills `f11fd1c` LI047-patronen ·
+  `56aa06f` ADR-055 + register · `e26d150` checkpoint gebruik-component-breed.
+- **Tests:** backend **1179 passed, 2 skipped, 0 failed** · frontend **98 files / 1275 passed** ·
+  `vite build` ✅ · `test:css-build` ✅ (vier bronscans, elk met zelftest) · 0 kritieken.
+- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). LI047 raakte **backend én
+  frontend** maar leverde **nul migraties**: ADR-055 en de `component_id`-hernoeming bleken allebei
+  applicatielaag-restanten — dat het schema níét meebewoog was in beide gevallen het bewijs.
+- **TST-rapport:** `docs/TST-V048-Validatierapport.md` (0 kritieken, 0 geaccepteerde afwijkingen).
+- **Dev-DB:** volledig opnieuw opgebouwd deze sessie (`down` → `volume rm` → `up` → dev-seed). De seed
+  draagt nu álle browsercheck-gevallen: **HR-systeem = SCHOON** (norm-compleet, géén signaal) ·
+  Archiefbeheer/DMS/Zaaksysteem = beide soorten afwijking · Klantportaal = pure verschoven lat ·
+  drie "bewust geen"-bevindingen · **Shared fileshare mét gebruikersgroep** (het ADR-055-geval, nieuw) ·
+  Zaaksysteem mét een nee-checklistscore (de gebundelde regel in "Dit valt op"). ⚠ Het volledige
+  gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog onzichtbaar (L4).
+- **⚠ Tellingen in gate-rapporten zijn momentopnamen, geen stand.** Wie ze later overneemt zit ernaast —
+  hermeten binnen de tenant-context is de regel. Ging deze sessie drie keer mis (werkprotocol
+  §Meet tenant-data binnen de tenant-context).
+- **Werktree:** **schoon** — alle LI047-bouw is per opdracht apart geland (één opdracht per commit).
 
-## Deze sessie (LI046 — de kaart vertelt, het component verandert) — AFGEROND
+## Deze sessie (LI047 — alles wat dit component nog nodig heeft, op één plek) — AFGEROND
+
+**Kern: de consultant ziet per component wat er nog nodig is met een weg erheen; wat hij bewust heeft beantwoord telt als beantwoord; en registreren kan nu bij élk componenttype.**
+
+- **Open-punten-overzicht per component** (`e89a417`/`218b9fd`). Drie blokken uit ÉÉN afleiding
+  (`component_open_punten_service`): "Dit moet nog" (verplichte norm-feiten), "Dit zou netjes zijn"
+  (dezelfde bepaling, andere lat) en "Dit valt op" (checklist-nee/deels **gebundeld** tot één regel,
+  en "staat los in het landschap"). Per punt een route naar de plek waar je het vastlegt. Ingang =
+  **één knop in de kop** met een teller die niet uit de pas kán lopen met de lijst (één laadpunt,
+  doorgegeven als prop); bij nul draagt de knop géén getal. Het rode signaleringsbolletje is weg —
+  twee tellers met verschillende getallen over hetzelfde component was een tweede waarheid.
+  Een bewuste vaststelling dempt óók blok 3, anders sprak het scherm zichzelf tegen op het schone geval.
+- **ADR-055 — de gebruik-verfijning is component-breed** (`388f3da`). "Welke afdeling gebruikt dit"
+  geldt voor élk componenttype dat werk ondersteunt, niet alleen applicaties. De beperking bleek geen
+  domeinregel maar een restant van de opgeheven applicatie-subtabel; ADR-041 had dezelfde herziening
+  één laag hoger al gedaan. Grens = de catalogus-vlag `ondersteunt_werk` (nooit een typelijst).
+  Geen bepaling verschoof, geen schemawijziging; het signaal ging van 12 naar 11 componenten.
+- **Koppelingen bij elk component** (`529c122`). Idem voor de koppelingen — anders droeg het
+  open-punten-overzicht een regel die de gebruiker nooit kon wegwerken. Ook de picker en de namenkaart
+  verbreed: een tabblad zonder picker en zonder namen is geen plek.
+- **`component_id` i.p.v. `applicatie_id`** (`14e1dbe`) + de foutmelding die "applicatie" zei.
+  Wat je zelf onwaar maakt, herstel je in dezelfde commit.
+- **Kopstijl + kop-met-uitleg-rij** (`1dfe435`). Eén bron voor de titelmaat (30 h1's kozen zelf, 17 op
+  2xl en 13 op xl — het beheer las als een ander product) en één gedeelde rij voor de kop met zijn
+  uitleg-icoon (acht keer met de hand nagebouwd, dus overal 6px scheef).
+- **Seedherstel** (`134fd6c`). De hernoeming miste twee aanroepen in de dev-seed; die crashte en het
+  demolandschap was niet meer op te bouwen — **geen van de 1176 groene tests raakte het**. Hersteld,
+  plus een repo-brede scan die élke aanroep van een `extra="forbid"`-schema tegen de schemavelden houdt.
+- **Borging:** vier bronscans in `check-css-build.mjs` (elk met zelftest die bewijst dat hij bijt),
+  de schema-aanroepscan, en dertien patronen in vier skills (`f11fd1c`).
+- **Open (besluit Bert):** de namenkaart zonder paginering en `organisatiegebruik.applicatie_id` — beide
+  **vóór productie**; de vrijgekomen `SignaleringBadge`-opruiming; en **consolidatie van het
+  werkprotocol** (595 regels, vier nieuwe koppen onder één sectie) — punt 0 in NEXT_SESSION.
+
+## Sessie LI046 (de kaart vertelt, het component verandert) — AFGEROND
 
 **Kern: één ingang naar het detailscherm mét aanleiding; een linkerkolom alléén bij een getekende kaart; relaties gescheiden op hoedanigheid.**
 
@@ -87,15 +126,19 @@
 - **LI042** — gate 4 brok 1 (datalaag, `heeft_gebruikersgroep` + 5e stand `werkvoorraad`), skill-vastlegging.
 - **LI041/LI040** — gate 2 koppelen + gate 3 vier standen + rollengrens ADR-050 · ADR-045/046.
 
-## Prioriteiten volgende sessie (LI047 — zie NEXT_SESSION.md)
-1. **Open-punten-overzicht per component** (fundament staat nu de norm per component leesbaar is; start met mockup).
-2. **Dev-seed vertelt het volledige verhaal (L4)** — *randvoorwaarde: een seed die het geval niet kent maakt
-   van elke browsercheck een gok.* Naast het gate-3-verhaal ook: partij die eigenaar én gebruiker is met
-   meerdere beheerrollen (baan-scheiding op hoedanigheid), en een knooppaar met relaties van meerdere
-   hoedanigheden (cross-ring overlap komt 0× voor in de dev-data).
-3. **Archiefwet-feit bouwen (ADR-053)** — eigen enum-kolom + migratie, niet default-verplicht (raakt schema → gate).
-4. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
-5. **Terugweg-fijnslijpen** — wat hoort in `lk-state` (org-scope/filter/weergave/zoom-pan); view-verwijderen + selectie-bijwerken (ontwerpbesluit).
+## Prioriteiten volgende sessie (LI048 — zie NEXT_SESSION.md)
+0. **Consolideer het werkprotocol vóór je er iets bij zet** — 595 regels, vier nieuwe koppen onder
+   §Gate-discipline na LI047. Een protocol dat niemand meer leest geeft schijnzekerheid; elke discipline
+   die erop leunt, leunt dan op niets. **Wie er patronen bij wil zetten, consolideert eerst.**
+1. **Archiefwet-feit bouwen (ADR-053)** — eigen enum-kolom + migratie, niet default-verplicht (raakt schema → gate).
+2. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
+3. **ADR-register bijwerken naar de gebouwde realiteit** — ADR-052/054 verdienen een statusregel die
+   klopt met wat LI047 heeft opgeleverd.
+4. **Terugweg-fijnslijpen** — wat hoort in `lk-state` (org-scope/filter/weergave/zoom-pan); view-verwijderen + selectie-bijwerken (ontwerpbesluit).
+5. **Dev-seed: het gate-3-verhaal (L4-restant)** — koppelingen/"hier draait niets"/noodoplossing; een
+   partij die eigenaar én gebruiker is met meerdere beheerrollen; een knooppaar met relaties van meerdere
+   hoedanigheden (cross-ring overlap komt 0× voor in de dev-data). *Het schone geval (S1) en het
+   fileshare-geval (LI047) staan er inmiddels wél.*
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.
