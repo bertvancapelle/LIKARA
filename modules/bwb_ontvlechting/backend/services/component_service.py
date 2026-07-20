@@ -66,9 +66,9 @@ _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
 _LIKE_ESCAPE = "\\"
 
-# Allowlist (ADR-017 B2). De drie subtype-kolommen zijn nullable (LEFT JOIN op het
-# subtype) → de hele lijst draait op de NULLS-LAST-cursor (v2n); de helper werkt
-# uniform ook voor de NOT NULL-kolommen. `ComponentSorteerveld` (schema-enum) blijft
+# Allowlist (ADR-017 B2). Meerdere kolommen zijn nullable — en `lifecycle_status` komt van
+# een LEFT JOIN op `component_profiel` (niet elk type draagt een profiel) → de hele lijst
+# draait op de NULLS-LAST-cursor (v2n); de helper werkt uniform ook voor de NOT NULL-kolommen. `ComponentSorteerveld` (schema-enum) blijft
 # hiermee synchroon — geborgd door `test_component_sort`.
 _SORTEERBARE_KOLOMMEN = {
     "created_at": Component.created_at,
@@ -731,11 +731,11 @@ async def _wissel_type(session: AsyncSession, tid: uuid.UUID, obj: Component, ni
     transactie-lokaal herwaarderen en de invariant afdwingen.
 
     - Gevuld → `SUBTYPE_HEEFT_DATA` (422), met tellingen in het bericht.
-    - Leeg → schone lei: een leeg profiel (+ applicatie-subtype indien aanwezig, + lege
-      niet-beantwoorde score-rijen via CASCADE) wordt verwijderd; géén overdracht van oude
-      scores. ADR-022 Fase E (Besluit 2): is het doeltype checklist-dragend, dan ontstaat een
-      vers profiel met defaults (lifecycle `concept`, Fase B-vloer); alléén `applicatie` krijgt
-      daarnaast zijn subtype-rij. Niet-checklist-dragend doeltype ⇒ geen profiel.
+    - Leeg → schone lei: een leeg profiel (+ de lege, niet-beantwoorde score-rijen via CASCADE)
+      wordt verwijderd; géén overdracht van oude scores. ADR-022 Fase E (Besluit 2): is het
+      doeltype checklist-dragend, dan ontstaat een vers profiel met defaults (lifecycle
+      `concept`, Fase B-vloer); niet-checklist-dragend doeltype ⇒ geen profiel. Er is GEEN
+      subtype-rij meer in het spel (LI059, migratie 0047) — dat geldt ook voor `applicatie`.
     """
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, nieuw)
     t = await _toestand_tellingen(session, tid, obj.id, lock=True)
@@ -871,8 +871,9 @@ async def impact_analyse(session: AsyncSession, tenant_id, component_id) -> dict
     (registratief leeswerk, geen prestatiekritiek pad): dat geeft van nature de
     **kortste afstand** (`niveau`, 1=direct) en is **cyclus-veilig** via een visited-set
     (B3 staat cycli toe; de traversal mag nooit hangen). Per geraakt component het pad
-    (namen bron→component), het relatietype van de eerste stap, en — uitsluitend bij
-    applicatie-subtypen — lifecycle + open-blokkade-telling. Schrijft niets."""
+    (namen bron→component), het relatietype van de eerste stap, en — uitsluitend voor
+    componenten die een profiel dragen (checklist-dragende typen) — lifecycle +
+    open-blokkade-telling. Schrijft niets."""
     from services import component_contract_service as cc_svc
 
     tid = _tenant_uuid(tenant_id)

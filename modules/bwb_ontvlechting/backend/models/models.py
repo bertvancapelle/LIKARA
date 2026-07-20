@@ -350,7 +350,9 @@ class Component(Base, TenantMixin, TimestampMixin):
 
     Draagt de technische identiteit (naam, type, hosting, eigenaarschap, leverancier).
     `componenttype` is een tekst-sleutel uit de componentcatalogus (dimensie
-    `componenttype`); `applicatie` is een systeem-sleutel met een subtype-rij."""
+    `componenttype`); `applicatie` is daarin een beschermde systeem-sleutel (niet
+    deactiveerbaar). Sinds LI059 draagt het GEEN eigen subtype-rij meer — een component
+    met `componenttype='applicatie'` ÍS de applicatie (zie de noot onder deze class)."""
 
     __tablename__ = "component"
     __table_args__ = (

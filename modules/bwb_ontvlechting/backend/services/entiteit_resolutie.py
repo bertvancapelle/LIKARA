@@ -21,7 +21,9 @@ def _tid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
-# entiteit_type → (Model, naam-kolom). `applicatie` deelt de PK met `component` (shared-PK subtype).
+# entiteit_type → (Model, naam-kolom). `applicatie` wijst naar DEZELFDE rij als `component`
+# (LI059: geen subtabel meer — een component met `componenttype='applicatie'` ís de applicatie);
+# het aparte entiteit_type blijft bestaan voor historische audit-records.
 _BRONNEN = {
     "component": (Component, Component.naam),
     "applicatie": (Component, Component.naam),

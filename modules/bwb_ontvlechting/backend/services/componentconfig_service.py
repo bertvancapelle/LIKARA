@@ -3,9 +3,11 @@ ADR-012 Addendum C). Spiegel van `contractconfig_service` op `get_platform_sessi
 (lk_platform). Geen hard delete (Addendum C + ontbrekende DB-grant — dubbele borging).
 
 Systeem-sleutel-bescherming (Addendum C Besluit 5): de rij `componenttype.applicatie`
-hangt aan het subtype-mechanisme (ADR-021) en kan NIET worden gedeactiveerd
-(`actief=false` ⇒ 422 `SYSTEEM_SLEUTEL_BESCHERMD`). Label/volgorde wijzigen mag wél;
-sleutel/dimensie zijn al generiek immutabel.
+is een beschermde systeem-sleutel en kan NIET worden gedeactiveerd (`actief=false` ⇒ 422
+`SYSTEEM_SLEUTEL_BESCHERMD`); verwijderen kan sowieso niet (geen hard delete). Label/volgorde
+wijzigen mag wél; sleutel/dimensie zijn al generiek immutabel.
+(LI047: de eerdere verwijzing naar het `applicatie`-subtype is vervallen — die subtabel is
+opgeheven met migratie 0047; `component` is de enige bron.)
 """
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession

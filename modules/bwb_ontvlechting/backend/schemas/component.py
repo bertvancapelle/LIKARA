@@ -19,9 +19,10 @@ _DEFAULT_ROL = "interne_applicatie"
 
 
 class ComponentSorteerveld(str, Enum):
-    """Allowlist van sorteerbare component-velden (ADR-017 B2). De drie subtype-
-    kolommen zijn nullable (LEFT JOIN) → NULLS-LAST. `test_component_sort` borgt
-    dat dit 1-op-1 synchroon loopt met `component_service._SORTEERBARE_KOLOMMEN`."""
+    """Allowlist van sorteerbare component-velden (ADR-017 B2). Meerdere kolommen zijn
+    nullable → NULLS-LAST (v2n); `lifecycle_status` komt bovendien van een LEFT JOIN op
+    `component_profiel` (niet elk componenttype draagt een profiel). `test_component_sort`
+    borgt dat dit 1-op-1 synchroon loopt met `component_service._SORTEERBARE_KOLOMMEN`."""
 
     created_at = "created_at"
     naam = "naam"
@@ -304,7 +305,7 @@ class GeraaktComponent(BaseModel):
     niveau: int                       # 1 = direct afhankelijk
     pad: list[str]                    # componentnamen van bron → dit component
     relatietype_label: str            # relatietype van de eerste stap van het pad
-    # Uitsluitend bij applicatie-subtypen; null voor kale infra.
+    # Alleen bij componenttypen die een profiel dragen (checklist-dragend); anders null.
     lifecycle_status: LifecycleStatus | None = None
     open_blokkades: int | None = None
 
