@@ -116,6 +116,9 @@ const _component = (over = {}) => ({
   beschrijving: null,
   heeft_applicatie_subtype: false,
   checklist_dragend: false,
+  // ADR-055 — de catalogus-vlag die het Gebruikersgroepen-tabblad gate't. De basis-fixture is een
+  // database: daar wordt niet door mensen mee gewerkt, dus false (spiegelt de echte catalogus).
+  ondersteunt_werk: false,
   lifecycle_status: null,
   // ADR-028 — componentclassificatie (rol + BIV, met labels).
   componentrol: 'interne_applicatie',
@@ -409,7 +412,7 @@ describe('ComponentDetail', () => {
 
   it('applicatie-subtype: geen aparte-hint, wél bewerken/verwijderen + applicatie-tabs (LI059)', async () => {
     api.componenten.haal.mockResolvedValue(
-      _component({ componenttype: 'applicatie', componenttype_label: 'Applicatie', heeft_applicatie_subtype: true }),
+      _component({ componenttype: 'applicatie', componenttype_label: 'Applicatie', heeft_applicatie_subtype: true, ondersteunt_werk: true }),
     )
     const { w } = await mountDetail()
     // De verwijzing naar een apart ApplicatieDetail bestaat niet meer.
@@ -424,6 +427,36 @@ describe('ComponentDetail', () => {
     expect(tabtekst).toContain('Datatypes')
     expect(tabtekst).toContain('Gebruikersgroepen')
     expect(tabtekst).toContain('Koppelingen')
+  })
+
+  // ── ADR-055 — "wie gebruikt dit" hoort bij élk component waarmee mensen werken ──────────────
+  const _tabtekst = (w) =>
+    w.find('[data-testid="detailtabs"]').exists() ? w.find('[data-testid="detailtabs"]').text() : w.text()
+
+  it('ADR-055: een fileshare krijgt Gebruikersgroepen — de verfijning hangt aan werk, niet aan het type applicatie', async () => {
+    api.componenten.haal.mockResolvedValue(
+      _component({ componenttype: 'fileshare', componenttype_label: 'Fileshare',
+                   heeft_applicatie_subtype: false, ondersteunt_werk: true }),
+    )
+    const { w } = await mountDetail()
+    const tabtekst = _tabtekst(w)
+    // Dit is HET geval uit ADR-055: de gedeelde G-schijf waar een afdeling op werkt.
+    expect(tabtekst).toContain('Gebruikersgroepen')
+    // De écht applicatie-eigen tabs blijven weg — de verbreding is gericht, niet alles-open.
+    expect(tabtekst).not.toContain('Datatypes')
+    expect(tabtekst).not.toContain('Koppelingen')
+  })
+
+  it('ADR-055: een database krijgt géén Gebruikersgroepen — daar draaien componenten op, dat is een koppeling', async () => {
+    api.componenten.haal.mockResolvedValue(_component({ ondersteunt_werk: false }))
+    const { w } = await mountDetail()
+    expect(_tabtekst(w)).not.toContain('Gebruikersgroepen')
+  })
+
+  it('ADR-055: het paneel volgt de tabrij — geen paneel zonder tab', async () => {
+    api.componenten.haal.mockResolvedValue(_component({ ondersteunt_werk: false }))
+    const { w } = await mountDetail()
+    expect(w.find('#detailtabs-panel-gebruikersgroepen').exists()).toBe(false)
   })
 
   // ADR-025 — "Bekijk op kaart".

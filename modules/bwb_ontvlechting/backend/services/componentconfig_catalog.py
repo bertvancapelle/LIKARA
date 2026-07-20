@@ -42,6 +42,24 @@ async def is_checklist_dragend(session: AsyncSession, componenttype: str) -> boo
     )
 
 
+async def ondersteunt_werk(session: AsyncSession, componenttype: str) -> bool:
+    """ADR-045/ADR-055: de catalogus-vlag is de ENIGE bron voor "wordt hier door MENSEN mee
+    gewerkt". Bepaalt waar de vragen "waarvoor gebruiken we het" (bedrijfsfunctie) én "wie
+    gebruikt het" (de gebruik-verfijning) gelden. Onbekend type ⇒ False.
+
+    Spiegel van `is_checklist_dragend` — nooit tegen een hardcoded typelijst."""
+    return bool(
+        (
+            await session.execute(
+                select(ComponentConfigOptie.ondersteunt_werk).where(
+                    ComponentConfigOptie.dimensie == ComponentConfigDimensie.componenttype,
+                    ComponentConfigOptie.optie_sleutel == componenttype,
+                )
+            )
+        ).scalar_one_or_none()
+    )
+
+
 async def labels(
     session: AsyncSession, dimensie: ComponentConfigDimensie
 ) -> dict[str, tuple[str, bool]]:

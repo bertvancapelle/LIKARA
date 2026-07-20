@@ -201,13 +201,24 @@ async def badge_voor_component(session: AsyncSession, tenant_id, component_id: u
     ).first() is None
     # De gg-lezing gebruikt de gedeelde richting-bron (serving met bron=component, ADR-023) — nooit
     # doel_id (dat leest de relatie achterstevoren; feitcheck-serving-richting).
+    # ADR-055: alleen gesteld waar MENSEN met het component werken — zelfde catalogus-scope als
+    # `_SIG_GEEN_BF` hierboven. Bij een database/rekenserver/integratievoorziening is "welke
+    # afdeling gebruikt dit" geen open punt maar een vraag die er niet geldt; hem tóch tonen levert
+    # een taak op die niemand kan afvinken, en dan wordt de hele lijst genegeerd.
     geen_gg = (
         await session.execute(
-            select(Relatie.id).where(
-                gebruikersgroep_service.serving_van_component_where(tid, component_id)
+            select(Component.id).where(
+                Component.tenant_id == tid,
+                Component.id == component_id,
+                Component.componenttype.in_(_ondersteunt_werk_typen()),
+                ~exists(
+                    select(Relatie.id).where(
+                        gebruikersgroep_service.serving_van_component_where(tid, component_id)
+                    )
+                ),
             )
         )
-    ).first() is None
+    ).first() is not None
     geisoleerd = (
         await session.execute(
             select(Relatie.id).where(
@@ -274,7 +285,13 @@ async def component_zonder_gebruikersgroep(session: AsyncSession, tenant_id) -> 
     )
     stmt = (
         select(Component.id, Component.naam)
-        .where(Component.tenant_id == tid, geen_serving)
+        .where(
+            Component.tenant_id == tid,
+            # ADR-055 — zelfde catalogus-scope als de badge en als `_SIG_GEEN_BF`: de vraag geldt
+            # alleen waar mensen met het component werken.
+            Component.componenttype.in_(_ondersteunt_werk_typen()),
+            geen_serving,
+        )
         .order_by(Component.naam.asc(), Component.id.asc())
     )
     return [_aitem(r, _SIG_GG) for r in (await session.execute(stmt)).all()]

@@ -1,8 +1,13 @@
 """Service-laag voor de entiteit Gebruikersgroep (ADR-009; ADR-023 B-mig-2 slice 4; ADR-036/036a).
 
-ADR-023: gebruikersgroep is een **zelfstandig element** (business actor/role); de band met de
-applicatie is een **serving**-relatie (applicatie → gebruikersgroep). `applicatie_id` wordt afgeleid
-uit de serving-relatie.
+ADR-023: gebruikersgroep is een **zelfstandig element** (business actor/role); de band met het
+component is een **serving**-relatie (component → gebruikersgroep). `applicatie_id` wordt afgeleid
+uit de serving-relatie (de veldnaam is historisch — ADR-055 open punt 1).
+
+ADR-055: de verfijning geldt voor **elk componenttype dat werk ondersteunt**, niet alleen voor
+`applicatie`. De grens is de catalogus-vlag `ondersteunt_werk` (ADR-045) — dezelfde grens die de
+bedrijfsfunctie-koppeling hanteert. Een type dat geen werk ondersteunt wordt geweigerd met 422
+`COMPONENT_ONDERSTEUNT_GEEN_WERK` (niet 404: het component bestaat, de vraag geldt er niet).
 
 ADR-036/038: de organisatie leeft op het grove gebruiksfeit `organisatiegebruik` waar `gebruik_id`
 naar verwijst (single source of truth). `organisatie_id` is een **verplicht** Create/Read-veld
@@ -31,9 +36,7 @@ from models.models import (
     Relatie,
 )
 from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepUpdate
-from services import component_service, organisatiegebruik_service
-
-_APPLICATIE_TYPE = "applicatie"
+from services import component_service, componentconfig_catalog, organisatiegebruik_service
 from services.errors import NietGevonden, OngeldigeRegistratie
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -378,10 +381,20 @@ async def lees_detail(session: AsyncSession, tenant_id, gebruikersgroep_id) -> d
 
 async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate) -> dict:
     tid = _tenant_uuid(tenant_id)
-    # LI059 Slice 3: ouder is een component met type 'applicatie' (geen subtabel meer).
+    # ADR-055 — de ouder is een component van een type dat WERK ondersteunt; niet langer alleen
+    # `applicatie`. Die oude beperking was geen domeinregel maar een restant van de opgeheven
+    # applicatie-subtabel (LI059). De grens komt uit de catalogus-vlag (ADR-045), nooit uit een
+    # hardcoded typelijst — dezelfde grens die de bedrijfsfunctie-koppeling al hanteert.
     _ouder = await component_service.haal_op(session, tenant_id, data.applicatie_id)
-    if _ouder.componenttype != _APPLICATIE_TYPE:
-        raise NietGevonden(_APPLICATIE_TYPE, data.applicatie_id)
+    if not await componentconfig_catalog.ondersteunt_werk(session, _ouder.componenttype):
+        # 422, geen 404: het component BESTAAT — de vraag geldt hier alleen niet. "Er is niets" en
+        # "die vraag geldt hier niet" zijn verschillende antwoorden; ze door elkaar halen stuurt de
+        # gebruiker een verdwenen component zoeken.
+        raise OngeldigeRegistratie(
+            "COMPONENT_ONDERSTEUNT_GEEN_WERK",
+            "Met dit type component wordt niet door mensen gewerkt, dus een gebruikersgroep "
+            "vastleggen heeft hier geen betekenis.",
+        )
     # ADR-038 — organisatie is verplicht: het grove feit (organisatie, applicatie) wordt altijd
     # ge-ensured; `gebruik_id` is dus altijd gezet (geen org-loze groep). Backstop naast de
     # schema-verplichting + de DB NOT NULL.

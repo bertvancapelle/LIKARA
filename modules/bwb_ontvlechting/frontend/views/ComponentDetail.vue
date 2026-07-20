@@ -86,6 +86,10 @@ const verwijderHeeftData = computed(() => {
 })
 
 const isSubtype = computed(() => !!component.value?.heeft_applicatie_subtype)
+// ADR-055 — "wie gebruikt dit" (de verfijning naar afdeling/team) hoort bij élk componenttype
+// waarmee MENSEN werken, niet alleen bij applicaties. De grens is de catalogus-vlag; de UI
+// vergelijkt nooit zelf op componenttype.
+const ondersteuntWerk = computed(() => !!component.value?.ondersteunt_werk)
 // LI059 Slice 4 — élk type wordt via ComponentFormulier bewerkt (ook applicatie); geen subtype-uitzondering meer.
 const magBewerken = computed(() => auth.hasRole('medewerker', 'beheerder'))
 const magVerwijderen = computed(() => auth.hasRole('beheerder'))
@@ -206,12 +210,13 @@ const topTabs = computed(() => {
   // net als Gebruik) i.p.v. een blok onder de vouw.
   t.push({ key: 'bedrijfsfunctie', label: 'Bedrijfsfunctie' })
   if (isChecklistDragend.value) t.push({ key: 'checklist', label: 'Checklist' })
-  if (isSubtype.value)
-    t.push(
-      { key: 'datatypes', label: 'Datatypes' },
-      { key: 'gebruikersgroepen', label: 'Gebruikersgroepen' },
-      { key: 'koppelingen', label: 'Koppelingen' },
-    )
+  if (isSubtype.value) t.push({ key: 'datatypes', label: 'Datatypes' })
+  // ADR-055 — losgemaakt van de applicatie-conditie: de verfijning "welke afdeling gebruikt dit"
+  // geldt overal waar mensen met het component werken (de gedeelde fileshare is juist HET geval
+  // bij een ontvlechting). Bij een database/rekenserver geldt de vraag niet — daar draaien
+  // componenten op elkaar, en dat is een koppeling, geen gebruik.
+  if (ondersteuntWerk.value) t.push({ key: 'gebruikersgroepen', label: 'Gebruikersgroepen' })
+  if (isSubtype.value) t.push({ key: 'koppelingen', label: 'Koppelingen' })
   t.push(
     // ADR-046 stuk 2 — "Wie gebruikt dit" (grof organisatiegebruik) is component-breed
     // (ADR-041): élk type kan gebruikers hebben, dus geen subtype-conditie.
@@ -597,13 +602,16 @@ watch(() => props.id, async () => {
         <div v-show="activeTop === 'datatypes'" id="detailtabs-panel-datatypes" role="tabpanel" aria-labelledby="detailtabs-tab-datatypes">
           <DatatypeSectie :applicatie-id="props.id" />
         </div>
-        <div v-show="activeTop === 'gebruikersgroepen'" id="detailtabs-panel-gebruikersgroepen" role="tabpanel" aria-labelledby="detailtabs-tab-gebruikersgroepen">
-          <GebruikersgroepSectie :applicatie-id="props.id" />
-        </div>
         <div v-show="activeTop === 'koppelingen'" id="detailtabs-panel-koppelingen" role="tabpanel" aria-labelledby="detailtabs-tab-koppelingen">
           <KoppelingSectie :applicatie-id="props.id" />
         </div>
       </template>
+
+      <!-- ADR-055 — "wie gebruikt dit" (verfijning naar afdeling/team): élk componenttype
+           waarmee mensen werken, niet alleen applicaties. Zelfde grens als de tabrij. -->
+      <div v-if="ondersteuntWerk" v-show="activeTop === 'gebruikersgroepen'" id="detailtabs-panel-gebruikersgroepen" role="tabpanel" aria-labelledby="detailtabs-tab-gebruikersgroepen">
+        <GebruikersgroepSectie :applicatie-id="props.id" />
+      </div>
 
       <div v-show="activeTop === 'gebruik'" id="detailtabs-panel-gebruik" role="tabpanel" aria-labelledby="detailtabs-tab-gebruik">
         <OrganisatiegebruikSectie :component-id="props.id" :component-naam="component?.naam ?? ''" />

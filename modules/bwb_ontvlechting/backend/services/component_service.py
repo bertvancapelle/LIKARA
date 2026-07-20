@@ -269,6 +269,9 @@ async def _lees(session: AsyncSession, tid: uuid.UUID, obj: Component) -> dict:
         # ADR-022 Fase E: of dit componenttype checklist-dragend is (UI toont dan de
         # checklist-sectie + start-knop ook voor niet-`applicatie`-componenten).
         "checklist_dragend": await catalog.is_checklist_dragend(session, obj.componenttype),
+        # ADR-055: gate't het Gebruikersgroepen-tabblad (en de bedrijfsfunctie-vragen) — de
+        # catalogus-vlag is de enige bron, nooit een typevergelijking in de UI.
+        "ondersteunt_werk": await catalog.ondersteunt_werk(session, obj.componenttype),
         # ADR-022 Fase E: lifecycle uit het generieke profiel (null als geen profiel) —
         # voedt de status-indicator + de "Start beoordeling"-knop (zichtbaar bij `concept`).
         "lifecycle_status": (

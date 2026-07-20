@@ -126,10 +126,16 @@ componenttype de regel automatisch erft.
 ### Het tenant-brede signaal wordt kleiner
 
 Het signaal "component zonder gebruikersgroep" wijst in het demolandschap vandaag **twaalf van de
-negentien** componenten aan; na de scoping zijn dat er **negen**.
+negentien** componenten aan; na de scoping zijn dat er **elf**.
 
-Dat is **correctie, geen verlies.** Die drie stonden als openstaand geregistreerd terwijl er niets te
-doen viel. Een signaallijst die taken bevat die niemand kan uitvoeren, verliest zijn gezag — en dan
+> **Correctie (bij de bouw gemeten, LI047).** Het checkpoint noemde "twaalf naar negen". Dat was een
+> rekenfout: daar werden alle drie de niet-applicatiecomponenten afgetrokken, terwijl in dezelfde zin
+> stond dat de fileshare en de SaaS-dienst blijven — die dragen `ondersteunt_werk` immers wél. Er valt
+> precies **één** component af: de Shared DB-server (type `database`). Het effect van deze scoping op
+> het demolandschap is dus kleiner dan gedacht; de *reden* ervoor verandert er niet door.
+
+Dat is **correctie, geen verlies.** Dat component stond als openstaand geregistreerd terwijl er niets
+te doen viel. Een signaallijst die taken bevat die niemand kan uitvoeren, verliest zijn gezag — en dan
 worden de terechte punten óók genegeerd.
 
 ### Zonder de scoping zou de norm onhoudbaar worden

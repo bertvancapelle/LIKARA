@@ -36,13 +36,15 @@ def test_registratiegaten_engine_afwezigheid():
 
 
 # ── badge_voor_component — execute-volgorde: bestaat, geen-eigenaar, rol, serving(gg), flow ──
-# Badge-execute-volgorde: bestaat, geen_eigenaar, geen_rol, geen_gg(serving), geisoleerd(flow),
+# Badge-execute-volgorde: bestaat, geen_eigenaar, geen_rol, geen_gg, geisoleerd(flow),
+# ADR-055 — de gg-query is omgekeerd: hij levert een rij als het GAT er is (werk-ondersteunend
+# type ZONDER serving), niet als de groep er is. Een rij op positie 4 betekent dus 'gat'.
 # biv_onvolledig (ADR-028 slice 4 — de 6e query), geen_bedrijfsfunctie (ADR-043 gate 4 — de 7e query).
 def test_badge_component_geen_gaten():
     """MET eigenaar/rol/gebruikersgroep/koppeling + complete BIV + bedrijfsfunctie → geen signalen."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
-        _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
+        _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(None), _res_first(("flow",)),
         _res_first(None),  # BIV compleet → geen signaal
         _res_first(None),  # heeft een bedrijfsfunctie (of geen werk-type) → geen signaal
     ])
@@ -54,7 +56,7 @@ def test_badge_component_alle_gaten():
     """ZONDER eigenaar/rol/gebruikersgroep/koppeling/bedrijfsfunctie + onvolledige BIV → 3 kritiek + 4 aandacht."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
-        _res_first(("c",)), _res_first(("c",)), _res_first(None), _res_first(None), _res_first(None),
+        _res_first(("c",)), _res_first(("c",)), _res_first(None), _res_first(("c",)), _res_first(None),
         _res_first(("c",)),  # BIV onvolledig
         _res_first(("c",)),  # geen bedrijfsfunctie
     ])
@@ -71,7 +73,7 @@ def test_badge_component_alleen_eigenaar_ontbreekt():
     """ZONDER eigenaar, verder compleet (incl. BIV + bedrijfsfunctie) → één kritiek signaal, geen aandacht."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
-        _res_first(("c",)), _res_first(("c",)), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
+        _res_first(("c",)), _res_first(("c",)), _res_first(("rol",)), _res_first(None), _res_first(("flow",)),
         _res_first(None),  # BIV compleet
         _res_first(None),  # heeft een bedrijfsfunctie (of geen werk-type)
     ])
@@ -83,7 +85,7 @@ def test_badge_component_alleen_biv_onvolledig():
     """Compleet behalve BIV → één kritiek signaal `biv_classificatie_onvolledig`."""
     s = AsyncMock()
     s.execute = AsyncMock(side_effect=[
-        _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(("serv",)), _res_first(("flow",)),
+        _res_first(("c",)), _res_first(None), _res_first(("rol",)), _res_first(None), _res_first(("flow",)),
         _res_first(("c",)),  # BIV onvolledig
         _res_first(None),  # heeft een bedrijfsfunctie (of geen werk-type)
     ])

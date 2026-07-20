@@ -173,6 +173,10 @@ class ComponentRead(BaseModel):
     laag: str | None = None
     # ADR-022 Fase E: of dit componenttype checklist-dragend is (UI toont dan de checklist).
     checklist_dragend: bool
+    # ADR-045/ADR-055: of er door MENSEN met dit component wordt gewerkt. Gate't de vragen
+    # "waarvoor gebruiken we het" en "wie gebruikt het" — de UI toont het Gebruikersgroepen-
+    # tabblad op deze vlag, niet langer op `heeft_applicatie_subtype`.
+    ondersteunt_werk: bool = False
     # ADR-022 Fase E: lifecycle uit het generieke profiel (null als geen profiel) —
     # voedt de status-indicator + "Start beoordeling"-knop (zichtbaar bij `concept`).
     lifecycle_status: LifecycleStatus | None = None
