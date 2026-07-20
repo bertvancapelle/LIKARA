@@ -452,9 +452,25 @@ describe('ComponentDetail', () => {
     const tabtekst = _tabtekst(w)
     // Dit is HET geval uit ADR-055: de gedeelde G-schijf waar een afdeling op werkt.
     expect(tabtekst).toContain('Gebruikersgroepen')
-    // De écht applicatie-eigen tabs blijven weg — de verbreding is gericht, niet alles-open.
+    // Datatypes blijft applicatie-eigen — de verbreding is gericht, niet alles-open.
     expect(tabtekst).not.toContain('Datatypes')
-    expect(tabtekst).not.toContain('Koppelingen')
+    // LI047 — Koppelingen is inmiddels wél component-breed (zie de eigen toets hieronder).
+    expect(tabtekst).toContain('Koppelingen')
+  })
+
+  it('LI047: elk componenttype krijgt het Koppelingen-tabblad', async () => {
+    // De koppelingen zijn er echt — een koppelvlak dat naar een fileshare schrijft, applicaties
+    // die op een databaseserver aansluiten. Zonder tabblad droeg het open-punten-overzicht een
+    // regel die de gebruiker nooit kon wegwerken.
+    for (const type of ['applicatie', 'database', 'fileshare', 'saas_dienst', 'server_compute',
+                        'client_software', 'integratievoorziening', 'landelijke_voorziening']) {
+      api.componenten.haal.mockResolvedValue(
+        _component({ componenttype: type, componenttype_label: type,
+                     heeft_applicatie_subtype: type === 'applicatie' }),
+      )
+      const { w } = await mountDetail()
+      expect(w.find('[data-testid="detailtabs-tab-koppelingen"]').exists(), `${type} mist Koppelingen`).toBe(true)
+    }
   })
 
   // ── LI047 besluit 7 — het open-punten-tabblad hoort bij ELK componenttype ──────────────────

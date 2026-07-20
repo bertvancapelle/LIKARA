@@ -1,12 +1,13 @@
 <script setup>
 /**
- * KoppelingSectie — koppelingen van één applicatie (in ApplicatieDetail).
+ * KoppelingSectie — koppelingen van één component (in ComponentDetail).
+ * LI047: élk componenttype, en de tegenpartij mag ook elk componenttype zijn.
  *
  * ADR-023: een koppeling IS een `flow`-relatie in het unified relatiemodel. Deze sectie
  * leest/schrijft daarom via `/relaties` (relatietype="flow") i.p.v. het in de cutover
  * vervallen `/koppelingen`-endpoint. richting/protocol/impact_bij_verbreking leven in
  * `kenmerken` (jsonb); de tegenpartij-naam wordt client-side geresolveerd uit een
- * applicatie-namenkaart (de relatie-respons draagt geen endpoint-namen).
+ * component-namenkaart (de relatie-respons draagt geen endpoint-namen).
  *
  * Dialog-in-sectie. De API kent geen "bron OF doel"-filter, dus twee disjuncte calls
  * (DB-CHECK bron != doel → geen overlap): Uitgaand (deze applicatie = bron) en Inkomend
@@ -54,23 +55,28 @@ const heeftKoppelingen = computed(() => uitgaand.items.length > 0 || inkomend.it
 
 // Bron/doel-pickers: server-side zoeken (CD049). `dezeAppNaam` + bron/doel-initieel
 // leveren de weergavelabels voor de reeds-gekozen waarden (default-bron / bewerken).
-// LI059 Slice 4 — applicaties zijn componenten met type 'applicatie' (geen /applicaties-facade meer).
-const zoekApplicaties = (params) => api.componenten.lijst({ ...params, componenttype: 'applicatie' })
+// LI047 — de tegenpartij is ELK component, niet alleen een applicatie. De koppelingen zijn er
+// echt: een koppelvlak dat naar een fileshare schrijft, drie applicaties die op een databaseserver
+// aansluiten. Filterden we de picker op `applicatie`, dan is het tabblad er wel maar valt er niets
+// te kiezen — en dan is de plek geen plek. De backend valideert geen elementtype op de
+// relatie-facade, dus dit is de enige beperking die er was.
+const zoekComponenten = (params) => api.componenten.lijst(params)
 const dezeAppNaam = ref('')
 const bronInitieel = ref('')
 const doelInitieel = ref('')
 
-// Applicatie-namenkaart (id → naam) — voor de tegenpartij-kolom (de flow-relatie draagt
-// geen endpoint-namen). Eenmalig geladen; flow-koppelingen lopen tussen applicaties.
-const appNamen = ref(null)
-const appNaam = (id) => appNamen.value?.[id] ?? ''
-async function _zorgAppNamen() {
-  if (appNamen.value) return
+// Component-namenkaart (id → naam) — voor de tegenpartij-kolom (de flow-relatie draagt geen
+// endpoint-namen). LI047: ONGEFILTERD, want een koppeling kan nu naar elk componenttype wijzen;
+// bleef de kaart op `applicatie` staan, dan toonde een koppeling naar een fileshare een LEGE naam.
+const compNamen = ref(null)
+const compNaam = (id) => compNamen.value?.[id] ?? ''
+async function _zorgCompNamen() {
+  if (compNamen.value) return
   try {
-    const p = await api.componenten.lijst({ limit: 100, componenttype: 'applicatie' })
-    appNamen.value = Object.fromEntries((p.items || []).map((a) => [a.id, a.naam]))
+    const p = await api.componenten.lijst({ limit: 100 })
+    compNamen.value = Object.fromEntries((p.items || []).map((c) => [c.id, c.naam]))
   } catch (e) {
-    appNamen.value = {}
+    compNamen.value = {}
     _toastFout(e)
   }
 }
@@ -84,7 +90,7 @@ function _naarKoppeling(r) {
     naam: r.naam,
     bron_applicatie_id: r.bron_id,
     doel_applicatie_id: r.doel_id,
-    tegenpartij_naam: appNaam(tegen),
+    tegenpartij_naam: compNaam(tegen),
     richting: k.richting,
     protocol: k.protocol,
     impact_bij_verbreking: k.impact_bij_verbreking,
@@ -148,7 +154,7 @@ const primeSortOrder = (state) => (state.sort ? (state.order === 'asc' ? 1 : -1)
 
 async function laadBeide() {
   fout.value = null
-  await _zorgAppNamen() // namenkaart vóór het mappen van de tegenpartij-kolom
+  await _zorgCompNamen() // namenkaart vóór het mappen van de tegenpartij-kolom
   laadUitgaand(true)
   laadInkomend(true)
 }
@@ -163,8 +169,8 @@ async function _laadOptiesEenmalig() {
       impact_bij_verbreking: Object.keys(IMPACT_VERBREKING),
     }
   }
-  await _zorgAppNamen()
-  if (!dezeAppNaam.value) dezeAppNaam.value = appNaam(props.applicatieId)
+  await _zorgCompNamen()
+  if (!dezeAppNaam.value) dezeAppNaam.value = compNaam(props.applicatieId)
 }
 
 function _reset() {
@@ -451,7 +457,7 @@ laadBeide()
             id="kp-bron"
             testid="kp-veld-bron"
             v-model="form.bron_applicatie_id"
-            :zoek-functie="zoekApplicaties"
+            :zoek-functie="zoekComponenten"
             :initieel-weergave="bronInitieel"
             :disabled="!!bewerkenId"
             :invalid="!!fouten.bron_applicatie_id"
@@ -465,7 +471,7 @@ laadBeide()
             id="kp-doel"
             testid="kp-veld-doel"
             v-model="form.doel_applicatie_id"
-            :zoek-functie="zoekApplicaties"
+            :zoek-functie="zoekComponenten"
             :initieel-weergave="doelInitieel"
             :disabled="!!bewerkenId"
             :invalid="!!fouten.doel_applicatie_id"

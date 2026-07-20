@@ -43,11 +43,27 @@ def test_elk_hard_feit_heeft_een_route_of_bewust_geen():
     )
 
 
-def test_koppelingen_heeft_geen_landing_op_een_niet_applicatie():
-    """Het Koppelingen-tabblad hangt nog aan componenttype `applicatie`. Zolang dat zo is, krijgt
-    het punt daar géén route — anders belooft het overzicht een plek die niet bestaat."""
-    assert op._route(norm.FEIT_KOPPELINGEN, "applicatie") == {"soort": "tab", "tab": "koppelingen"}
-    assert op._route(norm.FEIT_KOPPELINGEN, "fileshare") is None
+def test_koppelingen_heeft_overal_een_landing():
+    """LI047 — het Koppelingen-tabblad is component-breed. De consultant op een fileshare kreeg
+    anders een regel in "Dit moet nog" die hij nooit kon wegwerken; dan is het overzicht zijn
+    belofte kwijt dat alles wat erin staat af te werken is."""
+    for ct in ("applicatie", "fileshare", "database", "saas_dienst"):
+        assert op._route(norm.FEIT_KOPPELINGEN, ct) == {"soort": "tab", "tab": "koppelingen"}
+
+
+def test_vangrail_geen_route_zonder_landing_blijft_werken():
+    """De geen-plek-melding is nu nergens nodig, maar de VANGRAIL moet blijven: ontstaat er ooit
+    weer een tabblad dat niet overal bestaat, dan levert de afleiding géén route in plaats van een
+    dode link (ADR-054). Getoetst door de regel tijdelijk weer te laten gelden."""
+    origineel = op._TAB_ALLEEN_APPLICATIE
+    try:
+        op._TAB_ALLEEN_APPLICATIE = {"koppelingen"}
+        assert op._route(norm.FEIT_KOPPELINGEN, "fileshare") is None
+        assert op._route(norm.FEIT_KOPPELINGEN, "applicatie") == {"soort": "tab", "tab": "koppelingen"}
+    finally:
+        op._TAB_ALLEEN_APPLICATIE = origineel
+    # ...en in de huidige stand geldt hij voor niets.
+    assert op._TAB_ALLEEN_APPLICATIE == set()
 
 
 def test_gebruikersgroep_heeft_overal_een_landing():
@@ -230,4 +246,5 @@ def test_onbestaand_component_lekt_niets():
     finally:
         asyncio.run(_run_rls(_opruimen))
     assert uit is None
+
 

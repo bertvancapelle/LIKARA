@@ -1857,6 +1857,21 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   langer op deze lijst; eigen betekenisvraag (het veld zegt "subtype" terwijl er geen subtabel
   meer is), dus niet zomaar een hernoeming.
 
+### VÓÓR PRODUCTIE oplossen — niet parkeren
+- **De namenkaart in `KoppelingSectie.vue` haalt 100 componenten op zonder paginering**
+  (`api.componenten.lijst({ limit: 100 })` in `_zorgCompNamen`). Die kaart resolveert de naam van
+  de tegenpartij, want de flow-relatie draagt geen endpoint-namen.
+  **Waarom dit niet kan blijven staan:** met 19 componenten merkt niemand iets, maar een echte
+  organisatie zit daar zo overheen. Wat er dan gebeurt is **stil** — er breekt niets en er komt
+  geen foutmelding; de tegenpartij-kolom toont simpelweg een **lege naam**. De consultant
+  concludeert dat de koppeling naar een naamloos component wijst en meldt het niet, want er is
+  niets om te melden. Een fout die zichzelf verbergt kost meer dan een fout die klapt.
+  **Stand:** het probleem bestond al vóór LI047; de verbreding van de koppelingen naar elk
+  componenttype maakt het alleen waarschijnlijker (meer componenten in beeld als tegenpartij).
+  **Oplossingsrichting:** de namen per pagina meeleveren vanuit de relatie-respons, of de kaart
+  gericht opvragen voor de id's die daadwerkelijk in beeld zijn — niet het limiet ophogen, want
+  dan verschuift de grens alleen.
+
 ### Parkeer-items (geen actie tot opgepakt)
 - **Uitleg-icoon schaalt niet mee met zijn buur** — de "i" in `VeldUitleg.vue:129` is vast
   20 px (`h-5 w-5`) met 12 px tekst (`--lk-text-xs`), ongeacht of hij naast een kop van 24 px

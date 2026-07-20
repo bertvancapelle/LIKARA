@@ -221,7 +221,11 @@ const topTabs = computed(() => {
   // bij een ontvlechting). Bij een database/rekenserver geldt de vraag niet — daar draaien
   // componenten op elkaar, en dat is een koppeling, geen gebruik.
   if (ondersteuntWerk.value) t.push({ key: 'gebruikersgroepen', label: 'Gebruikersgroepen' })
-  if (isSubtype.value) t.push({ key: 'koppelingen', label: 'Koppelingen' })
+  // LI047 — Koppelingen hoort bij ELK componenttype: de koppelingen zijn er echt (een koppelvlak
+  // dat naar een fileshare schrijft, applicaties die op een databaseserver aansluiten), en zonder
+  // tabblad droeg het open-punten-overzicht een regel die de gebruiker nooit kon wegwerken.
+  // De backend valideert geen elementtype op de relatie-facade; dit wás de enige beperking.
+  t.push({ key: 'koppelingen', label: 'Koppelingen' })
   t.push(
     // ADR-046 stuk 2 — "Wie gebruikt dit" (grof organisatiegebruik) is component-breed
     // (ADR-041): élk type kan gebruikers hebben, dus geen subtype-conditie.
@@ -637,10 +641,12 @@ watch(() => props.id, async () => {
         <div v-show="activeTop === 'datatypes'" id="detailtabs-panel-datatypes" role="tabpanel" aria-labelledby="detailtabs-tab-datatypes">
           <DatatypeSectie :applicatie-id="props.id" />
         </div>
-        <div v-show="activeTop === 'koppelingen'" id="detailtabs-panel-koppelingen" role="tabpanel" aria-labelledby="detailtabs-tab-koppelingen">
-          <KoppelingSectie :applicatie-id="props.id" />
-        </div>
       </template>
+
+      <!-- LI047 — koppelingen bij elk componenttype; zelfde grens als de tabrij. -->
+      <div v-show="activeTop === 'koppelingen'" id="detailtabs-panel-koppelingen" role="tabpanel" aria-labelledby="detailtabs-tab-koppelingen">
+        <KoppelingSectie :applicatie-id="props.id" />
+      </div>
 
       <!-- ADR-055 — "wie gebruikt dit" (verfijning naar afdeling/team): élk componenttype
            waarmee mensen werken, niet alleen applicaties. Zelfde grens als de tabrij. -->

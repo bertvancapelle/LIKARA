@@ -49,12 +49,13 @@ _ROUTE_TAB = {
     norm.FEIT_KOPPELINGEN: "koppelingen",
     norm.FEIT_CONTRACT: "contracten",
 }
-# Tabbladen die NIET voor elk componenttype bestaan (ComponentDetail.vue). `gebruikersgroepen` staat
-# er sinds ADR-055 NIET meer bij: dat tabblad volgt nu `ondersteunt_werk`, en juist voor de typen
-# zonder die vlag ontstaat het punt niet (het signaal is er stil). `koppelingen` hangt nog aan
-# componenttype `applicatie` — zolang dat zo is, kan dat punt op een fileshare/database/saas_dienst
-# ontstaan zonder plek om het te beantwoorden. Dan liever géén route dan een dode link (ADR-054).
-_TAB_ALLEEN_APPLICATIE = {"koppelingen"}
+# Tabbladen die NIET voor elk componenttype bestaan (ComponentDetail.vue).
+# LEEG sinds LI047: `gebruikersgroepen` volgt `ondersteunt_werk` (ADR-055) en juist voor de typen
+# zonder die vlag ontstaat het punt niet; `koppelingen` is component-breed gemaakt omdat een punt
+# zonder invoerplek de belofte van dit overzicht breekt — alles wat erin staat is af te werken.
+# De vangrail hieronder BLIJFT staan: ontstaat er ooit weer een tabblad dat niet overal bestaat,
+# dan levert de afleiding géén route in plaats van een dode link (ADR-054).
+_TAB_ALLEEN_APPLICATIE: set[str] = set()
 _APPLICATIE_TYPE = "applicatie"
 
 # Blok 3 draagt wat géén ontbrekend feit is (besluit 3).
