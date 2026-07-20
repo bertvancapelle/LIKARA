@@ -124,6 +124,33 @@ describe('OpenPuntenSectie', () => {
     expect(w.findAll('[data-norm-lat]')).toHaveLength(0)
   })
 
+  // ── De verantwoordingszin — WIE én WANNEER, en eerlijk als de naam ontbreekt ────────────────
+  it('LI047: zonder vastgelegde naam meldt de zin dát het ontbreekt — geen gat, geen "onbekend"', async () => {
+    // Dit is de stand van het HELE demolandschap: nergens is een verklaarder vastgelegd. Een toets
+    // die alleen de gevulde variant dekt, mist precies wat er misging ("klaar verklaard door .").
+    const w = await mountSectie(_respons({
+      moet_nog: { aantal: 1, punten: [{ feit: 'biv', route: null }] },
+      klaarverklaring: { verklaard_door: null, verklaard_op: '2026-07-18T09:30:00Z', bewust: [], verschoven: [] },
+    }))
+    const zin = w.find('[data-testid="op-kv-zin"]').text()
+    expect(zin).toContain('wie dat deed is niet vastgelegd')
+    expect(zin).toMatch(/18 jul/)          // het moment staat er wél
+    expect(zin).not.toMatch(/door\s*\./)   // nooit "door ." — dat was de fout
+    expect(zin).not.toContain('onbekend')  // geen niet-bestaande persoon
+  })
+
+  it('LI047: mét naam draagt de zin wie én wanneer', async () => {
+    const w = await mountSectie(_respons({
+      klaarverklaring: { verklaard_door: 'Jan de Vries', verklaard_op: '2026-07-18T09:30:00Z', bewust: [], verschoven: [] },
+    }))
+    const zin = w.find('[data-testid="op-kv-zin"]').text()
+    expect(zin).toContain('Jan de Vries')
+    expect(zin).toMatch(/18 jul/)
+    // Een verantwoording zonder moment is geen verantwoording: je wilt weten of het besluit van
+    // vorige week is of van twee jaar geleden.
+    expect(zin).not.toContain('niet vastgelegd')
+  })
+
   it('besluiten 15-17: na klaarverklaring blijven de punten staan, en bewust/verschoven zijn gescheiden', async () => {
     const w = await mountSectie(_respons({
       moet_nog: { aantal: 2, punten: [{ feit: 'biv', route: null }, { feit: 'bedoeling', route: null }] },
@@ -137,7 +164,7 @@ describe('OpenPuntenSectie', () => {
     // Besluit 15 — de punten verdwijnen niet.
     expect(w.findAll('[data-testid="op-lijst-moet_nog"] > li')).toHaveLength(2)
     // Besluit 16 — de toon is verantwoording, mét wie.
-    expect(w.find('[data-testid="op-klaarverklaring"]').text()).toContain('consultant@likara.test')
+    expect(w.find('[data-testid="op-kv-zin"]').text()).toContain('consultant@likara.test')
     // Besluit 17 — twee groepen, gescheiden. LIKARA schrijft geen besluit toe aan wie het niet nam.
     expect(w.find('[data-testid="op-kv-bewust"]').text()).toContain('BIV-classificatie')
     expect(w.find('[data-testid="op-kv-verschoven"]').text()).toContain('Bedoeling (migratiepad)')

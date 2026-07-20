@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import Checklistscore, Component, ComponentKlaarverklaring, KlaarverklaringStatus
+from services import actor_resolutie
 from services import component_norm_service as norm
 from services import registratiegaten_service
 
@@ -114,6 +115,7 @@ async def _klaarverklaring(session: AsyncSession, tid: uuid.UUID, component_id) 
         await session.execute(
             select(
                 ComponentKlaarverklaring.status,
+                ComponentKlaarverklaring.verklaard_door_sub,
                 ComponentKlaarverklaring.verklaard_door,
                 ComponentKlaarverklaring.verklaard_op,
             ).where(
@@ -124,7 +126,14 @@ async def _klaarverklaring(session: AsyncSession, tid: uuid.UUID, component_id) 
     ).first()
     if rij is None or rij.status != KlaarverklaringStatus.klaar:
         return None
-    return {"verklaard_door": rij.verklaard_door, "verklaard_op": rij.verklaard_op}
+    # ADR-029 — sub → persoon.naam, met de e-mail als leesbare terugval. Dezelfde resolutie als het
+    # migratiegereedheid-blok; zonder deze stap zou dit scherm een e-mailadres tonen waar het andere
+    # een naam toont, over dezelfde gebeurtenis. `None` = niet vastgelegd (de kolom is nullable) —
+    # de UI zegt dat dan met zoveel woorden i.p.v. een gat te laten vallen.
+    naam = await actor_resolutie.resolveer_naam(
+        session, tid, sub=rij.verklaard_door_sub, email=rij.verklaard_door
+    )
+    return {"verklaard_door": naam, "verklaard_op": rij.verklaard_op}
 
 
 async def open_punten(session: AsyncSession, tenant_id, component_id) -> dict | None:

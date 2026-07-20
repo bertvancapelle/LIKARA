@@ -57,6 +57,24 @@ const LEEG_TEKST = {
   valt_op: 'Er is niets bijzonders opgevallen bij dit component.',
 }
 
+// Datum in gewone taal, zoals elders in LIKARA (MigratiegereedheidSectie gebruikt dezelfde vorm).
+const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' }) : '')
+
+// Besluit 16 — de verantwoording draagt WIE én WANNEER. Zonder moment is het geen verantwoording:
+// je wilt weten of het besluit van vorige week is of van twee jaar geleden, want dat bepaalt of het
+// nog geldt. `verklaard_op` is NOT NULL, dus het moment is er altijd; de NAAM is nullable (de kolom
+// mag leeg zijn en is dat in het hele demolandschap). Bij een lege naam laten we geen gat vallen en
+// schrijven we ook geen "onbekend" alsof dat een persoon is — de zin zegt dán expliciet dát het
+// ontbreekt, want dit is juist de zin die verantwoording moet afleggen.
+const verantwoordingszin = computed(() => {
+  const wanneer = _datum(kv.value?.verklaard_op)
+  const wie = kv.value?.verklaard_door
+  if (wie && wanneer) return `Dit component is op ${wanneer} klaar verklaard door ${wie}.`
+  if (wie) return `Dit component is klaar verklaard door ${wie}; wanneer dat gebeurde is niet vastgelegd.`
+  if (wanneer) return `Dit component is op ${wanneer} klaar verklaard; wie dat deed is niet vastgelegd.`
+  return 'Dit component is klaar verklaard; wie dat deed en wanneer is niet vastgelegd.'
+})
+
 function puntLabel(punt) {
   // Besluit 20 — de feitnamen komen uit de gedeelde labelbron; geen plek waar hetzelfde feit
   // anders heet dan op het scherm waar je het vastlegt.
@@ -84,8 +102,8 @@ watch(() => props.componentId, () => { actiefBlok.value = 'moet_nog' })
         data-testid="op-klaarverklaring"
         class="mb-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] p-[var(--lk-space-sm)]"
       >
-        <p class="text-[length:var(--lk-text-sm)]">
-          Dit component is klaar verklaard door <strong>{{ kv.verklaard_door }}</strong>.
+        <p data-testid="op-kv-zin" class="text-[length:var(--lk-text-sm)]">
+          {{ verantwoordingszin }}
           De punten hieronder zijn niet vastgesteld; er is besloten er niet op te wachten.
         </p>
         <!-- Besluit 17 — nooit op één hoop: LIKARA schrijft geen besluit toe aan wie het niet nam. -->

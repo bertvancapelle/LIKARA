@@ -1415,7 +1415,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         if key in bestaande_gg:
             return
         await gebruikersgroep_service.maak_aan(session, tid, GebruikersgroepCreate(
-            applicatie_id=app_id[app_naam], organisatie_id=org_id, afdeling_id=afdeling_id, aantal_gebruikers=aantal))
+            component_id=app_id[app_naam], organisatie_id=org_id, afdeling_id=afdeling_id, aantal_gebruikers=aantal))
         bestaande_gg.add(key)
         telling["gebruikersgroepen"] += 1
 
@@ -1491,6 +1491,24 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
     fs_id = await _infra("Shared fileshare", "fileshare", HostingModel.on_premise, None)
     for app_naam in ("DMS", "Klantportaal"):
         await _draait_op(fs_id, app_naam)
+    # ADR-055 — HET geval waarvoor de gebruik-verfijning component-breed is gemaakt: de gedeelde
+    # G-schijf waar Burgerzaken op werkt. Zonder dit geval toont een browsercheck een LEEG tabblad en
+    # kan hij niet aantonen dát de verbreding werkt (werkprotocol §LI044: seed de demostaat zó dat de
+    # browsercheck iets te zien geeft). De afdeling bestaat al als organisatie_eenheid onder Gemeente
+    # Tiel — geen extra partij nodig. Idempotent: alleen als de fileshare nog geen serving heeft.
+    _fs_heeft_gg = (
+        await session.execute(
+            select(Relatie.id).where(
+                Relatie.tenant_id == tid, Relatie.relatietype == "serving", Relatie.bron_id == fs_id
+            )
+        )
+    ).first() is not None
+    if not _fs_heeft_gg:
+        await gebruikersgroep_service.maak_aan(session, tid, GebruikersgroepCreate(
+            component_id=fs_id, organisatie_id=partij_id["Gemeente Tiel"],
+            afdeling_id=partij_id["Burgerzaken"], aantal_gebruikers=12))
+        telling["gebruikersgroepen"] += 1
+
     # Extern SaaS-platform onder een gemeente-specifieke app (andere impactsmaak: extern gehost).
     saas_id = await _infra("Extern SaaS-platform", "saas_dienst", HostingModel.saas, None)
     await _draait_op(saas_id, "Vergunningensysteem")
@@ -1688,7 +1706,7 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         _aid = app_id.get(_app)
         if _aid and _aid not in _al_gg:
             await gebruikersgroep_service.maak_aan(session, tid, GebruikersgroepCreate(
-                applicatie_id=_aid, organisatie_id=partij_id["Gemeente Tiel"], afdeling_id=None,
+                component_id=_aid, organisatie_id=partij_id["Gemeente Tiel"], afdeling_id=None,
                 aantal_gebruikers=20))
             telling["gebruikersgroepen"] += 1
 
