@@ -1,8 +1,8 @@
 """Service-laag voor de entiteit Gebruikersgroep (ADR-009; ADR-023 B-mig-2 slice 4; ADR-036/036a).
 
 ADR-023: gebruikersgroep is een **zelfstandig element** (business actor/role); de band met het
-component is een **serving**-relatie (component → gebruikersgroep). `applicatie_id` wordt afgeleid
-uit de serving-relatie (de veldnaam is historisch — ADR-055 open punt 1).
+component is een **serving**-relatie (component → gebruikersgroep). `component_id` wordt afgeleid
+uit de serving-relatie.
 
 ADR-055: de verfijning geldt voor **elk componenttype dat werk ondersteunt**, niet alleen voor
 `applicatie`. De grens is de catalogus-vlag `ondersteunt_werk` (ADR-045) — dezelfde grens die de
@@ -85,11 +85,11 @@ def identiteit(afdeling: str | None, organisatie_naam: str | None) -> str:
     return afdeling or organisatie_naam or "Gebruikersgroep"
 
 
-def _lees(obj: Gebruikersgroep, applicatie_id, organisatie_id=None, organisatie_naam=None, afdeling_naam=None) -> dict:
-    """API-vorm. applicatie_id afgeleid uit serving; organisatie via het grove feit (ADR-036);
+def _lees(obj: Gebruikersgroep, component_id, organisatie_id=None, organisatie_naam=None, afdeling_naam=None) -> dict:
+    """API-vorm. component_id afgeleid uit serving; organisatie via het grove feit (ADR-036);
     afdeling via de afdeling-partij (ADR-036a). None = wees/organisatie-loos/geen afdeling."""
     return {
-        "id": obj.id, "applicatie_id": applicatie_id,
+        "id": obj.id, "component_id": component_id,
         "organisatie_id": organisatie_id, "organisatie_naam": organisatie_naam,
         "afdeling_id": obj.afdeling_id, "afdeling": afdeling_naam,
         "aantal_gebruikers": obj.aantal_gebruikers,
@@ -152,7 +152,7 @@ async def _valideer_afdeling(session: AsyncSession, tid: uuid.UUID, afdeling_id,
         )
 
 
-async def _applicaties_van(session: AsyncSession, tid: uuid.UUID, ids: list) -> dict:
+async def _componenten_van(session: AsyncSession, tid: uuid.UUID, ids: list) -> dict:
     if not ids:
         return {}
     rijen = (
@@ -212,7 +212,7 @@ def _escape_like(term: str) -> str:
 async def contexten(session: AsyncSession, tenant_id, *, zoek: str | None = None) -> list[dict]:
     """Fase B slice 2a (LI022) — distinct `(organisatie, afdeling)`-gebruikercontexten over alle
     gebruikersgroepen, met geresolveerde namen + een telling van bijbehorende componenten (distinct
-    applicatie-bron van de serving-relatie). ADR-036: organisatie via het grove feit; ADR-036a:
+    component-bron van de serving-relatie). ADR-036: organisatie via het grove feit; ADR-036a:
     afdeling via de afdeling-partij. Doorzoekbaar (organisatie- OF afdeling-naam). Bewust BEGRENSDE
     afgeleide lijst (géén keyset). Read-only."""
     tid = _tenant_uuid(tenant_id)
@@ -253,7 +253,7 @@ async def contexten(session: AsyncSession, tenant_id, *, zoek: str | None = None
 async def componenten_voor_context(
     session: AsyncSession, tenant_id, *, organisatie_id: uuid.UUID | None, afdeling_id: uuid.UUID | None
 ) -> list[dict]:
-    """Fase B slice 2a (LI022) — distinct componenten (de applicatie-bron van de serving-relatie) van de
+    """Fase B slice 2a (LI022) — distinct componenten (de component-bron van de serving-relatie) van de
     gebruikersgroepen die EXACT op deze `(organisatie, afdeling)`-context matchen. ADR-036: organisatie
     via het grove feit; ADR-036a: afdeling via `afdeling_id`. Nullable-veilige match
     (`IS NOT DISTINCT FROM`) zodat de lege-organisatie-/lege-afdeling-casus (bv. "— / burgers") klopt."""
@@ -287,7 +287,7 @@ async def componenten_voor_context(
 
 async def lijst(
     session: AsyncSession, tenant_id, *, limit: int = _STANDAARD_LIMIT, after: str | None = None,
-    applicatie_id: uuid.UUID | None = None, sort: str = _STANDAARD_SORT, order: str = _STANDAARD_ORDER,
+    component_id: uuid.UUID | None = None, sort: str = _STANDAARD_SORT, order: str = _STANDAARD_ORDER,
 ) -> tuple[list[dict], str | None]:
     limit = max(1, min(limit, _MAX_LIMIT))
     tid = _tenant_uuid(tenant_id)
@@ -319,12 +319,12 @@ async def lijst(
         .outerjoin(afd, and_(afd.id == Gebruikersgroep.afdeling_id, afd.tenant_id == tid))
         .where(Gebruikersgroep.tenant_id == tid)
     )
-    if applicatie_id is not None:
+    if component_id is not None:
         stmt = stmt.join(
             Relatie,
             and_(
                 Relatie.doel_id == Gebruikersgroep.id, Relatie.tenant_id == tid,
-                Relatie.relatietype == _SERVING, Relatie.bron_id == applicatie_id,
+                Relatie.relatietype == _SERVING, Relatie.bron_id == component_id,
             ),
         )
     if after:
@@ -340,8 +340,8 @@ async def lijst(
     rijen = list((await session.execute(stmt)).all())  # (Gebruikersgroep, org_id|None, org_naam|None, afd_naam|None)
     heeft_meer = len(rijen) > limit
     items = rijen[:limit]
-    app_map = await _applicaties_van(session, tid, [g.id for (g, _oid, _on, _an) in items])
-    out = [_lees(g, app_map.get(g.id), oid, on, an) for (g, oid, on, an) in items]
+    comp_map = await _componenten_van(session, tid, [g.id for (g, _oid, _on, _an) in items])
+    out = [_lees(g, comp_map.get(g.id), oid, on, an) for (g, oid, on, an) in items]
     if heeft_meer:
         laatste_g, _laatste_oid, laatste_on, laatste_an = items[-1]
         if sort == "organisatie":
@@ -373,10 +373,10 @@ async def haal_op(session: AsyncSession, tenant_id, gebruikersgroep_id) -> Gebru
 async def lees_detail(session: AsyncSession, tenant_id, gebruikersgroep_id) -> dict:
     tid = _tenant_uuid(tenant_id)
     obj = await haal_op(session, tenant_id, gebruikersgroep_id)
-    app_map = await _applicaties_van(session, tid, [obj.id])
+    comp_map = await _componenten_van(session, tid, [obj.id])
     org_id, org_naam = await _org_voor_gebruik(session, tid, obj.gebruik_id)
     afd_naam = await _afdeling_naam(session, tid, obj.afdeling_id)
-    return _lees(obj, app_map.get(obj.id), org_id, org_naam, afd_naam)
+    return _lees(obj, comp_map.get(obj.id), org_id, org_naam, afd_naam)
 
 
 async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate) -> dict:
@@ -385,7 +385,7 @@ async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate
     # `applicatie`. Die oude beperking was geen domeinregel maar een restant van de opgeheven
     # applicatie-subtabel (LI059). De grens komt uit de catalogus-vlag (ADR-045), nooit uit een
     # hardcoded typelijst — dezelfde grens die de bedrijfsfunctie-koppeling al hanteert.
-    _ouder = await component_service.haal_op(session, tenant_id, data.applicatie_id)
+    _ouder = await component_service.haal_op(session, tenant_id, data.component_id)
     if not await componentconfig_catalog.ondersteunt_werk(session, _ouder.componenttype):
         # 422, geen 404: het component BESTAAT — de vraag geldt hier alleen niet. "Er is niets" en
         # "die vraag geldt hier niet" zijn verschillende antwoorden; ze door elkaar halen stuurt de
@@ -402,21 +402,21 @@ async def maak_aan(session: AsyncSession, tenant_id, data: GebruikersgroepCreate
         raise OngeldigeRegistratie(
             "ORGANISATIE_VERPLICHT", "Een gebruikersgroep hoort verplicht bij een organisatie."
         )
-    gebruik_id = await organisatiegebruik_service.ensure(session, tid, data.organisatie_id, data.applicatie_id)
+    gebruik_id = await organisatiegebruik_service.ensure(session, tid, data.organisatie_id, data.component_id)
     # ADR-036a — afdeling moet een org-eenheid binnen de grove-feit-organisatie zijn (of leeg).
     await _valideer_afdeling(session, tid, data.afdeling_id, gebruik_id)
-    velden = data.model_dump(exclude={"applicatie_id", "organisatie_id"})  # {afdeling_id, aantal_gebruikers}
+    velden = data.model_dump(exclude={"component_id", "organisatie_id"})  # {afdeling_id, aantal_gebruikers}
     elem = Element(tenant_id=tid, element_type=ElementType.gebruikersgroep)
     session.add(elem)
     await session.flush()
     obj = Gebruikersgroep(id=elem.id, tenant_id=tid, gebruik_id=gebruik_id, **velden)
     session.add(obj)
-    session.add(Relatie(tenant_id=tid, bron_id=data.applicatie_id, doel_id=elem.id, relatietype=_SERVING))
+    session.add(Relatie(tenant_id=tid, bron_id=data.component_id, doel_id=elem.id, relatietype=_SERVING))
     await session.commit()
     await session.refresh(obj)
     org_id, org_naam = await _org_voor_gebruik(session, tid, obj.gebruik_id)
     afd_naam = await _afdeling_naam(session, tid, obj.afdeling_id)
-    return _lees(obj, data.applicatie_id, org_id, org_naam, afd_naam)
+    return _lees(obj, data.component_id, org_id, org_naam, afd_naam)
 
 
 async def werk_bij(session: AsyncSession, tenant_id, gebruikersgroep_id, data: GebruikersgroepUpdate) -> dict:
@@ -431,14 +431,18 @@ async def werk_bij(session: AsyncSession, tenant_id, gebruikersgroep_id, data: G
             raise OngeldigeRegistratie(
                 "ORGANISATIE_VERPLICHT", "Een gebruikersgroep hoort verplicht bij een organisatie."
             )
-        app_map = await _applicaties_van(session, tid, [obj.id])
-        app_id = app_map.get(obj.id)
-        if app_id is None:
+        comp_map = await _componenten_van(session, tid, [obj.id])
+        comp_id = comp_map.get(obj.id)
+        if comp_id is None:
             raise OngeldigeRegistratie(
+                # ADR-055 — de tekst zei "applicatie"; sinds de verbreding kan een groep aan élk
+                # werk-ondersteunend component hangen, dus kon deze melding op een fileshare
+                # verschijnen en over iets anders praten dan wat de gebruiker voor zich had.
+                # De foutCODE blijft ongewijzigd: die is machine-leesbaar contract (opvolgpunt).
                 "GROEP_ZONDER_APPLICATIE",
-                "Deze groep hangt aan geen applicatie meer; een organisatie kan pas worden gekoppeld met een applicatie.",
+                "Deze groep hangt aan geen component meer; een organisatie kan pas worden gekoppeld met een component.",
             )
-        obj.gebruik_id = await organisatiegebruik_service.ensure(session, tid, org_id, app_id)
+        obj.gebruik_id = await organisatiegebruik_service.ensure(session, tid, org_id, comp_id)
     # ADR-036a — afdeling valideren tegen de (mogelijk gewijzigde) organisatie van het grove feit.
     if "afdeling_id" in velden:
         await _valideer_afdeling(session, tid, velden["afdeling_id"], obj.gebruik_id)
@@ -448,10 +452,10 @@ async def werk_bij(session: AsyncSession, tenant_id, gebruikersgroep_id, data: G
         setattr(obj, veld, waarde)
     await session.commit()
     await session.refresh(obj)
-    app_map = await _applicaties_van(session, tid, [obj.id])
+    comp_map = await _componenten_van(session, tid, [obj.id])
     org_id, org_naam = await _org_voor_gebruik(session, tid, obj.gebruik_id)
     afd_naam = await _afdeling_naam(session, tid, obj.afdeling_id)
-    return _lees(obj, app_map.get(obj.id), org_id, org_naam, afd_naam)
+    return _lees(obj, comp_map.get(obj.id), org_id, org_naam, afd_naam)
 
 
 async def verwijder(session: AsyncSession, tenant_id, gebruikersgroep_id) -> None:

@@ -171,7 +171,7 @@ export const api = {
     // sort/order optioneel (CD020) — weglaten = server-default (created_at asc).
     lijst: (params = {}) =>
       request(
-        `/gebruikersgroepen${_filterQuery('gebruikersgroepen.lijst', params, ['applicatie_id', 'limit', 'after', 'sort', 'order'])}`,
+        `/gebruikersgroepen${_filterQuery('gebruikersgroepen.lijst', params, ['component_id', 'limit', 'after', 'sort', 'order'])}`,
       ),
     haal: (id) => request(`/gebruikersgroepen/${id}`),
     maak: (data) =>

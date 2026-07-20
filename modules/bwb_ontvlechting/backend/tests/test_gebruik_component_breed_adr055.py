@@ -154,7 +154,7 @@ def test_registratie_lukt_op_elk_type_dat_werk_ondersteunt():
         for t in werk:
             cid = await _maak_component(s, f"ADR055-{t}", t)
             uit = await gg.maak_aan(
-                s, _TID, GebruikersgroepCreate(applicatie_id=cid, organisatie_id=org,
+                s, _TID, GebruikersgroepCreate(component_id=cid, organisatie_id=org,
                                                aantal_gebruikers=3)
             )
             assert uit["id"] is not None
@@ -186,7 +186,7 @@ def test_weigering_zegt_de_waarheid_niet_bestaat_niet():
             cid = await _maak_component(s, f"ADR055-nw-{t}", t)
             try:
                 await gg.maak_aan(
-                    s, _TID, GebruikersgroepCreate(applicatie_id=cid, organisatie_id=org)
+                    s, _TID, GebruikersgroepCreate(component_id=cid, organisatie_id=org)
                 )
             except NietGevonden as e:  # pragma: no cover — dit is precies de fout die we opheffen
                 pytest.fail(f"{t} geweigerd met 'bestaat niet' (404) i.p.v. 422: {e}")

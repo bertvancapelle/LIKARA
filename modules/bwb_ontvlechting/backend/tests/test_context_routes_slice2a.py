@@ -205,7 +205,7 @@ def test_gebruiker_contexten_en_componenten():
             afd_id = afd.id
             a_org = (await component_service.maak_aan(s, _TID, _app_create(f"WT-S2a-AppOrg-{sfx}")))["id"]
             g1 = (await gg.maak_aan(s, _TID, GebruikersgroepCreate(
-                applicatie_id=a_org, organisatie_id=org_id, afdeling_id=afd_id, aantal_gebruikers=10)))["id"]
+                component_id=a_org, organisatie_id=org_id, afdeling_id=afd_id, aantal_gebruikers=10)))["id"]
 
             # 2a — zoek op de afdeling-naam → precies de org-context (distinct via de afdeling-partij).
             ctx = await gg.contexten(s, _TID, zoek=afd_org)

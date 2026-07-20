@@ -14,13 +14,13 @@ _ID = "22222222-2222-2222-2222-222222222222"
 _APP_ID = "33333333-3333-3333-3333-333333333333"
 _ORG_ID = "44444444-4444-4444-4444-444444444444"
 
-_CREATE_BODY = {"applicatie_id": _APP_ID, "organisatie_id": _ORG_ID}  # ADR-038 — organisatie verplicht
+_CREATE_BODY = {"component_id": _APP_ID, "organisatie_id": _ORG_ID}  # ADR-038 — organisatie verplicht
 
 
 def _fake_groep():
     return SimpleNamespace(
         id=uuid.UUID(_ID),
-        applicatie_id=uuid.UUID(_APP_ID),
+        component_id=uuid.UUID(_APP_ID),
         organisatie_id=None,
         organisatie_naam=None,
         afdeling_id=None,
@@ -148,15 +148,15 @@ def test_aantal_negatief_geeft_422(monkeypatch):
     assert resp.status_code == 422
 
 
-def test_lijst_filter_applicatie_id_doorgegeven(monkeypatch):
+def test_lijst_filter_component_id_doorgegeven(monkeypatch):
     app, svc = _maak_app(monkeypatch, _payload("viewer"))
     ontvangen = {}
 
-    async def _capture(session, tenant_id, *, limit, after, applicatie_id, sort=None, order=None):
-        ontvangen["applicatie_id"] = applicatie_id
+    async def _capture(session, tenant_id, *, limit, after, component_id, sort=None, order=None):
+        ontvangen["component_id"] = component_id
         return ([], None)
 
     monkeypatch.setattr(svc, "lijst", _capture)
-    resp = _client(app).get(f"/api/v1/gebruikersgroepen?applicatie_id={_APP_ID}")
+    resp = _client(app).get(f"/api/v1/gebruikersgroepen?component_id={_APP_ID}")
     assert resp.status_code == 200
-    assert str(ontvangen["applicatie_id"]) == _APP_ID
+    assert str(ontvangen["component_id"]) == _APP_ID

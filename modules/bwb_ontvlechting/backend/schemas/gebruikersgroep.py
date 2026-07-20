@@ -2,7 +2,7 @@
 
 ADR-038: `organisatie` is een **verplichte verwijzing** naar een organisatie-partij
 (`organisatie_id`) — een groep hoort altijd bij een organisatie (de org-loze uitzondering vervalt).
-`aantal_gebruikers` is optioneel en niet-negatief (`ge=0`). `applicatie_id` zit in Create maar niet
+`aantal_gebruikers` is optioneel en niet-negatief (`ge=0`). `component_id` zit in Create maar niet
 in Update (immutabel). In Update is `organisatie_id` optioneel-in-payload (weglaten = ongewijzigd),
 maar mag niet op null worden gezet — de service weigert dat (422).
 
@@ -35,7 +35,7 @@ class GebruikersgroepSorteerveld(str, Enum):
 class GebruikersgroepCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    applicatie_id: uuid.UUID
+    component_id: uuid.UUID
     # ADR-038 — verplichte verwijzing naar de organisatie (partij, aard=organisatie).
     organisatie_id: uuid.UUID
     # ADR-036a — optionele verwijzing naar een organisatie_eenheid-partij (afdeling).
@@ -44,7 +44,7 @@ class GebruikersgroepCreate(BaseModel):
 
 
 class GebruikersgroepUpdate(BaseModel):
-    """Partiële update; `applicatie_id` immutabel ⇒ niet aanwezig."""
+    """Partiële update; `component_id` immutabel ⇒ niet aanwezig."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -58,7 +58,9 @@ class GebruikersgroepRead(BaseModel):
 
     id: uuid.UUID
     # ADR-023: afgeleid uit de serving-relatie; None = wees (Besluit 13).
-    applicatie_id: uuid.UUID | None
+    # ADR-055 — heette `applicatie_id`; draagt sinds de verbreding het id van ELK
+    # werk-ondersteunend componenttype (fileshare, saas_dienst, client_software, …).
+    component_id: uuid.UUID | None
     # ADR-024 UX-B6-a — organisatie als verwijzing + geresolveerde naam (read).
     organisatie_id: uuid.UUID | None = None
     organisatie_naam: str | None = None

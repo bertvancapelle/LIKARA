@@ -41,7 +41,7 @@ async function mountSectie({ rollen = ['beheerder'] } = {}) {
   await router.push('/')
   await router.isReady()
   const wrapper = mount(GebruikersgroepSectie, {
-    props: { applicatieId: APP },
+    props: { componentId: APP },
     attachTo: document.body,
     global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService, router], stubs: { teleport: true } },
   })
@@ -74,7 +74,7 @@ describe('GebruikersgroepSectie', () => {
       volgende_cursor: null,
     })
     const w = await mountSectie()
-    expect(api.gebruikersgroepen.lijst).toHaveBeenCalledWith({ applicatie_id: APP, limit: 25, after: undefined })
+    expect(api.gebruikersgroepen.lijst).toHaveBeenCalledWith({ component_id: APP, limit: 25, after: undefined })
     expect(w.text()).toContain('Gemeente Tiel')
     const link = w.find('[data-testid="gg-org-link-g1"]')
     expect(link.exists()).toBe(true)
@@ -143,7 +143,7 @@ describe('GebruikersgroepSectie', () => {
       organisatie_id: 'org-1',
       afdeling_id: null,
       aantal_gebruikers: null,
-      applicatie_id: APP,
+      component_id: APP,
     })
   })
 

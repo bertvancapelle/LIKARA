@@ -6,9 +6,9 @@ from pydantic import ValidationError
 
 
 def _basis() -> dict:
-    # ADR-038 — organisatie is verplicht; `_basis()` levert alleen `applicatie_id` (tests vullen
+    # ADR-038 — organisatie is verplicht; `_basis()` levert alleen `component_id` (tests vullen
     # `organisatie_id` waar een geldige Create nodig is).
-    return {"applicatie_id": str(uuid.uuid4())}
+    return {"component_id": str(uuid.uuid4())}
 
 
 def test_create_happy_path():
@@ -66,10 +66,10 @@ def test_create_geen_serverbeheerde_velden():
         assert veld not in GebruikersgroepCreate.model_fields
 
 
-def test_update_geen_applicatie_id():
+def test_update_geen_component_id():
     from schemas.gebruikersgroep import GebruikersgroepUpdate
 
-    assert "applicatie_id" not in GebruikersgroepUpdate.model_fields  # immutabel
+    assert "component_id" not in GebruikersgroepUpdate.model_fields  # immutabel
 
 
 def test_update_organisatie_wissen_toegestaan():
@@ -98,4 +98,40 @@ def test_read_geen_tenant_id():
     from schemas.gebruikersgroep import GebruikersgroepRead
 
     assert "tenant_id" not in GebruikersgroepRead.model_fields
-    assert "applicatie_id" in GebruikersgroepRead.model_fields
+    assert "component_id" in GebruikersgroepRead.model_fields
+
+
+# ── ADR-055 open punt 1 — de contractnaam op één plek houden ───────────────────────────────────
+
+def _contractnamen() -> dict[str, set[str]]:
+    """De naam waarmee de gebruikersgroep aan zijn component hangt, op de DRIE plekken die samen
+    het contract vormen: het Create-schema, het Read-schema en de lijst-filter op de route."""
+    import inspect
+
+    from routes import gebruikersgroep as route
+    from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepRead
+
+    kandidaten = {"applicatie_id", "component_id"}
+    return {
+        "create": kandidaten & set(GebruikersgroepCreate.model_fields),
+        "read": kandidaten & set(GebruikersgroepRead.model_fields),
+        "route-filter": kandidaten & set(inspect.signature(route.lijst_gebruikersgroepen).parameters),
+    }
+
+
+def test_contractnaam_is_overal_dezelfde_en_zegt_wat_hij_draagt():
+    """Een half doorgevoerde hernoeming levert een gebroken scherm op: de frontend stuurt de ene
+    naam, de backend verwacht de andere. Deze toets houdt de drie plekken bij elkaar.
+
+    En hij legt de naam zélf vast: het veld draagt sinds ADR-055 het id van ELK werk-ondersteunend
+    componenttype (fileshare, saas_dienst, client_software), niet alleen van een applicatie. Een
+    contractnaam die iets anders belooft dan hij draagt, kost de volgende lezer een verkeerde
+    aanname — en die schrijft er code op."""
+    namen = _contractnamen()
+    for plek, gevonden in namen.items():
+        assert len(gevonden) == 1, f"{plek}: verwacht precies één contractnaam, gevonden {gevonden or '{}'}"
+    uniek = set().union(*namen.values())
+    assert len(uniek) == 1, f"de drie plekken lopen uiteen — half hernoemd? {namen}"
+    assert uniek == {"component_id"}, (
+        f"het veld draagt een component-id van elk werk-ondersteunend type; naam is {uniek}"
+    )

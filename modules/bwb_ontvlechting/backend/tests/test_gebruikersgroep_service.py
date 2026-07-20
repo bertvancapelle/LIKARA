@@ -10,12 +10,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
-def _create_data(applicatie_id, organisatie_id=None):
+def _create_data(component_id, organisatie_id=None):
     from schemas.gebruikersgroep import GebruikersgroepCreate
 
     # ADR-038 — organisatie is verplicht.
     return GebruikersgroepCreate(
-        applicatie_id=applicatie_id, organisatie_id=organisatie_id or uuid.uuid4(), aantal_gebruikers=5
+        component_id=component_id, organisatie_id=organisatie_id or uuid.uuid4(), aantal_gebruikers=5
     )
 
 
@@ -73,7 +73,7 @@ def test_maak_aan_ouder_bestaat(monkeypatch):
     tid = "11111111-1111-1111-1111-111111111111"
     out = asyncio.run(svc.maak_aan(session, tid, _create_data(app_id, organisatie_id=org_id)))
 
-    assert str(out["applicatie_id"]) == str(app_id)
+    assert str(out["component_id"]) == str(app_id)
     assert out["organisatie_id"] == org_id and out["organisatie_naam"] == "WT-Org"
     assert out["aantal_gebruikers"] == 5
     assert any(isinstance(o, Element) for o in toegevoegd)

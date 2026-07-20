@@ -610,7 +610,7 @@ watch(() => props.id, async () => {
       <!-- ADR-055 — "wie gebruikt dit" (verfijning naar afdeling/team): élk componenttype
            waarmee mensen werken, niet alleen applicaties. Zelfde grens als de tabrij. -->
       <div v-if="ondersteuntWerk" v-show="activeTop === 'gebruikersgroepen'" id="detailtabs-panel-gebruikersgroepen" role="tabpanel" aria-labelledby="detailtabs-tab-gebruikersgroepen">
-        <GebruikersgroepSectie :applicatie-id="props.id" />
+        <GebruikersgroepSectie :component-id="props.id" />
       </div>
 
       <div v-show="activeTop === 'gebruik'" id="detailtabs-panel-gebruik" role="tabpanel" aria-labelledby="detailtabs-tab-gebruik">

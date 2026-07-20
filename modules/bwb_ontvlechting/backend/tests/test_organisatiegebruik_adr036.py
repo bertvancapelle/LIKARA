@@ -246,7 +246,7 @@ def test_afdeling_borgt_grof_feit_automatisch_live():
 
             # Afdeling + organisatie → grove feit ontstaat automatisch.
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd1, aantal_gebruikers=40))
+                component_id=app_id, organisatie_id=org_id, afdeling_id=afd1, aantal_gebruikers=40))
             ids.append(g1["id"])
             assert g1["organisatie_id"] == org_id and g1["organisatie_naam"] == "WT-OG-Org2"
             assert g1["afdeling_id"] == afd1 and g1["afdeling"] == "WT-OG-Burgerzaken"
@@ -259,7 +259,7 @@ def test_afdeling_borgt_grof_feit_automatisch_live():
 
             # Tweede afdeling van dezelfde organisatie → hergebruikt hetzelfde grove feit (geen duplicaat).
             g2 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd2, aantal_gebruikers=25))
+                component_id=app_id, organisatie_id=org_id, afdeling_id=afd2, aantal_gebruikers=25))
             ids.append(g2["id"])
             aantal = (await s.execute(
                 select(func.count()).select_from(Organisatiegebruik).where(
@@ -291,7 +291,7 @@ def test_organisatie_verplicht_groep_live():
 
     # Schema: organisatie verplicht.
     with pytest.raises(ValidationError):
-        GebruikersgroepCreate(applicatie_id=uuid.uuid4(), organisatie_id=None, aantal_gebruikers=1)
+        GebruikersgroepCreate(component_id=uuid.uuid4(), organisatie_id=None, aantal_gebruikers=1)
 
     tid = uuid.UUID(_TID)
 
@@ -395,7 +395,7 @@ def test_grof_feit_en_afdeling_raken_engine_niet_live():
 
             await og.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=app_id))
             g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=10))
+                component_id=app_id, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=10))
             ids.append(g["id"])
 
             assert await _status(s, app_id) == voor_status, "lifecycle_status mag niet muteren"
@@ -435,7 +435,7 @@ def test_kaart_gebruikt_door_grove_feiten_live():
             # org1: zowel grof als via een afdeling; org2: grof-only.
             await og.ensure(s, tid, org1, app_id); await s.commit()
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=10))
+                component_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=10))
             ids.append(g1["id"])
             await og.ensure(s, tid, org2, app_id); await s.commit()
 
@@ -488,7 +488,7 @@ def test_signaal_detaillering_ontbreekt_live():
             # Afdeling-mét-organisatie ZONDER aantal → verfijning bestaat → signaal dooft; aantal-
             # onbekend triggert dus niet.
             g1 = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=None))
+                component_id=app_id, organisatie_id=org1, afdeling_id=afd1, aantal_gebruikers=None))
             ids.append(g1["id"])
             assert await _mijn(s, app_id) == []
 
@@ -588,7 +588,7 @@ def test_creatie_afdeling_met_org_borgt_grof_feit_live():
             await s.commit(); ids += [org_id, app_id, afd]
 
             g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_id, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=12))
+                component_id=app_id, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=12))
             ids.append(g["id"])
 
             # Een grof feit voor (tenant, organisatie, DE bediende applicatie) bestaat.
@@ -657,7 +657,7 @@ def test_lijst_voor_organisatie_live():
             # app_a: grof-only feit (geen groep). app_b: grof feit + afdeling-groep → verfijnd.
             await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=org_id, applicatie_id=app_a))
             g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app_b, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=15))
+                component_id=app_b, organisatie_id=org_id, afdeling_id=afd, aantal_gebruikers=15))
             ids.append(g["id"])
             # app_c hangt aan de ándere organisatie → mag NIET in de org-lijst verschijnen.
             await svc.maak_aan(s, tid, OrganisatiegebruikCreate(organisatie_id=ander_org, applicatie_id=app_c))
@@ -728,17 +728,17 @@ def test_afdeling_validaties_live():
 
             # Geldig: afdeling van org1 op een groep met org1.
             g = await gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app1, organisatie_id=org1, afdeling_id=afd1))
+                component_id=app1, organisatie_id=org1, afdeling_id=afd1))
             ids.append(g["id"])
             assert g["afdeling_id"] == afd1 and g["afdeling"] == "WT-AV-Afd1"
 
             # Afdeling van een ANDERE organisatie → 422.
             await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app2, organisatie_id=org1, afdeling_id=afd2)))
+                component_id=app2, organisatie_id=org1, afdeling_id=afd2)))
             await s.rollback()
             # Niet-bestaand afdeling_id → 422.
             await _verwacht_afdelingsfout(gg.maak_aan(s, tid, GebruikersgroepCreate(
-                applicatie_id=app2, organisatie_id=org1, afdeling_id=uuid.uuid4())))
+                component_id=app2, organisatie_id=org1, afdeling_id=uuid.uuid4())))
             await s.rollback()
             # (ADR-038 — een org-loze groep bestaat niet meer; organisatie is verplicht in het schema.)
             return True

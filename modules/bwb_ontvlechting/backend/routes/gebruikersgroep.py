@@ -1,7 +1,7 @@
 """HTTP-routes voor de entiteit Gebruikersgroep (P5-vervolg, ADR-009/010).
 
 Dunne handlers; identiek patroon aan `routes/datatype.py`. Optionele
-tenant-scoped lijst-filter `?applicatie_id=`.
+tenant-scoped lijst-filter `?component_id=`.
 """
 import uuid
 
@@ -39,7 +39,7 @@ def _fout(http_status: int, code: str, bericht: str) -> JSONResponse:
 async def lijst_gebruikersgroepen(
     limit: int = Query(25, ge=1, le=100),
     after: str | None = Query(None),
-    applicatie_id: uuid.UUID | None = Query(None),
+    component_id: uuid.UUID | None = Query(None),
     sort: GebruikersgroepSorteerveld = Query(GebruikersgroepSorteerveld.created_at),
     order: Sorteerrichting = Query(Sorteerrichting.asc),
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSGROEP, Actie.LEZEN)),
@@ -54,7 +54,7 @@ async def lijst_gebruikersgroepen(
             user.tenant_id,
             limit=limit,
             after=after,
-            applicatie_id=applicatie_id,
+            component_id=component_id,
             sort=sort.value,
             order=order.value,
         )
@@ -104,7 +104,7 @@ async def maak_gebruikersgroep(
     user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.GEBRUIKERSGROEP, Actie.AANMAKEN)),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Maak een gebruikersgroep; de ouder-applicatie moet binnen de tenant bestaan."""
+    """Maak een gebruikersgroep; het ouder-component moet binnen de tenant bestaan."""
     return await svc.maak_aan(session, user.tenant_id, body)
 
 

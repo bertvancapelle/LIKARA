@@ -171,7 +171,7 @@ def test_verwijder_met_en_zonder_verfijning_live():
             # Verfijnde groep → het grove feit ontstaat automatisch (ensure).
             groep = await gebruikersgroep_service.maak_aan(
                 s, _TID,
-                GebruikersgroepCreate(applicatie_id=app_id, organisatie_id=org_id),
+                GebruikersgroepCreate(component_id=app_id, organisatie_id=org_id),
             )
             groep_id = groep["id"] if isinstance(groep, dict) else groep.id
             ids.append(groep_id)

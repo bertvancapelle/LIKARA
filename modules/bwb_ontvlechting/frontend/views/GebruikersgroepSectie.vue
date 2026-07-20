@@ -1,6 +1,7 @@
 <script setup>
 /**
- * GebruikersgroepSectie — gebruikersgroepen van één applicatie (in ApplicatieDetail).
+ * GebruikersgroepSectie — gebruikersgroepen van één component (in ComponentDetail).
+ * ADR-055: élk componenttype dat werk ondersteunt, niet alleen applicaties.
  * Dialog-in-sectie (zie DatatypeSectie voor de motivatie). UX-B6-a: `organisatie` is een
  * optionele, zoekbare verwijzing naar een organisatie-partij (geen vrije tekst meer).
  */
@@ -20,7 +21,7 @@ import IdentiteitLabel from './IdentiteitLabel.vue'
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard_in: ['organisatie'] })
 // De afdeling-keuze (incl. soepel zoeken + ter-plekke-aanmaken) loopt via de gedeelde AfdelingSelect.
 
-const props = defineProps({ applicatieId: { type: String, required: true } })
+const props = defineProps({ componentId: { type: String, required: true } })
 const auth = useAuthStore()
 const toast = useToast()
 
@@ -100,7 +101,7 @@ async function laad({ reset = false } = {}) {
   laden.value = true
   fout.value = null
   try {
-    const params = { applicatie_id: props.applicatieId, limit: 25, after: reset ? undefined : cursor.value }
+    const params = { component_id: props.componentId, limit: 25, after: reset ? undefined : cursor.value }
     if (sortVeld.value) {
       params.sort = sortVeld.value
       params.order = sortRichting.value
@@ -217,7 +218,7 @@ async function opslaan() {
       // LI039 blok B — het nieuwe item is HOE DAN OOK zichtbaar: vooraan invoegen mét
       // de aanstip als drager van de uitleg — niet achter "Meer laden" (created_at asc
       // → nieuw landt achteraan). De volgende verse laadbeurt toont de natuurlijke volgorde.
-      const nieuw = await api.gebruikersgroepen.maak({ ...data, applicatie_id: props.applicatieId })
+      const nieuw = await api.gebruikersgroepen.maak({ ...data, component_id: props.componentId })
       toast.add({ severity: 'success', summary: 'Toegevoegd', life: 3000 })
       dialogOpen.value = false
       items.value = [nieuw, ...items.value.filter((i) => i.id !== nieuw.id)]

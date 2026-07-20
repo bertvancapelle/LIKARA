@@ -142,7 +142,7 @@ def test_organisatie_zetten_lezen_en_restrict_live():
             ids += [org_id, app_id]
 
             # Happy path: organisatie zetten → read levert de naam.
-            groep = await svc.maak_aan(s, tid, GebruikersgroepCreate(applicatie_id=app_id, organisatie_id=org_id))
+            groep = await svc.maak_aan(s, tid, GebruikersgroepCreate(component_id=app_id, organisatie_id=org_id))
             gid = groep["id"]; ids.append(gid)
             assert groep["organisatie_id"] == org_id
             assert groep["organisatie_naam"] == "WT-B6a-Organisatie"
@@ -157,7 +157,7 @@ def test_organisatie_zetten_lezen_en_restrict_live():
             ext_id = await _maak_org(s, tid, "WT-B6a-Extern", aard=PartijAard.externe_partij)
             await s.commit(); ids.append(ext_id)
             try:
-                await svc.maak_aan(s, tid, GebruikersgroepCreate(applicatie_id=app_id, organisatie_id=ext_id))
+                await svc.maak_aan(s, tid, GebruikersgroepCreate(component_id=app_id, organisatie_id=ext_id))
                 raise AssertionError("verwachtte OngeldigeRegistratie")
             except OngeldigeRegistratie as e:
                 assert e.code == "ONGELDIGE_ORGANISATIE"
@@ -200,7 +200,7 @@ def test_werk_bij_organisatie_null_geweigerd_live():
             org_id = await _maak_org(s, tid, "WT-038-Org")
             app_id = await _maak_app(s, tid)
             await s.commit(); ids += [org_id, app_id]
-            groep = await svc.maak_aan(s, tid, GebruikersgroepCreate(applicatie_id=app_id, organisatie_id=org_id))
+            groep = await svc.maak_aan(s, tid, GebruikersgroepCreate(component_id=app_id, organisatie_id=org_id))
             gid = groep["id"]; ids.append(gid)
             try:
                 await svc.werk_bij(s, tid, gid, GebruikersgroepUpdate(organisatie_id=None))

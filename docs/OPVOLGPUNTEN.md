@@ -1844,6 +1844,19 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
 
 ## LI047 — Openstaande punten
 
+### Namen die nog "applicatie" zeggen waar "component" wordt bedoeld (ADR-055 open punt 1)
+- **Foutcode `GROEP_ZONDER_APPLICATIE`** (`gebruikersgroep_service.py`) — de gebruikerstekst is
+  hersteld naar "component", de CODE niet. Een foutcode is machine-leesbaar contract: hernoemen
+  raakt afnemers zonder dat er voor de gebruiker iets tegenover staat. Meenemen wanneer er tóch
+  een contractwijziging op dat endpoint plaatsvindt.
+- **Kolom `organisatiegebruik.applicatie_id`** (`models.py`, klasse `Organisatiegebruik`) — een
+  ECHTE databasekolom die het id van elk componenttype draagt (ADR-041 maakte de grove laag al
+  component-breed; de kolomnaam bleef, met de opmerking "de kolomnaam is historisch").
+  **Dit is een schemastap met migratie** — eigen besluit, niet meeliften.
+- **`heeft_applicatie_subtype`** (API-veld, `ComponentRead`/`ComponentLijstItem`) — staat al
+  langer op deze lijst; eigen betekenisvraag (het veld zegt "subtype" terwijl er geen subtabel
+  meer is), dus niet zomaar een hernoeming.
+
 ### Parkeer-items (geen actie tot opgepakt)
 - **Uitleg-icoon schaalt niet mee met zijn buur** — de "i" in `VeldUitleg.vue:129` is vast
   20 px (`h-5 w-5`) met 12 px tekst (`--lk-text-xs`), ongeacht of hij naast een kop van 24 px
