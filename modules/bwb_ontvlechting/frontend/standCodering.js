@@ -26,13 +26,17 @@ export const STAND_CODERING = {
     ernst: 'werk',
     icoon: '○',
     lijstTekst: () => 'nog niet vastgelegd waarmee dit werk gedaan wordt',
-    legendaTekst: 'nog niet vastgelegd waarmee',
+    // GEEN legendaTekst (LI047) — zie de noot bij `werkvoorraad`: beide amber-standen delen één
+    // legenda-regel, die haar eigen ernst-tekst draagt (STAND_LEGENDA).
   }),
   werkvoorraad: _stand('--lk-color-warning', {
     ernst: 'werk',
     icoon: '◑',
     lijstTekst: () => 'component bekend, gebruiker nog niet vastgelegd',
-    legendaTekst: 'component er, gebruiker nog niet',
+    // GEEN legendaTekst (LI047): `werkvoorraad` deelt op de kaart de amber ernst-regel met `gat`, en
+    // die regel draagt haar eigen ernst-tekst (zie STAND_LEGENDA). Een legendaTekst hier zou nooit
+    // gerenderd worden — en zich voordoen als de knop waaraan je de legenda verzet. Niet terugzetten:
+    // wil je de legenda wijzigen, dan is STAND_LEGENDA de plek.
   }),
   hier: _stand('--lk-color-success', {
     ernst: 'in_orde',

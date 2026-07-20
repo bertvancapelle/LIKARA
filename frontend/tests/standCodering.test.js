@@ -6,7 +6,7 @@ import { STAND_CODERING, STAND_LEGENDA, standPillStyle, standKaartKleur } from '
 describe('standCodering — de ene bron voor de vijf plek-standen', () => {
   const STANDEN = ['gat', 'werkvoorraad', 'hier', 'via_boven', 'niets']
 
-  it('elke stand draagt ernst + kleur (lk-token) + icoon + lijstTekst + legendaTekst', () => {
+  it('elke stand draagt ernst + kleur (lk-token) + icoon + lijstTekst', () => {
     for (const stand of STANDEN) {
       const c = STAND_CODERING[stand]
       expect(c, stand).toBeTruthy()
@@ -14,11 +14,30 @@ describe('standCodering — de ene bron voor de vijf plek-standen', () => {
       expect(c.kleur).toMatch(/^var\(--lk-color-/) // token, geen losse hex → dark-mode-safe
       expect(typeof c.icoon).toBe('string')
       expect(typeof c.lijstTekst({})).toBe('string')
-      expect(typeof c.legendaTekst).toBe('string')
-      expect(c.legendaTekst.length).toBeGreaterThan(0)
     }
     // De bron kent precies deze vijf standen.
     expect(Object.keys(STAND_CODERING).sort()).toEqual([...STANDEN].sort())
+  })
+
+  // LI047 — geen tekst zonder lezer. Eerder eiste de lus hierboven `legendaTekst` op élke stand;
+  // daardoor bleven twee teksten bestaan die nergens gerenderd werden (`gat` + `werkvoorraad`) en zich
+  // voordeden als de plek waar je de legenda verzet. Deze test bewaakt de afspraak ONVOORWAARDELIJK,
+  // in beide richtingen: elke tekst die er staat wordt gelezen, en elke legenda-regel die uit de bron
+  // put vindt zijn tekst.
+  it('legendaTekst: elke tekst die er staat wordt ook echt door de legenda gelezen', () => {
+    for (const stand of STANDEN) {
+      const tekst = STAND_CODERING[stand].legendaTekst
+      if (tekst === undefined) continue
+      expect(typeof tekst, stand).toBe('string')
+      expect(tekst.length, stand).toBeGreaterThan(0)
+      expect(STAND_LEGENDA.some((r) => r.tekst === tekst), `${stand}: tekst zonder lezer`).toBe(true)
+    }
+    // De amber-ernst (gat + werkvoorraad) deelt ÉÉN legenda-regel met een eigen ernst-tekst — één
+    // kleur, één uitleg. Die tekst komt dus bewust niet uit STAND_CODERING; het onderscheid tussen de
+    // twee standen leest de consultant via de lijst-pill.
+    expect(STAND_CODERING.gat.legendaTekst).toBeUndefined()
+    expect(STAND_CODERING.werkvoorraad.legendaTekst).toBeUndefined()
+    expect(STAND_LEGENDA.find((r) => r.ernst === 'werk').tekst).toBe('nog vast te leggen (werk)')
   })
 
   it('ernst→kleur: werk=amber (gat+werkvoorraad) · hier=groen · via_boven=blauw · niets=grijs', () => {

@@ -78,8 +78,9 @@ export const AUDIT_ENTITEIT = {
   referentiemodel: 'Referentiemodel',
 }
 
-// LI019 — leesbare labels voor systeem-actoren (actor_sub met "system:"-prefix).
-export const SYSTEEM_ACTOR = {
+// LI019 — leesbare labels voor systeem-actoren (actor_sub met "system:"-prefix). Bewust NIET
+// geëxporteerd (LI047): de enige lezer is `actorWeergave` hieronder — dát is de gedeelde ingang.
+const SYSTEEM_ACTOR = {
   'system:dev_seed': 'Systeem (seed)',
   'system:worker': 'Systeem (worker)',
   'system:platform_init': 'Systeem (initialisatie)',
@@ -276,12 +277,8 @@ export const SCORE = {
   nvt: 'N.v.t.',
 }
 
-export const SCORE_SEVERITY = {
-  ja: 'success',
-  deels: 'warn',
-  nee: 'danger',
-  nvt: 'info',
-}
+// (LI047 — `SCORE_SEVERITY` (PrimeVue-severity per score) is verwijderd: nul consumenten in
+// schermen én tests. De score-kleur loopt via `SCORE_KLEUR` hieronder, dat wél overal wordt gebruikt.)
 
 // Score → kleur (ÉÉN gedeelde bron, overal consistent): Ja groen · Deels oranje ·
 // Nee rood · N.v.t. neutraal/grijs. Tailwind tekstkleur-classes op de --lk-tokens.
