@@ -31,14 +31,14 @@ export const STAND_CODERING = {
   werkvoorraad: _stand('--lk-color-warning', {
     ernst: 'werk',
     icoon: '◑',
-    lijstTekst: () => 'systeem bekend, gebruiker nog niet vastgelegd',
-    legendaTekst: 'systeem er, gebruiker nog niet',
+    lijstTekst: () => 'component bekend, gebruiker nog niet vastgelegd',
+    legendaTekst: 'component er, gebruiker nog niet',
   }),
   hier: _stand('--lk-color-success', {
     ernst: 'in_orde',
     icoon: '✓',
     lijstTekst: (ctx = {}) => (ctx.systeem ? `hier draait: ${ctx.systeem}` : 'hier draait'),
-    legendaTekst: 'hier draait een systeem',
+    legendaTekst: 'hier draait een component',
   }),
   via_boven: _stand('--lk-color-primary-700', {
     ernst: 'gedekt',

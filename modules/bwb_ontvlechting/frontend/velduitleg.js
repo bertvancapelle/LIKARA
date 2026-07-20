@@ -30,17 +30,17 @@ export const VELD_UITLEG = {
   // ── Bedrijfsfunctie-koppeling (ADR-043 gate 4) ──────────────────────────────
   bedrijfsfunctie: {
     uitleg:
-      'Waarvoor dient dit systeem? Koppel het aan één of meer bedrijfsfuncties — wat de ' +
+      'Waarvoor dient dit component? Koppel het aan één of meer bedrijfsfuncties — wat de ' +
       'organisatie kán, los van hoe de processen zijn ingericht. Voorbeeld: een zaaksysteem ' +
       'ondersteunt "Vergunningverlening".',
     vuistregel:
       'Begin grof ("geldt overal") — dat is het vertrekpunt. Verfijn later naar één plek als het ' +
-      'daar met een ander systeem gaat. Geen bedrijfsfunctie? Dan staat het als openstaand punt ' +
+      'daar met een ander component gaat. Geen bedrijfsfunctie? Dan staat het als openstaand punt ' +
       'in de werkvoorraad — dat mag; leeg is geen fout.',
   },
   applicatiefunctie: {
     uitleg:
-      'Een applicatiefunctie is wat een systeem dóét binnen een proces; dit geldt voor elk ' +
+      'Een applicatiefunctie is wat een component dóét binnen een proces; dit geldt voor elk ' +
       'componenttype (ook een database of landelijke voorziening). Voorbeeld: Zaaksysteem ' +
       'vervult "registreren" in Vergunningverlening.',
     vuistregel:
@@ -107,7 +107,7 @@ export const VELD_UITLEG = {
     // ("draait het?") is een eigen veld (levensfase). Geen fase-taal meer in dit veld.
     uitleg:
       'De bedoeling met dit component — waar gaat het heen: gaat het mee (lift-and-shift), wordt het ' +
-      'herbouwd, vervangen of gedeeld. Los van de levensfase: een systeem dat gewoon draait kan al een ' +
+      'herbouwd, vervangen of gedeeld. Los van de levensfase: een component dat gewoon draait kan al een ' +
       'bestemming hebben.',
   },
   levensfase: {
@@ -296,7 +296,7 @@ export const VELD_UITLEG = {
     uitleg:
       'Aan = met componenten van dit type wordt werk gedaan; ze zijn koppelbaar aan een ' +
       'bedrijfsfunctie (een zaaksysteem, maar ook een fileshare waar dossiers op leven). ' +
-      'Uit = het type ondersteunt een systeem, geen mens (database, server) en verschijnt ' +
+      'Uit = het type ondersteunt een ander component, geen mens (database, server) en verschijnt ' +
       'niet in de koppel-keuze.',
     vuistregel:
       'Uitzetten verwijdert niets: bestaande koppelingen blijven staan en blijven zichtbaar.',
@@ -332,24 +332,24 @@ export const OPTIE_UITLEG = {
   // Set 'componentrol' — ADR-028.
   componentrol: {
     interne_applicatie:
-      'Een eigen systeem waar de organisatie zelf mee werkt — met gebruikers en functionaliteit, ' +
+      'Een eigen component waar de organisatie zelf mee werkt — met gebruikers en functionaliteit, ' +
       'geen puur doorgeefpunt. Standaardkeuze als geen van de andere beter past.',
     interne_dataprovider:
-      'Een eigen bron die vooral gegevens levert aan andere interne systemen, meer dan dat er ' +
+      'Een eigen bron die vooral gegevens levert aan andere interne componenten, meer dan dat er ' +
       'mensen rechtstreeks in werken.',
     externe_dataprovider:
       'Een bron buiten de eigen organisatie waar gegevens vandaan komen: een basisregistratie ' +
       '(BAG, BRP), een landelijke voorziening of een ketenpartner. De organisatie neemt de data af ' +
-      'maar beheert het systeem niet zelf.',
+      'maar beheert het component niet zelf.',
     koppelvlak:
       'Een technische tussenlaag die twee kanten verbindt — adapter, API-gateway of middleware. ' +
-      'Geen systeem waar je in werkt en geen echte gegevensbron, maar de verbinding ertussen.',
+      'Geen component waar je in werkt en geen echte gegevensbron, maar de verbinding ertussen.',
   },
 
   // Set 'componenttype' — LI060 (8 typen).
   componenttype: {
     applicatie:
-      'Een systeem waar gebruikers mee werken om taken uit te voeren — het klassieke ' +
+      'Een component waar gebruikers mee werken om taken uit te voeren — het klassieke ' +
       'informatiesysteem. Wordt beoordeeld op registratie-volledigheid.',
     database:
       'Een gegevensopslag/databank die applicaties gebruiken of waarop ze draaien — niet waar mensen ' +
@@ -362,7 +362,7 @@ export const OPTIE_UITLEG = {
       'Een dienst die extern als abonnement wordt afgenomen (software-as-a-service) — je gebruikt ' +
       'hem, maar draait hem niet zelf.',
     integratievoorziening:
-      'Verbindende software die systemen aan elkaar knoopt (ESB, middleware, berichtenbus) — het ' +
+      'Verbindende software die componenten aan elkaar knoopt (ESB, middleware, berichtenbus) — het ' +
       'bindweefsel van het landschap.',
     fileshare: 'Een gedeelde bestandsopslag (netwerkschijf, share).',
     landelijke_voorziening:
@@ -389,7 +389,7 @@ export const OPTIE_UITLEG = {
   kostenmodel: {
     saas_pxq: 'Prijs per eenheid × aantal (klassiek SaaS-model, bv. per gebruiker per maand).',
     volume: 'Staffel op basis van afgenomen volume.',
-    per_inwoner: 'Kosten per inwoner van de gemeente (gebruikelijk bij gemeentelijke voorzieningen).',
+    per_inwoner: 'Kosten per inwoner van het gebied dat de organisatie bedient (gebruikelijk bij overheidsvoorzieningen).',
   },
 
   // Set 'aard' — PARTIJ_AARD. ADR-038: burger-doelgroepen zijn gewone (externe) organisaties.
@@ -430,7 +430,7 @@ export const OPTIE_UITLEG = {
   // Set 'koppelrichting' — KOPPELRICHTING.
   koppelrichting: {
     eenrichting: 'Gegevens stromen van de bron naar het doel, niet terug.',
-    tweerichting: 'Gegevens stromen beide kanten op tussen de twee systemen.',
+    tweerichting: 'Gegevens stromen beide kanten op tussen de twee componenten.',
   },
 
   // Set 'score' — SCORE.
@@ -471,7 +471,7 @@ export const OPTIE_UITLEG = {
     artifact: 'Een concreet bestand of gegevensdrager (ArchiMate: artifact).',
     technology_service: 'Een dienst geleverd door infrastructuur/techniek (ArchiMate: technology service).',
     device: 'Een fysiek apparaat waarop software draait — server, werkstation of appliance (ArchiMate: device).',
-    communication_network: 'Een netwerk dat systemen met elkaar verbindt (ArchiMate: communication network).',
+    communication_network: 'Een netwerk dat componenten met elkaar verbindt (ArchiMate: communication network).',
     business_service:
       'Een dienst die de organisatie levert, aan de buitenwereld of aan zichzelf (ArchiMate: business service).',
     business_object:

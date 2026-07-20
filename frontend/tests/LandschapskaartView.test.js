@@ -1085,7 +1085,7 @@ describe('LandschapskaartView v3', () => {
       await flushPromises()
       // De vier ernst-regels met de bron-teksten (STAND_LEGENDA) — legenda en kaart uit één bron.
       expect(w.find('[data-testid="lk-legenda-stand-werk"]').text()).toContain('nog vast te leggen')
-      expect(w.find('[data-testid="lk-legenda-stand-in_orde"]').text()).toContain('hier draait een systeem')
+      expect(w.find('[data-testid="lk-legenda-stand-in_orde"]').text()).toContain('hier draait een component')
       expect(w.find('[data-testid="lk-legenda-stand-gedekt"]').text()).toContain('gedekt via een bovenliggende functie')
       expect(w.find('[data-testid="lk-legenda-stand-besluit"]').text()).toContain('hier wordt bewust niets gebruikt')
       // Meebewegend: onder status toont de legenda de status-codering, niet de stand-regels.

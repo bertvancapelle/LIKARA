@@ -177,7 +177,7 @@ laad()
       Applicatiefuncties
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-      Wat een systeem dóét binnen een proces (bv. registreren, raadplegen) — het wát-veld op de
+      Wat een component dóét binnen een proces (bv. registreren, raadplegen) — het wát-veld op de
       koppeling component→proces. Vrij uitbreidbaar; verwijderen is deactiveren, zodat bestaande
       koppelingen leesbaar blijven. Er zijn geen beschermde opties.
     </p>

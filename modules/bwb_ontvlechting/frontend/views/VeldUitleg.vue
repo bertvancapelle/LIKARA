@@ -34,7 +34,7 @@ const props = defineProps({
   testid: { type: String, default: null },
 })
 
-const LAT_PASSAGE = 'Dit feit telt mee om dit systeem klaar te kunnen verklaren. Opslaan kan wel zonder.'
+const LAT_PASSAGE = 'Dit feit telt mee om dit component klaar te kunnen verklaren. Opslaan kan wel zonder.'
 // De norm-stand ({feit: verplicht}) wordt door het SCHERM ge-provide (ComponentFormulier/-Detail via
 // useNormLat). Elders (geen provide) → lege map → geen aanduiding. Backward-compatible.
 const normVerplicht = inject('normVerplicht', ref({}))

@@ -163,7 +163,7 @@ describe('VeldUitleg — norm-feit (op de lat)', () => {
     await w.find('[data-testid="uitleg-eigenaar_organisatie_id-knop"]').trigger('click')
     const lat = w.find('[data-testid="uitleg-eigenaar_organisatie_id-lat"]')
     expect(lat.exists()).toBe(true)
-    expect(lat.text()).toContain('telt mee om dit systeem klaar te kunnen verklaren')
+    expect(lat.text()).toContain('telt mee om dit component klaar te kunnen verklaren')
     expect(lat.text()).toContain('Opslaan kan wel zonder') // besluit 16 — geen sterretje-belofte
   })
 

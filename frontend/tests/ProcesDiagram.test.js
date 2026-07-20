@@ -246,7 +246,7 @@ describe('ProcesDiagram — LI038 gate 2: enkele klik = kijken (selectie + popup
     const w = await metCentrum({ gapIds: new Set(['th']) })
     w.vm.selecteer('th')
     await flushPromises()
-    expect(w.find('[data-testid="diagram-popup-gap"]').text()).toBe('geen ondersteunend systeem')
+    expect(w.find('[data-testid="diagram-popup-gap"]').text()).toBe('geen ondersteunend component')
     w.vm.selecteer('ab')
     await flushPromises()
     expect(w.find('[data-testid="diagram-popup-gap"]').exists()).toBe(false)

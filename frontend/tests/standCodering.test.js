@@ -33,7 +33,7 @@ describe('standCodering — de ene bron voor de vijf plek-standen', () => {
 
   it('de twee amber-standen dragen ONDERSCHEIDEN tekst (één ernst, twee betekenissen)', () => {
     expect(STAND_CODERING.gat.lijstTekst({})).toContain('nog niet vastgelegd waarmee')
-    expect(STAND_CODERING.werkvoorraad.lijstTekst({})).toContain('systeem bekend, gebruiker nog niet')
+    expect(STAND_CODERING.werkvoorraad.lijstTekst({})).toContain('component bekend, gebruiker nog niet')
     expect(STAND_CODERING.gat.lijstTekst({})).not.toBe(STAND_CODERING.werkvoorraad.lijstTekst({}))
   })
 

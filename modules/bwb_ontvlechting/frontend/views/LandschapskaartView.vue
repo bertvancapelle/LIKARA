@@ -1609,7 +1609,7 @@ const _EDGE_TAKKEN = {
       ? { titel: 'Onderdeel van', velden: [_veld('Functie', bronNaam), _veld('Onderdeel van', doelNaam)] }
       : {
           titel: 'Ondersteunt',
-          velden: [_veld('Systeem', bronNaam), _veld('Bedrijfsfunctie', doelNaam)],
+          velden: [_veld('Component', bronNaam), _veld('Bedrijfsfunctie', doelNaam)],
           aanleidingBron: { tab: 'bedrijfsfunctie' }, // het feit leeft op de Bedrijfsfunctie-tab
         },
   gebruikers: ({ nodeDoel, bronNaam, doelNaam }) => ({
@@ -3368,7 +3368,7 @@ const typeLabel = (t) => humaniseer(t)
             v-if="popupProcesGap"
             data-testid="lk-popup-geen-systeem"
             class="mt-2 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
-          >Geen ondersteunend systeem geregistreerd.</p>
+          >Geen ondersteunend component geregistreerd.</p>
           <!-- LI036 stap 3 (besluit A) — "Vervuld door": scanbare componentnamen; de herkomst
                (deelproces · functies) klapt per component uit (native details, standaard dicht). -->
           <div v-if="popupVervuldDoor.length" data-testid="lk-popup-vervuld" class="mt-2 flex flex-col gap-0.5 text-[length:var(--lk-text-sm)]">

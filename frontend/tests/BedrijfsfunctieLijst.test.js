@@ -922,7 +922,7 @@ describe('BedrijfsfunctieLijst — ADR-051 gate 3: standen + oordeel + bevinding
     expect(w.find('[data-testid="functie-stand-gat-bs"]').exists()).toBe(false)
   })
 
-  it('slice B1 (G4-6) — werkvoorraad (systeem zónder gebruikersgroep) leest ANDERS dan hier', async () => {
+  it('slice B1 (G4-6) — werkvoorraad (component zónder gebruikersgroep) leest ANDERS dan hier', async () => {
     const _comp = (id, naam) => ({ vervulling_id: `v-${id}`, component_id: id, component_naam: naam, componenttype: 'applicatie', componenttype_label: 'Applicatie', oordeel: null })
     api.functievervullingen.dekking.mockResolvedValue([
       { functie_id: 'pr', ouder_functie_id: null, herkomst: 'grof', componenten: [_comp('c1', 'Zaaksysteem')], verdrongen: [], bevinding_id: null, grof_totaal_plekken: 1, grof_geldt_op: 1 },
@@ -933,11 +933,11 @@ describe('BedrijfsfunctieLijst — ADR-051 gate 3: standen + oordeel + bevinding
       { functie_id: 'bs', ouder_functie_id: null, stand: 'werkvoorraad', via_functie_id: null, via_aantal: 0 },
     ], tellers: {} })
     const w = await mountLijst()
-    // hier = groene "hier draait"; werkvoorraad = amber "systeem bekend, gebruiker nog niet".
+    // hier = groene "hier draait"; werkvoorraad = amber "component bekend, gebruiker nog niet".
     expect(w.find('[data-testid="functie-stand-hier-pr"]').text()).toContain('hier draait')
     const wv = w.find('[data-testid="functie-stand-werkvoorraad-bs"]')
     expect(wv.exists()).toBe(true)
-    expect(wv.text()).toContain('systeem bekend, gebruiker nog niet vastgelegd')
+    expect(wv.text()).toContain('component bekend, gebruiker nog niet vastgelegd')
     // De kernfix: werkvoorraad vermomt zich NIET meer als "hier draait".
     expect(wv.text()).not.toContain('hier draait')
     // De namen blijven leesbaar op beide scanlagen.

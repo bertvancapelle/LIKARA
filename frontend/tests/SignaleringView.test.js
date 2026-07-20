@@ -117,7 +117,7 @@ describe('SignaleringView', () => {
     expect(sec.text()).toContain('De lat is verschoven')
     const rij = w.find('[data-testid="sig-verschoven-bedoeling"]')
     expect(rij.text()).toContain('Bedoeling (migratiepad)')
-    expect(rij.text()).toContain('2 systemen')
+    expect(rij.text()).toContain('2 componenten')
     expect(w.find('[data-testid="sig-verschoven-bedoeling-c1"] a').attributes('href')).toContain('/componenten/c1')
   })
 

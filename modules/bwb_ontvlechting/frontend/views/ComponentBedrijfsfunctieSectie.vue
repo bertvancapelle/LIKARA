@@ -58,7 +58,7 @@ function reikwijdte(k) {
   if (k.grof_totaal_plekken && k.grof_totaal_plekken > 1)
     delen.push(`geldt op ${k.grof_geldt_op} van de ${k.grof_totaal_plekken} plekken`)
   if (k.verdrongen_op)
-    delen.push(`op ${k.verdrongen_op} plek${k.verdrongen_op > 1 ? 'ken' : ''} verfijnd met een ander systeem`)
+    delen.push(`op ${k.verdrongen_op} plek${k.verdrongen_op > 1 ? 'ken' : ''} verfijnd met een ander component`)
   return delen.join(' · ')
 }
 
@@ -112,7 +112,7 @@ async function kiesFunctie(item) {
 const koppelZin = computed(() => {
   const f = gekozenFunctie.value
   if (!f) return ''
-  const wie = props.componentNaam || 'dit systeem'
+  const wie = props.componentNaam || 'dit component'
   if (scope.value === 'hier' && plekId.value) {
     const p = plekOpties.value.find((x) => x.ouder_id === plekId.value)
     return `"${wie}" ondersteunt "${f.naam}" alleen op deze plek (onder "${p?.ouder_naam ?? '…'}"). Een grof antwoord op deze plek wordt hier vervangen.`
@@ -177,7 +177,7 @@ const verwijderOpen = ref(false)
 const teVerwijderen = ref(null)
 const verwijderBezig = ref(false)
 function omschrijving(k) {
-  const wie = props.componentNaam || 'dit systeem'
+  const wie = props.componentNaam || 'dit component'
   if (k.herkomst === 'fijn') {
     return `De koppeling van "${wie}" aan "${k.functie_naam}" (onder "${k.ouder_naam}") weghalen? Een antwoord dat overal geldt wordt hier weer leesbaar.`
   }
@@ -265,7 +265,7 @@ watch(() => props.componentId, () => laad(), { immediate: true })
       </li>
     </ul>
     <p v-else-if="!laden && !fout" data-testid="cbf-leeg" class="mb-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]">
-      Nog niet vastgelegd waarvoor dit systeem wordt gebruikt.
+      Nog niet vastgelegd waarvoor dit component wordt gebruikt.
       <template v-if="magKoppelen"> Koppel het hieronder aan een bedrijfsfunctie.</template>
     </p>
 

@@ -583,7 +583,7 @@ onMounted(async () => {
         <select
           v-model="filterZonderBedrijfsfunctie"
           data-testid="filter-zonder-bedrijfsfunctie"
-          aria-label="Filter op systemen zonder bedrijfsfunctie"
+          aria-label="Filter op componenten zonder bedrijfsfunctie"
           class="lk-veld"
           @change="herfilter"
         >

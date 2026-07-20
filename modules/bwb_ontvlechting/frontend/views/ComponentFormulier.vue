@@ -467,7 +467,7 @@ function bevestigAnnuleren() {
             </div>
             <span v-if="regelFout" role="alert" data-testid="regel-fout" class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-danger)]">{{ regelFout }}</span>
             <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
-              Elke koppeling geldt overal ("het vertrekpunt"); verfijn later per plek op het systeem zelf.
+              Elke koppeling geldt overal ("het vertrekpunt"); verfijn later per plek op het component zelf.
               De koppelingen worden na het aanmaken van het component in één keer opgeslagen.
             </p>
           </div>

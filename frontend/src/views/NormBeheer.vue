@@ -90,7 +90,7 @@ laad()
       Migratienorm
     </h1>
     <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-      De lat voor "migratieklaar": welke feiten moeten bekend zijn voordat een systeem klaar verklaard
+      De lat voor "migratieklaar": welke feiten moeten bekend zijn voordat een component klaar verklaard
       mag worden. Een verplicht feit dat nog niet is vastgesteld verschijnt als openstaand werk — het
       blokkeert niets.
     </p>
@@ -162,12 +162,12 @@ laad()
       <div class="min-w-[24rem] max-w-prose" data-testid="norm-impact">
         <p v-if="impact === null" class="text-[var(--lk-color-text-muted)]">Impact niet beschikbaar — je kunt toch opslaan.</p>
         <p v-else-if="pending?.verplicht_doel">
-          Dit raakt <strong>{{ impact.componenten_geraakt }}</strong> systemen die er nu niet aan voldoen<template v-if="impact.klaarverklaringen_geraakt">
+          Dit raakt <strong>{{ impact.componenten_geraakt }}</strong> componenten die er nu niet aan voldoen<template v-if="impact.klaarverklaringen_geraakt">
           — waarvan <strong>{{ impact.klaarverklaringen_geraakt }}</strong> eerder klaar {{ impact.klaarverklaringen_geraakt === 1 ? 'is' : 'zijn' }} verklaard</template>.
         </p>
         <p v-else>
           <strong>{{ impact.componenten_geraakt }}</strong> openstaande {{ impact.componenten_geraakt === 1 ? 'signaal vervalt' : 'signalen vervallen' }}<template v-if="impact.componenten_nu_compleet">,
-          en <strong>{{ impact.componenten_nu_compleet }}</strong> {{ impact.componenten_nu_compleet === 1 ? 'systeem voldoet' : 'systemen voldoen' }} daardoor alsnog volledig</template>.
+          en <strong>{{ impact.componenten_nu_compleet }}</strong> {{ impact.componenten_nu_compleet === 1 ? 'component voldoet' : 'componenten voldoen' }} daardoor alsnog volledig</template>.
         </p>
         <p class="mt-[var(--lk-space-sm)] text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
           Geen blokkade — je mag dit doen. Dit is alleen wat het aanricht.

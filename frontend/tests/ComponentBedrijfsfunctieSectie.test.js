@@ -61,7 +61,7 @@ describe('ComponentBedrijfsfunctieSectie — lezen (uit de leeslaag)', () => {
     expect(rij.text()).toContain('geldt overal')
     // De reikwijdte/verdringing komt uit de server-afleiding — niet hier berekend.
     expect(w.find('[data-testid="cbf-reikwijdte-g1"]').text()).toContain('geldt op 1 van de 2 plekken')
-    expect(w.find('[data-testid="cbf-reikwijdte-g1"]').text()).toContain('1 plek verfijnd met een ander systeem')
+    expect(w.find('[data-testid="cbf-reikwijdte-g1"]').text()).toContain('1 plek verfijnd met een ander component')
   })
 
   it('toont een fijne koppeling met de plek-context', async () => {

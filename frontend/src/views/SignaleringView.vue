@@ -130,7 +130,7 @@ onMounted(laadGaten)
           <span aria-hidden="true">↔</span> De lat is verschoven
         </h2>
         <p class="mb-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-          De organisatie heeft haar norm aangescherpt. Deze eerder klaar verklaarde systemen missen nu
+          De organisatie heeft haar norm aangescherpt. Deze eerder klaar verklaarde componenten missen nu
           een verplicht gesteld feit — geen nalatigheid, maar werk dat erbij is gekomen.
         </p>
         <div
@@ -140,7 +140,7 @@ onMounted(laadGaten)
           :data-testid="`sig-verschoven-${rij.feit}`"
         >
           <p class="mb-1 text-[length:var(--lk-text-sm)] font-semibold text-[var(--lk-color-text)]">
-            {{ label(NORM_FEIT_LABEL, rij.feit) }} — {{ rij.aantal }} syst{{ rij.aantal === 1 ? 'eem' : 'emen' }}
+            {{ label(NORM_FEIT_LABEL, rij.feit) }} — {{ rij.aantal }} {{ rij.aantal === 1 ? 'component' : 'componenten' }}
           </p>
           <!-- Besluit 5 — wanneer/door wie de lat verschoof (uit het audit-spoor); alleen als bekend. -->
           <p

@@ -78,7 +78,7 @@ const _TEKSTEN = {
   wortel: 'Hoofdproces',
   landschap: 'Toon hele processenlandschap',
   detailLink: 'Open proces →',
-  gap: 'geen ondersteunend systeem',
+  gap: 'geen ondersteunend component',
   vervallen: 'vervallen in het referentiemodel',
 }
 const T = computed(() => ({ ..._TEKSTEN, ...props.teksten }))

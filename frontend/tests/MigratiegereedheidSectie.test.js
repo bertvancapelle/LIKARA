@@ -187,7 +187,7 @@ describe('MigratiegereedheidSectie — norm-afwijking (ADR-052 slice 3)', () => 
     w.vm.openDialog()
     await flushPromises()
     expect(w.find('[data-testid="mg-dialog-norm"]').exists()).toBe(true) // de lat is er al het onderwerp
-    expect(w.html()).not.toContain('telt mee om dit systeem klaar te kunnen verklaren')
+    expect(w.html()).not.toContain('telt mee om dit component klaar te kunnen verklaren')
   })
 })
 

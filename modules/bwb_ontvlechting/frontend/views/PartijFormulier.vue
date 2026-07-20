@@ -263,7 +263,7 @@ const TEKSTVELDEN = [
       <div v-if="magScope" class="flex flex-col gap-[var(--lk-space-xs)]" data-testid="veld-scope-wrap">
         <span class="font-semibold">Intern of extern</span>
         <p class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-          Markeer je eigen organisatie als intern. Deelnemende gemeenten, partners en burger-doelgroepen zijn extern.
+          Markeer je eigen organisatie als intern. Deelnemende organisaties, partners en burger-doelgroepen zijn extern.
         </p>
         <div class="flex gap-[var(--lk-space-md)]">
           <label
