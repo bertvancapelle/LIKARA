@@ -13,16 +13,18 @@
  * geopend wát er niets open is.
  */
 import { computed, ref, watch } from 'vue'
-import { api } from '@/api'
 import { NORM_FEIT_LABEL } from '../labels'
 import AppTabs from './AppTabs.vue'
 
-const props = defineProps({ componentId: { type: String, required: true } })
+// LI047 snede 2 — ÉÉN laadpunt: `ComponentDetail` haalt de open punten op en voedt hiermee zowel
+// de teller op de kopknop als deze lijst. Deze sectie laadt dus NIET zelf; een tweede aanroep zou
+// twee laadmomenten geven die na een mutatie uiteen kunnen lopen, en dan zegt de knop "4" terwijl
+// het tabblad drie regels toont — een leugen die niemand opmerkt.
+const props = defineProps({
+  componentId: { type: String, required: true },
+  data: { type: Object, default: null },
+})
 const emit = defineEmits(['ga-naar'])
-
-const data = ref(null)
-const laden = ref(false)
-const fout = ref(null)
 
 // Besluit 5 — "Dit moet nog" staat bij binnenkomst open, ook bij terugkeer. Deze keuze leeft
 // bewust NIET in de URL en niet in sessionStorage: het blok is geen plek die je deelt, en een
@@ -37,10 +39,10 @@ const actiefBlok = ref('moet_nog')
 
 // Besluit 4 — de teller staat in de tabnaam en komt uit dezelfde respons als de lijst.
 const blokTabs = computed(() =>
-  BLOKKEN.map((b) => ({ key: b.key, label: `${b.label} (${data.value?.[b.key]?.aantal ?? 0})` })),
+  BLOKKEN.map((b) => ({ key: b.key, label: `${b.label} (${props.data?.[b.key]?.aantal ?? 0})` })),
 )
-const huidig = computed(() => data.value?.[actiefBlok.value] ?? { aantal: 0, punten: [] })
-const kv = computed(() => data.value?.klaarverklaring ?? null)
+const huidig = computed(() => props.data?.[actiefBlok.value] ?? { aantal: 0, punten: [] })
+const kv = computed(() => props.data?.klaarverklaring ?? null)
 
 // Besluit 3 — blok 3 draagt wat géén ontbrekend feit is; de checklistregel is GEBUNDELD.
 const VALT_OP_TEKST = {
@@ -62,28 +64,10 @@ function puntLabel(punt) {
   return (VALT_OP_TEKST[punt.soort] ?? (() => punt.soort))(punt.aantal)
 }
 
-async function laad() {
-  laden.value = true
-  fout.value = null
-  try {
-    data.value = await api.componentNormen.openPunten(props.componentId)
-  } catch (e) {
-    fout.value = e?.status === 401 ? null : e?.message || 'Laden van de open punten mislukt.'
-  } finally {
-    laden.value = false
-  }
-}
+// Besluit 5 — bij een componentwissel terug naar "Dit moet nog": de bezoeker wil zien wat er moet,
+// niet welk blok hij het laatst opensloeg.
+watch(() => props.componentId, () => { actiefBlok.value = 'moet_nog' })
 
-watch(
-  () => props.componentId,
-  () => {
-    actiefBlok.value = 'moet_nog' // besluit 5 — geen onthouden blok-keuze over componenten heen
-    laad()
-  },
-  { immediate: true },
-)
-
-defineExpose({ herlaad: laad })
 </script>
 
 <template>
@@ -92,10 +76,7 @@ defineExpose({ herlaad: laad })
       <h2 id="open-punten-titel">Wat heeft dit component nog nodig</h2>
     </div>
 
-    <p v-if="fout" role="alert" data-testid="op-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
-    <p v-if="laden" data-testid="op-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>
-
-    <template v-if="data">
+    <template v-if="props.data">
       <!-- Besluiten 16/17 — vóór klaarverklaring neutraal; erná verantwoording, mét wie en wanneer.
            De punten verdwijnen niet (15): er is besloten er niet op te wachten, niet dat ze weg zijn. -->
       <div

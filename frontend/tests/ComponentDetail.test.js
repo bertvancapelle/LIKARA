@@ -145,6 +145,15 @@ const _component = (over = {}) => ({
 beforeEach(() => {
   vi.clearAllMocks()
   api.componenten.haal.mockResolvedValue(_component())
+  // LI047 — expliciet terugzetten: `clearAllMocks` wist aanroepen maar NIET de implementatie, dus
+  // een respons uit een eerdere toets lekt anders door naar de volgende.
+  api.componentNormen.openPunten.mockResolvedValue({
+    component_id: ID,
+    moet_nog: { aantal: 0, punten: [] },
+    netjes: { aantal: 0, punten: [] },
+    valt_op: { aantal: 0, punten: [] },
+    klaarverklaring: null,
+  })
   api.componenten.structuur.mockResolvedValue({
     draait_op: [],
     gebruikt_door: [
@@ -458,6 +467,54 @@ describe('ComponentDetail', () => {
     expect(tabtekst).toContain('Koppelingen')
   })
 
+  // ── LI047 snede 2 — de ingang in de kop ────────────────────────────────────────────────────
+  const _openPunten = (moetNog = []) => ({
+    component_id: ID,
+    moet_nog: { aantal: moetNog.length, punten: moetNog.map((f) => ({ feit: f, route: null })) },
+    netjes: { aantal: 0, punten: [] },
+    valt_op: { aantal: 0, punten: [] },
+    klaarverklaring: null,
+  })
+
+  it('LI047: het getal op de knop is exact het aantal regels in "Dit moet nog"', async () => {
+    api.componentNormen.openPunten.mockResolvedValue(_openPunten(['biv', 'contract', 'bedoeling']))
+    const { w } = await mountDetail()
+    // Eén bron: knop en lijst lezen hetzelfde object. Een knop die "4" zegt terwijl het tabblad
+    // drie regels toont, liegt zonder dat iemand het merkt.
+    expect(w.find('[data-testid="open-punten-teller"]').text()).toBe('3')
+    await w.find('[data-testid="open-punten-knop"]').trigger('click')
+    await flushPromises()
+    expect(w.findAll('[data-testid="op-lijst-moet_nog"] > li')).toHaveLength(3)
+  })
+
+  it('LI047: bij nul draagt de knop geen getal — rust is het signaal dat het schoon is', async () => {
+    api.componentNormen.openPunten.mockResolvedValue(_openPunten([]))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="open-punten-knop"]').exists()).toBe(true)
+    expect(w.find('[data-testid="open-punten-teller"]').exists()).toBe(false)
+    // Geen "0" in de knop.
+    expect(w.find('[data-testid="open-punten-knop"]').text()).not.toContain('0')
+  })
+
+  it('LI047: de knop opent het tabblad Open punten — dezelfde plek als via de tabrij', async () => {
+    api.componentNormen.openPunten.mockResolvedValue(_openPunten(['biv']))
+    const { w, router } = await mountDetail()
+    await w.find('[data-testid="open-punten-knop"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="open-punten-sectie"]').isVisible()).toBe(true)
+    // Deelbaar en herstelbaar: de plek leeft in het adres.
+    expect(router.currentRoute.value.query.tab).toBe('open-punten')
+  })
+
+  it('LI047: het rode signaleringsbolletje is van het componentdetailscherm verdwenen', async () => {
+    const { w } = await mountDetail()
+    // Twee tellers die verschillende getallen roepen over hetzelfde component = een tweede
+    // waarheid. Het bolletje telde anders (geen bewuste vaststelling, verantwoordelijke dubbel)
+    // en klikte nergens heen.
+    expect(w.find('[data-testid="signalering-badge"]').exists()).toBe(false)
+    expect(api.signalering.badgeComponent).not.toHaveBeenCalled()
+  })
+
   it('LI047: elk componenttype krijgt het Koppelingen-tabblad', async () => {
     // De koppelingen zijn er echt — een koppelvlak dat naar een fileshare schrijft, applicaties
     // die op een databaseserver aansluiten. Zonder tabblad droeg het open-punten-overzicht een
@@ -473,9 +530,11 @@ describe('ComponentDetail', () => {
     }
   })
 
-  // ── LI047 besluit 7 — het open-punten-tabblad hoort bij ELK componenttype ──────────────────
-  it('LI047: elk componenttype krijgt het tabblad Open punten, op de tweede plek', async () => {
-    // Over de acht catalogus-typen heen — geen enkele mag het missen, ook fileshare/database niet.
+  // ── LI047 — ÉÉN ingang: de knop in de kop, niet ook een tabblad ────────────────────────────
+  it('LI047: elk componenttype krijgt de knop Open punten — en géén tabblad in de tabrij', async () => {
+    // "Open punten" toont geen ONDERDEEL van het component (zoals koppelingen of contracten) maar
+    // wat eraan mankeert. Twee ingangen naast elkaar, allebei actief, wijzen naar dezelfde plek —
+    // dat leest als twee dingen. De kop is de ingang; de tabrij blijft voor de onderdelen.
     const TYPEN = [
       ['applicatie', true, true], ['database', true, false], ['server_compute', true, false],
       ['client_software', false, true], ['saas_dienst', false, true],
@@ -489,12 +548,47 @@ describe('ComponentDetail', () => {
                      checklist_dragend: dragend, ondersteunt_werk: werk }),
       )
       const { w } = await mountDetail()
-      expect(w.find('[data-testid="detailtabs-tab-open-punten"]').exists(), `${type} mist het tabblad`).toBe(true)
-      // Besluit 6 — de TWEEDE plek, direct na Overzicht: wat een component nog nodig heeft
-      // hoort niet achter de andere tabbladen te verdwijnen.
-      const namen = w.findAll('[role="tab"]').map((b) => b.text())
-      expect(namen[0]).toContain('Overzicht')
-      expect(namen[1], `${type}: Open punten staat niet op plek 2`).toContain('Open punten')
+      expect(w.find('[data-testid="open-punten-knop"]').exists(), `${type} mist de knop`).toBe(true)
+      expect(w.find('[data-testid="detailtabs-tab-open-punten"]').exists(),
+             `${type} heeft nog een tabblad`).toBe(false)
+    }
+  })
+
+  it('LI047: een bestaande link met ?tab=open-punten blijft werken', async () => {
+    // De plek leeft in het adres (deelbaar en herstelbaar). Dat de INGANG verhuisde naar de kop
+    // mag een gedeelde link niet breken — en het vangnet dat terugvalt op Overzicht als een tab
+    // verdwijnt, mag deze plek niet wegduwen.
+    api.componentNormen.openPunten.mockResolvedValue(_openPunten(['biv']))
+    const { w } = await mountDetail({ query: '?tab=open-punten' })
+    expect(w.find('[data-testid="panel-open-punten"]').isVisible()).toBe(true)
+    expect(w.find('[data-testid="op-lijst-moet_nog"]').exists()).toBe(true)
+  })
+
+  it('LI047: de terugweg loopt via de tabrij — die blijft zichtbaar en bruikbaar', async () => {
+    api.componentNormen.openPunten.mockResolvedValue(_openPunten(['biv']))
+    const { w, router } = await mountDetail()
+    await w.find('[data-testid="open-punten-knop"]').trigger('click')
+    await flushPromises()
+    // De tabrij staat er nog (geen tab actief) — de weg terug is zichtbaar.
+    expect(w.find('[data-testid="detailtabs-tab-overzicht"]').exists()).toBe(true)
+    await w.find('[data-testid="detailtabs-tab-overzicht"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="panel-open-punten"]').isVisible()).toBe(false)
+    expect(router.currentRoute.value.query.tab).toBeUndefined() // Overzicht = schone URL
+  })
+
+  it('LI047: elk componenttype krijgt het Koppelingen-tabblad', async () => {
+    // De koppelingen zijn er echt — een koppelvlak dat naar een fileshare schrijft, applicaties
+    // die op een databaseserver aansluiten. Zonder tabblad droeg het open-punten-overzicht een
+    // regel die de gebruiker nooit kon wegwerken.
+    for (const type of ['applicatie', 'database', 'fileshare', 'saas_dienst', 'server_compute',
+                        'client_software', 'integratievoorziening', 'landelijke_voorziening']) {
+      api.componenten.haal.mockResolvedValue(
+        _component({ componenttype: type, componenttype_label: type,
+                     heeft_applicatie_subtype: type === 'applicatie' }),
+      )
+      const { w } = await mountDetail()
+      expect(w.find('[data-testid="detailtabs-tab-koppelingen"]').exists(), `${type} mist Koppelingen`).toBe(true)
     }
   })
 

@@ -42,7 +42,6 @@ import ComponentBedrijfsfunctieSectie from './ComponentBedrijfsfunctieSectie.vue
 import OpenPuntenSectie from './OpenPuntenSectie.vue'
 import { useNormLat } from '../useNormLat'
 import ComponentFormulier from './ComponentFormulier.vue'
-import SignaleringBadge from './SignaleringBadge.vue'
 import DetailKop from '@/components/DetailKop.vue'
 // LI059 Slice 4 — applicatie-eigen kind-secties, conditioneel gemount (bij subtype).
 import DatatypeSectie from './DatatypeSectie.vue'
@@ -69,7 +68,12 @@ const bezig = ref(false)
 // ADR-022 Fase C: read-only "wat verdwijnt"-samenvatting in de bevestiging.
 const verwijderImpact = ref(null)
 // ADR-035 Slice 1 — registratiegaten-badge (read-only; faalt zacht, geen invloed op de detail-laad).
-const signaleringBadge = ref({ kritiek: 0, aandacht: 0, signalen: [] })
+// LI047 snede 2 — de open punten van dít component; ÉÉN bron voor de teller op de kopknop én
+// het tabblad. Verving het rode signaleringsbolletje: dat telde iets anders (het honoreerde geen
+// bewuste vaststelling en telde een ontbrekende verantwoordelijke dubbel) en klikte nergens heen.
+// Twee tellers die verschillende getallen roepen over hetzelfde component is een tweede waarheid.
+const openPunten = ref(null)
+const moetNog = computed(() => openPunten.value?.moet_nog?.aantal ?? 0)
 
 async function openVerwijderDialog() {
   verwijderImpact.value = null
@@ -127,14 +131,15 @@ function _toastFout(e) {
 async function laad() {
   laden.value = true
   fout.value = null
-  signaleringBadge.value = { kritiek: 0, aandacht: 0, signalen: [] }
+  openPunten.value = null
   try {
     component.value = await api.componenten.haal(props.id)
     await laadNorm() // slice 4c — welke feiten staan op de lat (voor de sectiekop-aanduiding)
-    // Badge read-only + optioneel: een fout hierin mag de detail-laad niet breken.
+    // LI047 snede 2 — HET laadpunt voor de open punten: voedt zowel de teller op de kopknop als
+    // het tabblad. Read-only + optioneel: een fout hierin mag de detail-laad niet breken.
     try {
-      signaleringBadge.value = await api.signalering.badgeComponent(props.id)
-    } catch { /* badge optioneel */ }
+      openPunten.value = await api.componentNormen.openPunten(props.id)
+    } catch { /* overzicht optioneel */ }
   } catch (e) {
     fout.value = e?.status === 404 ? 'Dit component bestaat niet (meer).' : e?.message || 'Er ging iets mis.'
     _toastFout(e)
@@ -204,15 +209,20 @@ async function bevestigVerwijderen() {
 // ── 2-laags tabnavigatie (LI059 Slice 4, geport uit ApplicatieDetail) ────────
 // Tabs conditioneel per type: applicatie-eigen tabs (datatypes/gebruikersgroepen/
 // koppelingen) alleen bij een subtype; checklist/blokkades alleen bij checklist-dragend.
+// LI047 — plekken die WÉL in het adres leven maar GEEN tabblad zijn. "Open punten" toont geen
+// onderdeel van het component (zoals de koppelingen of de contracten) maar wat eraan mankeert:
+// een werkvoorraad. Zijn ingang staat in de kop, naast Bewerken en Geschiedenis — bij wat je met
+// dit component DOET. De tabrij was bovendien al elf breed en liep over twee regels.
+// Deze lijst is de ene bron voor de drie plekken die zo'n plek moeten herkennen: de deep-link-
+// lezer, het vangnet dat terugvalt op Overzicht, en de URL-terugschrijf.
+const PLEKKEN_ZONDER_TAB = ['open-punten']
+const isGeldigePlek = (k) => topTabs.value.some((x) => x.key === k) || PLEKKEN_ZONDER_TAB.includes(k)
+
 const topTabs = computed(() => {
   const t = [{ key: 'overzicht', label: 'Overzicht' }]
   // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het systeem én de
   // bestemming van de werkvoorraad; daarom een EIGEN tab, direct na Overzicht (component-breed,
   // net als Gebruik) i.p.v. een blok onder de vouw.
-  // LI047 besluit 6/7 — "wat heeft dit component nog nodig": eigen tabblad op de TWEEDE plek,
-  // direct na Overzicht, voor ELK componenttype. Onvoorwaardelijk, dus de watch die terugvalt op
-  // Overzicht als een tab verdwijnt raakt het nooit.
-  t.push({ key: 'open-punten', label: 'Open punten' })
   t.push({ key: 'bedrijfsfunctie', label: 'Bedrijfsfunctie' })
   if (isChecklistDragend.value) t.push({ key: 'checklist', label: 'Checklist' })
   if (isSubtype.value) t.push({ key: 'datatypes', label: 'Datatypes' })
@@ -243,6 +253,9 @@ const activeCat = ref(null) // categorie_nr als string-key
 
 // Zodra de tabset wijzigt (na laden): houd activeTop geldig (default = Overzicht).
 watch(topTabs, (tabs) => {
+  // Een plek zónder tabblad (open-punten) mag hier NIET uit vallen — die staat per definitie niet
+  // in `tabs`, en zonder deze uitzondering zou het scherm de bezoeker meteen terugzetten.
+  if (PLEKKEN_ZONDER_TAB.includes(activeTop.value)) return
   if (!tabs.some((t) => t.key === activeTop.value)) activeTop.value = 'overzicht'
 })
 
@@ -259,7 +272,7 @@ watch(categorieTabs, (tabs) => {
 // Deep-link initialiseren uit de URL (na mount; de scoreSectie laadt async).
 function _initVanafQuery() {
   const t = String(route.query.tab ?? '')
-  if (topTabs.value.some((x) => x.key === t)) activeTop.value = t
+  if (isGeldigePlek(t)) activeTop.value = t  // incl. de plekken zonder tabblad
   if (route.query.cat != null) activeCat.value = String(route.query.cat)
   // Deep-link vanuit de tenant-brede blokkadelijst markeert een checklistvraag.
   if (route.query.markeer != null) {
@@ -374,10 +387,25 @@ watch(() => props.id, async () => {
             :value="label(LIFECYCLE, component.lifecycle_status)"
             :severity="LIFECYCLE_SEVERITY[component.lifecycle_status] || 'info'"
           />
-          <SignaleringBadge :kritiek="signaleringBadge.kritiek" :aandacht="signaleringBadge.aandacht" :signalen="signaleringBadge.signalen || []" />
         </template>
         <template #acties>
           <Button v-if="magBewerken" label="Bewerken" data-testid="bewerken-knop" @click="naarBewerken" />
+          <!-- LI047 snede 2 — de ingang: hier ligt werk, en zoveel. Geen pijl: deze knop brengt je
+               naar een tabblad op DIT scherm, en een pijl belooft dat je het scherm verlaat.
+               Nul draagt geen getal — rust is het signaal dat het schoon is. Het getal is "Dit moet
+               nog", niet de som van drie blokken: dan weet je niet of er iets MOET of dat het meevalt. -->
+          <Button
+            severity="secondary"
+            data-testid="open-punten-knop"
+            @click="activeTop = 'open-punten'"
+          >
+            <span>Open punten</span>
+            <span
+              v-if="moetNog"
+              data-testid="open-punten-teller"
+              class="ml-[var(--lk-space-xs)] inline-flex min-w-5 items-center justify-center rounded-[var(--lk-radius-badge)] bg-[var(--lk-color-danger)] px-[var(--lk-space-xs)] font-semibold text-white"
+            >{{ moetNog }}</span>
+          </Button>
           <!-- Statusovergangen: verschijnen ALLEEN wanneer ze kunnen (geen grijze knop). -->
           <Button
             v-if="magStarten"
@@ -542,11 +570,11 @@ watch(() => props.id, async () => {
       <div
         v-show="activeTop === 'open-punten'"
         id="detailtabs-panel-open-punten"
-        role="tabpanel"
-        aria-labelledby="detailtabs-tab-open-punten"
+        role="region"
+        aria-labelledby="open-punten-titel"
         data-testid="panel-open-punten"
       >
-        <OpenPuntenSectie :key="props.id" :component-id="props.id" @ga-naar="gaNaarPunt" />
+        <OpenPuntenSectie :component-id="props.id" :data="openPunten" @ga-naar="gaNaarPunt" />
       </div>
 
       <!-- Bedrijfsfunctie: "waarvoor gebruiken we het" — de bedrijfsfunctie-inzet (ADR-043 gate 4). -->

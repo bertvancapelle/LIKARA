@@ -4,11 +4,6 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 
-vi.mock('@/api', () => ({
-  api: { componentNormen: { openPunten: vi.fn() } },
-}))
-
-import { api } from '@/api'
 import OpenPuntenSectie from '@modules/bwb_ontvlechting/frontend/views/OpenPuntenSectie.vue'
 
 const CID = 'comp-1'
@@ -22,10 +17,11 @@ const _respons = (over = {}) => ({
   ...over,
 })
 
-async function mountSectie(respons = _respons()) {
-  api.componentNormen.openPunten.mockResolvedValue(respons)
+// LI047 snede 2 — de sectie laadt niet zelf: ComponentDetail is het ENE laadpunt en voedt zowel
+// de teller op de kopknop als deze lijst. De sectie krijgt de data dus als prop.
+async function mountSectie(data = _respons()) {
   const w = mount(OpenPuntenSectie, {
-    props: { componentId: CID },
+    props: { componentId: CID, data },
     global: { plugins: [createPinia(), [PrimeVue, { unstyled: true }]] },
   })
   await flushPromises()
