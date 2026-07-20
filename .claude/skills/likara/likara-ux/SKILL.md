@@ -105,6 +105,24 @@ Elke lege lijst krijgt een lege-staat die óf een route naar de actie biedt ("+ 
 applicatie of het contract."). **Een lege lijst zonder knop en zonder uitleg is een bug,
 geen neutrale toestand.**
 
+**Nul is een uitkomst, geen storing — ook bij BLOKKEN en TELLERS (LI047).** Een blok met nul punten
+**blijft bestaan**, toont "0" in zijn naam en zegt geopend wát er niets open is ("Er staat niets meer
+open dat uw organisatie verplicht heeft gesteld."); verbergen laat de lezer twijfelen of het blok
+bestaat of stuk is. Een **teller** doet het omgekeerde: bij nul draagt hij **géén** getal, want een
+"0" vraagt aandacht voor niets — de rust ís het signaal dat het schoon is.
+**Vuistregel: een lijst legt uit, een teller zwijgt.** (Referentie: `OpenPuntenSectie` — drie blokken
+met hun aantal in de tabnaam; `ComponentDetail` — de knop "Open punten" zonder getal bij nul.)
+
+**Een weigering zegt WÁT er aan de hand is (LI047).** "Er is niets" en "die vraag geldt hier niet"
+zijn **verschillende antwoorden**; ze door elkaar halen kost vertrouwen. Een 404 op een bestaand
+object stuurt de gebruiker een verdwenen ding zoeken — hij vernieuwt de pagina en twijfelt aan zijn
+eigen ogen. Kies de foutsoort dus op **betekenis**, niet op gemak: 404 = het bestaat niet; 422 = het
+bestaat, maar hier geldt deze regel niet, mét de reden erbij.
+(LI047: een gebruikersgroep op een databaseserver gaf `NietGevonden("applicatie")` → *"dit component
+bestaat niet"* over een component dat er wél was. Nu: 422 `COMPONENT_ONDERSTEUNT_GEEN_WERK` — *"Met
+dit type component wordt niet door mensen gewerkt, dus een gebruikersgroep vastleggen heeft hier geen
+betekenis."*)
+
 > **Picker-patronen (keuzelijsten).** Vier beproefde regels voor `ZoekSelect`-pickers staan in
 > `likara-frontend` §ZoekSelect-patronen (V030): (1) **picker-scope spiegelt de backend-regel** —
 > toon nooit een optie die bij opslaan een 422 geeft; (2) **bewerken leest uit de actuele bron** +

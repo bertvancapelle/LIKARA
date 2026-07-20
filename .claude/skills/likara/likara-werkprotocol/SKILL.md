@@ -110,6 +110,10 @@ aangeroepen". Verkies dit boven een afspraak of een test.
 - "akkoord", "akkoord advies", "akkoord commit" (zonder dubbele punt) zijn
   **geen** commit-triggers.
 - Akkoord met een advies ≠ commit-goedkeuring.
+- **Een letterlijke trigger is geen ontheffing van de groene staat.** CC verifieert vóór élke commit
+  zélf de suites én de werktree, en **weigert te committen op een rode/incomplete werktree** — óók bij
+  een letterlijke `AKKOORD: commit`; dan melden waarom + opties (incident-les CD051, voluit in
+  CLAUDE.md §Triggerdiscipline).
 - claude.ai scheidt dit strikt in alle formuleringen.
 - `AKKOORD: commit` wordt **uitsluitend door Bert, rechtstreeks in CC** gegeven — **nooit**
   door claude.ai in een opdracht-`.md` geschreven (een `.md` bevat alleen `START:`-instructies).
@@ -173,6 +177,16 @@ Die discipline blijft **ongewijzigd** voor alles wat muteert.
   vast + open vragen + gefaseerd bouwplan en STOPT; claude.ai lost open vragen
   één voor één op met Bert vóór de bouw-instructie de deur uit gaat.
 
+### Sneden die dezelfde functie ontsluiten, beoordeel je op ÉÉN beeld (LI047)
+
+Wordt een functie in meerdere sneden gebouwd, dan is er **één beoordelingsmoment waarop ze samen op
+het scherm staan** — anders keur je twee keer iets goed dat sámen niet klopt. Geen enkele test vangt
+dit: beide sneden zijn op zichzelf correct.
+
+(LI047: "Open punten" kreeg in snede 1 een tabblad en in snede 2 een kopknop. Beide afzonderlijk
+akkoord bevonden; sámen stonden ze naast elkaar naar dezelfde plek te wijzen, allebei actief. De
+correctie was goedkoop — maar alleen omdat het vóór productie opviel.)
+
 ### Read-only-eerst boven aannames (ADR-040)
 
 Bij elke diagnose **spreekt de code, niet de hypothese**. Een PNA-/instructie-aanname (ook een
@@ -188,6 +202,51 @@ mockup-premisse "contract + beheerrol liggen als lijnen tússen twee systemen" �
 naar een **contractknoop** en beheerrol vanaf een **partij**, niet tussen de twee systemen. Toets een
 mockup/aanname **tegen het model vóór de bouw**; stoppen is geen vertraging maar de **goedkoopste
 correctie** (bouwen op een verkeerde premisse levert een feature die niet doet wat de mockup belooft).
+
+### Meet tenant-data BINNEN de tenant-context (LI047)
+
+Een meting als `lk_admin` ziet **álle** tenants; RLS bepaalt wat de applicatie ziet. Meet daarom met
+de app-rol binnen de tenant-context, en zeg **welke tenant** je gemeten hebt.
+
+**En een rapport is geen meting.** Een checkpoint draagt de stand van zijn **eigen commit**; citeer je
+het als huidige stand, dan presenteer je een momentopname als feit.
+
+Deze fout trad in LI047 **drie keer** op, telkens in een andere vorm: (1) een checkpoint van vóór een
+reseed geciteerd als verse meting ("component_norm = 0 rijen" — het waren er 10); (2) als `lk_admin`
+gemeten dat er één `nee`-checklistscore was, terwijl de dev-tenant er nul had (die score zat in een
+andere tenant); (3) "nul nee/deels-scores, de gebundelde regel is niet te bekijken" als vaststaand
+gerapporteerd, terwijl een verse seed er wél één levert — het was **drift**, geen ontbrekende data.
+**Regel: hermeten, of de commit erbij noemen.** Tellingen in gate-rapporten zijn momentopnamen.
+
+### Een typegebonden beperking zónder ADR is vaak een restant (ADR-055/LI047)
+
+Tref je een beperking aan (`if type != X: weiger`), zoek dan eerst de **herkomst** vóór je hem als
+domeinregel behandelt: staat er een ADR, een besluit, een toelichting? Staat er niets, kijk dan naar
+het **schema** — ligt de beperking daar niet vast, dan leeft ze alleen in de applicatielaag en is ze
+waarschijnlijk meegekomen uit een structuur die niet meer bestaat.
+
+**Zoek ook het precedent.** (LI047: de gebruikersgroep-beperking bleek een overblijfsel van de
+opgeheven applicatie-subtabel — twaalf ADR's noemden gebruikersgroepen, geen enkele grondde de grens,
+en alle vreemde sleutels wezen al naar generieke doelen. ADR-041 had dezelfde herziening één laag
+hoger al gedaan, met exact dezelfde vaststelling: *"de onderliggende structuur bleek al
+component-breed"*. Zonder dat precedent was het een domeinvraag geweest; mét precedent was het een
+afmaakklus.)
+
+### Een bewijs over de GEWIJZIGDE bestanden zegt niets over WIE ZE GEBRUIKT (LI047)
+
+Bij een hernoeming of contractwijziging is "ik heb bewezen dat de gewijzigde bestanden alleen van
+naam veranderden" **valse zekerheid** — het bewijs is inhoudelijk correct en toch te smal.
+
+**Bewijs (twee keer op één dag, beide gemist door 1176 groene tests):** een AST-vergelijking toonde
+aan dat de drie hernoemde bestanden semantisch identiek bleven; de **aanroepers** stonden buiten de
+sweep, in de platform-backend terwijl de sweep in de module keek — de dev-seed crashte en het
+demolandschap was niet meer op te bouwen. En dezelfde blindheid liet een tweede scherm dezelfde
+gebeurtenis anders benoemen (e-mailadres i.p.v. de ge-resolveerde naam).
+
+**Regel:** toets na een hernoeming/contractwijziging **alle aanroepers, repo-breed** — niet binnen
+één module, want juist die grens is waar het misgaat. Waar het zich leent: leg het vast in een scan
+die zijn doelen **afleidt** (referentie: `test_schema_aanroepen_scan.py` — élke aanroep van een
+`extra="forbid"`-schema tegen de schemavelden; een nieuw schema doet vanzelf mee).
 
 ### Reikwijdte-scan vóór een klasse-fix (LI037)
 
@@ -259,16 +318,38 @@ door een harde refresh. Les LI046: een dagenlang draaiende Vite-server serveerde
 de browser toonde oud gedrag terwijl de suite terecht groen was — de bevinding leek een codebug
 en was er (deels) geen. Zonder stap 0 is een browserbevinding niet interpreteerbaar.
 
-**Valkuil bij `find … -delete` (LI046) — een verwijderpatroon toon je eerst.** `?` en `*` zijn in
-`-name` **glob-wildcards**; een patroon dat er letterlijk uitziet (`V???.zip`) is dat niet en matcht
-breder dan bedoeld — `V???.zip` matcht elk `V`+3-tekens, niet de string `V???`. Draai daarom élk
-verwijderpatroon **eerst met `-print`** (of laat `-delete` weg en lees de lijst) vóór je `-delete`
-toevoegt; bij één doelbestand: gebruik de **exacte naam**, geen patroon. Bewijs: in LI046 wiste
-`find -name "LIKARA_Sessiestart_V???.zip" -delete` **30** gitignored sessie-ZIPs (V018–V047) i.p.v. de
-ene stray — en `find -delete` omzeilt de prullenbak, gitignored betekent niet via git terug, en de
-backup bevat alleen de DB-dump; alleen V047 was regenereerbaar. Dezelfde deny-lijst-vervanging die
-`rm` veilig moest vervangen, was hier de oorzaak: een veiligheidsregel zonder zijn eigen valkuil is
-een halve regel.
+**Een bestandsoperatie doet niet wat hij leest — toon eerst, verifieer daarna (LI046/LI047).**
+Vier instrumenten, dezelfde faalfamilie:
+- een **glob die breder matcht dan hij oogt**: `?` en `*` zijn in `-name` wildcards, dus
+  `V???.zip` matcht elk `V`+3-tekens, niet de string `V???`. In LI046 wiste
+  `find -name "LIKARA_Sessiestart_V???.zip" -delete` **30** gitignored sessie-ZIPs i.p.v. de ene
+  stray — `find -delete` omzeilt de prullenbak en gitignored betekent niet via git terug;
+- een **verzameling paden in één shell-variabele**: woordsplitsing levert één argument
+  (`for f in $BACKEND`, `git checkout HEAD -- $VUES`);
+- **twee backups met dezelfde basename**: `schemas/gebruikersgroep.py` en
+  `routes/gebruikersgroep.py` heten allebei `gebruikersgroep.py`, dus de tweede `cp` overschreef
+  de eerste en het terugzetten beschadigde een bestand;
+- een **knip op een ankerpunt** dat ná in plaats van vóór het doelblok staat, of een **regex** die
+  buiten de bedoelde waarde om ook de inspringing platslaat.
+
+**Regel:** schrijf paden **expliciet** uit (geen variabelen, geen patronen); toon een
+verwijderpatroon **eerst met `-print`** en gebruik bij één doelbestand de **exacte naam**; leid een
+backupnaam af van het **volledige pad**, nooit van de basename.
+
+⚠ **De verificatie achteraf is de belangrijkere helft.** Van de zeven voorvallen in LI047 faalde er
+**één luidruchtig**; de rest **stil** — en de suite bleef groen, omdat het geraakte bestand buiten de
+getoetste paden viel. Het beschadigde schema-bestand werd alleen gevonden doordat het eigen resultaat
+werd nagekeken. Sluit elke bestandsoperatie daarom af met een controle van de **stand**: `diff -q`,
+`head -1`, `grep -c` — niet met de aanname dat het commando deed wat het leek te doen.
+(`rm` staat in de CC-deny-lijst; `find … -delete` is de vervanging, en een veiligheidsregel zonder
+zijn eigen valkuil is een halve regel.)
+
+**Een draaiboekstap is een claim over de code — toets hem vóór je hem opschrijft (LI047).** Een stap
+die verwijst naar een knop, veld of tabblad dat er niet is, kost de lezer een zoektocht en ondermijnt
+het hele draaiboek. Verifieer elke genoemde route, elk testid en elke schermnaam tegen de code;
+"logisch dat het daar staat" is geen verificatie. (LI047: een stap wees naar een uitleg-"i" naast
+Eigenaar-organisatie; `ComponentDetail.vue` bevatte er geen enkele — dat feit leefde alleen in de
+bewerk-overlay.)
 
 Een **groene testrun betrapt geen kapotte UX**: mocks verbergen een verkeerde picker-bron, een
 lege/onleesbare picker, voorvul-verdringing, een stale label, en een onnodige/foutgevoelige
@@ -342,6 +423,12 @@ de browsercheck blijft het echte sluitpunt (§Browsercheck vóór commit):
 - **Reparatie mag bovenop een ongecommitte gate-staat** verder bouwen, met de **laatste schone
   commit als expliciete terugval**; terugdraaien alleen als de gerichte fix niet lukt (niet als
   eerste reflex).
+- **Maakt je slice een bestaande tekst of aanname ONWAAR, herstel dat in DEZELFDE commit (LI047).**
+  Anders bevat de historie een commit die een onwaarheid introduceert en een tweede die hem weghaalt —
+  en tussen die twee staat de fout in productiewaardige code. Dit is **strenger dan verergeren**: bij
+  verergeren mag je afwegen (adoptie versus verbouwing, zie hieronder), bij onwaar-maken niet.
+  (LI047: de melding `GROEP_ZONDER_APPLICATIE` sprak over "applicatie" en kon ná de verbreding op een
+  fileshare verschijnen; de servicedocstring beschreef gedrag dat in dezelfde slice was veranderd.)
 - **Verergert een slice een bestaand gebrek, repareer het binnen dezelfde changeset — mits het
   adoptie is, geen verbouwing (LI045).** Maak je een bestaand probleem groter (bv. de norm-passage
   maakte het VeldUitleg-paneel hoger → het viel buiten beeld), dan los je het in dezelfde slice op als

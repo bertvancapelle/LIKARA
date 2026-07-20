@@ -500,3 +500,19 @@ sessie: Map-key-separators werden per ongeluk ` ` i.p.v. een spatie. **Controlee
 `Bin 0 -> N bytes` verschijnt is verdacht); lokaliseer met `python3 -c "print(open(f,'rb').read().count(b'\\x00'))"`.
 Een unieke sleutel mag elke ASCII-separator gebruiken die niet in de waarden voorkomt (UUIDs bevatten
 geen spatie) — kies bewust, geen onzichtbare control-byte.
+
+## LI047 — `vi.clearAllMocks()` wist aanroepen, niet implementaties
+
+`vi.clearAllMocks()` in een `beforeEach` reset `mock.calls`, maar **laat een via `mockResolvedValue`
+gezette implementatie staan**. Een respons die één toets instelt, lekt daardoor door naar élke
+volgende toets in dat bestand — en faalt dáár, op een assertie die niets met de oorzaak te maken
+heeft.
+
+**Bewijs (LI047):** een nieuwe toets zette `openPunten` op drie punten; een bestaande toets die
+`[data-norm-lat]`-elementen telt sloeg om van 2 naar 3. De rode test wees de verkeerde kant op — hij
+leek een bouwfout te melden, en was testvervuiling.
+
+**Regel:** zet in `beforeEach` élke mock die een toets kán herconfigureren **expliciet terug** op zijn
+standaardrespons (naast `clearAllMocks`), of gebruik `mockResolvedValueOnce` waar het om één aanroep
+gaat. Referentie: `ComponentDetail.test.js` — de `componentNormen.openPunten`-mock wordt per toets
+teruggezet, met de reden erbij in een comment.

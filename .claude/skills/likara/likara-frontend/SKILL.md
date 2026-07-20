@@ -1478,7 +1478,34 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   uitsluitend binnen dat blok). Eisen aan élke scan: (1) **aantoonbaar bijten** — een zelftest
   met opzettelijk foute voorbeelden draait bij elke run mee; (2) **geen vals-positieven**
   (template-only scannen, comments strippen, quote-bewust multi-line tags lezen) — een scan die
-  vals alarm slaat wordt genegeerd en is erger dan geen scan.
+  vals alarm slaat wordt genegeerd en is erger dan geen scan; (3) **geen benoemde uitzondering —
+  een uitzondering is een achterdeur (LI047)**. Vraagt een geval om een uitzondering in de scan, dan
+  is meestal het GEVAL fout, niet de regel; en wie er één opneemt, verbreedt de volgende. Moet er
+  tóch iets buiten vallen, laat het dan **afleiden** i.p.v. opsommen. (LI047: twee tegels in
+  `GapDetailView` droegen hun label als `<h2>` en werden door de gedeelde kopstijl even groot als
+  hun waarde — niet de scan een uitzondering geven, maar vaststellen dat het geen kóppen waren en er
+  een definitiepaar (`dl`/`dt`/`dd`) van maken. Tegenvoorbeeld waar afleiden wél mag:
+  `test_schema_aanroepen_scan.py` slaat aanroepen binnen `pytest.raises` over — die geven bewust een
+  ongeldig veld door om te bewijzen dát `extra="forbid"` bijt, en dat is een structurele eigenschap,
+  geen lijst.)
+
+## LI047 — teller en lijst uit ÉÉN laadpunt (niet alleen één bron)
+
+Een teller in de kop en de lijst in een panel mogen niet elk hun eigen aanroep doen. Twee aanroepen
+van dezelfde bron zijn geen tweede *waarheid*, maar wél **twee laadmomenten** — en die kunnen na een
+mutatie uiteenlopen: de knop zegt "4" terwijl het tabblad drie regels toont, een leugen die niemand
+opmerkt omdat beide getallen op zichzelf kloppen.
+
+**Regel: één laadpunt in het scherm dat beide voedt, doorgegeven als prop.** De kindsectie laadt
+niet zelf. Referentie: `ComponentDetail.vue` haalt `api.componentNormen.openPunten()` op en geeft
+het als `:data` aan `OpenPuntenSectie`; teller én lijst lezen daarna letterlijk hetzelfde object.
+Borging: een test die het getal op de knop tegen het **aantal regels** legt (`ComponentDetail.test.js`
+— "het getal op de knop is exact het aantal regels in Dit moet nog"); die valt om zodra iemand een
+tweede laadpunt introduceert.
+
+⚠ **Bewijs dat de tekst dit niet dekte:** in LI047 werd snede 1 met een zelfladende sectie gebouwd en
+snede 2 met één laadpunt — het verschil stond nergens, terwijl de LI041-norm ("teller en lijst delen
+één filterwaarheid") over de *filter* gaat, niet over het *laadmoment*.
 
 ## LI046-patronen (één ingang naar een detailscherm — ADR-054, geverifieerd tegen de code)
 
