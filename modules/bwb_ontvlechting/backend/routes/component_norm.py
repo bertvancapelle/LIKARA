@@ -18,6 +18,8 @@ from app.middleware.tenant import get_tenant_session
 from schemas.component_norm import NormVerplichtZet
 from services import component_norm_beheer_service as beheer_svc
 from services import component_norm_service as svc
+from services import component_open_punten_service as open_punten_svc
+from services.errors import NietGevonden
 
 router = APIRouter(prefix="/component-normen", tags=["bwb:component-norm"])
 
@@ -91,3 +93,20 @@ async def zet_verplicht(
     """Zet de verplicht-vlag voor één hard feit — alléén de beheerder (`WIJZIGEN`). ORM → geaudit
     (wie/wanneer, besluit 5). Onbekend feit ⇒ 404."""
     return await beheer_svc.zet_verplicht(session, _user.tenant_id, feit_sleutel, body.verplicht)
+
+
+@router.get("/open-punten/{component_id}")
+async def open_punten(
+    component_id: uuid.UUID,
+    _user: AuthenticatedUser = Depends(vereist_permissie(Entiteit.COMPONENT_NORM, Actie.LEZEN)),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """LI047 — alles wat dit component nog nodig heeft, in drie blokken (moet_nog / netjes /
+    valt_op), elk met `aantal` + `punten`, plus de levende klaarverklaring met de bewust/verschoven-
+    splitsing. Live afleiding; component buiten de tenant ⇒ 404 (geen lek).
+
+    Zelfde RBAC als de norm-status: wie de norm mag zien, mag zien wat er nog open staat."""
+    uit = await open_punten_svc.open_punten(session, _user.tenant_id, component_id)
+    if uit is None:
+        raise NietGevonden("component", component_id)
+    return uit

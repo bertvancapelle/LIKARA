@@ -59,6 +59,13 @@ DEFAULT_VERPLICHT: frozenset[str] = frozenset({
     FEIT_EIGENAAR, FEIT_VERANTWOORDELIJKE, FEIT_BIV, FEIT_CONTRACT, FEIT_KOPPELINGEN,
 })
 
+# ADR-052 besluit 9 (LI047) — DE feiten waarop een "bewust geen"-antwoord mogelijk is, AFGELEID uit
+# de bevinding-enum in plaats van uitgeschreven. Stond eerder als hardcoded paar-literal op twee
+# plekken (`norm_status` en `feit_vastgesteld`) náást een wél-afgeleide derde formulering in
+# `norm_definitie` — een nieuw relationeel feit erfde de regel dus niet zonder codewijziging op drie
+# plekken. Nu is de enum de enige bron: een nieuwe `ComponentBevindingSoort` erft de regel vanzelf.
+BEWUST_GEEN_FEITEN: frozenset[str] = frozenset(s.value for s in ComponentBevindingSoort)
+
 # Statussen van de "is dit vastgesteld?"-lezing.
 VASTGESTELD = "vastgesteld"
 NIET_VASTGESTELD = "niet_vastgesteld"
@@ -98,15 +105,19 @@ async def haal_norm(session: AsyncSession, tenant_id) -> dict[str, bool]:
     return {feit: opgeslagen.get(feit, False) for feit in HARDE_FEITEN}
 
 
-async def norm_status(session: AsyncSession, tenant_id, component_id) -> dict:
-    """Per VERPLICHT feit: is het vastgesteld op dít component? Read-only, engine-onaangeroerd.
+async def status_van_feiten(
+    session: AsyncSession, tenant_id, component_id, feiten
+) -> dict[str, str] | None:
+    """DE bepaling, over een WILLEKEURIGE set feiten. ``None`` als het component niet bestaat.
 
-    Retour: ``{"component_id": ..., "feiten": {feit_sleutel: status}}`` met status ∈
-    {``vastgesteld``, ``niet_vastgesteld``}. Alleen de door de tenant verplicht gestelde feiten staan
-    in ``feiten`` (niet-verplichte feiten doen niet mee aan de norm).
+    ADR-052 besluit 13 (LI047): één bron, twee filters. `norm_status` voedt hiermee de norm-lat
+    (alleen verplichte feiten); het open-punten-overzicht voedt hiermee zowel "dit moet nog"
+    (verplicht) als "dit zou netjes zijn" (de rest) — hetzelfde oordeel, een andere lat. Zonder
+    deze splitsing zou blok 2 een tweede lezing vragen, en dan kunnen twee waarheden ontstaan.
 
-    Component buiten de tenant (of onbestaand) ⇒ lege ``feiten`` (geen lek)."""
+    Leest alleen de bronnen die de gevraagde feiten nodig hebben (geen onnodige queries)."""
     tid = _tenant_uuid(tenant_id)
+    gevraagd = set(feiten)
     comp = (
         await session.execute(
             select(Component.hostingmodel, Component.levensfase, Component.migratiepad).where(
@@ -115,20 +126,18 @@ async def norm_status(session: AsyncSession, tenant_id, component_id) -> dict:
         )
     ).one_or_none()
     if comp is None:
-        return {"component_id": component_id, "feiten": {}}
+        return None
 
-    verplicht = {feit for feit, v in (await haal_norm(session, tid)).items() if v}
-
-    # Eén (gedeelde) signaal-lezing, alleen als een signaal-gedekt feit verplicht is.
+    # Eén (gedeelde) signaal-lezing, alleen als een signaal-gedekt feit gevraagd is.
     signalen: set[str] = set()
-    if verplicht & set(_FEIT_SIGNAAL):
+    if gevraagd & set(_FEIT_SIGNAAL):
         badge = await registratiegaten_service.badge_voor_component(session, tid, component_id)
         signalen = set(badge.get("signalen", []))
 
-    # ADR-052 slice 2 — koppelingen/contract: vastgesteld zodra er een ÉCHTE registratie is (die
+    # ADR-052 slice 2 — de relationele feiten: vastgesteld zodra er een ÉCHTE registratie is (die
     # WINT — geen tegenspraak) OF een "bewust geen"-bevinding staat. De "heeft registratie"-lezer én
     # de bevindingen komen uit component_bevinding_service (single source; geen tweede afleiding).
-    rel_feiten = verplicht & {FEIT_KOPPELINGEN, FEIT_CONTRACT}
+    rel_feiten = gevraagd & BEWUST_GEEN_FEITEN
     rel_vast: dict[str, bool] = {}
     if rel_feiten:
         bevinding_soorten = await component_bevinding_service.soorten_van_component(
@@ -149,7 +158,22 @@ async def norm_status(session: AsyncSession, tenant_id, component_id) -> dict:
         )
         return VASTGESTELD if vast else NIET_VASTGESTELD
 
-    return {"component_id": component_id, "feiten": {feit: _status(feit) for feit in sorted(verplicht)}}
+    return {feit: _status(feit) for feit in sorted(gevraagd)}
+
+
+async def norm_status(session: AsyncSession, tenant_id, component_id) -> dict:
+    """Per VERPLICHT feit: is het vastgesteld op dít component? Read-only, engine-onaangeroerd.
+
+    Retour: ``{"component_id": ..., "feiten": {feit_sleutel: status}}`` met status ∈
+    {``vastgesteld``, ``niet_vastgesteld``}. Alleen de door de tenant verplicht gestelde feiten staan
+    in ``feiten`` (niet-verplichte feiten doen niet mee aan de norm).
+
+    Component buiten de tenant (of onbestaand) ⇒ lege ``feiten`` (geen lek).
+    Dit is de VERPLICHT-filter op `status_van_feiten` — geen eigen bepaling."""
+    tid = _tenant_uuid(tenant_id)
+    verplicht = {feit for feit, v in (await haal_norm(session, tid)).items() if v}
+    status = await status_van_feiten(session, tid, component_id, verplicht)
+    return {"component_id": component_id, "feiten": status if status is not None else {}}
 
 
 def _beslis_vastgesteld(feit: str, *, hostingmodel, levensfase, migratiepad, signalen, rel_vast) -> bool:
@@ -189,7 +213,7 @@ async def feit_vastgesteld(session: AsyncSession, tenant_id, component_id, feit)
         badge = await registratiegaten_service.badge_voor_component(session, tid, component_id)
         signalen = set(badge.get("signalen", []))
     rel_vast: dict[str, bool] = {}
-    if feit in (FEIT_KOPPELINGEN, FEIT_CONTRACT):
+    if feit in BEWUST_GEEN_FEITEN:
         soorten = await component_bevinding_service.soorten_van_component(session, tid, component_id)
         rel_vast[feit] = feit in soorten or await component_bevinding_service.heeft_echte_registratie(
             session, tid, component_id, feit
@@ -205,7 +229,7 @@ async def norm_definitie(session: AsyncSession, tenant_id) -> list[dict]:
     'bewust geen'-antwoord mogelijk is (relationeel feit) of niet (eigen veld/signaal — dat bepaalt
     wat de consultant straks kan antwoorden). Read-only."""
     norm = await haal_norm(session, tenant_id)
-    bewust_geen = {s.value for s in ComponentBevindingSoort}  # koppelingen, contract
+    bewust_geen = BEWUST_GEEN_FEITEN  # afgeleid uit de enum — één bron (besluit 9)
     return [
         {"feit": feit, "verplicht": norm[feit], "bewust_geen_mogelijk": feit in bewust_geen}
         for feit in HARDE_FEITEN

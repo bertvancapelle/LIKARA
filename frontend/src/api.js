@@ -503,6 +503,8 @@ export const api = {
   //   verschovenLat() → [{ feit, aantal, componenten:[{id,naam}] }] (werkvoorraadvenster)
   componentNormen: {
     status: (componentId) => request(`/component-normen/status/${componentId}`),
+    // LI047 — "wat heeft dit component nog nodig?": drie blokken uit één afleiding.
+    openPunten: (componentId) => request(`/component-normen/open-punten/${componentId}`),
     afwijking: (componentId) => request(`/component-normen/afwijking/${componentId}`),
     verschovenLat: () => request('/component-normen/verschoven-lat'),
     // Slice 4b — het norm-beheerscherm: lees de definitie, voorspel impact, zet de verplicht-vlag.

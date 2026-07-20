@@ -54,7 +54,17 @@ vi.mock('@/api', () => ({
       haal: vi.fn(),
     },
     // Slice 4c — de lat-leesbron (de aanduiding op de sectiekoppen).
-    componentNormen: { definitie: vi.fn(() => Promise.resolve([])) },
+    componentNormen: {
+      definitie: vi.fn(() => Promise.resolve([])),
+      // LI047 — het open-punten-tabblad laadt bij mount (drie lege blokken volstaan hier).
+      openPunten: vi.fn(() => Promise.resolve({
+        component_id: 'db-1',
+        moet_nog: { aantal: 0, punten: [] },
+        netjes: { aantal: 0, punten: [] },
+        valt_op: { aantal: 0, punten: [] },
+        klaarverklaring: null,
+      })),
+    },
   },
 }))
 
@@ -445,6 +455,31 @@ describe('ComponentDetail', () => {
     // De écht applicatie-eigen tabs blijven weg — de verbreding is gericht, niet alles-open.
     expect(tabtekst).not.toContain('Datatypes')
     expect(tabtekst).not.toContain('Koppelingen')
+  })
+
+  // ── LI047 besluit 7 — het open-punten-tabblad hoort bij ELK componenttype ──────────────────
+  it('LI047: elk componenttype krijgt het tabblad Open punten, op de tweede plek', async () => {
+    // Over de acht catalogus-typen heen — geen enkele mag het missen, ook fileshare/database niet.
+    const TYPEN = [
+      ['applicatie', true, true], ['database', true, false], ['server_compute', true, false],
+      ['client_software', false, true], ['saas_dienst', false, true],
+      ['integratievoorziening', true, false], ['fileshare', false, true],
+      ['landelijke_voorziening', true, true],
+    ]
+    for (const [type, dragend, werk] of TYPEN) {
+      api.componenten.haal.mockResolvedValue(
+        _component({ componenttype: type, componenttype_label: type,
+                     heeft_applicatie_subtype: type === 'applicatie',
+                     checklist_dragend: dragend, ondersteunt_werk: werk }),
+      )
+      const { w } = await mountDetail()
+      expect(w.find('[data-testid="detailtabs-tab-open-punten"]').exists(), `${type} mist het tabblad`).toBe(true)
+      // Besluit 6 — de TWEEDE plek, direct na Overzicht: wat een component nog nodig heeft
+      // hoort niet achter de andere tabbladen te verdwijnen.
+      const namen = w.findAll('[role="tab"]').map((b) => b.text())
+      expect(namen[0]).toContain('Overzicht')
+      expect(namen[1], `${type}: Open punten staat niet op plek 2`).toContain('Open punten')
+    }
   })
 
   it('ADR-055: een database krijgt géén Gebruikersgroepen — daar draaien componenten op, dat is een koppeling', async () => {

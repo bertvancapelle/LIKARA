@@ -39,6 +39,7 @@ import MigratiegereedheidSectie from './MigratiegereedheidSectie.vue'
 // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" = bedrijfsfunctie-inzet (verving de
 // procesinzet; het procesregister gaat in slice 3 uit de UI). Formulier als bewerk-overlay.
 import ComponentBedrijfsfunctieSectie from './ComponentBedrijfsfunctieSectie.vue'
+import OpenPuntenSectie from './OpenPuntenSectie.vue'
 import { useNormLat } from '../useNormLat'
 import ComponentFormulier from './ComponentFormulier.vue'
 import SignaleringBadge from './SignaleringBadge.vue'
@@ -208,6 +209,10 @@ const topTabs = computed(() => {
   // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het systeem én de
   // bestemming van de werkvoorraad; daarom een EIGEN tab, direct na Overzicht (component-breed,
   // net als Gebruik) i.p.v. een blok onder de vouw.
+  // LI047 besluit 6/7 — "wat heeft dit component nog nodig": eigen tabblad op de TWEEDE plek,
+  // direct na Overzicht, voor ELK componenttype. Onvoorwaardelijk, dus de watch die terugvalt op
+  // Overzicht als een tab verdwijnt raakt het nooit.
+  t.push({ key: 'open-punten', label: 'Open punten' })
   t.push({ key: 'bedrijfsfunctie', label: 'Bedrijfsfunctie' })
   if (isChecklistDragend.value) t.push({ key: 'checklist', label: 'Checklist' })
   if (isSubtype.value) t.push({ key: 'datatypes', label: 'Datatypes' })
@@ -264,6 +269,25 @@ function _initVanafQuery() {
     nextTick(() => {
       document.getElementById(`veld-${markeerVeld.value}`)
         ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
+    })
+  }
+}
+
+// LI047 besluit 8 — een punt uit het open-punten-overzicht brengt je naar de plek waar je het
+// antwoord vastlegt. Twee soorten landing, exact de twee die `detailIngang` kent: een TABBLAD op
+// dit scherm (geen navigatie nodig — de tab-watch schrijft `?tab=` zelf terug, dus de plek blijft
+// deelbaar) of een VELD-ANKER op het Overzicht (markeren + erheen scrollen, hetzelfde pad dat een
+// deep-link van buiten volgt). De backend levert nooit een route zonder landing (ADR-054).
+function gaNaarPunt(route) {
+  if (route?.soort === 'tab') {
+    if (topTabs.value.some((t) => t.key === route.tab)) activeTop.value = route.tab
+    return
+  }
+  if (route?.soort === 'veld') {
+    activeTop.value = 'overzicht'
+    markeerVeld.value = route.veld
+    nextTick(() => {
+      document.getElementById(`veld-${route.veld}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
     })
   }
 }
@@ -508,6 +532,17 @@ watch(() => props.id, async () => {
 
         <!-- LI040 — de actiebalk die hier stond is verhuisd naar de DetailKop. -->
         <!-- "Waarvoor gebruiken we het" is verhuisd naar een eigen tab "Bedrijfsfunctie" (G2). -->
+      </div>
+
+      <!-- LI047 — alles wat dit component nog nodig heeft, op één plek (besluit 6). -->
+      <div
+        v-show="activeTop === 'open-punten'"
+        id="detailtabs-panel-open-punten"
+        role="tabpanel"
+        aria-labelledby="detailtabs-tab-open-punten"
+        data-testid="panel-open-punten"
+      >
+        <OpenPuntenSectie :key="props.id" :component-id="props.id" @ga-naar="gaNaarPunt" />
       </div>
 
       <!-- Bedrijfsfunctie: "waarvoor gebruiken we het" — de bedrijfsfunctie-inzet (ADR-043 gate 4). -->
