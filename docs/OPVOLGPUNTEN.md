@@ -1916,6 +1916,17 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   regels staan, en elke toetsaanslag een zoekopdracht laten afvuren is daar geen dienst. Geborgd
   met een toets die omvalt zodra iemand dat "verbetert".
 
+### Detailkop-tekens (LI048) — gebouwd; één bevinding
+- **Er was géén iconenvoorziening**, terwijl één knop er wel naar verwees: `icon="pi pi-info-circle"`
+  op de Geschiedenis-knop wees naar een primeicons-klasse, en primeicons is geen afhankelijkheid van
+  dit project. Die klasse bestond nergens, dus er rendeerde al maanden niets — zonder dat iets het
+  meldde. Precies de stille-lege-render-faalmodus uit likara-werkprotocol. Nu vervangen door het
+  klokje, en een bron-scan (`check-css-build.mjs`, icoon-scan) vangt zo'n dode verwijzing bij elke
+  build: zowel een onbekende `<Icoon naam="…">` als élk `icon="pi …"`-attribuut.
+- **Twee tekens, bewust geen pakket.** `src/components/Icoon.vue` draagt `kaart` en `geschiedenis`.
+  Komt er ooit een derde wegwijzer bij, dan hoort die hier — en pas als het er véél worden is een
+  pakket een afweging waard. De grens wanneer iets een teken mag zijn staat in likara-ux §P9.
+
 ### Auditlog component-filter — hersteld; één na-MVP-punt en twee bevindingen
 
 **NA-MVP — Zoek elk ding in het auditlog.**
