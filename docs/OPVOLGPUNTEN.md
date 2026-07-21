@@ -1908,18 +1908,33 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   convergentievraag) — nog vier eigen vormen te gaan (de open-punten-sectie was de eerste).
 
 ### Besluit nodig
-- **Auditlog is geen lijstscherm in deze zin.** De opdracht ging uit van "zoek + filter + knop";
-  gemeten heeft het scherm géén zoekveld (`type="search"` = 0), géén aanmaakknop en géén
-  `FilterResultaatRegel` — wel vier filters in een open balk met een expliciete `Zoeken`-knop.
-  Het is een **doorzoek**scherm, geen beheerslijst. Het kan de kop krijgen als het lege geval
-  (regel 3 dekt dat: naam links, ruimte in het midden), maar dat is een andere uitkomst dan de
-  opdracht veronderstelde en daarom niet meegenomen.
-  **Te beslissen: hoort een doorzoekscherm dezelfde kop te dragen als het lege geval, of is het
-  een eigen soort scherm met een eigen vorm?** Het verschil zit in wat de gebruiker er doet: op
-  een beheerslijst kijkt hij naar alles en maakt hij dingen aan; op een doorzoekscherm begint hij
-  met een vraag en drukt hij bewust op Zoeken. De scan raakt dit scherm nu niet (hij pakt
-  `*Lijst.vue`, en dit is `AuditTrailView.vue`) — valt het besluit "kop toepassen", dan moet ook
-  het scan-bereik mee.
+- ~~**Auditlog is geen lijstscherm in deze zin.**~~ **Besloten in snede 2: het krijgt dezelfde kop.**
+  Het is geen andere soort scherm — de consultant komt er om iets terug te vinden, dezelfde
+  beweging als op Componenten. Dat het geen aanmaakknop heeft, maakt het een scherm waar twee van
+  de vier onderdelen ontbreken, en daar is regel 3 voor. Eén functioneel verschil blijft: de
+  **Zoeken-knop is expliciet** (`@keyup.enter`, nooit `@input`) — op een auditlog kunnen heel veel
+  regels staan, en elke toetsaanslag een zoekopdracht laten afvuren is daar geen dienst. Geborgd
+  met een toets die omvalt zodra iemand dat "verbetert".
+
+### Snede 2 — bevindingen die een besluit of een volgende stap vragen
+- **De inventarisatie klopte niet: er zijn 22 schermen met een kop boven een lijst, niet 7.**
+  Correctie op de checkpointtabel (die telde Auditlog fout, en keek alleen naar `*Lijst.vue`).
+  Van die 22 staan er nu **14** op de bouwsteen — het hele hoofdmenu op Signalering na. De acht
+  overige zijn `*ConfigBeheer`-schermen: platform-catalogusbeheer, géén hoofdmenu, geen werklijst.
+  **Te beslissen: krijgen die ook de kop?** Ze zijn onderling al eenvormig; het argument vóór is
+  dat de beheerder óók van scherm naar scherm loopt, het argument tegen dat hij dat zelden doet.
+- **Signalering + Plaatsingssignalen wachten op een eigen snede.** `PlaatsingSignalenView` is géén
+  los scherm: `SignaleringView.vue:16` importeert hem en rendert hem als tab "Plaatsing" (ADR-035),
+  met daarnaast nog een losse route `signalen/plaatsing`. Hem apart een `<h1>` geven zou een tweede
+  paginakop binnen een tabblad opleveren. Signalering draagt bovendien een **handgebouwde tabrij**
+  die op de `AppTabs`-bouwsteen hoort — dat is de eigenlijke snede, en de kop komt daar achteraan.
+- **`NormBeheer.vue` heeft geen enkele testfile.** Het is het enige van de veertien schermen zonder
+  suite. De toelichting-toets staat daarom in `LijstKopSchermen.test.js` (bron-gebaseerd), maar het
+  scherm zelf — de lat verzetten, de rechten-gate — is niet op gedrag getoetst. Aparte actie waard.
+- **Architectuur is meegenomen, buiten de opdracht om.** Het viel binnen het afgeleide scan-bereik
+  en had exact de Bedrijfsfuncties-behandeling nodig (schakelaar Lagen|Tabel naar de zone eronder,
+  op `.lk-schakelaar`). Het buiten laten zou een uitzonderingenlijst hebben vereist — precies wat
+  snede 1b heeft afgeschaft. **Derde van de zes schakelaars uit LI048-0; nog drie te gaan.**
 
 ### Defect dat en passant is verholpen (niemand had het gemeld)
 - **Vier lijstschermen hadden twéé zoekvelden.** Componenten, Partijen, Contracten en
