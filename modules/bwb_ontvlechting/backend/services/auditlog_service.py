@@ -197,6 +197,65 @@ def _geleend_component_id(rec) -> str | None:
     return None
 
 
+# ── LI048 — WAT HOORT ER IN DE GESCHIEDENIS VAN EEN DING? ────────────────────────────────
+# Sta je op een partij, dan hoort daarin te staan dat iemand haar een rol gaf of afnam. Dat
+# gebeurde alleen als het toevallig in dezelfde handeling zat: 154 van de 229 roltoewijzingen
+# waren onvindbaar — niet hier, en nergens anders. De geschiedenis zag er compleet uit en was
+# het niet; hetzelfde patroon als de koppelingen die het component-filter miste.
+#
+# In de code stond bovendien uitgelegd dat dit WÉL gebeurde ("verschijnt in de historie van de
+# ouder", routes/objecthistorie.py). Dat is nu waargemaakt in plaats van bijgesteld.
+#
+# Twee vormen, net als bij NAAMBRON:
+#   [(sub_type, veld), ...]  — deze sub-entiteiten horen erbij; `veld` in hun `wijziging`
+#                              verwijst naar de ouder
+#   ("geen", <reden>)        — bewust geen sub-entiteiten, met een leesbare reden
+#
+# `component` staat hier NIET in: dat type heeft zijn eigen, rijkere modus (component_id-filter
+# plus koppelingen) en die blijft ongemoeid — één waarheid, twee ingangen.
+_GEEN_SUB = "geen"
+SUB_ENTITEITEN: dict[str, object] = {
+    # Een partij is een leverancier, organisatie of persoon. Wat er met haar gebeurt, gebeurt
+    # vaak in een koppelfeit: welke rol had deze leverancier, en sinds wanneer niet meer.
+    "partij": [
+        ("roltoewijzing", "partij_id"),          # rol op een component/contract
+        ("gebruiker_persoon", "persoon_id"),     # koppeling login ↔ persoon
+        ("organisatiegebruik", "organisatie_id"),  # organisatie gebruikt applicatie
+    ],
+    # Gemeten (niet aangenomen): de sub-typen van contract staan wél in AUDIT_TENANT_ENTITEITEN
+    # maar hebben 0 auditregels — er is niets om op te halen. Verschijnt er ooit een regel, dan
+    # valt deze uitspraak op via de toets die het register in beide richtingen afdwingt.
+    "contract": (_GEEN_SUB, "de dekking-/kostenmodel-subtypen leveren geen auditregels op"),
+    # Het lidmaatschap van deze vier loopt via `relatie` (ADR-023 Fase E), niet via een id-veld
+    # in een sub-entiteit. Gemeten: 0 relatieregels met een van deze vier als uiteinde, dus er
+    # valt vandaag niets op te halen. Komt dat er, dan is dit hetzelfde geval als de koppelingen
+    # bij component — en dan hoort het hier, niet in een losse uitzondering.
+    "plateau": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
+    "work_package": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
+    "deliverable": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
+    "gap": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
+}
+
+
+def _sub_clausules(entiteit_type: str, eid: str):
+    """De OR-takken voor de sub-entiteiten van dit type — leeg als het er bewust geen heeft."""
+    bron = SUB_ENTITEITEN.get(entiteit_type)
+    if not isinstance(bron, list):
+        return []
+    takken = []
+    for sub_type, veld in bron:
+        takken.append(
+            and_(
+                AuditLog.entiteit_type == sub_type,
+                or_(
+                    AuditLog.wijziging[veld]["nieuw"].astext == eid,
+                    AuditLog.wijziging[veld]["oud"].astext == eid,
+                ),
+            )
+        )
+    return takken
+
+
 def _toon_naam(rec, ent_map: dict) -> str | None:
     """De naam die bij deze auditregel hoort — besluit 1 in één plek.
 
@@ -258,9 +317,21 @@ def _record_filters(tid: uuid.UUID, *, actor, entiteit_type, entiteit_id, compon
         clauses.append(or_(*wie))
     if actie:
         clauses.append(AuditLog.actie == actie)
-    if entiteit_type:
+    if entiteit_type and entiteit_id is not None:
+        # ADR-029 objecthistorie — de geschiedenis van ÉÉN object. LI048: niet alleen de regels
+        # over het object zelf, maar ook die van zijn sub-entiteiten (zie SUB_ENTITEITEN). Deze
+        # twee voorwaarden horen als één OR bij elkaar; zou het object-deel een losse AND blijven,
+        # dan sluit het de sub-takken juist uit.
+        eid = str(entiteit_id)
+        eigen = and_(
+            AuditLog.entiteit_type == entiteit_type,
+            cast(AuditLog.entiteit_id, Text) == eid,
+        )
+        takken = [eigen, *_sub_clausules(entiteit_type, eid)]
+        clauses.append(or_(*takken) if len(takken) > 1 else eigen)
+    elif entiteit_type:
         clauses.append(AuditLog.entiteit_type == entiteit_type)
-    if entiteit_id is not None:  # ADR-029 objecthistorie — generiek filter op één object (niet-component)
+    elif entiteit_id is not None:
         clauses.append(cast(AuditLog.entiteit_id, Text) == str(entiteit_id))
     if van is not None:
         clauses.append(AuditLog.tijdstip >= van)

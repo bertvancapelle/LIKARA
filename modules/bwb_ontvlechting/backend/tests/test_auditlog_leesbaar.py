@@ -273,3 +273,96 @@ def test_zonder_componentfilter_geen_component_clausule():
     # De filters zijn AND-gecombineerd; een niet-gezet filter mag niets beperken.
     sql = _filter_clausules(None)
     assert "bron_id" not in sql and "component_id" not in sql
+
+
+# ── LI048 — de geschiedenis van een ding bevat zijn sub-entiteiten ───────────────────────
+# Sta je op een partij, dan hoort daarin te staan dat iemand haar een rol gaf of afnam. Dat
+# gebeurde alleen als het toevallig in dezelfde handeling zat: 154 van de 229 roltoewijzingen
+# waren onvindbaar — niet hier, en nergens anders. De code legde bovendien uit dat dit WÉL
+# gebeurde; dat is nu waargemaakt in plaats van bijgesteld.
+def test_elk_objecthistorie_type_doet_een_uitspraak_over_sub_entiteiten():
+    # Zonder register komt het volgende type er weer zonder binnen en groeit hetzelfde gat door.
+    # `component` staat er bewust NIET in: dat heeft zijn eigen, rijkere modus.
+    from routes.objecthistorie import _TYPES
+    from services.auditlog_service import SUB_ENTITEITEN
+
+    entiteit_modus = {t for t, cfg in _TYPES.items() if cfg[2] == "entiteit"}
+    ontbreekt = sorted(entiteit_modus - set(SUB_ENTITEITEN))
+    assert not ontbreekt, (
+        f"Deze objecthistorie-typen doen geen uitspraak over hun sub-entiteiten: {ontbreekt}. "
+        "Voeg ze toe aan SUB_ENTITEITEN — óók als het antwoord 'geen' is; dat moet een besluit "
+        "met een reden zijn, geen stilzwijgend gat."
+    )
+
+
+def test_het_sub_register_verzint_geen_typen():
+    # Andersom: een sleutel die geen objecthistorie-type is, suggereert dat er iets geregeld is
+    # terwijl niets die tak ooit aanroept. Beide richtingen, anders zegt de toets hierboven niets.
+    from routes.objecthistorie import _TYPES
+    from services.auditlog_service import SUB_ENTITEITEN
+
+    onbekend = sorted(set(SUB_ENTITEITEN) - set(_TYPES))
+    assert not onbekend, f"SUB_ENTITEITEN noemt typen zonder objecthistorie: {onbekend}"
+
+
+def test_component_heeft_geen_sub_uitspraak_want_eigen_modus():
+    # Eén waarheid, twee ingangen: het componentdetail en het auditlog-componentfilter roepen
+    # dezelfde `component_id`-tak aan. Zou `component` hier óók een uitspraak krijgen, dan zijn
+    # er twee plekken die bepalen wat een componentgeschiedenis is.
+    from services.auditlog_service import SUB_ENTITEITEN
+
+    assert "component" not in SUB_ENTITEITEN
+
+
+def test_elke_geen_sub_uitspraak_draagt_een_leesbare_reden():
+    # "Geen sub-entiteiten" mag, maar niet zonder verantwoording — anders is het alsnog een
+    # stille terugval, alleen met een vinkje ervoor.
+    from services.auditlog_service import SUB_ENTITEITEN
+
+    zonder = [
+        t for t, bron in SUB_ENTITEITEN.items()
+        if isinstance(bron, tuple) and (len(bron) < 2 or not isinstance(bron[1], str) or len(bron[1]) < 15)
+    ]
+    assert not zonder, f"Deze 'geen sub-entiteiten'-uitspraken missen een leesbare reden: {zonder}"
+
+
+def _historie_sql(entiteit_type, eid):
+    import uuid as _uuid
+
+    from services.auditlog_service import _record_filters
+
+    clauses = _record_filters(
+        _uuid.UUID("11111111-1111-1111-1111-111111111111"),
+        actor=None, entiteit_type=entiteit_type, entiteit_id=eid, component_id=None,
+        van=None, tot=None, actie=None, subs=None,
+    )
+    return " ".join(str(c.compile(compile_kwargs={"literal_binds": True})) for c in clauses)
+
+
+def test_partijhistorie_pakt_de_roltoewijzingen():
+    # HET HERSTEL. Juist bij een partij is dit wat de consultant wil weten: welke rol had deze
+    # leverancier, en sinds wanneer niet meer.
+    sql = _historie_sql("partij", "abc-123")
+    assert "roltoewijzing" in sql, "rollen van deze partij horen in haar geschiedenis"
+    assert "partij_id" in sql
+    # `oud` én `nieuw`: een INGETROKKEN rol draagt zijn partij_id alleen in `oud` — en dat is
+    # precies het geval ("sinds wanneer niet meer") waar de consultant naar zoekt.
+    assert "'partij_id']) ->> 'oud'" in sql, "een ingetrokken rol mag niet wegvallen"
+    # De overige twee koppelfeiten rond een partij horen er net zo goed bij.
+    assert "gebruiker_persoon" in sql and "organisatiegebruik" in sql
+
+
+def test_partijhistorie_houdt_de_eigen_regels():
+    # De sub-takken mogen de regels over de partij zelf niet verdringen: het is een OR, geen
+    # vervanging. Stond het object-deel als losse AND, dan sloot het de sub-takken juist uit.
+    sql = _historie_sql("partij", "abc-123")
+    assert "audit_log.entiteit_type = 'partij'" in sql
+    assert "entiteit_id" in sql
+
+
+def test_type_zonder_sub_entiteiten_filtert_alleen_op_zichzelf():
+    # Een "geen"-uitspraak mag geen lege OR-tak opleveren die per ongeluk alles doorlaat.
+    sql = _historie_sql("plateau", "abc-123")
+    assert "audit_log.entiteit_type = 'plateau'" in sql
+    for sub in ("roltoewijzing", "gebruiker_persoon", "organisatiegebruik"):
+        assert sub not in sql

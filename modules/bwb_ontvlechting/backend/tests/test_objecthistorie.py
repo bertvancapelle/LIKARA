@@ -237,3 +237,87 @@ def test_objecthistorie_component_live_met_naam():
             await eng.dispose()
 
     asyncio.run(_flow())
+
+
+@integratie
+def test_partijhistorie_bevat_een_LOSSE_roltoewijzing():
+    """LI048 — het echte geval: de rol wordt in een APARTE handeling toegekend.
+
+    Zat de roltoewijzing in dezelfde handeling als de partij-aanmaak, dan kwam hij altijd al mee
+    via de correlatie-groepering — en dan oefent de toets zijn geval niet. Daarom hier twee
+    gescheiden audit-contexten met een commit ertussen: dat levert twee correlaties op, en pas
+    dan bewijst dit iets. (Het demolandschap bevat géén los geval; alle 75 roltoewijzingen op
+    bestaande partijen ontstonden samen met hun partij.)
+    """
+    import uuid as _uuid
+
+    from sqlalchemy import text as _text
+
+    from app.core.database import _markeer_rls
+    from models.models import PartijAard
+    from schemas.component import ComponentCreate
+    from schemas.partij import PartijCreate
+    from services import auditlog_service as svc
+    from services import component_service, partij_service, roltoewijzing_service
+
+    tid = _uuid.UUID(TENANT_A)
+    merk = _uuid.uuid4().hex[:8]
+
+    async def _flow():
+        eng = create_async_engine(_LK_APP_URL)
+        smf = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+        t_tok = tc.zet_tenant_context(TENANT_A)
+        ids = []
+        try:
+            # Handeling 1: de partij en een component aanmaken.
+            async with smf() as s:
+                _markeer_rls(s)
+                a = tc.zet_audit_context(f"rol:{merk}", f"rol.{merk}@test")
+                try:
+                    partij = await partij_service.maak_aan(s, tid, PartijCreate(
+                        aard=PartijAard.externe_partij, naam=f"RolLev-{merk}"))
+                    comp = await component_service.maak_aan(s, tid, ComponentCreate(
+                        componenttype="applicatie", naam=f"RolApp-{merk}", hostingmodel="saas",
+                        migratiepad=None, complexiteit="midden", prioriteit="midden"))
+                    await s.commit()
+                    ids += [partij.id, comp["id"]]
+                finally:
+                    tc.reset_audit_context(a)
+
+            # Handeling 2 — APART, dus een eigen correlatie: de rol toekennen.
+            async with smf() as s:
+                _markeer_rls(s)
+                a = tc.zet_audit_context(f"rol:{merk}", f"rol.{merk}@test")
+                try:
+                    await roltoewijzing_service.maak_aan(
+                        s, tid, partij.id, _uuid.UUID(str(comp["id"])), "contractbeheer")
+                    await s.commit()
+                finally:
+                    tc.reset_audit_context(a)
+
+            # De partijhistorie moet die losse rol bevatten.
+            async with smf() as s:
+                _markeer_rls(s)
+                items, _ = await svc.lijst(
+                    s, tid, entiteit_type="partij", entiteit_id=partij.id, limit=50)
+                soorten = {r.entiteit_type for g in items for r in g["records"]}
+                assert "partij" in soorten, "de aanmaak van de partij zelf hoort er nog in"
+                assert "roltoewijzing" in soorten, (
+                    "een in een APARTE handeling toegekende rol hoort in de partijhistorie — "
+                    f"gevonden soorten: {sorted(soorten)}"
+                )
+            return ids
+        finally:
+            async with smf() as s:
+                _markeer_rls(s)
+                a = tc.zet_audit_context("test:teardown", "td@test")
+                try:
+                    for eid in reversed(ids):
+                        await s.execute(_text("DELETE FROM element WHERE id=:i"), {"i": str(eid)})
+                    await s.commit()
+                finally:
+                    tc.reset_audit_context(a)
+            tc.reset_tenant_context(t_tok)
+            await eng.dispose()
+
+    asyncio.run(_flow())

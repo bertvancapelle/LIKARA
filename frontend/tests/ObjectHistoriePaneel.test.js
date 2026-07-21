@@ -128,3 +128,53 @@ describe('ObjectHistoriePaneel — LI048: wegwijzer als teken', () => {
     expect(w.html()).not.toContain('pi-info-circle')
   })
 })
+
+describe('ObjectHistoriePaneel — LI048: het paneel TOONT de geschiedenis', () => {
+  // De enige echte dekkingslacune uit het checkpoint. De bestaande toetsen bewijzen dat er
+  // gegevens worden opgehaald; geen enkele bewees dat er ook iets op het scherm komt. Dat is
+  // precies het gat dat vandaag twee keer boven water kwam (bij het zoekveld en bij het
+  // component-filter): een groene suite naast een scherm dat niets toont.
+
+  it('toont de opgehaalde regels, niet alleen dat er is opgehaald', async () => {
+    api.objecthistorie.lijst.mockResolvedValue(_historie())
+    const w = mountPaneel()
+    await w.get('[data-testid="oh-knop"]').trigger('click')
+    await flushPromises()
+
+    const tekst = w.text()
+    expect(tekst).toContain('Jan de Vries')          // wie
+    expect(tekst).toContain('Beschrijving')          // welk veld — in schermtaal
+    expect(tekst).toContain('B')                     // de nieuwe waarde
+  })
+
+  it('toont de sub-entiteiten van het object mee', async () => {
+    // Sta je op een partij, dan hoort daar in te staan dat iemand haar een rol gaf of afnam.
+    // De backend levert die regels sinds LI048; het paneel mag ze niet wegfilteren.
+    api.objecthistorie.lijst.mockResolvedValue({
+      items: [{
+        correlatie_id: 'r1', tijdstip: '2026-06-19T10:00:00Z',
+        actor_naam: 'Bert', actor_email: 'bert@test',
+        records: [{
+          id: 'rr1', entiteit_type: 'roltoewijzing', actie: 'create', actor_naam: 'Bert',
+          wijziging: { rol: { oud: null, nieuw: 'contractbeheer' } },
+        }],
+      }],
+      volgende_cursor: null,
+    })
+    const w = mountPaneel({ entiteitType: 'partij', entiteitId: 'partij-1' })
+    await w.get('[data-testid="oh-knop"]').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('contractbeheer')
+  })
+
+  it('meldt een lege geschiedenis, in plaats van een leeg venster', async () => {
+    // Een leeg paneel is niet te onderscheiden van een kapot paneel.
+    api.objecthistorie.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = mountPaneel()
+    await w.get('[data-testid="oh-knop"]').trigger('click')
+    await flushPromises()
+    // Assert op de MELDING zelf, niet op "er staat tekst" — dat laatste is al waar door de
+    // knoptekst, en oefende het geval dus niet.
+    expect(w.get('[data-testid="oh-leeg"]').text()).toContain('Nog geen geschiedenis')
+  })
+})
