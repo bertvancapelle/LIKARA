@@ -1650,6 +1650,14 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
     (zie likara-ux); uitrol naar overige lijsten = OPVOLGPUNTEN 0.
   - **Detailkop**: `src/components/DetailKop.vue` — naam (wrapt, nooit afgekapt) + #badges +
     #subtitel + #acties + #destructief (eigen gescheiden zone); 8 detailschermen zijn consument.
+  - **Icoon** (LI048): `src/components/Icoon.vue` — de tekens van LIKARA, in één bestand. **Geen
+    iconenpakket als afhankelijkheid** (voor twee tekens honderden andere binnenhalen, plus een
+    fontbestand bij élk bezoek) en **geen emoji** (ziet er per apparaat anders uit en volgt de
+    knopkleur niet — dan hangt het beeld af van de computer van de consultant). Inline SVG op
+    `currentColor` + `1em`, dus het teken erft kleur én grootte van zijn knop; zet er nooit een
+    vaste kleur of pixelmaat op, dan valt de knoppenrij visueel uiteen. Het teken is
+    `aria-hidden`; de naam hoort op de KNOP. Er staan **alleen wegwijzers** in — zie likara-ux §P9
+    voor waarom handelingen een woord blijven.
   - **Lijstkop** (LI048): `src/components/LijstKop.vue` — vaste volgorde
     `naam · #zoek · #filter · #actie`, niet te wijzigen door de call-site; **alle 14**
     hoofdmenu-lijstschermen zijn consument (geen uitzonderingen). Een scherm zonder slots schrijft
@@ -1675,7 +1683,8 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   uitsluitend binnen dat blok) en lijstkop (elk hoofdmenu-scherm mét lijst gebruikt `<LijstKop>`; een tweede
   `<h1>` of een `type="search"` búíten dat blok is een overtreding — dat laatste ving precies
   de dubbeling die ontstaat als het zoekveld naar de kop verhuist maar in de filterbalk blijft
-  staan; plus: hoogstens één `type="search"` per scherm, en de weergaveschakelaar
+  staan), icoon (`<Icoon naam="…">` gebruikt alleen namen die in `Icoon.vue` bestaan, en een
+  `icon="pi …"`-attribuut is per definitie dood — primeicons is geen afhankelijkheid; plus: hoogstens één `type="search"` per scherm, en de weergaveschakelaar
   (`aria-label="Weergave"`) mag níét binnen het kop-blok — die bepaalt hoe je kijkt, niet wat je
   ziet). Eisen aan élke scan: (1) **aantoonbaar bijten** — een zelftest
   met opzettelijk foute voorbeelden draait bij elke run mee; (2) **geen vals-positieven**

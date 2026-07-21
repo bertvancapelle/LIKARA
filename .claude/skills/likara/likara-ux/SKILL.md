@@ -297,6 +297,35 @@ kunnen wegfilteren.)
   vangrail** — teller en getoonde lijst uit één bron (`dekking_overzicht`), nooit twee die uit de pas
   lopen (de kernregel-derde-gezicht, likara-domeinmodel §LI041).
 
+### P9 — Een teken mag alleen waar verkeerd klikken goedkoop is (LI048)
+
+De vraag "icoon of woord?" wordt meestal beantwoord met ruimte of met smaak. Geen van beide is de
+maat. De maat is: **wat gebeurt er als de gebruiker verkeerd klikt?**
+
+> **Een WEGWIJZER brengt je ergens heen — verkeerd geklikt kost één klik terug, dus die mag een
+> teken zijn. Een HANDELING verandert iets — die blijft een woord, ook als het teken mooier is.**
+
+**Waarom een tooltip het verschil niet dicht.** Hij verschijnt pas als je met de muis blijft
+hangen, dus alleen als je al vermoedt wat er staat. Op een tablet verschijnt hij helemaal niet. Voor
+een wegwijzer is dat prima; voor een knop die iets weggooit is het te laat.
+
+**Het geval (LI048).** In de detailkop werden *Bekijk op kaart* en *Geschiedenis* een teken;
+*Bewerken*, *Klaar verklaren/Heropenen* en *Verwijderen* bleven woorden. Heropenen geeft werk terug
+aan de wachtrij, Verwijderen is definitief — die moeten in één blik leesbaar zijn, ook voor iemand
+die het scherm voor het eerst ziet.
+
+**De winst is niet de ruimte maar het ONDERSCHEID:** doordat alleen wegwijzers een teken dragen,
+zegt de vorm zelf welke knop iets doet en welke je verplaatst. Wordt later "voor de consistentie"
+alles een teken, dan is dat onderscheid weg — en dat is verlies, geen opschoning. Vandaar een toets
+die omvalt zodra een handeling een teken krijgt (`ComponentDetail.test.js`, "DE REGEL").
+
+**Praktische ondergrens:** gebruik alleen tekens die de gebruiker al kent (kaart, klok-met-terugpijl).
+Bestaat er geen bekend teken voor een begrip — "heropenen" — dan verzin je een symbool dat hij moet
+leren, terwijl het woord er al stond.
+
+**Elk teken houdt zijn tekst** als `title` (tooltip) én `aria-label` (uitgesproken naam). Beide, niet
+één: een schermlezer leest `title` niet betrouwbaar voor, en `aria-label` levert geen tooltip.
+
 ### P8d — Een filter heet naar wat het filtert (LI048)
 
 Vierde in de lijn van §P8a–c, en de goedkoopste om te voorkomen.
