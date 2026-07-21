@@ -493,13 +493,27 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 ## LI046 — groen bewijst geen schone bron (bronbestand-hygiëne)
 
 Een tekstbronbestand (.js/.py/.vue/.md) moet **schone UTF-8** zijn. Groene tests bewijzen dat **niet**:
-Node/vitest parseren een `.js` mét **null-bytes** (` `) probleemloos, dus de suite bleef groen —
+Node/vitest parseren een `.js` mét **null-bytes** (`\0`) probleemloos, dus de suite bleef groen —
 maar git zag `kaartBanen.js` als **binair** (geen diffs, fragiel) en `file` meldde "data". Oorzaak deze
-sessie: Map-key-separators werden per ongeluk ` ` i.p.v. een spatie. **Controleer vóór commit** met
+sessie: Map-key-separators werden per ongeluk `\0` i.p.v. een spatie. **Controleer vóór commit** met
 `file <bestand>` (moet "… text", niet "data") en/of `git diff --cached --stat` (een tekstbestand dat als
 `Bin 0 -> N bytes` verschijnt is verdacht); lokaliseer met `python3 -c "print(open(f,'rb').read().count(b'\\x00'))"`.
 Een unieke sleutel mag elke ASCII-separator gebruiken die niet in de waarden voorkomt (UUIDs bevatten
 geen spatie) — kies bewust, geen onzichtbare control-byte.
+
+⚠ **Deze regel faalde op zijn eigen bestand (ontdekt LI048).** Bij het opschrijven van bovenstaande
+les in LI047 zijn de twee null-bytes **letterlijk als voorbeeld in de tekst gezet** — waardoor
+`likara-tests/SKILL.md` zélf besmet raakte en `file` er "data" van maakte. Twee dingen om te onthouden:
+
+1. **Schrijf een control-byte nooit als zichzelf, maar als escape** (`\0`, `\x00`). Een voorbeeld van
+   iets onzichtbaars mag het bestand niet onzichtbaar besmetten.
+2. **De schade is subtieler dan "git ziet het als binair".** Git keek hier weg omdat de bytes voorbij
+   de eerste 8 kB stonden, dus de diffs bleven werken en niets viel op. Maar **`grep` slaat het
+   bestand stil over** — geen foutmelding, gewoon nul treffers. Zo werd de skill onvindbaar voor de
+   sessiestart-zoekopdrachten waar hij juist voor bestaat: in LI048 gaven vier greps op rij niets
+   terug terwijl de gezochte tekst er wél stond, en pas `grep -a` bracht hem boven water.
+   **Vuistregel:** krijg je nul treffers op een bestand waarvan je wéét dat de tekst er staat, toets
+   dan `file <bestand>` vóór je je zoekterm gaat betwijfelen.
 
 ## LI047 — `vi.clearAllMocks()` wist aanroepen, niet implementaties
 

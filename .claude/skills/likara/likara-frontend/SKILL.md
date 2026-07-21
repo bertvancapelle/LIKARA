@@ -1407,6 +1407,15 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   defaults** (bij een doorklik-query `herstel()` overslaan); cursor/paginering en data
   NOOIT mee (verse fetch, ADR-017). In gebruik op partij-/component-/contract-/proces-
   lijst, BlokkadeOverzicht en de rollup-uitklapstand — nieuwe lijstschermen haken aan.
+- **Filtervenster — BEWUST (nog) GEEN norm (LI048).** `ComponentLijst` bergt zijn dertien filters op
+  in een Dialog achter een `Filter (N)`-knop, met een conceptstaat (kiezen past pas toe bij de
+  knop onderin), één `_paramsUit(bron)` voor lijst én live-teller, en een debounce-teller op het
+  lijst-endpoint (`limit: 1`). Vindplaats: `modules/…/views/ComponentLijst.vue`.
+  **Eén consument = onder de n≥2-drempel** (harde regel 8, likara-domeinmodel): deze bouwwijze is
+  hier níét tot patroon verheven, want een tweede scherm heeft nog niet laten zien of hij past.
+  Genoteerd zodat een volgende sessie hem niet hoeft te reconstrueren — en weet dat het geen
+  goedgekeurde norm is. ⚠ De **UX-regel** eronder geldt wél vanaf het eerste geval: likara-ux §P8a
+  ("een opgeborgen filter blijft zichtbaar"). Dát is niet-onderhandelbaar; de bouwwijze is dat niet.
 - **Regel-acties-patroon** — elke registratie-/relatieregel krijgt **Bewerken** (dialoog
   op de kenmerk-velden; de identiteit/ankers zichtbaar maar read-only) en **Verwijderen**
   (áltijd via de gedeelde `src/components/BevestigVerwijderDialog.vue`, met de regel

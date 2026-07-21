@@ -297,6 +297,54 @@ kunnen wegfilteren.)
   vangrail** — teller en getoonde lijst uit één bron (`dekking_overzicht`), nooit twee die uit de pas
   lopen (de kernregel-derde-gezicht, likara-domeinmodel §LI041).
 
+### P8a — Een opgeborgen filter blijft zichtbaar (LI048, niet-onderhandelbaar)
+
+Derde instantie van dezelfde lijn, en de scherpste: niet een filter dat verbergt, maar een filter
+dat **zelf** verborgen is.
+
+> **Een filter dat werkt maar niet zichtbaar is wanneer zijn besturingselement gesloten is, bestaat
+> voor de gebruiker niet.**
+
+Berg je filters op achter een knop, paneel of venster, dan moet **zonder openen** zichtbaar zijn:
+1. **dát** er gefilterd wordt (een teller op de knop — bij nul geen getal, zie §"een lijst legt uit,
+   een teller zwijgt");
+2. **welke** filters aanstaan (uitgeschreven, label + waarde);
+3. **hoeveel** er overblijft ("7 van 20 componenten");
+4. en elk actief filter is **los weg te klikken** zonder het venster te openen.
+
+**Waarom dit geen vormvoorkeur is.** Een consultant die naar een stiekem gefilterde lijst kijkt,
+trekt verkeerde conclusies over zijn eigen landschap: hij ziet zeven componenten en denkt dat het er
+zeven zíjn. In LIKARA is dat geen ongemak maar een **fout antwoord op de vraag waarvoor het product
+bestaat**. De vraag *"waarom zie ik er maar zeven?"* moet altijd beantwoord zijn zonder iets te
+openen.
+
+**Vangrail:** de teller en de opsomming lezen **één bron** (in de componentenlijst: `filterChips`).
+Zo kan een filter niet wél tellen en géén chip krijgen — dat is precies het defect dat onzichtbaar
+filtert, en het is niet met het blote oog te zien.
+
+⚠ **Een toets die het geval niet oefent, geeft valse zekerheid (LI048).** Bij een regel als deze is
+de toets de enige bewaking — het defect is per definitie onzichtbaar. Maar een toets die de
+*omstandigheid* niet nabootst waarin het defect optreedt, blijft groen terwijl het defect erin zit.
+Tweemaal aangetoond in LI048:
+- De **Annuleren**-toets bewees dat een keuze niet lekt naar de toegepaste filters — maar zette de
+  debounce-timer niet vooruit, dus de live-teller had nooit gedraaid en juist dáár zat het lek. Met
+  het defect ingebouwd bleef hij groen.
+- De **dist-CSS-check** bleef groen toen de wit-op-wit-regressie werd teruggezet, omdat de check de
+  regel die het defect droeg niet toetste (alleen het bestaan van de klasse).
+
+**Vuistregel: een bijt-bewijs is pas af als de toets rood wordt op de assertie die het defect
+draagt** — niet ergens anders in de suite, en niet "er valt iets om". Breek het defect opzettelijk,
+kijk wélke regel rood wordt, en draai terug. Wordt niets rood, dan is de toets het probleem, niet
+het defect. (Zusje van "assert op zichtbare tekst" en de zelftest-eis bij bronscans, likara-tests.)
+
+**Herkomst:** `ComponentLijst` (LI048) — dertien filtervelden verhuisden naar een venster; de knop
+draagt `Filter (N)`, de chips staan eronder met het aantal ernaast.
+
+⚠ **Deze schermen raakt de regel zodra ze hun filters achter een knop bergen** (nu nog een open
+filterbalk, dus nog niet van toepassing): `PartijLijst` · `ContractLijst` · `BedrijfsfunctieLijst` ·
+`BlokkadeOverzichtView`. Genoteerd zodat een volgende sessie de regel tegenkomt **vóór** de bouw in
+plaats van erna.
+
 ## Verhouding tot andere skills
 
 - `likara-frontend` = hoe je bouwt (Vue/PrimeVue/Tailwind, tokens, presets). Stijl en techniek.
