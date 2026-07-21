@@ -1916,6 +1916,87 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   regels staan, en elke toetsaanslag een zoekopdracht laten afvuren is daar geen dienst. Geborgd
   met een toets die omvalt zodra iemand dat "verbetert".
 
+### Auditlog component-filter — hersteld; één na-MVP-punt en twee bevindingen
+
+**NA-MVP — Zoek elk ding in het auditlog.**
+De consultant moet uiteindelijk kunnen vragen *"laat me zien wat er met dít ding gebeurd is"*,
+ongeacht of dat een component, checklistvraag, werkpakket of partij is. **Eén zoekveld waarin alles
+kiesbaar is** — nadrukkelijk **niet** eerst een soort kiezen en dan een naam: die extra stap kost
+tijd en dwingt de gebruiker te weten in welk hokje zijn ding valt.
+
+Nu niet gebouwd omdat er geen manier is om in één zoekopdracht door alle soorten te zoeken. Dat is
+echt bouwwerk, geen bijvangst van een labelcorrectie. De route accepteert al een `entiteit_type`
+(`routes/auditlog.py:41`, ongebruikt door de UI); dat is een aanknopingspunt, geen oplossing.
+
+Zodra dit er is, heet het filter niet langer *Component*.
+
+**Bevindingen uit deze snede:**
+- **De dev-seed schrijft de complete seed onder ÉÉN correlatie_id** — 1.648 records, 18 soorten.
+  Filteren op een geseed component levert daardoor één onbruikbaar grote "gebeurtenis" op. Geen
+  fout van het filter en niet door deze snede veroorzaakt (de oude clausule gaf dezelfde groep);
+  wel de reden dat het filter in de demo raar oogt. Van de 15.551 correlaties zijn er 15.382
+  kleiner dan 20 records, dus bij echte handelingen speelt het niet. Kleinste stap: de dev-seed
+  per logisch object een eigen correlatie geven.
+- **Filterlabel, veldtekst en kolomkop staan op drie losse plekken** in `AuditTrailView.vue` (regels
+  151, 152, 190) zonder gedeelde bron — precies waardoor de tekst iets anders kon beloven dan het
+  label. Label en veldtekst staan nu naast elkaar en zijn met een toets geborgd; een gedeelde
+  constante zou hier weinig toevoegen (ze zeggen bewust nét iets anders: "Component" vs "Kies een
+  component…"). Het patroon speelt breder dan dit scherm — eigen afweging waard.
+
+### Auditlog snede 3 — namen en waarden; vier punten open
+- **`*_id`-waarden blijven een code** (besluit 4, bewust). ~20.000 vermeldingen; vraagt een
+  id→naam-lookup per veld. Eigen slice.
+- **`relatietype` heeft geen labelmap in `labels.js`**, dus die waarde valt terug op de ruwe tekst.
+  Gemeten, niet aangenomen — staat als NB in `_WAARDENBRON`. Kleinste stap: de map toevoegen zoals
+  de andere dertien.
+- **Vier soorten dragen bewust geen naam:** `gebruikersgroep` (heeft geen naamkolom — aantalsfeit
+  onder een gebruiksfeit; een naam zou twee stappen ver geleend moeten worden),
+  `roltoewijzing`, `organisatiegebruik`, `gebruiker_persoon`. Elk met een reden in `NAAMBRON`, en
+  een toets dwingt af dat een nieuwe soort niet stilzwijgend naamloos kan binnenkomen.
+- **`entiteit_resolutie.py` draagt een ENGINE-INVARIANT in commentaar, zonder toets.** Het bestand
+  mag geen lifecycle/score-symbolen importeren (`ComponentProfiel`/`Blokkade`/`Checklistscore`/
+  `lifecycle_*`). Die regel is bij deze snede gerespecteerd (component_profiel, checklistscore en
+  blokkade lenen hun naam van hun component, dus geen import nodig) — maar niets houdt een volgende
+  wijziging tegen. Kleinste stap: een bronscan zoals de bestaande import-scans.
+
+### Auditlog leesbaar — snede 1+2 gebouwd, drie punten open
+- **De terugval op de huidige naam is een tekortkoming, geen ontwerp** (besluit 1). Bij een
+  wijziging van een ánder veld dan de naam staat er geen naam in de auditrij, dus toont het scherm
+  de **huidige** naam — en verandert díé regel alsnog mee bij een hernoeming. Raakt **1.179 van de
+  1.223** wijzigingsregels. Oplossen vraagt een **naam-snapshot bij élke mutatie** (de capture-hook
+  zou de naam van het geraakte object altijd moeten meeschrijven, ook als die niet wijzigt). Dat is
+  een wijziging in de vastlegging, geen weergave — eigen slice, eigen afweging over logvolume.
+- **Systeemherberekeningen tonen géén naam** (2.088 `derive`-regels). `component_profiel` en
+  `blokkade` staan niet in `entiteit_resolutie._BRONNEN` én leggen zelf geen naam vast. De
+  consultant ziet dan *Componentprofiel — <code>*. Keuze: de naam van het bijbehorende **component**
+  erbij halen (die staat als `component_id` in de wijziging — dus mogelijk zonder schemawijziging),
+  of accepteren tot snede 4.
+- **Verwijderingen zonder vastgelegde naam blijven bewust naamloos** (162 van de 180). Dat is
+  besluit 1 en het is juist: de huidige naam opvragen bij een verwijderd object levert óf niets, óf
+  een ander object dat het id hergebruikt. Alleen `relatie` (68 regels) had voorheen soms een naam
+  via de resolutie — en juist daar is `Relatie.naam` alleen bij flow-koppelingen gevuld, dus in de
+  praktijk veranderde er weinig. Genoteerd zodat het niet later als regressie wordt gelezen.
+
+### Zoeken op Auditlog — gerepareerd, met twee resterende punten
+- **Het defect (verholpen).** Het zoekveld doorzocht alleen `Partij.naam` van de gekoppelde persoon,
+  terwijl de kolom *Wie* `naam or e-mail` toont. Iedereen zonder gekoppelde persoon was onvindbaar —
+  in het demolandschap iedereen (7.242 auditregels op `test:bert@test`). Geen fout, alleen "Geen
+  gebeurtenissen gevonden": de consultant concludeert dan dat er niets gebeurd is. Geen regressie
+  van snede 2; het scherm deed dit altijd al. Regel vastgelegd als **likara-ux §P8b**.
+- **Het demolandschap kan het gekoppelde-persoon-pad niet tonen.** Er zijn 3 gekoppelde personen
+  (J. de Vries, P. van Dijk, M. Bakker), maar **geen van hen heeft ook maar één auditregel** — ze
+  hebben nooit iets gemuteerd. Zoeken op een persoonsnaam levert daar dus altijd leeg op, en dat is
+  niet van een defect te onderscheiden zonder de database te bevragen. **Kleinste stap:** de
+  dev-seed één mutatie onder een gekoppelde gebruiker laten doen, dan is het pad in de browser
+  controleerbaar. Nu alleen in de backendsuite geborgd (op eigen testdata).
+- **Flaky toets in `ComponentLijst.test.js`** — *"een chip wegklikken werkt zonder het venster te
+  openen"* viel om in één van drie volledige runs; geïsoleerd en in de twee andere runs groen. Niet
+  door deze snede geraakt (die komt uit het filtervenster van LI048 snede 1). Oorzaak is zichtbaar
+  in de toets zelf: hij leest `api.componenten.lijst.mock.calls.at(-1)` terwijl de debounce-timers
+  van de live-teller nog lopen — onder load kan een late callback een extra aanroep toevoegen ná de
+  chip-klik, en dan kijkt de assertie naar de verkeerde call. Vraagt `vi.useFakeTimers()` of een
+  assertie op de juiste call in plaats van de laatste.
+
 ### Snede 2 — bevindingen die een besluit of een volgende stap vragen
 - **De inventarisatie klopte niet: er zijn 22 schermen met een kop boven een lijst, niet 7.**
   Correctie op de checkpointtabel (die telde Auditlog fout, en keek alleen naar `*Lijst.vue`).
