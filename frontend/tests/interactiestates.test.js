@@ -62,36 +62,86 @@ describe('Laag B — Button-preset varianten', () => {
   })
 })
 
-describe('Laag B — AppTabs render-states', () => {
+describe('Laag B — AppTabs tabvorm (LI048 snede 2)', () => {
   const tabs = [
     { key: 'a', label: 'Tab A' },
     { key: 'b', label: 'Tab B' },
   ]
 
-  function tabClass(testid) {
-    const w = mount(AppTabs, {
-      props: { tabs, modelValue: 'a', ariaLabel: 'Test', idPrefix: 't' },
+  function rij(orientation = 'horizontal') {
+    return mount(AppTabs, {
+      props: { tabs, modelValue: 'a', ariaLabel: 'Test', idPrefix: 't', orientation },
     })
-    return w.find(`[data-testid="${testid}"]`)
   }
 
-  it('gekozen tab: donkerblauwe token-vulling + witte tekst', () => {
-    const el = tabClass('t-tab-a')
-    expect(el.exists()).toBe(true)
-    expect(el.classes().join(' ')).toContain('bg-[var(--lk-color-primary)]')
-    expect(el.classes().join(' ')).toContain('text-white')
+  // Vóór LI048 droeg een tabblad de KNOPVORM: `h-10`, de knopradius, een omkadering en
+  // een gevulde gekozen-staat. Bij dertien tabbladen las die rij als dertien knoppen. Deze
+  // toets legt de knip vast en valt om zodra iemand de knopvorm terugzet — de vorm-signalen
+  // hieronder zijn precies wat de oude tab droeg.
+  const KNOPVORM_SIGNALEN = [
+    ['vaste knophoogte', 'h-10'],
+    ['knopradius', cls('rounded-[var(--lk-radius-btn)', ']')],
+    ['omkadering', cls('border-[0.5px', ']')],
+    ['gevulde staat', cls('bg-[var(--lk-color-primary)', ']')],
+  ]
+
+  it.each(KNOPVORM_SIGNALEN)('een tabblad draagt geen knopvorm: %s', (_naam, signaal) => {
+    const w = rij()
+    for (const testid of ['t-tab-a', 't-tab-b']) {
+      expect(w.find(`[data-testid="${testid}"]`).classes().join(' ')).not.toContain(signaal)
+    }
   })
 
-  it('niet-gekozen tab: omlijning + hover-klassen op de tab-button zelf', () => {
-    const el = tabClass('t-tab-b')
-    const c = el.classes().join(' ')
+  it('de vorm leeft in de gedeelde klassen, niet op de call-site', () => {
+    const w = rij()
+    const el = w.find('[data-testid="t-tab-b"]')
     // het klikbare element is de tab-button (role=tab), niet een wrapper
     expect(el.attributes('role')).toBe('tab')
-    // omlijning (beschikbaar-status) — module-uniek, gede-vervuild
-    expect(c).toContain(cls('border-[0.5px', ']'))
-    expect(c).toContain('border-[var(--lk-color-border)]')
-    // hover-states staan op deze button — module-uniek, gede-vervuild
-    expect(c).toContain(cls('hover:bg-[var(--lk-color-primary-50)', ']'))
-    expect(c).toContain(cls('hover:text-[var(--lk-color-primary-700)', ']'))
+    expect(el.classes()).toContain('lk-tab')
+    // De RIJ draagt de doorlopende lijn (`.lk-tabrij-h`), niet elk tabblad een eigen rand.
+    expect(w.find('[role="tablist"]').classes()).toEqual(
+      expect.arrayContaining(['lk-tabrij', 'lk-tabrij-h']),
+    )
+  })
+
+  it('verticaal krijgt de rij zijn eigen kant — het vlak zit ernaast, niet eronder', () => {
+    const w = rij('vertical')
+    expect(w.find('[role="tablist"]').classes()).toEqual(
+      expect.arrayContaining(['lk-tabrij', 'lk-tabrij-v']),
+    )
+    expect(w.find('[role="tablist"]').classes()).not.toContain('lk-tabrij-h')
+  })
+
+  // ── LI048 2c — HET DEFECT: wit op wit ────────────────────────────────────────────────────
+  // De eerste sub-rij stond transparant op het witte werkvlak. Een niet-gekozen tabblad had dan
+  // geen ondergrond om uit naar voren te komen: alleen de gekozen pil was zichtbaar, de rest
+  // zweefde als losse tekst en de rij las niet als een rij. Deze toets legt vast dát de rij een
+  // eigen ondergrond draagt en valt om zodra iemand hem weer op transparant/wit zet.
+  it('2c: de sub-rij draagt een eigen ondergrond — niet-gekozen tabbladen staan niet op wit', () => {
+    const w = mount(AppTabs, {
+      props: { tabs, modelValue: 'a', ariaLabel: 'Test', idPrefix: 't', niveau: '2' },
+    })
+    const rij = w.find('[role="tablist"]')
+    expect(rij.classes()).toContain('lk-tabrij-sub')
+    // De band-tint en de wit-versmelting leven in main.css (`.lk-tabrij-*.lk-tabrij-sub`); de
+    // build-CSS-check bewijst dat ze in de dist staan. Hier borgen we de bedrading: niveau 2
+    // krijgt de sub-klasse, niveau 1 níét — anders erft de hoofdrij stilletjes de band.
+    const hoofd = mount(AppTabs, {
+      props: { tabs, modelValue: 'a', ariaLabel: 'Test', idPrefix: 't' },
+    })
+    expect(hoofd.find('[role="tablist"]').classes()).not.toContain('lk-tabrij-sub')
+  })
+
+  it('de gekozen staat leeft in aria-selected — geen tweede, losse staat-class', () => {
+    // Zo kunnen het toegankelijkheidsfeit en het zichtbare feit structureel niet uiteenlopen
+    // (de fout die snede 1 blootlegde: een rij die er gekozen uitzag maar het niet wás, of
+    // andersom). De CSS leest `[aria-selected="true"]`; valt iemand terug op een class, dan
+    // dragen gekozen en niet-gekozen tab verschillende classes en valt deze toets om.
+    const w = rij()
+    const gekozen = w.find('[data-testid="t-tab-a"]')
+    const rest = w.find('[data-testid="t-tab-b"]')
+    expect(gekozen.attributes('aria-selected')).toBe('true')
+    expect(rest.attributes('aria-selected')).toBe('false')
+    expect(gekozen.classes()).toEqual(rest.classes())
   })
 })

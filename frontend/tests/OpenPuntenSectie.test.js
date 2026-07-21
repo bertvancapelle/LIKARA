@@ -18,7 +18,7 @@ const _respons = (over = {}) => ({
 })
 
 // LI047 snede 2 — de sectie laadt niet zelf: ComponentDetail is het ENE laadpunt en voedt zowel
-// de teller op de kopknop als deze lijst. De sectie krijgt de data dus als prop.
+// het getal in het tablabel als deze lijst. De sectie krijgt de data dus als prop.
 async function mountSectie(data = _respons()) {
   const w = mount(OpenPuntenSectie, {
     props: { componentId: CID, data },
@@ -31,7 +31,7 @@ async function mountSectie(data = _respons()) {
 beforeEach(() => vi.clearAllMocks())
 
 describe('OpenPuntenSectie', () => {
-  it('besluit 14: de teller in de tabnaam en de getoonde regels komen uit één bron', async () => {
+  it('besluit 14: de teller in het filterlabel en de getoonde regels komen uit één bron', async () => {
     const w = await mountSectie(_respons({
       moet_nog: {
         aantal: 2,
@@ -41,15 +41,15 @@ describe('OpenPuntenSectie', () => {
         ],
       },
     }))
-    expect(w.find('[data-testid="open-punten-tab-moet_nog"]').text()).toContain('Dit moet nog (2)')
-    // Het getal in de tab en het aantal regels kunnen niet uiteenlopen: beide komen uit `aantal`
+    expect(w.find('[data-testid="op-filter-moet_nog"]').text()).toContain('Dit moet nog (2)')
+    // Het getal op het filter en het aantal regels kunnen niet uiteenlopen: beide komen uit `aantal`
     // resp. `punten` van dezelfde respons, en de server garandeert dat die gelijk zijn.
     expect(w.findAll('[data-testid="op-lijst-moet_nog"] > li')).toHaveLength(2)
   })
 
   it('besluit 4: nul is een uitkomst — het blok blijft bestaan, toont 0 en zegt wát er niets open is', async () => {
     const w = await mountSectie()
-    expect(w.find('[data-testid="open-punten-tab-moet_nog"]').text()).toContain('Dit moet nog (0)')
+    expect(w.find('[data-testid="op-filter-moet_nog"]').text()).toContain('Dit moet nog (0)')
     expect(w.find('[data-testid="op-leeg-moet_nog"]').exists()).toBe(true)
     expect(w.find('[data-testid="op-leeg-moet_nog"]').text()).toContain('niets meer open')
     // Geen lege staat die als storing leest: er staat een rustige regel, geen lijst.
@@ -72,7 +72,7 @@ describe('OpenPuntenSectie', () => {
         punten: [{ soort: 'checklist_nee_deels', aantal: 7, route: { soort: 'tab', tab: 'checklist' } }],
       },
     }))
-    await w.find('[data-testid="open-punten-tab-valt_op"]').trigger('click')
+    await w.find('[data-testid="op-filter-valt_op"]').trigger('click')
     await flushPromises()
     const regel = w.find('[data-testid="op-punt-checklist_nee_deels"]')
     expect(regel.text()).toContain('7 checklistantwoorden')
@@ -119,7 +119,7 @@ describe('OpenPuntenSectie', () => {
     const w = await mountSectie(_respons({
       netjes: { aantal: 1, punten: [{ feit: 'hosting', route: null }] },
     }))
-    await w.find('[data-testid="open-punten-tab-netjes"]').trigger('click')
+    await w.find('[data-testid="op-filter-netjes"]').trigger('click')
     await flushPromises()
     expect(w.findAll('[data-norm-lat]')).toHaveLength(0)
   })
@@ -185,5 +185,93 @@ describe('OpenPuntenSectie', () => {
     }))
     expect(w.find('[data-testid="op-lijst-moet_nog"]').exists()).toBe(true)
     expect(w.find('[data-testid="op-lijst-netjes"]').exists()).toBe(false)
+  })
+})
+
+// ── LI048 2c — de drie blokken zijn FILTERS, geen tabbladen ──────────────────────────────────
+describe('OpenPuntenSectie — filtervorm (LI048 2c)', () => {
+  it('de blokken dragen geen tab-semantiek: geen role=tab, geen aria-controls naar het niets', async () => {
+    // Ze wáren als AppTabs gebouwd: `role="tablist"`/`role="tab"` met `aria-controls` naar
+    // `open-punten-panel-*` — panelen die in deze sectie NIET bestaan (er is geen enkele
+    // `role="tabpanel"`). Een schermlezer kondigde dus "tabblad 1 van 3" aan en verwees naar het
+    // niets. Deze toets valt om zodra iemand er weer tabbladen van maakt.
+    const w = await mountSectie()
+    expect(w.findAll('[role="tab"]')).toHaveLength(0)
+    expect(w.findAll('[role="tablist"]')).toHaveLength(0)
+    expect(w.findAll('[aria-controls]')).toHaveLength(0)
+    // Wat ze wél zijn: een groep toggle-knoppen over één lijst.
+    expect(w.find('[data-testid="op-filters"]').attributes('role')).toBe('group')
+  })
+
+  it('een schakelaarstand draagt de gedeelde vorm en de indrukstaat in aria-pressed', async () => {
+    const w = await mountSectie()
+    const gekozen = w.find('[data-testid="op-filter-moet_nog"]')
+    const rest = w.find('[data-testid="op-filter-netjes"]')
+    // De vorm leeft in de gedeelde klasse, niet op de call-site …
+    expect(gekozen.classes()).toContain('lk-schakelaar-stand')
+    expect(rest.classes()).toContain('lk-schakelaar-stand')
+    // … en géén tabvorm: een schakelaar is geen plek waar je heen gaat.
+    for (const el of [gekozen, rest]) {
+      expect(el.classes()).not.toContain('lk-tab')
+    }
+    // De staat leeft in ARIA (zoals bij de tabbladen in aria-selected), zodat het zichtbare feit
+    // en het toegankelijkheidsfeit niet uiteen kunnen lopen — beide lezen dezelfde bron.
+    expect(gekozen.attributes('aria-pressed')).toBe('true')
+    expect(rest.attributes('aria-pressed')).toBe('false')
+    expect(gekozen.classes()).toEqual(rest.classes())
+  })
+
+  it('klikken filtert de lijst — het wisselt geen paneel', async () => {
+    const w = await mountSectie(_respons({
+      netjes: { aantal: 1, punten: [{ feit: 'hosting', route: null }] },
+    }))
+    // Vóór de klik toont de sectie het moet_nog-filter; ná de klik dezelfde ene lijst met andere
+    // inhoud — er is en blijft precies één lijst-element.
+    await w.find('[data-testid="op-filter-netjes"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="op-filter-netjes"]').attributes('aria-pressed')).toBe('true')
+    expect(w.find('[data-testid="op-filter-moet_nog"]').attributes('aria-pressed')).toBe('false')
+    expect(w.findAll('[data-testid^="op-lijst-"]')).toHaveLength(1)
+  })
+})
+
+// ── LI048 2d — één schakelaar, en de lijst hangt er niet los onder ───────────────────────────
+describe('OpenPuntenSectie — schakelaarvorm (LI048 2d)', () => {
+  it('de drie standen zitten in ÉÉN schakelaar, niet als losse knopjes naast elkaar', async () => {
+    const w = await mountSectie()
+    const groep = w.find('[data-testid="op-filters"]')
+    expect(groep.classes()).toContain('lk-schakelaar')
+    // Alle drie de standen zitten IN die ene groep — geen losse knopjes ernaast.
+    expect(groep.findAll('.lk-schakelaar-stand')).toHaveLength(3)
+  })
+
+  it('onder de schakelaar staat één scheidingslijn — de lijst hangt er niet los onder', async () => {
+    const w = await mountSectie(_respons({
+      moet_nog: { aantal: 1, punten: [{ feit: 'biv', route: null }] },
+    }))
+    // De streep hoort NIET op de schakelaar zelf (die sluit strak om de knopjes) maar op de
+    // omhullende rij, zodat hij over de volle breedte loopt en kiezen van krijgen scheidt.
+    const streep = w.find('.lk-schakelaar-streep')
+    expect(streep.exists()).toBe(true)
+    expect(streep.classes()).not.toContain('lk-schakelaar')
+    // De schakelaar zit erbinnen; de lijst staat eronder.
+    expect(streep.find('[data-testid="op-filters"]').exists()).toBe(true)
+  })
+
+  it('2d: de lijst draagt GEEN eigen achtergrondvulling — signaal hoort op wit', async () => {
+    // In deze lijst staan de signalen (amber = bewust afgewogen, gedempt = verschoven lat, blauw
+    // = Vastleggen). Een gekleurde vloer eronder zou daarmee concurreren — dezelfde reden waarom
+    // het gekleurde tabbladvlak eerder is afgewezen. Deze toets valt om zodra iemand de lijst
+    // (of zijn regels) een `bg-`/`lk-schakelaar`-vulling geeft.
+    const w = await mountSectie(_respons({
+      moet_nog: { aantal: 2, punten: [{ feit: 'biv', route: null }, { feit: 'contract', route: null }] },
+    }))
+    const lijst = w.find('[data-testid="op-lijst-moet_nog"]')
+    expect(lijst.exists()).toBe(true)
+    const vulling = (el) => el.classes().filter((c) => c.startsWith('bg-') || c.startsWith('lk-schakelaar'))
+    expect(vulling(lijst), 'de lijst draagt een achtergrondvulling').toEqual([])
+    for (const rij of lijst.findAll('li')) {
+      expect(vulling(rij), 'een lijstregel draagt een achtergrondvulling').toEqual([])
+    }
   })
 })

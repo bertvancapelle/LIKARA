@@ -10,6 +10,13 @@
  *
  * `--lk-`-tokens, geen `<style>`. id-conventie: `${idPrefix}-tab-${key}` /
  * `${idPrefix}-panel-${key}` (de ouder gebruikt dezelfde voor zijn panelen).
+ *
+ * VORM (LI048 snede 2): de tabvorm leeft volledig in de gedeelde klassen `.lk-tabrij`/
+ * `.lk-tab` (main.css) — deze component kiest alleen de oriëntatie. Een tabblad draagt
+ * dus GEEN knopvorm meer (omkadering, knopradius, `h-10`, gevulde gekozen-staat): bij
+ * dertien tabbladen las die rij als dertien knoppen. De gekozen staat wordt gestyled op
+ * `aria-selected`, zodat het toegankelijkheidsfeit en het zichtbare feit niet uiteen
+ * kunnen lopen. Het bijbehorende werkvlak is `.lk-tabvlak` bij de ouder.
  */
 const props = defineProps({
   tabs: { type: Array, required: true }, // [{ key, label }]
@@ -17,6 +24,14 @@ const props = defineProps({
   ariaLabel: { type: String, required: true },
   orientation: { type: String, default: 'horizontal' }, // 'horizontal' | 'vertical'
   idPrefix: { type: String, required: true },
+  /**
+   * Diepte van de rij: '1' = de rij die het scherm stuurt, '2' = een sub-rij binnen een
+   * gekozen groep. Niveau 2 is zichtbaar LICHTER (kleiner, geen accentbalk) — anders staan er
+   * twee gelijkwaardige rijen en weet de gebruiker niet meer welke hem stuurt. Het gewicht
+   * leeft in de BOUWSTEEN, niet op de aanroepplek: zo erft elke volgende sub-rij het, en ziet
+   * het volgende scherm er niet weer anders uit (KERNLES LI038).
+   */
+  niveau: { type: String, default: '1' }, // '1' | '2'
 })
 const emit = defineEmits(['update:modelValue'])
 
@@ -54,8 +69,9 @@ function opToets(e, i) {
     :aria-label="ariaLabel"
     :aria-orientation="orientation"
     :class="[
-      'flex gap-[var(--lk-space-xs)]',
-      orientation === 'vertical' ? 'flex-col' : 'flex-wrap',
+      'lk-tabrij',
+      orientation === 'vertical' ? 'lk-tabrij-v' : 'lk-tabrij-h',
+      niveau === '2' ? 'lk-tabrij-sub' : '',
     ]"
   >
     <button
@@ -68,13 +84,7 @@ function opToets(e, i) {
       :aria-controls="`${idPrefix}-panel-${t.key}`"
       :tabindex="t.key === modelValue ? 0 : -1"
       :data-testid="`${idPrefix}-tab-${t.key}`"
-      :class="[
-        'inline-flex items-center h-10 rounded-[var(--lk-radius-btn)] px-[var(--lk-space-md)] text-[length:var(--lk-text-sm)] text-left',
-        'focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]',
-        t.key === modelValue
-          ? 'border-[0.5px] border-[var(--lk-color-primary)] bg-[var(--lk-color-primary)] font-semibold text-white'
-          : 'border-[0.5px] border-[var(--lk-color-border)] bg-white text-[var(--lk-color-text)] hover:bg-[var(--lk-color-primary-50)] hover:text-[var(--lk-color-primary-700)]',
-      ]"
+      class="lk-tab"
       @click="selecteer(t.key)"
       @keydown="opToets($event, i)"
     >

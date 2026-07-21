@@ -5,16 +5,17 @@
  * De consultant hoefde voorheen zes tot acht plekken langs om te weten of hij klaar was. Hier staat
  * het bij elkaar, met per punt een route naar de plek waar hij het antwoord vastlegt.
  *
- * Drie blokken als sub-tabbladen met de teller in de naam (besluit 2). Teller én lijst komen uit
- * dezelfde respons (besluit 14) — het getal is `aantal` uit de server, dat per definitie de lengte
- * van `punten` is; hier wordt niets opnieuw geteld.
+ * Drie blokken als één SCHAKELAAR met de teller in elke stand (besluit 2; vorm herzien LI048 2c/2d
+ * — het waren tabbladen, maar ze wisselen geen paneel: ze filteren één lijst, en de tab-semantiek
+ * wees naar panelen die niet bestonden). Teller én lijst komen uit dezelfde respons (besluit 14) —
+ * het getal is `aantal` uit de server, dat per definitie de lengte van `punten` is; hier wordt
+ * niets opnieuw geteld.
  *
  * Nul is een uitkomst, geen storing (besluit 4): een leeg blok blijft bestaan, toont "0" en zegt
  * geopend wát er niets open is.
  */
 import { computed, ref, watch } from 'vue'
 import { NORM_FEIT_LABEL } from '../labels'
-import AppTabs from './AppTabs.vue'
 
 // LI047 snede 2 — ÉÉN laadpunt: `ComponentDetail` haalt de open punten op en voedt hiermee zowel
 // het getal in het tablabel "Open punten (N)" als deze lijst. Deze sectie laadt dus NIET zelf; een
@@ -38,8 +39,8 @@ const BLOKKEN = [
 ]
 const actiefBlok = ref('moet_nog')
 
-// Besluit 4 — de teller staat in de tabnaam en komt uit dezelfde respons als de lijst.
-const blokTabs = computed(() =>
+// Besluit 4 — de teller staat in het filterlabel en komt uit dezelfde respons als de lijst.
+const blokFilters = computed(() =>
   BLOKKEN.map((b) => ({ key: b.key, label: `${b.label} (${props.data?.[b.key]?.aantal ?? 0})` })),
 )
 const huidig = computed(() => props.data?.[actiefBlok.value] ?? { aantal: 0, punten: [] })
@@ -116,12 +117,32 @@ watch(() => props.componentId, () => { actiefBlok.value = 'moet_nog' })
         </p>
       </div>
 
-      <AppTabs
-        v-model="actiefBlok"
-        :tabs="blokTabs"
-        id-prefix="open-punten"
-        aria-label="Soorten open punten"
-      />
+      <!-- LI048 2c/2d — één SCHAKELAAR met drie standen, geen tabrij. Deze drie wisselen geen
+           paneel: ze filteren één lijst (`huidig`). Ze waren als `AppTabs` gebouwd, dus met
+           `role="tab"` en `aria-controls` naar `open-punten-panel-*` — panelen die niet bestaan;
+           er is geen enkele `role="tabpanel"` in deze sectie. Een schermlezer kondigde daarmee
+           een tabblad aan en verwees naar het niets. Nu toggle-knoppen in een `role="group"`:
+           `aria-pressed` zegt wat waar is, en de vorm (`.lk-schakelaar`) zegt dat dit één keuze
+           is en geen plek waar je heen gaat. De streep eronder scheidt waarmee je kiest van wat
+           je krijgt; de lijst zelf blijft op wit (de signalen erin hebben een schone vloer nodig). -->
+      <div class="lk-schakelaar-streep pb-[var(--lk-space-sm)] mb-[var(--lk-space-sm)]">
+        <div
+          role="group"
+          aria-label="Soorten open punten"
+          data-testid="op-filters"
+          class="lk-schakelaar"
+        >
+          <button
+            v-for="b in blokFilters"
+            :key="b.key"
+            type="button"
+            class="lk-schakelaar-stand"
+            :aria-pressed="b.key === actiefBlok"
+            :data-testid="`op-filter-${b.key}`"
+            @click="actiefBlok = b.key"
+          >{{ b.label }}</button>
+        </div>
+      </div>
 
       <!-- Besluit 21 — de norm-aanduiding staat ÉÉN keer boven het blok, niet per rij: in blok 1 is
            elk punt per definitie een norm-feit, en dat tien keer herhalen is geen informatie. -->

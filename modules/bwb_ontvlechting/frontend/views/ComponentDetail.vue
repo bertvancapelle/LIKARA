@@ -210,58 +210,148 @@ async function bevestigVerwijderen() {
 // ── 2-laags tabnavigatie (LI059 Slice 4, geport uit ApplicatieDetail) ────────
 // Tabs conditioneel per type: applicatie-eigen tabs (datatypes/gebruikersgroepen/
 // koppelingen) alleen bij een subtype; checklist/blokkades alleen bij checklist-dragend.
-// LI048 besluit 1 — Open punten is een TABBLAD, het tweede in de rij. Dit herroept de
-// LI047-keuze om er een plek zónder tabblad van te maken (`PLEKKEN_ZONDER_TAB`, verwijderd):
-// het onderscheid "onderdeel versus werkvoorraad" leefde in het model, niet op het scherm. De
-// gebruiker zag alleen inhoud die bij geen enkel tabblad hoorde — en erger: met een `modelValue`
-// die geen enkele tab matchte kreeg ÉLKE tab `tabindex="-1"` (AppTabs.vue), waardoor de hele
-// tabrij uit de toetsenbordvolgorde viel. Eén gekozen tabblad is nu structureel gegarandeerd.
-const topTabs = computed(() => {
-  const t = [{ key: 'overzicht', label: 'Overzicht' }]
+// LI048 besluit 1 — Open punten is een TABBLAD. Dit herroept de LI047-keuze om er een plek
+// zónder tabblad van te maken (`PLEKKEN_ZONDER_TAB`, verwijderd): het onderscheid "onderdeel
+// versus werkvoorraad" leefde in het model, niet op het scherm. De gebruiker zag alleen inhoud
+// die bij geen enkel tabblad hoorde — en erger: met een `modelValue` die geen enkele tab matchte
+// kreeg ÉLKE tab `tabindex="-1"` (AppTabs.vue), waardoor de hele tabrij uit de toetsenbordvolgorde
+// viel. Eén gekozen tabblad is nu structureel gegarandeerd, op BEIDE rijen.
+//
+// LI048 snede 2b — DERTIEN TABBLADEN WORDEN VIJF GROEPEN.
+// Dertien tabbladen liepen over naar een tweede regel: het gekozen tabblad stond dan op regel
+// één terwijl het witte vlak pas onder regel twee begon, dus het tabblad hing los — precies wat
+// de tabvorm (snede 2) moest oplossen. En dertien woorden zijn niet te scannen: alles woog even
+// zwaar, Overzicht naast Blokkades. Een overloopmenu is géén oplossing (dan is een deel gewoon
+// onzichtbaar — dat ís de klacht).
+//
+// De groepen volgen hoe de consultant denkt, niet hoe het datamodel is ingedeeld:
+//   Beoordeling  = open punten + checklist — dezelfde bezigheid op twee diepten (de checklist is
+//                  het gesprek met het component, open punten is wat er ná dat gesprek ontbreekt).
+//                  Het woord botst nergens: de kop-knop heet al "Start beoordeling".
+//   Wat het doet = bedrijfsfunctie · gebruik · gebruikersgroepen · datatypes. Datatypes hoort
+//                  hier (besluit Bert): de vraag is "welke gegevens verwerkt dit", niet "wat gaat
+//                  er in en uit".
+//   Samenhang    = koppelingen · opbouw · impact.
+//   Afspraken    = contracten · verantwoordelijkheden · blokkades.
+// Verworpen namen (niet opnieuw voorstellen): "Status (N)" en "Inventarisatie (N)" — beide dragen
+// elders op dit scherm al een andere betekenis, en geen van beide is telbaar.
+//
+// SLEUTELDISCIPLINE: `activeTop` blijft de ONDERDEEL-sleutel ('checklist', 'contracten', …), niet
+// de groep. Daardoor blijft `?tab=` letterlijk dezelfde taal spreken en werkt élke bestaande link
+// (kaart-aanleidingen, blokkade-doorklik, open-punten-routes, gedeelde URL's) zonder vertaling.
+// De groep is AFGELEID uit het onderdeel — nooit een tweede sleutel die uit de pas kan lopen.
+const GROEPEN = [
+  { key: 'overzicht', label: 'Overzicht', onderdelen: ['overzicht'] },
+  { key: 'beoordeling', label: 'Beoordeling', onderdelen: ['open-punten', 'checklist'] },
+  { key: 'wat-het-doet', label: 'Wat het doet',
+    onderdelen: ['bedrijfsfunctie', 'gebruik', 'gebruikersgroepen', 'datatypes'] },
+  { key: 'samenhang', label: 'Samenhang', onderdelen: ['koppelingen', 'opbouw', 'impact'] },
+  { key: 'afspraken', label: 'Afspraken',
+    onderdelen: ['contracten', 'verantwoordelijkheden', 'blokkades'] },
+]
+
+// Welke onderdelen bestaan er voor DIT component, met hun label. Dit is de oude `topTabs`-inhoud:
+// de condities per type zijn ongewijzigd — alleen de indeling eromheen is nieuw.
+const onderdeelLabels = computed(() => ({
+  overzicht: 'Overzicht',
   // LI048 besluit 3 — het getal staat er ALTIJD, ook bij nul. Dit herziet bewust de LI047-regel
-  // "een teller zwijgt bij nul" voor deze plek: in een rij van twaalf tabbladen leest "geen
-  // getal" niet als nul maar als "dit tabblad telt niets" — dat verschil is onzichtbaar, dus
-  // klikt de gebruiker alsnog. Het tabblad en de drie blokken erbinnen (OpenPuntenSectie) doen
-  // hiermee hetzelfde. Het getal komt uit `moetNog`, dus uit HET ene laadpunt — nooit een
-  // tweede telling naast de lijst in het paneel.
-  t.push({ key: 'open-punten', label: `Open punten (${moetNog.value})` })
-  // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het systeem én de
-  // bestemming van de werkvoorraad; daarom een EIGEN tab, direct na Overzicht (component-breed,
-  // net als Gebruik) i.p.v. een blok onder de vouw.
-  t.push({ key: 'bedrijfsfunctie', label: 'Bedrijfsfunctie' })
-  if (isChecklistDragend.value) t.push({ key: 'checklist', label: 'Checklist' })
-  if (isSubtype.value) t.push({ key: 'datatypes', label: 'Datatypes' })
+  // "een teller zwijgt bij nul": "geen getal" leest niet als nul maar als "dit telt niets", en
+  // dat verschil is onzichtbaar — dus klikt de gebruiker alsnog. Het getal komt uit `moetNog`,
+  // dus uit HET ene laadpunt; de groepstab en dit sub-tabblad tonen dezelfde waarheid op twee
+  // diepten, nooit twee berekeningen.
+  'open-punten': `Open punten (${moetNog.value})`,
+  checklist: 'Checklist',
+  // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het component.
+  bedrijfsfunctie: 'Bedrijfsfunctie',
+  // ADR-046 stuk 2 — "Wie gebruikt dit" (grof organisatiegebruik) is component-breed (ADR-041).
+  gebruik: 'Gebruik',
+  gebruikersgroepen: 'Gebruikersgroepen',
+  datatypes: 'Datatypes',
+  // LI047 — Koppelingen hoort bij ELK componenttype: de koppelingen zijn er echt (een koppelvlak
+  // dat naar een fileshare schrijft, applicaties die op een databaseserver aansluiten).
+  koppelingen: 'Koppelingen',
+  opbouw: 'Opbouw',
+  impact: 'Impact',
+  contracten: 'Contracten',
+  verantwoordelijkheden: 'Verantwoordelijkheden',
+  blokkades: 'Blokkades',
+}))
+
+const onderdeelBeschikbaar = computed(() => ({
+  overzicht: true,
+  'open-punten': true,
+  checklist: isChecklistDragend.value,
+  bedrijfsfunctie: true,
+  gebruik: true,
   // ADR-055 — losgemaakt van de applicatie-conditie: de verfijning "welke afdeling gebruikt dit"
   // geldt overal waar mensen met het component werken (de gedeelde fileshare is juist HET geval
-  // bij een ontvlechting). Bij een database/rekenserver geldt de vraag niet — daar draaien
-  // componenten op elkaar, en dat is een koppeling, geen gebruik.
-  if (ondersteuntWerk.value) t.push({ key: 'gebruikersgroepen', label: 'Gebruikersgroepen' })
-  // LI047 — Koppelingen hoort bij ELK componenttype: de koppelingen zijn er echt (een koppelvlak
-  // dat naar een fileshare schrijft, applicaties die op een databaseserver aansluiten), en zonder
-  // tabblad droeg het open-punten-overzicht een regel die de gebruiker nooit kon wegwerken.
-  // De backend valideert geen elementtype op de relatie-facade; dit wás de enige beperking.
-  t.push({ key: 'koppelingen', label: 'Koppelingen' })
-  t.push(
-    // ADR-046 stuk 2 — "Wie gebruikt dit" (grof organisatiegebruik) is component-breed
-    // (ADR-041): élk type kan gebruikers hebben, dus geen subtype-conditie.
-    { key: 'gebruik', label: 'Gebruik' },
-    { key: 'opbouw', label: 'Opbouw' },
-    { key: 'impact', label: 'Impact' },
-    { key: 'contracten', label: 'Contracten' },
-    { key: 'verantwoordelijkheden', label: 'Verantwoordelijkheden' },
-  )
-  if (isChecklistDragend.value) t.push({ key: 'blokkades', label: 'Blokkades' })
-  return t
-})
-const activeTop = ref('overzicht')
+  // bij een ontvlechting). Bij een database/rekenserver geldt de vraag niet.
+  gebruikersgroepen: ondersteuntWerk.value,
+  datatypes: isSubtype.value,
+  koppelingen: true,
+  opbouw: true,
+  impact: true,
+  contracten: true,
+  verantwoordelijkheden: true,
+  blokkades: isChecklistDragend.value,
+}))
+
+/** De onderdelen van een groep die voor dít component bestaan, in de vaste volgorde. */
+function onderdelenVan(groepKey) {
+  const g = GROEPEN.find((x) => x.key === groepKey)
+  return g ? g.onderdelen.filter((o) => onderdeelBeschikbaar.value[o]) : []
+}
+
+// Regel 1 — een groep zonder beschikbare onderdelen verschijnt NIET: geen tabblad dat naar niets
+// leidt. Het getal op Beoordeling is het aantal open punten (dezelfde bron als het sub-tabblad).
+const topTabs = computed(() =>
+  GROEPEN
+    .filter((g) => onderdelenVan(g.key).length > 0)
+    .map((g) => ({
+      key: g.key,
+      label: g.key === 'beoordeling' ? `${g.label} (${moetNog.value})` : g.label,
+    })),
+)
+
+const activeTop = ref('overzicht') // ONDERDEEL-sleutel (niet de groep)
 const activeCat = ref(null) // categorie_nr als string-key
 
+/** De groep waarin het actieve onderdeel valt — afgeleid, nooit apart bijgehouden. */
+const actieveGroep = computed(
+  () => GROEPEN.find((g) => g.onderdelen.includes(activeTop.value))?.key ?? 'overzicht',
+)
+
+// Regel 2 — een groep met precies ÉÉN beschikbaar onderdeel toont geen sub-rij: een keuzerij met
+// één keuze is geen keuze. Het groepstabblad leidt dan direct naar die inhoud. Komt echt voor:
+// Overzicht altijd, en Beoordeling bij een niet-checklist-dragend type (dan alleen Open punten).
+const subTabs = computed(() => {
+  const o = onderdelenVan(actieveGroep.value)
+  return o.length > 1 ? o.map((k) => ({ key: k, label: onderdeelLabels.value[k] })) : []
+})
+
+/** Klik op een groepstabblad → regel 4: de keuze valt op het EERSTE beschikbare onderdeel. */
+function kiesGroep(groepKey) {
+  if (groepKey === actieveGroep.value) return
+  const eerste = onderdelenVan(groepKey)[0]
+  if (eerste) activeTop.value = eerste
+}
+
+/**
+ * Waar een paneel zijn label vandaan haalt: bij een groep mét sub-rij is dat het sub-tabblad,
+ * anders het groepstabblad (er ís dan geen sub-tabblad om naar te wijzen). Zo blijft élk paneel
+ * gekoppeld aan het tabblad dat het daadwerkelijk opent — óók in de eenling-groepen.
+ */
+const paneelLabelId = (onderdeel) =>
+  onderdelenVan(GROEPEN.find((g) => g.onderdelen.includes(onderdeel))?.key ?? '').length > 1
+    ? `subtabs-tab-${onderdeel}`
+    : `detailtabs-tab-${GROEPEN.find((g) => g.onderdelen.includes(onderdeel))?.key}`
+
 // Zodra de tabset wijzigt (na laden): houd activeTop geldig (default = Overzicht). Sinds LI048
-// kent dit vangnet géén uitzondering meer — élke plek is een tabblad, dus wat hier uit `tabs`
-// valt hóórt terug naar Overzicht. Dat is precies wat de invariant "altijd één gekozen tabblad"
-// afdwingt (borging: ComponentDetail.test.js).
-watch(topTabs, (tabs) => {
-  if (!tabs.some((t) => t.key === activeTop.value)) activeTop.value = 'overzicht'
+// kent dit vangnet géén uitzondering meer — élke plek is een onderdeel van een groep, dus wat
+// hier wegvalt hóórt terug naar Overzicht. Dat is precies wat de invariant "altijd één gekozen
+// tabblad" op beide rijen afdwingt (borging: ComponentDetail.test.js).
+watch(onderdeelBeschikbaar, (beschikbaar) => {
+  if (!beschikbaar[activeTop.value]) activeTop.value = 'overzicht'
 })
 
 // Categorie-sub-tabs: labels afgeleid uit de geladen vragen (geen seed-duplicatie).
@@ -276,8 +366,12 @@ watch(categorieTabs, (tabs) => {
 
 // Deep-link initialiseren uit de URL (na mount; de scoreSectie laadt async).
 function _initVanafQuery() {
+  // `?tab=` spreekt de ONDERDEEL-taal (snede 2b): elke bestaande link — kaart-aanleiding,
+  // blokkade-doorklik, open-punten-route, gedeelde URL — blijft daardoor letterlijk werken; de
+  // groep eromheen wordt afgeleid. Toets dus tegen de beschikbare ONDERDELEN, niet tegen `topTabs`
+  // (dat draagt sinds 2b de groep-sleutels — daar zou élke bestaande link stil op afketsen).
   const t = String(route.query.tab ?? '')
-  if (topTabs.value.some((x) => x.key === t)) activeTop.value = t
+  if (onderdeelBeschikbaar.value[t]) activeTop.value = t
   if (route.query.cat != null) activeCat.value = String(route.query.cat)
   // Deep-link vanuit de tenant-brede blokkadelijst markeert een checklistvraag.
   if (route.query.markeer != null) {
@@ -302,7 +396,9 @@ function _initVanafQuery() {
 // deep-link van buiten volgt). De backend levert nooit een route zonder landing (ADR-054).
 function gaNaarPunt(route) {
   if (route?.soort === 'tab') {
-    if (topTabs.value.some((t) => t.key === route.tab)) activeTop.value = route.tab
+    // Onderdeel-sleutel (zie `_initVanafQuery`): de backend levert 'verantwoordelijkheden',
+    // 'koppelingen', … — nooit een groep-sleutel.
+    if (onderdeelBeschikbaar.value[route.tab]) activeTop.value = route.tab
     return
   }
   if (route?.soort === 'veld') {
@@ -434,12 +530,36 @@ watch(() => props.id, async () => {
         {{ blokkadeSectie?.aantalOpen ?? 0 }} open blokkade(s)
       </p>
 
+      <!-- LI048 snede 2b — de HOOFDrij draagt de vijf groepen (past altijd op één regel, op elk
+           componenttype en op een smaller scherm). `model-value` is de AFGELEIDE groep; klikken
+           gaat via `kiesGroep` naar het eerste beschikbare onderdeel (regel 4) — de bron blijft
+           dus `activeTop`, er is geen tweede staat die uit de pas kan lopen. -->
       <AppTabs
-        v-model="activeTop"
+        :model-value="actieveGroep"
         :tabs="topTabs"
         aria-label="Component-detail onderdelen"
         id-prefix="detailtabs"
-        class="mt-[var(--lk-space-lg)] mb-[var(--lk-space-md)]"
+        class="mt-[var(--lk-space-lg)]"
+        @update:model-value="kiesGroep"
+      />
+
+      <!-- LI048 snede 2 — het werkvlak waar de tabrij aan vastzit. De panelen stonden los op de
+           paginakleur; het gekozen tabblad kon dus nergens aan vastzitten en het werkgebied had
+           geen aanwijsbare grens. Eén omhullend `.lk-tabvlak` (gedeelde bouwsteen) draagt nu álle
+           panelen — geen vlak per paneel, anders loopt het bij het veertiende weer uiteen. -->
+      <div class="lk-tabvlak mb-[var(--lk-space-md)]" data-testid="detailtabs-vlak">
+
+      <!-- De sub-rij verschijnt ALLEEN waar er diepte is (regel 2): geen lege rij, en geen
+           keuzerij met één keuze. Lichter dan de hoofdrij (`niveau="2"`) — anders staan er twee
+           gelijkwaardige rijen en weet de gebruiker niet meer welke hem stuurt. -->
+      <AppTabs
+        v-if="subTabs.length"
+        v-model="activeTop"
+        :tabs="subTabs"
+        niveau="2"
+        :aria-label="`Onderdelen van ${GROEPEN.find((g) => g.key === actieveGroep)?.label}`"
+        id-prefix="subtabs"
+        class="mb-[var(--lk-space-md)]"
       />
 
       <!-- Overzicht: metadata + acties -->
@@ -447,7 +567,7 @@ watch(() => props.id, async () => {
         v-show="activeTop === 'overzicht'"
         id="detailtabs-panel-overzicht"
         role="tabpanel"
-        aria-labelledby="detailtabs-tab-overzicht"
+        :aria-labelledby="paneelLabelId('overzicht')"
         data-testid="panel-overzicht"
       >
         <!-- ADR-042 4b — vier blokken: de vier vragen in één oogopslag. -->
@@ -566,7 +686,7 @@ watch(() => props.id, async () => {
         v-show="activeTop === 'open-punten'"
         id="detailtabs-panel-open-punten"
         role="tabpanel"
-        aria-labelledby="detailtabs-tab-open-punten"
+        :aria-labelledby="paneelLabelId('open-punten')"
         data-testid="panel-open-punten"
       >
         <OpenPuntenSectie :component-id="props.id" :data="openPunten" @ga-naar="gaNaarPunt" />
@@ -577,7 +697,7 @@ watch(() => props.id, async () => {
         v-show="activeTop === 'bedrijfsfunctie'"
         id="detailtabs-panel-bedrijfsfunctie"
         role="tabpanel"
-        aria-labelledby="detailtabs-tab-bedrijfsfunctie"
+        :aria-labelledby="paneelLabelId('bedrijfsfunctie')"
         data-testid="panel-bedrijfsfunctie"
       >
         <ComponentBedrijfsfunctieSectie
@@ -593,7 +713,7 @@ watch(() => props.id, async () => {
         v-show="activeTop === 'checklist'"
         id="detailtabs-panel-checklist"
         role="tabpanel"
-        aria-labelledby="detailtabs-tab-checklist"
+        :aria-labelledby="paneelLabelId('checklist')"
         data-testid="panel-checklist"
         class="flex flex-col gap-[var(--lk-space-md)] md:flex-row md:gap-[var(--lk-space-lg)]"
       >
@@ -602,6 +722,7 @@ watch(() => props.id, async () => {
           :tabs="categorieTabs"
           aria-label="Checklist-categorieën"
           orientation="vertical"
+          niveau="2"
           id-prefix="checklisttabs"
           class="md:w-[16rem] md:shrink-0"
         />
@@ -661,36 +782,36 @@ watch(() => props.id, async () => {
 
       <!-- Applicatie-eigen kind-entiteiten (alleen bij een subtype) -->
       <template v-if="isSubtype">
-        <div v-show="activeTop === 'datatypes'" id="detailtabs-panel-datatypes" role="tabpanel" aria-labelledby="detailtabs-tab-datatypes">
+        <div v-show="activeTop === 'datatypes'" id="detailtabs-panel-datatypes" role="tabpanel" :aria-labelledby="paneelLabelId('datatypes')">
           <DatatypeSectie :applicatie-id="props.id" />
         </div>
       </template>
 
       <!-- LI047 — koppelingen bij elk componenttype; zelfde grens als de tabrij. -->
-      <div v-show="activeTop === 'koppelingen'" id="detailtabs-panel-koppelingen" role="tabpanel" aria-labelledby="detailtabs-tab-koppelingen">
+      <div v-show="activeTop === 'koppelingen'" id="detailtabs-panel-koppelingen" role="tabpanel" :aria-labelledby="paneelLabelId('koppelingen')">
         <KoppelingSectie :applicatie-id="props.id" />
       </div>
 
       <!-- ADR-055 — "wie gebruikt dit" (verfijning naar afdeling/team): élk componenttype
            waarmee mensen werken, niet alleen applicaties. Zelfde grens als de tabrij. -->
-      <div v-if="ondersteuntWerk" v-show="activeTop === 'gebruikersgroepen'" id="detailtabs-panel-gebruikersgroepen" role="tabpanel" aria-labelledby="detailtabs-tab-gebruikersgroepen">
+      <div v-if="ondersteuntWerk" v-show="activeTop === 'gebruikersgroepen'" id="detailtabs-panel-gebruikersgroepen" role="tabpanel" :aria-labelledby="paneelLabelId('gebruikersgroepen')">
         <GebruikersgroepSectie :component-id="props.id" />
       </div>
 
-      <div v-show="activeTop === 'gebruik'" id="detailtabs-panel-gebruik" role="tabpanel" aria-labelledby="detailtabs-tab-gebruik">
+      <div v-show="activeTop === 'gebruik'" id="detailtabs-panel-gebruik" role="tabpanel" :aria-labelledby="paneelLabelId('gebruik')">
         <OrganisatiegebruikSectie :component-id="props.id" :component-naam="component?.naam ?? ''" />
       </div>
 
-      <div v-show="activeTop === 'opbouw'" id="detailtabs-panel-opbouw" role="tabpanel" aria-labelledby="detailtabs-tab-opbouw">
+      <div v-show="activeTop === 'opbouw'" id="detailtabs-panel-opbouw" role="tabpanel" :aria-labelledby="paneelLabelId('opbouw')">
         <StructuurSectie :component-id="props.id" />
       </div>
-      <div v-show="activeTop === 'impact'" id="detailtabs-panel-impact" role="tabpanel" aria-labelledby="detailtabs-tab-impact">
+      <div v-show="activeTop === 'impact'" id="detailtabs-panel-impact" role="tabpanel" :aria-labelledby="paneelLabelId('impact')">
         <ImpactSectie :component-id="props.id" />
       </div>
-      <div v-show="activeTop === 'contracten'" id="detailtabs-panel-contracten" role="tabpanel" aria-labelledby="detailtabs-tab-contracten">
+      <div v-show="activeTop === 'contracten'" id="detailtabs-panel-contracten" role="tabpanel" :aria-labelledby="paneelLabelId('contracten')">
         <ContractSectie ref="contractSectie" :applicatie-id="props.id" :app-naam="component?.naam || ''" />
       </div>
-      <div v-show="activeTop === 'verantwoordelijkheden'" id="detailtabs-panel-verantwoordelijkheden" role="tabpanel" aria-labelledby="detailtabs-tab-verantwoordelijkheden">
+      <div v-show="activeTop === 'verantwoordelijkheden'" id="detailtabs-panel-verantwoordelijkheden" role="tabpanel" :aria-labelledby="paneelLabelId('verantwoordelijkheden')">
         <VerantwoordelijkheidSectie :object-id="props.id" />
       </div>
 
@@ -700,7 +821,7 @@ watch(() => props.id, async () => {
         v-show="activeTop === 'blokkades'"
         id="detailtabs-panel-blokkades"
         role="tabpanel"
-        aria-labelledby="detailtabs-tab-blokkades"
+        :aria-labelledby="paneelLabelId('blokkades')"
       >
         <BlokkadeSectie
           ref="blokkadeSectie"
@@ -709,6 +830,7 @@ watch(() => props.id, async () => {
           @naar-vraag="onNaarVraag"
         />
       </div>
+      </div><!-- /.lk-tabvlak -->
     </template>
 
     <Dialog v-model:visible="verwijderDialog" modal header="Component verwijderen" data-testid="verwijder-dialog">

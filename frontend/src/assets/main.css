@@ -117,6 +117,210 @@
     margin-bottom: 0;
   }
 
+  /* ── Tabvorm (LI048 snede 2) — een tabblad is GEEN knop ──────────────────────
+     Tot LI048 droegen tabbladen de knopvorm (omkadering, knopradius, `h-10`,
+     donkerblauwe vulling wanneer gekozen). Bij dertien tabbladen over twee regels
+     las die rij als dertien losse knoppen: de gebruiker moest per scherm opnieuw
+     uitzoeken wat hem stuurt en wat een actie is. De vorm droeg de betekenis niet.
+
+     Nu: de RIJ draagt de doorlopende lijn, het GEKOZEN tabblad breekt hem en zit
+     vast aan het werkvlak (`.lk-tabvlak`) — tab en inhoud zijn één vorm. Geen
+     nieuwe kleur: gekozen = het bestaande primary, nu als accentlijn + tekst
+     i.p.v. als vulling (een gevulde tab kán niet aan een wit vlak vastzitten).
+
+     De staat leeft in `aria-selected`, en de stijl leest díé — niet een aparte
+     class. Zo kunnen het toegankelijkheidsfeit en het zichtbare feit structureel
+     niet uiteenlopen; dat is precies de fout die snede 1 blootlegde.
+
+     Handgeschreven klassen (geen Tailwind-utilities): Tailwind kan ze nooit zelf
+     seeden, dus de build-check kan hier niet vals-groen worden. */
+  .lk-tabrij {
+    display: flex;
+    gap: var(--lk-space-xs);
+  }
+  .lk-tabrij-h {
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--lk-color-border);
+  }
+  .lk-tabrij-v {
+    flex-direction: column;
+    border-right: 1px solid var(--lk-color-border);
+  }
+
+  .lk-tab {
+    display: inline-flex;
+    align-items: center;
+    /* Bewust GEEN --lk-veld-h/h-10: die hoogte is de knop-/veldstandaard. Een tab
+       is smaller van gebaar; de rij wordt daarmee rustiger bij dertien stuks. */
+    padding: 0.5rem var(--lk-space-md);
+    font-size: var(--lk-text-sm);
+    text-align: left;
+    color: var(--lk-color-text-muted);
+    background: transparent;
+    /* Geen border: de omkadering is wat de rij als knoppenrij liet lezen. De
+       transparante randen houden de tab even groot als in gekozen staat, zodat
+       er niets verspringt bij het wisselen. */
+    border: 1px solid transparent;
+  }
+  .lk-tabrij-h > .lk-tab {
+    border-radius: var(--lk-radius-tab);
+    /* Overlapt de rij-onderlijn, zodat een gekozen tab hem echt kan doorbreken. */
+    margin-bottom: -1px;
+  }
+  .lk-tabrij-v > .lk-tab {
+    border-radius: var(--lk-radius-tab-v);
+    margin-right: -1px;
+  }
+  .lk-tab:hover {
+    color: var(--lk-color-primary-700);
+    background: var(--lk-color-primary-50);
+  }
+  .lk-tab:focus-visible {
+    outline: 2px solid var(--lk-color-primary);
+    outline-offset: -2px;
+  }
+
+  /* Gekozen: wit als het werkvlak, met een accentlijn aan de buitenkant en géén
+     rand aan de kant van het vlak — daar lopen tab en inhoud in elkaar over. */
+  .lk-tab[aria-selected='true'] {
+    color: var(--lk-color-primary);
+    font-weight: var(--lk-font-weight-kop);
+    background: var(--lk-color-surface);
+    border-color: var(--lk-color-border);
+  }
+  .lk-tabrij-h > .lk-tab[aria-selected='true'] {
+    border-top: 2px solid var(--lk-color-primary);
+    border-bottom-color: var(--lk-color-surface);
+  }
+  .lk-tabrij-v > .lk-tab[aria-selected='true'] {
+    border-left: 2px solid var(--lk-color-primary);
+    border-right-color: var(--lk-color-surface);
+  }
+
+  /* Sub-rij (LI048 snede 2b, herzien 2c) — een rij BINNEN een gekozen groep is zichtbaar
+     ondergeschikt: kleiner en dunner. Hoe dieper, hoe lichter; die volgorde moet zichtbaar zijn.
+
+     2c — WIT OP WIT WAS HET DEFECT. De eerste versie zette de sub-rij transparant op het witte
+     werkvlak: een niet-gekozen tabblad had dan geen ondergrond om uit naar voren te komen, dus
+     alleen de gekozen pil was zichtbaar en de rest zweefde als losse tekst. De rij las niet als
+     een rij. Nu draagt de rij een GRIJZE BAND (de paginatint) waarop de niet-gekozen tabbladen
+     staan; het gekozen tabblad is WIT en loopt naadloos over in de witte inhoud eronder. Dat is
+     exact dezelfde regel als in de hoofdrij — een tabblad versmelt met zijn eigen inhoud — alleen
+     één maat kleiner. De band bloedt uit tot de randen van het werkvlak (negatieve marges gelijk
+     aan `.lk-tabvlak`-padding), anders leest hij als een ingesprongen blokje in plaats van als
+     ondergrond. */
+  .lk-tabrij-h.lk-tabrij-sub {
+    background: var(--lk-color-bg);
+    border-bottom: 1px solid var(--lk-color-border);
+    gap: 2px;
+    /* Vult de bovenkant van het werkvlak volledig: geen witte strook boven de band. */
+    margin: calc(-1 * var(--lk-space-lg)) calc(-1 * var(--lk-space-lg)) var(--lk-space-lg);
+    padding: var(--lk-space-xs) var(--lk-space-lg) 0;
+  }
+  .lk-tabrij-v.lk-tabrij-sub {
+    background: var(--lk-color-bg);
+    gap: 2px;
+    padding: var(--lk-space-xs) 0 var(--lk-space-xs) var(--lk-space-xs);
+  }
+  .lk-tabrij-sub > .lk-tab {
+    font-size: var(--lk-text-xs);
+    padding: 0.3rem var(--lk-space-sm);
+    /* Dunner dan de hoofdrij: geen accentbalk, alleen de vorm + de witte vulling doen het werk. */
+    border-width: 1px;
+    border-color: transparent;
+    background: transparent;
+  }
+  .lk-tabrij-h.lk-tabrij-sub > .lk-tab[aria-selected='true'] {
+    color: var(--lk-color-primary);
+    background: var(--lk-color-surface);
+    border-color: var(--lk-color-border);
+    border-top-width: 1px; /* géén 2px-accent — dat is de hoofdrij voorbehouden */
+    border-bottom-color: var(--lk-color-surface);
+  }
+  .lk-tabrij-v.lk-tabrij-sub > .lk-tab[aria-selected='true'] {
+    color: var(--lk-color-primary);
+    background: var(--lk-color-surface);
+    border-color: var(--lk-color-border);
+    border-left-width: 1px;
+    border-right-color: var(--lk-color-surface);
+  }
+
+  /* ── Schakelaar (LI048 2c/2d) — GEEN tabrij, maar één keuze met N standen ─────
+     De drie blokken in het open-punten-overzicht (Dit moet nog / Dit zou netjes zijn / Dit valt
+     op) wisselen géén paneel: ze filteren één lijst. Ze wáren als `AppTabs` gebouwd, met
+     `role="tab"` + `aria-controls` naar panelen die niet bestaan (geen enkele `role="tabpanel"`
+     in de sectie) — een schermlezer kondigde dus een tabblad aan en verwees naar het niets. Ze
+     zijn nu toggle-knoppen (`role="group"` + `aria-pressed`).
+
+     2d — de standen stonden als drie LOSSE knopjes op het witte vlak: ze lazen niet als één
+     keuze. Nu één aaneengesloten schakelaar met een grijs plaatje eromheen.
+
+     Twee vormregels die uit het scherm zelf volgen:
+     - **`display: inline-flex`, dus NIET tot de rand.** Een volle band over de breedte is op dit
+       scherm inmiddels het teken voor NAVIGATIE (`.lk-tabrij-sub` bloedt bewust wél uit). Liep dit
+       grijs door tot de rand, dan las de schakelaar opnieuw als een tabrij — precies het
+       onderscheid dat 2c aanbracht. Het grijs sluit dus strak om de knopjes.
+     - **De gekozen stand krijgt een VOLLE accentvulling.** Bij een tabblad zou vol blauw
+       verwarren (daar is wít het teken van "gekozen", want een tab versmelt met zijn inhoud);
+       bij een schakelaar hoort de actieve stand juist uit te springen. De niet-gekozen standen
+       dragen géén eigen rand — de schakelaar is één ding, geen drie.
+
+     ⚠ Dit gedrag bestaat elders al ZES keer met evenzoveel eigen vormen (Landschapskaart
+     weergave/diepte/lezing, BedrijfsfunctieLijst Boom|Diagram, ArchitectuurView Lagen|Tabel,
+     ArchitectuurLagenView aspect-filter). Deze klassen zijn bewust generiek gehouden zodat die
+     erop kunnen; de omzetting is een eigen snede (zie OPVOLGPUNTEN). */
+  .lk-schakelaar {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: var(--lk-color-bg);
+    border: 1px solid var(--lk-color-border);
+    border-radius: var(--lk-radius-btn);
+  }
+  .lk-schakelaar-stand {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem var(--lk-space-sm);
+    font-size: var(--lk-text-xs);
+    color: var(--lk-color-text-muted);
+    background: transparent;
+    /* Geen eigen rand: de standen horen bij elkaar; het plaatje eromheen is de begrenzing. */
+    border: 0;
+    border-radius: var(--lk-radius-badge);
+  }
+  .lk-schakelaar-stand:hover:not([aria-pressed='true']) {
+    color: var(--lk-color-primary-700);
+    background: var(--lk-color-primary-50);
+  }
+  .lk-schakelaar-stand:focus-visible {
+    outline: 2px solid var(--lk-color-primary);
+    outline-offset: 1px;
+  }
+  .lk-schakelaar-stand[aria-pressed='true'] {
+    color: white;
+    font-weight: var(--lk-font-weight-kop);
+    background: var(--lk-color-primary);
+  }
+
+  /* Scheidt waarmee je kiest van wat je krijgt (2d). Over de VOLLE breedte — anders hangt de
+     lijst eronder los. De lijst zelf blijft op wit: daar staan de signalen (amber = bewust
+     afgewogen, gedempt = verschoven lat, blauw = Vastleggen), en signaal hoort niet op een
+     gekleurde vloer — dezelfde reden waarom het gekleurde tabbladvlak eerder is afgewezen. */
+  .lk-schakelaar-streep {
+    border-bottom: 1px solid var(--lk-color-border);
+  }
+
+  /* Het werkvlak waar de tabrij aan vastzit: wit, begrensd, aanwijsbaar — ook op
+     een fel scherm of een beamer, waar het verschil tussen wit en de paginakleur
+     wegvalt (gemeten 1,05:1; de rand doet 1,23:1 en draagt dus het onderscheid). */
+  .lk-tabvlak {
+    background: var(--lk-color-surface);
+    border: 1px solid var(--lk-color-border);
+    border-radius: 0 var(--lk-border-radius) var(--lk-border-radius) var(--lk-border-radius);
+    padding: var(--lk-space-lg);
+  }
+
   /* Aanstip van een zojuist vastgelegde rij (LI039 — "wat je zojuist hebt vastgelegd,
      zie je altijd"): de bestaande "kijk hier"-selectietaal (--lk-color-selectie, hetzelfde
      oranje als de kaart-/diagram-selectie), kort gezet door useToonNieuweRij (timer).

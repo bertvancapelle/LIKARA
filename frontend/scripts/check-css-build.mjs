@@ -31,9 +31,45 @@ const FRONTEND = fileURLToPath(new URL('..', import.meta.url))
 // niets geseeded. De runtime-join levert alsnog de volledige selector om op te grep'en.
 const j = (...delen) => delen.join('')
 const VEREIST = [
-  { naam: 'tab-hover-bg',      match: j('hover:bg-[var(--lk-color-primary-50)', ']:hover') },
-  { naam: 'tab-hover-text',    match: j('hover:text-[var(--lk-color-primary-700)', ']:hover') },
-  { naam: 'tab-omlijning',     match: j('border-[0.5px', ']') },
+  // LI048 snede 2 — de TABVORM. Tot deze slice droeg een tabblad de knopvorm (drie
+  // Tailwind-utilities: hover-bg, hover-text, `border-[0.5px]`); die entries zijn hier
+  // vervangen door de handgeschreven main.css-klassen die de nieuwe vorm dragen. Zoals bij
+  // `.lk-scroll-schaduw` kan Tailwind deze nooit zelf seeden, dus geen vals-groen-risico en
+  // geen de-vervuiling nodig. De selectors staan hier exact zoals de MINIFIER ze schrijft
+  // (gemeten in de dist, niet gegokt: quotes wegge-optimaliseerd → `[aria-selected=true]`).
+  { naam: 'tabvorm',            match: '.lk-tab{' },
+  { naam: 'tabrij-doorlopende-lijn', match: '.lk-tabrij-h{border-bottom' },
+  // De gekozen staat leest ARIA — geen tweede, losse staat-class die uiteen kan lopen.
+  { naam: 'tab-gekozen-op-aria', match: '.lk-tab[aria-selected=true]' },
+  // Hét vastzit-feit: de gekozen tab dekt de rij-lijn af met de kleur van het werkvlak,
+  // zodat tab en inhoud één vorm zijn. Sneuvelt juist déze regel, dan zweeft de tab weer
+  // boven een losse lijn en is de hele snede visueel ongedaan — dus toetsen we hem apart.
+  { naam: 'tab-zit-vast-aan-vlak', match: 'border-bottom-color:var(--lk-color-surface)' },
+  { naam: 'werkvlak',           match: '.lk-tabvlak{' },
+  // LI048 2c — HET DEFECT dat deze snede verhielp: de sub-rij stond transparant op het witte
+  // werkvlak, dus een niet-gekozen sub-tabblad had geen ondergrond om uit naar voren te komen
+  // (alleen de gekozen pil was zichtbaar; de rest zweefde als losse tekst). De GRIJZE BAND is
+  // de fix, dus toetsen we hem apart — zonder deze entry keert wit-op-wit terug zonder dat
+  // iets rood wordt. Gemeten in de dist: de minifier zet de band vooraan in de regel.
+  { naam: 'subrij-band',        match: '.lk-tabrij-h.lk-tabrij-sub{background:var(--lk-color-bg)' },
+  { naam: 'subrij-band-verticaal', match: '.lk-tabrij-v.lk-tabrij-sub{background:var(--lk-color-bg)' },
+  // De wit-versmelting één laag lager: het gekozen sub-tabblad loopt over in de witte inhoud.
+  { naam: 'subtab-versmelt',    match: '.lk-tabrij-h.lk-tabrij-sub>.lk-tab[aria-selected=true]' },
+  // Schakelaar (2c/2d) — géén tabrij maar één keuze met N standen.
+  // ⚠ `display:inline-flex` is HET onderscheid met een tabrij: het grijs sluit strak om de
+  // knopjes en loopt NIET door tot de rand van het paneel. Een volle band over de breedte is op
+  // dit scherm het teken voor navigatie (`.lk-tabrij-sub` bloedt bewust wél uit); wordt dit
+  // `flex`, dan leest de schakelaar opnieuw als tabrij en is het 2c-onderscheid weg. Daarom
+  // toetsen we de vorm-eigenschap zelf, niet alleen het bestaan van de klasse. De minifier zet
+  // `display` achteraan in de regel — gemeten in de dist, niet gegokt.
+  { naam: 'schakelaar-niet-tot-de-rand', match: '.lk-schakelaar{background:var(--lk-color-bg)' },
+  { naam: 'schakelaar-inline',  match: 'padding:2px;display:inline-flex}' },
+  { naam: 'schakelaar-stand',   match: '.lk-schakelaar-stand{' },
+  // De actieve stand springt eruit met een VOLLE vulling — anders dan een tabblad, waar juist
+  // wit "gekozen" betekent (een tab versmelt met zijn inhoud, een schakelaar staat op zichzelf).
+  { naam: 'schakelaar-stand-gekozen', match: '.lk-schakelaar-stand[aria-pressed=true]' },
+  // Scheidt waarmee je kiest van wat je krijgt: zonder deze streep hangt de lijst los.
+  { naam: 'schakelaar-streep',  match: '.lk-schakelaar-streep{border-bottom' },
   { naam: 'secondary-vulling', match: j('bg-[var(--lk-color-primary-50)', ']') },
   { naam: 'primary-vulling',   match: j('bg-[var(--lk-color-primary)', ']') },
   { naam: 'danger-vulling',    match: j('bg-[var(--lk-color-danger)', ']') },

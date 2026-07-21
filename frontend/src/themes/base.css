@@ -66,6 +66,13 @@
      gelijk aan de knopstandaard (h-10): veld en knop lijnen in één rij. De waarde
      doet er minder toe dan dat het er één is; .lk-veld (main.css) draagt het recept. */
   --lk-veld-h: 2.5rem;
+  /* Tabvorm (LI048 snede 2) — een tabblad is GEEN knop en draagt dus niet de knopradius.
+     Alleen de bovenhoek is rond: de onderkant loopt door in het werkvlak, want tab en
+     inhoud zijn één vorm. Verticaal spiegelt dit naar de linkerhoeken (--lk-radius-tab-v),
+     want daar zit het vlak ernaast in plaats van eronder. Volgt het asymmetrische
+     hoek-patroon (ADR-047): één ronde hoek, de rest recht. */
+  --lk-radius-tab:       8px 0  0 0;
+  --lk-radius-tab-v:     8px 0  0 8px;
   --lk-radius-badge:     6px 0  6px 0;
   --lk-radius-dialog:   16px 0 16px 0;
   --lk-radius-dropdown:   0 0   8px 8px;
