@@ -31,15 +31,26 @@ class AuditRecordRead(BaseModel):
 
 
 class AuditGebeurtenis(BaseModel):
-    """Eén handeling = alle records met hetzelfde `correlatie_id` (driver + afgeleide
-    gevolgen). `tijdstip` is het ankermoment (de driver); `records` staat chronologisch
-    (driver eerst)."""
+    """Eén handeling = alle records met hetzelfde `correlatie_id`. `tijdstip` is het
+    ankermoment; `records` staat chronologisch.
+
+    LI048 — de SAMENVATTING (`entiteit_type`/`entiteit_naam`/`actie`) wordt door de service
+    bepaald en niet door de UI afgeleid. De driver is de eerste record die iets inhoudelijks
+    zegt; een supertype-rij die alleen het discriminator-veld draagt wordt overgeslagen. Zou de
+    UI zelf `records[0]` nemen, dan lopen beide kanten uiteen zodra dit verandert."""
 
     correlatie_id: uuid.UUID
     tijdstip: datetime
     actor_sub: str | None = None
     actor_email: str | None = None
     actor_naam: str | None = None  # ADR-029 Fase 3a — geresolveerde naam (driver), e-mail-fallback
+    entiteit_type: str | None = None
+    entiteit_id: uuid.UUID | None = None
+    # De naam van TOEN (uit de vastgelegde wijziging); bij een verwijdering nooit de huidige naam.
+    entiteit_naam: str | None = None
+    actie: str | None = None
+    # Aantal BETEKENISDRAGENDE gevolgen naast de driver — betekenisloze supertype-rijen tellen niet.
+    aantal_afgeleid: int = 0
     records: list[AuditRecordRead]
 
 

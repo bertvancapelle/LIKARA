@@ -13,7 +13,7 @@ vi.mock('@/api', () => ({
 }))
 
 import { api } from '@/api'
-import { actorWeergave, diffWeergave } from '@modules/bwb_ontvlechting/frontend/labels'
+import { HOSTINGMODEL, LEVENSFASE, actorWeergave, diffWeergave, waardeLabel } from '@modules/bwb_ontvlechting/frontend/labels'
 import AuditTrailView from '@modules/bwb_ontvlechting/frontend/views/AuditTrailView.vue'
 
 const _pagina = (over = {}) => ({
@@ -133,8 +133,11 @@ describe('AuditTrailView', () => {
     expect(actorWeergave({ actor_sub: 'system:worker' })).toBe('Systeem (worker)')
     expect(actorWeergave({ actor_sub: 'system:onbekend' })).toBe('Systeem')
     expect(actorWeergave({})).toBe('—')
-    expect(diffWeergave({ actie: 'create', wijziging: { naam: { nieuw: 'B' } } })).toEqual({ intro: 'Aangemaakt met:', regels: ['Naam = B'] })
-    expect(diffWeergave({ actie: 'delete', wijziging: { naam: { oud: 'A' } } })).toEqual({ intro: 'Verwijderd:', regels: ['Naam was A'] })
+    // LI048 snede 3: een regel is nu een object (veld + tekst, en bij lange waarden was/nu),
+    // zodat de weergave kan kiezen tussen één regel en gestapeld. De TEKST blijft gelijk.
+    expect(diffWeergave({ actie: 'create', wijziging: { naam: { nieuw: 'B' } } }).regels.map((r) => r.tekst)).toEqual(['Naam = B'])
+    expect(diffWeergave({ actie: 'delete', wijziging: { naam: { oud: 'A' } } }).regels.map((r) => r.tekst)).toEqual(['Naam was A'])
+    expect(diffWeergave({ actie: 'create', wijziging: { naam: { nieuw: 'B' } } }).intro).toBe('Aangemaakt met:')
   })
 })
 
@@ -167,5 +170,216 @@ describe('AuditTrailView — LI048: de gedeelde kop, met expliciet zoeken', () =
     await w.get('[data-testid="audit-toepassen"]').trigger('click')
     await flushPromises()
     expect(api.auditlog.lijst).toHaveBeenCalled()
+  })
+})
+
+describe('AuditTrailView — LI048: zoeken vindt wat er in beeld staat', () => {
+  it('toont de gevonden regels, niet alleen dat er gezocht is', async () => {
+    // De toets die hier ontbrak. De bestaande "roept de api met actor_naam" bewijst alleen dát
+    // er een verzoek uitgaat, met een nagebootste server — nooit dat er iets terugkomt. Precies
+    // daardoor kon het scherm stil kapot zijn: het zocht in persoonsnamen terwijl de kolom Wie
+    // `naam or e-mail` toont, dus iedereen zonder gekoppelde persoon was onvindbaar.
+    const w = await mountView()
+    api.auditlog.lijst.mockResolvedValueOnce(_pagina({
+      items: [{
+        correlatie_id: 'e1', tijdstip: '2026-06-19T10:00:00Z',
+        actor_naam: 'test:bert@test', actor_email: 'test:bert@test', actor_sub: 'kc|bert',
+        records: [{ id: 're1', entiteit_type: 'component', actie: 'update', actor_naam: 'test:bert@test' }],
+      }],
+    }))
+    await w.find('[data-testid="filter-naam"]').setValue('bert')
+    await w.find('[data-testid="audit-toepassen"]').trigger('click')
+    await flushPromises()
+
+    expect(api.auditlog.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ actor_naam: 'bert' }))
+    // DE KERN: er staat een regel op het scherm, en de kolom Wie toont waarop is gezocht.
+    expect(w.find('[data-testid="audit-leeg"]').exists()).toBe(false)
+    expect(w.text()).toContain('test:bert@test')
+  })
+
+  it('een term die niets oplevert toont de lege melding, geen fout', async () => {
+    // "Niets gevonden" moet blijven bestaan naast "niet gezocht" — het onderscheid mag niet
+    // vervagen doordat de reparatie altijd iets terugstuurt.
+    const w = await mountView()
+    api.auditlog.lijst.mockResolvedValueOnce(_pagina({ items: [] }))
+    await w.find('[data-testid="filter-naam"]').setValue('zzz-bestaat-niet')
+    await w.find('[data-testid="audit-toepassen"]').trigger('click')
+    await flushPromises()
+    expect(w.get('[data-testid="audit-leeg"]').text()).toContain('Geen gebeurtenissen gevonden')
+    expect(w.find('[data-testid="audit-fout"]').exists()).toBe(false)
+  })
+
+  it('het label wijst naar de kolom die de gebruiker ziet', async () => {
+    // "Zoek op naam…" verwees naar iets wat op dit scherm meestal niet eens getoond wordt.
+    const w = await mountView()
+    expect(w.get('[data-testid="filter-naam"]').attributes('placeholder')).toBe('Zoek op wie…')
+  })
+})
+
+describe('AuditTrailView — LI048: de regel vertelt wat er gebeurde', () => {
+  // De gebeurtenis draagt zijn eigen samenvatting (backend besluit 2). Zo ziet een echte
+  // aanmaak van een werkpakket eruit: de supertype-rij zit in `records`, maar is niet de zin.
+  const _aanmaakWerkpakket = () => ({
+    items: [{
+      correlatie_id: 'w1', tijdstip: '2026-06-19T10:00:00Z',
+      actor_naam: 'test:bert@test', actor_email: 'test:bert@test',
+      entiteit_type: 'work_package', entiteit_id: '9f1282d4-48ec-41d8-aadc-c794ac5fabd7',
+      entiteit_naam: 'WP-Audit', actie: 'create', aantal_afgeleid: 0,
+      records: [
+        { id: 'e1', entiteit_type: 'element', actie: 'create', wijziging: { element_type: { oud: null, nieuw: 'work_package' } } },
+        { id: 'w1r', entiteit_type: 'work_package', actie: 'create', entiteit_naam: 'WP-Audit', wijziging: { naam: { oud: null, nieuw: 'WP-Audit' } } },
+      ],
+    }],
+    volgende_cursor: null,
+  })
+
+  it('DE INGEKLAPTE REGEL: toont het werkpakket met zijn naam, niet de element-code', async () => {
+    // Dit was de klacht: "Element — 9f1282d4-48ec-41d8-aadc-c794ac5fabd7 · Aangemaakt
+    // (+1 afgeleid)". Er stond geen enkele toets op de ingeklapte regel — precies de tekst die
+    // de consultant als eerste leest.
+    api.auditlog.lijst.mockResolvedValue(_aanmaakWerkpakket())
+    const w = await mountView()
+    const onderdeel = w.get('[data-testid="audit-onderdeel"]').text()
+    expect(onderdeel).toContain('WP-Audit')
+    expect(onderdeel).not.toContain('9f1282d4')          // geen kale code meer
+    expect(onderdeel.toLowerCase()).not.toContain('element')
+  })
+
+  it('telt de betekenisloze supertype-rij niet als afgeleid gevolg', async () => {
+    // "(+1 afgeleid)" verwees naar een regel die alleen zei dát er iets bestond.
+    api.auditlog.lijst.mockResolvedValue(_aanmaakWerkpakket())
+    const w = await mountView()
+    expect(w.text()).not.toContain('afgeleid')
+  })
+
+  it('GEEN RAUWE OPSLAGTAAL op het scherm', async () => {
+    // Werkt een geval niet, dan is dat een bevinding — geen terugval op de code die we juist
+    // wilden verbergen. Deze toets bewaakt dat de zin nooit in opslagtaal vervalt.
+    api.auditlog.lijst.mockResolvedValue(_aanmaakWerkpakket())
+    const w = await mountView()
+    const zichtbaar = w.text()
+    for (const opslagterm of ['work_package', 'element_type', 'phase_out', 'keycloak_sub']) {
+      expect(zichtbaar).not.toContain(opslagterm)
+    }
+  })
+
+  it('een verwijdering toont de naam zoals die WAS', async () => {
+    // Het object bestaat niet meer; deze regel is het enige spoor dat overblijft.
+    api.auditlog.lijst.mockResolvedValue({
+      items: [{
+        correlatie_id: 'd1', tijdstip: '2026-06-19T10:00:00Z',
+        actor_naam: 'test:bert@test', actor_email: 'test:bert@test',
+        entiteit_type: 'component', entiteit_id: 'aaaa1111-0000-0000-0000-000000000000',
+        entiteit_naam: 'Cascade', actie: 'delete', aantal_afgeleid: 0,
+        records: [{ id: 'd1r', entiteit_type: 'component', actie: 'delete', entiteit_naam: 'Cascade', wijziging: { naam: { oud: 'Cascade', nieuw: null } } }],
+      }],
+      volgende_cursor: null,
+    })
+    const w = await mountView()
+    expect(w.get('[data-testid="audit-onderdeel"]').text()).toContain('Cascade')
+  })
+
+  it('valt terug op de oude vorm als het antwoord de samenvatting niet draagt', async () => {
+    // Achterwaarts: een ouder antwoord zonder de nieuwe velden mag niet leeg renderen.
+    const w = await mountView()   // standaard _pagina() heeft geen entiteit_type op de gebeurtenis
+    expect(w.get('[data-testid="audit-onderdeel"]').text().length).toBeGreaterThan(0)
+  })
+})
+
+describe('AuditTrailView — LI048 snede 3: namen en waarden in schermtaal', () => {
+  it('BESLUIT 4: een keuzewaarde komt in schermtaal, niet in opslagtaal', async () => {
+    // Was: "Levensfase: production → phase_out". De waardenmaps bestonden al maar waren
+    // nergens aan een veld gekoppeld — die koppeling is deze snede.
+    const r = diffWeergave({ actie: 'update', wijziging: { levensfase: { oud: 'productie', nieuw: 'uitfaseren' } } })
+    const tekst = r.regels.map((x) => x.tekst).join(' ')
+    expect(tekst).not.toContain('uitfaseren')       // niet de ruwe sleutel
+    expect(tekst).toContain('Levensfase')
+  })
+
+  it('leest DEZELFDE bron als de rest van het product, geen tweede tabel', async () => {
+    // De kern van "één bron": wat het detailscherm zegt, zegt het auditlog ook. Zou er een
+    // eigen lijstje ontstaan, dan lopen ze uiteen zodra iemand één label wijzigt.
+    for (const [sleutel, verwacht] of Object.entries(LEVENSFASE)) {
+      expect(waardeLabel('levensfase', sleutel)).toBe(verwacht)
+    }
+    for (const [sleutel, verwacht] of Object.entries(HOSTINGMODEL)) {
+      expect(waardeLabel('hostingmodel', sleutel)).toBe(verwacht)
+    }
+  })
+
+  it('een onbekende waarde valt terug op zichzelf, nooit op leeg', async () => {
+    expect(waardeLabel('levensfase', 'iets_nieuws')).toBe('iets_nieuws')
+    expect(waardeLabel('onbekend_veld', 'waarde')).toBe('waarde')
+    expect(waardeLabel('levensfase', null)).toBe('—')
+    expect(waardeLabel('verplicht', true)).toBe('Ja')
+  })
+
+  it('een KORTE waarde blijft op één regel', async () => {
+    const r = diffWeergave({ actie: 'update', wijziging: { naam: { oud: 'Oud', nieuw: 'Nieuw' } } })
+    expect(r.regels[0].gestapeld).toBeFalsy()
+    expect(r.regels[0].tekst).toBe('Naam: Oud → Nieuw')
+  })
+
+  it('een LANGE waarde komt onder elkaar te staan', async () => {
+    // Het geval waarmee het verschil onvindbaar was: twintig woorden, vier verschil aan het eind.
+    const oud = 'Centraal systeem voor zaakgericht werken — gedeeld alle gemeenten'
+    const nieuw = 'Centraal systeem voor zaakgericht werken — gedeeld alle gemeenten en kan worden aangepast'
+    const r = diffWeergave({ actie: 'update', wijziging: { beschrijving: { oud, nieuw } } })
+    expect(r.regels[0].gestapeld).toBe(true)
+    expect(r.regels[0].was).toBe(oud)
+    expect(r.regels[0].nu).toBe(nieuw)
+  })
+
+  it('rendert de gestapelde vorm met Was/Nu onder elkaar', async () => {
+    api.auditlog.lijst.mockResolvedValue({
+      items: [{
+        correlatie_id: 'l1', tijdstip: '2026-06-19T10:00:00Z',
+        actor_naam: 'test:bert@test', actor_email: 'test:bert@test',
+        entiteit_type: 'component', entiteit_id: 'aaaa1111-0000-0000-0000-000000000000',
+        entiteit_naam: 'Zaaksysteem', actie: 'update', aantal_afgeleid: 0,
+        records: [{
+          id: 'l1r', entiteit_type: 'component', actie: 'update', entiteit_naam: 'Zaaksysteem',
+          wijziging: { beschrijving: {
+            oud: 'Centraal systeem voor zaakgericht werken — gedeeld alle gemeenten',
+            nieuw: 'Centraal systeem voor zaakgericht werken — gedeeld alle gemeenten en aangepast',
+          } },
+        }],
+      }],
+      volgende_cursor: null,
+    })
+    const w = await mountView()
+    await w.get('[data-testid="audit-toggle-l1"]').trigger('click')
+    await flushPromises()
+    const gestapeld = w.get('[data-testid="audit-diff-gestapeld"]')
+    expect(gestapeld.text()).toContain('Was:')
+    expect(gestapeld.text()).toContain('Nu:')
+  })
+})
+
+describe('AuditTrailView — LI048: het filter heet naar wat het doet', () => {
+  it('het filter heet Component, niet Onderdeel', async () => {
+    // "Onderdeel" beloofde meer dan het veld waarmaakt: hier zijn alléén componenten kiesbaar,
+    // terwijl de KOLOM Onderdeel ook checklistvragen, werkpakketten en partijen toont. Wie op
+    // een checklistvraag zocht kwam er nooit, zonder dat iets dat aangaf.
+    const w = await mountView()
+    const label = w.get('label[for="filter-component"]')
+    expect(label.text()).toBe('Component')
+    expect(label.text()).not.toContain('Onderdeel')
+  })
+
+  it('de veldtekst belooft niets anders dan het label', async () => {
+    // Label en veldtekst stonden op losse plekken; juist daardoor kon de tekst iets anders
+    // zeggen dan het label. Ze moeten over hetzelfde ding gaan.
+    const w = await mountView()
+    // ZoekSelect zet zijn testid als PREFIX op de interne elementen, niet op de root.
+    const veld = w.get('[data-testid="filter-component-input"]')
+    expect(veld.attributes('placeholder').toLowerCase()).toContain('component')
+  })
+
+  it('de KOLOM blijft Onderdeel — die toont wél alle soorten', async () => {
+    // Het verschil tussen filter en kolom is nu eerlijk in plaats van misleidend; het mag niet
+    // "opgelost" worden door de kolom óók Component te noemen.
+    const w = await mountView()
+    expect(w.text()).toContain('Onderdeel')
   })
 })

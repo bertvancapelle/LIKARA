@@ -41,7 +41,7 @@ integratie = pytest.mark.skipif(not _db_bereikbaar(), reason="lk_app-DB niet ber
 def test_auditlog_naam_verrijking_en_filters():
     from app.core.database import _markeer_rls
     from models.models import GebruikerPersoon, PartijAard
-    from schemas.component import ComponentCreate
+    from schemas.component import ComponentCreate, ComponentUpdate
     from schemas.partij import PartijCreate
     from services import actor_resolutie, component_service, partij_service
     from services import auditlog_service as svc
@@ -111,6 +111,77 @@ def test_auditlog_naam_verrijking_en_filters():
                 assert cre
                 dele, _ = await svc.lijst(s, tid, actor_naam=naam, actie="delete")
                 assert dele == []
+
+                # ── LI048 — HET GAT DAT DEZE TESTS MISTEN ────────────────────────────
+                # Hierboven wordt de ongekoppelde actor alleen via `actor=sub_ong` opgehaald,
+                # nooit via `actor_naam`. Precies het kapotte geval werd dus overgeslagen: het
+                # zoekveld doorzocht alleen persoonsnamen, terwijl de kolom Wie `naam or e-mail`
+                # toont. Iedereen zonder gekoppelde persoon was onvindbaar — in het demolandschap
+                # iedereen — en het scherm meldde doodleuk "Geen gebeurtenissen gevonden".
+
+                # (7) HET DEFECT: zoeken op een deel van het e-mailadres van een actor ZONDER
+                # gekoppelde persoon levert regels op. Niet "er gaat een verzoek uit" — resultaat.
+                op_email, _ = await svc.lijst(s, tid, actor_naam="beheerder@audit")
+                assert op_email, "zoeken op e-mail-fallback moet regels vinden"
+                assert all(g["actor_naam"] == "beheerder@audit" for g in op_email)
+                assert any(
+                    r.entiteit_naam == f"AudApp-ong-{merk}"
+                    for g in op_email for r in g["records"]
+                )
+
+                # (8) Deelwoord + hoofdletterongevoelig, net als bij namen ("bevat", niet exact).
+                deel, _ = await svc.lijst(s, tid, actor_naam="BEHEER")
+                assert any(g["actor_naam"] == "beheerder@audit" for g in deel)
+
+                # (9) Het geval dat AL werkte blijft werken — de reparatie mag het niet stukmaken.
+                nog_steeds, _ = await svc.lijst(s, tid, actor_naam=naam)
+                assert nog_steeds and all(g["actor_naam"] == naam for g in nog_steeds)
+
+                # (10) Een gekoppelde actor wordt NIET op zijn e-mailadres gevonden: zijn rij toont
+                # de NAAM, dus hem vinden op "jan.kc@org.test" zou hem vinden op iets wat nergens
+                # op het scherm staat — dezelfde fout als het defect, alleen omgekeerd.
+                via_email, _ = await svc.lijst(s, tid, actor_naam="jan.kc@org.test")
+                assert not any(r.actor_sub == sub_gek for g in via_email for r in g["records"])
+
+                # (11) "Niets gevonden" moet blijven bestaan naast "niet gezocht": een term die
+                # nergens voorkomt levert netjes leeg op, zonder fout.
+                leeg2, cur2 = await svc.lijst(s, tid, actor_naam=f"ZZZ-geen-treffer-{merk}")
+                assert leeg2 == [] and cur2 is None
+
+                # ── LI048 besluit 2 — de betekenisloze regel is nooit de aanleiding ──
+                # Bij het aanmaken van een component ontstaan twee rijen: de supertype-rij
+                # (`element`, draagt alleen `element_type`) en de subtype-rij die zegt wát het is
+                # en hoe het heet. Het scherm nam stelselmatig de eerste en toonde
+                # "Element — 9f1282d4… · Aangemaakt". Draait die keuze terug, dan valt dit om.
+                gek2, _ = await svc.lijst(s, tid, actor_naam=naam)
+                aanmaak = [g for g in gek2 if g["entiteit_naam"] == f"AudApp-gek-{merk}"]
+                assert aanmaak, "de aanmaak moet op zijn eigen naam vindbaar zijn"
+                assert aanmaak[0]["entiteit_type"] == "component"   # NIET 'element'
+                assert aanmaak[0]["actie"] == "create"
+                # De supertype-rij zit nog wél in `records` (voor de uitklap), maar telt niet mee
+                # als "afgeleid gevolg": hij zegt alleen dát er iets bestaat.
+                assert any(r.entiteit_type == "element" for r in aanmaak[0]["records"])
+                betekenisvol = [r for r in aanmaak[0]["records"] if r.entiteit_type != "element"]
+                assert aanmaak[0]["aantal_afgeleid"] == len(betekenisvol) - 1
+
+                # ── LI048 besluit 1 — de naam van TOEN ────────────────────────────────────
+                # DE KERNTOETS: hernoemen mag de geschiedenis niet veranderen. Zonder de
+                # vastgelegde naam leest het log na een hernoeming alsof het toen al zo heette.
+                await component_service.werk_bij(
+                    s, tid, uuid.UUID(str(app_gek["id"])),
+                    ComponentUpdate(naam=f"AudApp-HERNOEMD-{merk}"),
+                )
+                await s.commit()
+                na, _ = await svc.lijst(s, tid, actor_naam=naam)
+                oude_regel = [
+                    g for g in na
+                    if g["actie"] == "create" and g["entiteit_type"] == "component"
+                    and str(g["entiteit_id"]) == str(app_gek["id"])
+                ]
+                assert oude_regel, "de aanmaakregel moet er nog zijn"
+                assert oude_regel[0]["entiteit_naam"] == f"AudApp-gek-{merk}", (
+                    "de aanmaakregel moet de naam van TOEN tonen, niet de hernoemde naam"
+                )
 
                 # (6) N+1-vrij: één resolutie-query per lijst-aanroep, ongeacht #records.
                 telling = {"n": 0}

@@ -14,7 +14,22 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Component, Contract, Deliverable, Gap, Partij, Plateau, Relatie, WorkPackage
+from models.models import (
+    Bedrijfsfunctie,
+    ChecklistVraag,
+    Component,
+    Contract,
+    Datatype,
+    Deliverable,
+    Gap,
+    ImpactView,
+    Partij,
+    Plateau,
+    Proces,
+    Referentiemodel,
+    Relatie,
+    WorkPackage,
+)
 
 
 def _tid(tenant_id) -> uuid.UUID:
@@ -34,6 +49,21 @@ _BRONNEN = {
     "work_package": (WorkPackage, WorkPackage.naam),
     "gap": (Gap, Gap.naam),
     "relatie": (Relatie, Relatie.naam),  # naam alleen gevuld bij flow-koppelingen → anders fallback
+    # LI048 snede 3 — de TERUGVAL voor soorten die hun naam niet in élke auditrij meedragen.
+    # Een checklistvraag-update bevat bijvoorbeeld alleen `actief`; zonder deze bron zou zo'n
+    # regel als kale code lezen — precies het gat dat deze snede dicht. De vastgelegde naam
+    # blijft vóórgaan (auditlog_service._toon_naam); dit is wat er overblijft als die er niet is.
+    #
+    # ENGINE-INVARIANT blijft gelden: `ChecklistVraag` is de CATALOGUS-tabel, niet het
+    # score-/lifecycle-domein. De verboden symbolen (`Checklistscore`, `Blokkade`,
+    # `ComponentProfiel`, lifecycle_*) staan hier bewust NIET — component_profiel, checklistscore
+    # en blokkade lenen hun naam van hun component en hebben dus geen eigen bron nodig.
+    "checklistvraag": (ChecklistVraag, ChecklistVraag.vraag),
+    "bedrijfsfunctie": (Bedrijfsfunctie, Bedrijfsfunctie.naam),
+    "proces": (Proces, Proces.naam),
+    "referentiemodel": (Referentiemodel, Referentiemodel.naam),
+    "impact_view": (ImpactView, ImpactView.naam),
+    "datatype": (Datatype, Datatype.omschrijving),
 }
 
 

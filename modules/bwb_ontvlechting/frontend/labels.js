@@ -101,12 +101,21 @@ export function actorWeergave(a) {
 export function diffWeergave(record) {
   const actie = record?.actie
   const regels = Object.entries(record?.wijziging || {}).map(([veld, w]) => {
-    const naam = VELD_LABELS[veld] ?? humaniseer(veld)
-    const oud = w?.oud ?? '—'
-    const nieuw = w?.nieuw ?? '—'
-    if (actie === 'create') return `${naam} = ${nieuw}`
-    if (actie === 'delete') return `${naam} was ${oud}`
-    return `${naam}: ${oud} → ${nieuw}`
+    const naam = veldLabel(veld)
+    // LI048 besluit 4 — de waarde in SCHERMTAAL: "In productie", niet `production`.
+    const oud = waardeLabel(veld, w?.oud)
+    const nieuw = waardeLabel(veld, w?.nieuw)
+    if (actie === 'create') return { veld: naam, tekst: `${naam} = ${nieuw}` }
+    if (actie === 'delete') return { veld: naam, tekst: `${naam} was ${oud}` }
+    // LI048 — LANGE waarden onder elkaar, op dezelfde beginpositie. Bij twintig woorden met
+    // vier verschil aan het eind is `oud → nieuw` op één regel onleesbaar: je moet eerst
+    // zoeken waar de ene ophoudt en de andere begint. Onder elkaar loopt het oog beide
+    // regels langs tot ze uiteenlopen. Geen markering of woord-voor-woord-vergelijking —
+    // dat is machinerie voor een probleem dat LIKARA niet heeft.
+    if (isLangeWaarde(oud) || isLangeWaarde(nieuw)) {
+      return { veld: naam, gestapeld: true, was: oud, nu: nieuw, tekst: `${naam}: ${oud} → ${nieuw}` }
+    }
+    return { veld: naam, tekst: `${naam}: ${oud} → ${nieuw}` }
   })
   const intro = actie === 'create' ? 'Aangemaakt met:' : actie === 'delete' ? 'Verwijderd:' : ''
   return { intro, regels }
@@ -149,6 +158,55 @@ export const VELD_LABELS = {
 // zodat een nieuwe veldnaam nooit "leeg" toont. Gebruik dit i.p.v. een hardcoded literal, zodat een
 // veldnaam maar op één plek leeft (LI043).
 export const veldLabel = (naam) => VELD_LABELS[naam] ?? humaniseer(naam)
+
+// ── LI048 snede 3, besluit 4 — de WAARDE in schermtaal ────────────────────────────────────
+// De veldnamen hadden al één bron (VELD_LABELS hierboven); de waardenmaps bestonden al maar
+// waren nergens aan een veld gekoppeld. Daardoor las het auditlog `levensfase: production →
+// phase_out` terwijl het detailscherm *In productie* en *Uitfaseren* zei.
+//
+// Dit register is die koppeling — en bewust GEEN tweede vertaaltabel: het verwijst naar
+// dezelfde maps die de rest van het product gebruikt. Verandert een label daar, dan verandert
+// het auditlog mee. Een eigen lijstje zou precies de divergentie opleveren die deze regel wil
+// voorkomen (vgl. het amber-onderscheid eerder in LI048).
+//
+// Alleen VASTE KEUZELIJSTEN staan hier. Verwijzingen naar andere objecten (`*_id`) blijven een
+// code: die vragen een lookup per veld — eigen slice, ~20.000 vermeldingen (OPVOLGPUNTEN).
+// De maps zelf staan verderop in dit bestand; JS hijst `const` niet, dus dit register wordt
+// pas ná hun definitie opgebouwd — vandaar dat `waardeLabel` ze lui opzoekt via een functie.
+const _WAARDENBRON = () => ({
+  lifecycle_status: LIFECYCLE,
+  levensfase: LEVENSFASE,
+  hostingmodel: HOSTINGMODEL,
+  migratiepad: MIGRATIEPAD,
+  complexiteit: NIVEAU,
+  prioriteit: NIVEAU,
+  score: SCORE,
+  status: BLOKKADE_STATUS,
+  aard: PARTIJ_AARD,
+  scope: PARTIJ_SCOPE,
+  componenttype: ARCHIMATE_ELEMENT,
+  archimate_element: ARCHIMATE_ELEMENT,
+  laag: ARCHIMATE_LAAG,
+  aspect: ARCHIMATE_ASPECT,
+  // NB `relatietype` heeft (nog) geen labelmap in dit bestand — gemeten, niet aangenomen.
+  // Die waarde valt dus terug op de ruwe tekst; genoteerd als bevinding, geen stille terugval.
+  contracttype: CONTRACTTYPE,
+})
+
+// De schermwaarde voor één veld+waarde. Onbekend veld of onbekende waarde → de waarde zelf,
+// zodat er nooit iets leeg valt; `null`/`undefined` → een streepje.
+export function waardeLabel(veld, waarde) {
+  if (waarde === null || waarde === undefined || waarde === '') return '—'
+  if (typeof waarde === 'boolean') return waarde ? 'Ja' : 'Nee'
+  const map = _WAARDENBRON()[veld]
+  return (map && map[waarde]) ?? String(waarde)
+}
+
+// Een waarde is "lang" als hij niet meer naast een andere op één regel past. De grens is
+// bewust ruim: bij korte waarden is `van → naar` op één regel het duidelijkst, en pas bij
+// echte zinnen wordt dat onleesbaar (zie `diffWeergave`).
+const _LANG = 40
+export const isLangeWaarde = (w) => typeof w === 'string' && w.length > _LANG
 
 // `checklist_compleet` is transient (ADR-013 B4) en wordt nooit als ruststatus
 // getoond; valt via de humanize-fallback op een generiek label terug.

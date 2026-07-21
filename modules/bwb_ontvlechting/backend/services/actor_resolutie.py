@@ -83,3 +83,20 @@ async def subs_voor_naam(session: AsyncSession, tenant_id, fragment: str) -> set
         )
     ).scalars().all()
     return set(rijen)
+
+
+async def gekoppelde_subs(session: AsyncSession, tenant_id) -> set[str]:
+    """Alle `keycloak_sub`'s in deze tenant die AAN een persoon gekoppeld zijn — ongeacht naam.
+
+    Nodig om het audit-zoekveld dezelfde regel te laten volgen als de kolom "Wie": die toont
+    `naam or e-mail`. Een rij mét koppeling toont dus de NAAM, en dan mag een treffer op het
+    e-mailadres niet meetellen — anders vindt de consultant een regel op iets wat er niet staat.
+    Dat is dezelfde soort fout als het defect dat hier gerepareerd wordt, alleen omgekeerd."""
+    rijen = (
+        await session.execute(
+            select(GebruikerPersoon.keycloak_sub).where(
+                GebruikerPersoon.tenant_id == _tid(tenant_id),
+            )
+        )
+    ).scalars().all()
+    return set(rijen)
