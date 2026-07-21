@@ -1628,15 +1628,29 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
     (zie likara-ux); uitrol naar overige lijsten = OPVOLGPUNTEN 0.
   - **Detailkop**: `src/components/DetailKop.vue` — naam (wrapt, nooit afgekapt) + #badges +
     #subtitel + #acties + #destructief (eigen gescheiden zone); 8 detailschermen zijn consument.
+  - **Lijstkop** (LI048): `src/components/LijstKop.vue` — vaste volgorde
+    `naam · #zoek · #filter · #actie`, niet te wijzigen door de call-site; **alle 4** lijstschermen
+    zijn consument (geen uitzonderingen). De consultant loopt de hele dag van lijst naar lijst: staat de aanmaakknop per
+    scherm ergens anders, dan zoekt hij hem elke keer opnieuw. Daarom vult het zoekslot de
+    ruimte **ook als het leeg is** (`flex-1`) — de actie staat dan nog steeds rechts, op
+    dezelfde plek. Twee grenzen die de kop klein houden: (1) er hoort in wat de LIJST bepaalt
+    (zoeken/filteren/aanmaken), niet hoe je ernaar kíjkt — een weergaveschakelaar
+    (Boom|Diagram) gaat naar de zone eronder; (2) **één** actie — een zeldzame, ingrijpende
+    actie naast een wekelijkse laat beide even gewoon lezen.
 - **Een bouwsteen faalt LUID bij een programmeerfout** — nooit een stille lege uitkomst.
   Referentie: `IdentiteitLabel.vue:27-50` — lege naam ⇒ zichtbare ⚠-marker (in élke omgeving) +
   `console.error` die de consúment aanwijst. Een stille lege render is precies de faalmodus die
   de suite niet vangt (zie de niet-geresolvede-component-les in likara-werkprotocol).
 - **Handhaving via bron-scan** (`scripts/check-css-build.mjs`): regels die zich lenen voor een
   structurele scan krijgen er een — veld-recept (élk veld op de bouwsteen, geen eigen
-  hoogte/padding/rand) en detailkop (elk `*Detail*`-scherm gebruikt `<DetailKop>`; de
+  hoogte/padding/rand), detailkop (elk `*Detail*`-scherm gebruikt `<DetailKop>`; de
   object-acties `label="Bewerken"`/`label="Verwijderen"`/`<ObjectHistoriePaneel` mogen
-  uitsluitend binnen dat blok). Eisen aan élke scan: (1) **aantoonbaar bijten** — een zelftest
+  uitsluitend binnen dat blok) en lijstkop (elk `*Lijst.vue` gebruikt `<LijstKop>`; een tweede
+  `<h1>` of een `type="search"` búíten dat blok is een overtreding — dat laatste ving precies
+  de dubbeling die ontstaat als het zoekveld naar de kop verhuist maar in de filterbalk blijft
+  staan; plus: hoogstens één `type="search"` per scherm, en de weergaveschakelaar
+  (`aria-label="Weergave"`) mag níét binnen het kop-blok — die bepaalt hoe je kijkt, niet wat je
+  ziet). Eisen aan élke scan: (1) **aantoonbaar bijten** — een zelftest
   met opzettelijk foute voorbeelden draait bij elke run mee; (2) **geen vals-positieven**
   (template-only scannen, comments strippen, quote-bewust multi-line tags lezen) — een scan die
   vals alarm slaat wordt genegeerd en is erger dan geen scan; (3) **geen benoemde uitzondering —
@@ -1649,6 +1663,17 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   `test_schema_aanroepen_scan.py` slaat aanroepen binnen `pytest.raises` over — die geven bewust een
   ongeldig veld door om te bewijzen dát `extra="forbid"` bijt, en dat is een structurele eigenschap,
   geen lijst.)
+- **LI048 — een zichtbare uitzondering is óók een achterdeur.** De lijstkop-scan droeg één sessie
+  lang `LIJSTKOP_OPENSTAAND = {BedrijfsfunctieLijst.vue}`: het scherm dat de schakelaar en een
+  tweede actie in de kop had. De uitzondering was verdedigd (afleiden kon niet zonder de fout te
+  cementeren), gedocumenteerd, en werd bij élke run afgedrukt — geen stille skip. Hij is er tóch
+  uitgegaan, en de reden is de scherpste vorm van deze regel: **hij deed geen schade, hij
+  legitimeerde een VORM.** De volgende sessie die één scherm niet kan omzetten, heeft dan een
+  voorbeeld. Zo ontstaan achterdeuren — niet met een besluit, maar met een precedent. De uitweg
+  was wat de regel al zei: *het GEVAL is fout, niet de regel.* De twee dingen die het scherm
+  tegenhielden bleken allebei al beslist; er was geen ontwerpvraag, alleen bouwwerk. **Toets bij
+  een voorgestelde uitzondering dus niet "richt hij schade aan?" maar "welke vorm maak ik hiermee
+  navolgbaar?"** — en kijk eerst of het geval zelf op te lossen valt.
 
 ## LI047 — teller en lijst uit ÉÉN laadpunt (niet alleen één bron)
 

@@ -593,3 +593,29 @@ naleving, niet op structuur. De bestaande regels waar ze op aanhaken staan erbij
   (platform-inlog, menupad) staat in `docs/LOKAAL-TESTEN.md` (de platform-login staat daar
   inmiddels, regel ~117-131) — niet alleen in een skill. *(LI040: een browsercheck-draaiboek liep
   vast op een platform-login die al bestónd maar alleen in skill-context leefde.)*
+
+## LI048 — een inventarisatie is een meting, geen indruk
+
+**Het incident.** Een READ-ONLY checkpoint moest vaststellen welke lijstschermen al "zoek + filter
++ knop" hadden. De detectie zocht naar zoek-achtige tekst in de bron en pikte op het Auditlog-scherm
+`placeholder="Zoek een component…"` op — de placeholder van een ZoekSelect *filterveld*. Conclusie
+in de tabel: "Auditlog heeft een zoekveld ✅". Bij het bouwen bleek: `type="search"` = 0,
+aanmaakknop = 0, `FilterResultaatRegel` = 0. Het scherm was geen beheerslijst maar een
+**doorzoekscherm** — een andere soort, die de hele opdracht anders maakt.
+
+**De fout is niet de regex.** Het is dat een bron is gelezen zonder te toetsen of hij beschrijft
+wat hij lijkt te beschrijven. Dezelfde soort fout als bij "Oracle FIN-DB": een naam die klinkt als
+het ding, aangezien voor het ding. Een placeholder is *tekst in een veld*, geen bewijs dat het veld
+een zoekveld ís.
+
+**Regels die hieruit volgen:**
+- **Tel het ding zelf, niet iets wat erop lijkt.** "Heeft dit scherm een zoekveld?" meet je met
+  `type="search"`, niet met het woord "zoek". Kies per vraag het kenmerk dat alleen waar kan zijn
+  als het antwoord ja is.
+- **Een checkpointtabel is een meting met een teller per cel** — geen ✅/❌ zonder getal. Een 0 die
+  als ✅ leest valt op zodra er een getal naast staat.
+- **Wijkt de code van je eigen eerdere rapport af: het rapport is fout, niet de code.** Meld het
+  expliciet en corrigeer de vindplaats, anders bouwt de volgende sessie op de foute tabel. Staat
+  het rapport alleen in de chat en niet als `.md`, leg de correctie dan vast waar hij wél
+  teruggevonden wordt (OPVOLGPUNTEN of de betrokken skill) — een correctie in chat is geen
+  correctie.
