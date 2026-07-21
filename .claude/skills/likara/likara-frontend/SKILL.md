@@ -1629,8 +1629,13 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   - **Detailkop**: `src/components/DetailKop.vue` — naam (wrapt, nooit afgekapt) + #badges +
     #subtitel + #acties + #destructief (eigen gescheiden zone); 8 detailschermen zijn consument.
   - **Lijstkop** (LI048): `src/components/LijstKop.vue` — vaste volgorde
-    `naam · #zoek · #filter · #actie`, niet te wijzigen door de call-site; **alle 4** lijstschermen
-    zijn consument (geen uitzonderingen). De consultant loopt de hele dag van lijst naar lijst: staat de aanmaakknop per
+    `naam · #zoek · #filter · #actie`, niet te wijzigen door de call-site; **alle 14**
+    hoofdmenu-lijstschermen zijn consument (geen uitzonderingen). Een scherm zonder slots schrijft
+    hem zelfsluitend (`<LijstKop titel=… titel-id=… />`) — dat is het schoonste geval, niet een
+    half geval: Migratienorm en Architectuur hebben niets te zoeken of aan te maken, en juist
+    dáár bewijst regel 3 zich (de aanmaakknop van het vólgende scherm staat op dezelfde plek).
+    Slots die niet in de kop horen: een weergaveschakelaar, een tweede/zeldzame actie, en een
+    toelichting over de hele lijst — die drie gaan naar de zone eronder (regel 4). De consultant loopt de hele dag van lijst naar lijst: staat de aanmaakknop per
     scherm ergens anders, dan zoekt hij hem elke keer opnieuw. Daarom vult het zoekslot de
     ruimte **ook als het leeg is** (`flex-1`) — de actie staat dan nog steeds rechts, op
     dezelfde plek. Twee grenzen die de kop klein houden: (1) er hoort in wat de LIJST bepaalt
@@ -1645,7 +1650,7 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   structurele scan krijgen er een — veld-recept (élk veld op de bouwsteen, geen eigen
   hoogte/padding/rand), detailkop (elk `*Detail*`-scherm gebruikt `<DetailKop>`; de
   object-acties `label="Bewerken"`/`label="Verwijderen"`/`<ObjectHistoriePaneel` mogen
-  uitsluitend binnen dat blok) en lijstkop (elk `*Lijst.vue` gebruikt `<LijstKop>`; een tweede
+  uitsluitend binnen dat blok) en lijstkop (elk hoofdmenu-scherm mét lijst gebruikt `<LijstKop>`; een tweede
   `<h1>` of een `type="search"` búíten dat blok is een overtreding — dat laatste ving precies
   de dubbeling die ontstaat als het zoekveld naar de kop verhuist maar in de filterbalk blijft
   staan; plus: hoogstens één `type="search"` per scherm, en de weergaveschakelaar
@@ -1663,6 +1668,23 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   `test_schema_aanroepen_scan.py` slaat aanroepen binnen `pytest.raises` over — die geven bewust een
   ongeldig veld door om te bewijzen dát `extra="forbid"` bijt, en dat is een structurele eigenschap,
   geen lijst.)
+- **LI048 snede 2 — het BEREIK van een scan is even belangrijk als zijn regels, en versmalt
+  stiller.** De lijstkop-scan pakte `*Lijst.vue`. Dat leek een keurig criterium en was groen — maar
+  het waren toevallig precies de vier schermen uit snede 1, en géén van de tien die daarna volgden
+  (`AuditTrailView`, `NormBeheer`, `ChecklistConfigBeheer`, …). Een naamconventie is geen criterium
+  maar een toevalligheid. **Leid het bereik af uit wat de gebruiker ziet**, niet uit hoe bestanden
+  heten: hier de menu-routes uit `AppLayout.vue` → componenten uit `router/index.js` → scan die
+  bestanden. Drie dingen die dit patroon nodig heeft, alle drie hard geleerd in één sessie:
+  1. **Een niet-resolvebaar pad moet LUID falen, nooit `continue`.** Een vergeten alias
+     (`@modules/…`) liet zeven van de veertien schermen stil wegvallen; de scan meldde monter
+     "8 schermen op de bouwsteen" — een groene uitslag over nog niet de helft. Een borging die
+     stilletjes smaller wordt dan hij lijkt is gevaarlijker dan geen borging: hij wekt vertrouwen
+     dat hij niet waarmaakt.
+  2. **Het criterium mag het bestaande bereik niet uitsluiten.** "Toont een tabel" verloor
+     Bedrijfsfuncties (dat een boom toont) — een scherm dat al op de bouwsteen stónd. Vandaar
+     `tabel OF draagt de bouwsteen al`: een ratel, zodat een scherm er nooit ongezien vanaf valt.
+  3. **Toets het GETAL in een suite** (`LijstKopSchermen.test.js`: "vindt alle veertien schermen").
+     Zakt het, dan is dat een bevinding — geen getal dat je bijwerkt.
 - **LI048 — een zichtbare uitzondering is óók een achterdeur.** De lijstkop-scan droeg één sessie
   lang `LIJSTKOP_OPENSTAAND = {BedrijfsfunctieLijst.vue}`: het scherm dat de schakelaar en een
   tweede actie in de kop had. De uitzondering was verdedigd (afleiden kon niet zonder de fout te
