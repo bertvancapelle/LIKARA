@@ -140,7 +140,40 @@ bouwsteen weggooien is onomkeerbaarder dan hem niet meer mounten.
 
 ---
 
-## Top-5 prioriteiten LI048
+## Openstaand uit LI048 — in volgorde van wat de consultant merkt
+
+> Deze vier komen vóór de MVP-prioriteiten hieronder in **zichtbaarheid**, niet per se in gewicht.
+> Punt 1 is de scherpste openstaande vraag vóór MVP en is alleen in de browser te beantwoorden.
+
+1. **Vindbaarheid van de Geschiedenis-knop.** Kwam deze sessie **drie keer** terug: de knop bestond
+   al op alle zeven detailschermen, de weg erachter is soortonafhankelijk — en Bert liep tóch vast in
+   het auditlog en zocht daar naar een checklistvraag. Sinds LI048 draagt de knop bovendien géén
+   woord meer, alleen een klokje: mogelijk **minder** vindbaar, niet meer.
+   Geen bouwvraag maar een UX-vraag; alleen te beantwoorden door het scherm te gebruiken. Zolang dit
+   openstaat, is niet vast te stellen of het na-MVP-punt "zoeken naar soorten zonder eigen scherm"
+   (OPVOLGPUNTEN) wel het echte probleem is — misschien is het probleem dat niemand de knop ziet.
+   **Doe dit vóór er iets aan het auditlog-zoeken wordt gebouwd.**
+
+2. **De datumvelden op het auditlog.** Waargenomen: Van/Tot staan standaard op vandaag, waardoor je
+   ongemerkt in één dag van 45.000 regels kijkt. **De code zegt iets anders** — overal leeg/`None`,
+   geen enkele default (gemeten in LI048). Eerst reproduceren en de oorzaak vinden (autofill?
+   staat-herstel?), dán beslissen; anders wordt een default "weggehaald" die niet bestaat. De
+   UX-vraag staat los van de oorzaak en geldt vanaf het eerste geval (`likara-ux` §P8a).
+   Volledig punt: OPVOLGPUNTEN.
+
+3. **Signalering + Plaatsingssignalen** — het laatste hoofdmenu-scherm dat anders leest. Draagt een
+   handgebouwde tabrij die naar `AppTabs` moet, plus de lijstkop. Plaatsingssignalen is géén los
+   scherm maar een tabblad ván Signalering (`SignaleringView.vue:16`, ADR-035) en hoort in dezelfde
+   snede — apart een `<h1>` geven zou een tweede paginakop binnen een tabblad opleveren.
+
+4. **De acht beheerschermen** (`*ConfigBeheer`, buiten het hoofdmenu). Besloten: zij krijgen dezelfde
+   lijstkop, als eigen snede **zonder voorrang** — eenvormigheid voor de beheerder, niet voor de
+   consultant die de hele dag van lijst naar lijst loopt. ⚠ Let op het scan-bereik: dat wordt
+   afgeleid uit het hoofdmenu (`check-css-build.mjs`, lijstkop-scan) en deze acht staan daar niet in.
+
+---
+
+## Top-5 prioriteiten LI049
 
 > **Volgorde: eerst de leesbaarheid van het protocol waar alles op leunt (0), dan de MVP-feiten die nog
 > ontbreken.**

@@ -5,27 +5,53 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V048 · 2026-07-20
-- **Commit:** code `134fd6c` seedherstel + verantwoordingszin · `218b9fd` kopknop + één ingang ·
-  `529c122` koppelingen component-breed · `e89a417` open-punten-tabblad · `14e1dbe` `component_id` ·
-  `388f3da` ADR-055 gebouwd · `1dfe435` kopstijl + kop-rij; docs/skills `f11fd1c` LI047-patronen ·
-  `56aa06f` ADR-055 + register · `e26d150` checkpoint gebruik-component-breed.
-- **Tests:** backend **1179 passed, 2 skipped, 0 failed** · frontend **98 files / 1275 passed** ·
-  `vite build` ✅ · `test:css-build` ✅ (vier bronscans, elk met zelftest) · 0 kritieken.
-- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). LI047 raakte **backend én
-  frontend** maar leverde **nul migraties**: ADR-055 en de `component_id`-hernoeming bleken allebei
-  applicatielaag-restanten — dat het schema níét meebewoog was in beide gevallen het bewijs.
-- **TST-rapport:** `docs/TST-V048-Validatierapport.md` (0 kritieken, 0 geaccepteerde afwijkingen).
-- **Dev-DB:** volledig opnieuw opgebouwd deze sessie (`down` → `volume rm` → `up` → dev-seed). De seed
-  draagt nu álle browsercheck-gevallen: **HR-systeem = SCHOON** (norm-compleet, géén signaal) ·
-  Archiefbeheer/DMS/Zaaksysteem = beide soorten afwijking · Klantportaal = pure verschoven lat ·
-  drie "bewust geen"-bevindingen · **Shared fileshare mét gebruikersgroep** (het ADR-055-geval, nieuw) ·
-  Zaaksysteem mét een nee-checklistscore (de gebundelde regel in "Dit valt op"). ⚠ Het volledige
-  gate-3-verhaal (koppelingen, "hier draait niets", noodoplossing) is op een verse DB nog onzichtbaar (L4).
-- **⚠ Tellingen in gate-rapporten zijn momentopnamen, geen stand.** Wie ze later overneemt zit ernaast —
-  hermeten binnen de tenant-context is de regel. Ging deze sessie drie keer mis (werkprotocol
-  §Meet tenant-data binnen de tenant-context).
-- **Werktree:** **schoon** — alle LI047-bouw is per opdracht apart geland (één opdracht per commit).
+- **Build:** V049 · 2026-07-21
+- **Commit:** `44ef3f8` (skills-patronen) · **26 commits** deze sessie, elk per opdracht apart geland
+  en gesplitst in code / skills / docs. Kernstukken: `a3a37cb`+`0745d2e` lijstkop (4→14 schermen) ·
+  `e778e09` auditlog bruikbaar (zoeken/benoemen/vertalen/filteren) · `f6710bd` objecthistorie compleet ·
+  `baa87f0` wegwijzers als teken · `67df651` lijntaal · `ecfd708` amber-onderscheid.
+- **Tests:** backend **1136 passed, 2 skipped** (module) + **80 passed** (platform) ·
+  frontend **102 files / 1374 passed** · `vite build` ✅ · `test:css-build` ✅ (**14 scans**, elk met
+  zelftest) · 0 kritieken.
+- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). **Nul migraties** deze
+  sessie: LI048 was UX- en leesbaarheidswerk plus twee auditlog-filterreparaties — het schema bewoog
+  niet mee, en dat was in alle gevallen het juiste teken.
+- **RLS:** 34 tenant-scoped tabellen, alle met policy én FORCE; 0 zonder.
+- **TST-rapport:** `docs/TST-V049-Validatierapport.md` (0 kritieken, 2 geaccepteerde afwijkingen:
+  zes ongelopen browsercheck-draaiboeken en één flaky toets in `ComponentLijst.test.js`).
+- **Werktree:** **schoon**.
+- **⚠ Zes browsercheck-draaiboeken staan open.** De suites dekken de structuur; uitlijning, tooltips
+  en toetsenbordvolgorde zijn niet machinaal vast te stellen. Eén draaiboek (objecthistorie) vraagt de
+  beoordelaar het geval **zelf aan te maken** — het demolandschap bevat geen partij met een los
+  toegekende rol.
+- **⚠ De scherpste openstaande vraag is niet technisch.** De Geschiedenis-knop bestond al op alle zeven
+  detailschermen en Bert liep tóch drie keer vast in het auditlog. Sinds deze sessie draagt die knop
+  géén woord meer. Vindbaarheid, niet functionaliteit — zie NEXT_SESSION punt 1.
+
+## Deze sessie (LI048 — het scherm zegt wat het doet) — AFGEROND
+
+**Eén draad door alle opdrachten:** een scherm dat een antwoord geeft dat formeel klopt en de
+consultant niets vertelt. Vier keer in verschillende gedaanten, telkens met een groene suite ernaast.
+
+**Wat er is gebouwd:**
+- **De lijstkop** — 4 → **14 hoofdmenu-schermen** op één gedeelde bouwsteen; het scan-bereik wordt
+  afgeleid uit het menu, niet uit bestandsnamen. En passant een defect verholpen dat niemand had
+  gemeld: vier schermen hadden **twee zoekvelden** met elk een eigen binding.
+- **Het auditlog bruikbaar gemaakt** in vier stappen: zoeken vond niemand (het veld doorzocht
+  persoonsnamen terwijl de kolom e-mailadressen toont — in de demo dus 7.242 onvindbare regels); de
+  regel benoemde zichzelf niet (`Element — 9f1282d4…`, 14.398 keer); waarden stonden in opslagtaal;
+  en het filter loog over zijn bereik én miste de koppelingen (0 van 9.291 relatieregels vindbaar).
+- **De objecthistorie compleet** — sub-entiteiten horen in de geschiedenis van hun ouder.
+- **Vorm:** tabvorm, lijntaal (drie gewichten), het amber-onderscheid in beide vensters, en twee
+  wegwijzers als teken terwijl handelingen woorden blijven.
+
+**Achttien patronen gevalideerd** (10 stonden er al, 6 half, 1 dubbeling, **0 nieuw**) en
+weggeschreven — elk naast zijn concrete geval, zodat de consolidatie van LI049 ze als blok meeneemt.
+
+**Twee dingen die deze sessie zichzelf aandeed en herstelde:** een kernzin die over twee regels was
+afgebroken en daardoor onvindbaar met `grep` (drie keer voorgekomen, drie keer hersteld — dezelfde
+faalmodus als de null-byte-besmetting van LI047), en een bijt-bewijs dat groen bleef omdat de keuze
+inline in een lus stond en geen enkele toets hem oefende.
 
 ## Deze sessie (LI047 — alles wat dit component nog nodig heeft, op één plek) — AFGEROND
 

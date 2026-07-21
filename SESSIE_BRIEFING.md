@@ -1,6 +1,6 @@
-# SESSIE_BRIEFING.md — LIKARA V048
+# SESSIE_BRIEFING.md — LIKARA V049
 
-**Gegenereerd**: 2026-07-20
+**Gegenereerd**: 2026-07-21
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Veld | Waarde |
 |------|--------|
-| Build | V048 |
+| Build | V049 |
 | Datum | July 2026 |
-| Commit | f11fd1c |
-| Tests | backend 1179 passed / 2 skipped · frontend 98 files / 1275 passed · vite build OK · css-build OK |
-| TST-rapport | TST-V048-Validatierapport.md |
+| Commit | 44ef3f8 |
+| Tests | backend 1136 passed / 2 skipped (module) + 80 passed (platform) · frontend 102 files / 1374 passed · vite build OK · 14 scans groen |
+| TST-rapport | TST-V049-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -22,11 +22,11 @@
 ## Recente commits
 
 ```
-f11fd1c [skills] LI047-patronen vastgelegd — dertien lessen, elk getoetst tegen de code
-134fd6c [herstel] LI047 — de seed werkt weer, en de verantwoording zegt wie én wanneer
-218b9fd [frontend] LI047 snede 2 — de ingang in de kop, en dan ook maar één
-529c122 [frontend] LI047 — koppelingen kun je bij elk component vastleggen
-e89a417 [backend+frontend] LI047 snede 1 — het tabblad "Open punten" per component
+44ef3f8 [skills] LI048 — zes veralgemeniseringen en één ontdubbeling
+e8931a3 [docs] LI048 objecthistorie — draaiboek, kleiner na-MVP-punt, ConfigBeheer-besluit
+1aff74b [skills] LI048 — SUB_ENTITEITEN: wat hoort er in de geschiedenis van een ding
+f6710bd [auditlog] LI048 — de geschiedenis van een ding bevat zijn sub-entiteiten
+48027be [docs] LI048 detailkop-tekens — draaiboek en de icoon-bevinding
 ```
 
 ---
@@ -72,15 +72,40 @@ e89a417 [backend+frontend] LI047 snede 1 — het tabblad "Open punten" per compo
 
 ---
 
-## Vertrekpunt LI048 — begin hier
+## Vertrekpunt LI049 — begin hier
 
-### 0. Consolideer het werkprotocol vóór je er iets bij zet
+### 0. Consolideer de skills vóór je er iets bij zet
 
-**Dit gaat vóór alles wat hieronder staat.** `likara-werkprotocol` staat op **595 regels**, en
-§Gate-discipline kreeg deze sessie **vier nieuwe koppen** erbij. Een sectie met vier nieuwe koppen
-beschrijft niet meer één ding — die is een verzameling geworden.
+**Dit gaat vóór alles wat hieronder staat.** Het stond ook als punt 0 van LI048 en is er niet van
+gekomen; er zijn in plaats daarvan zes patronen bijgezet. Bewuste afweging (er wordt niets in geheugen
+bewaard, dus wat niet landt is weg), maar de schuld is daarmee groter geworden, niet kleiner.
 
-**Regel voor LI048: wie er patronen bij wil zetten, consolideert eerst.**
+**Drie dingen, in deze volgorde:**
+
+**(a) `likara-werkprotocol` — 621 regels, 22 koppen.** Vijf daarvan zijn chronologische
+verzamelbakken (`LI035`, `LI036`, `LI039`, `LI040`, `LI048`), samen 105 regels. Het probleem is niet
+hun lengte maar dat ze **concurreren met de onderwerpskoppen**: een browsercheck-les kan in
+§Browsercheck (84 regels) óf in §LI035 landen; een UX-first-les in drie verschillende secties. Hef de
+vijf sessiekoppen op en hang hun inhoud onder het onderwerp waar ze bij horen — verplaatsen, niet
+herschrijven. Voeg daarna de drie UX-first-koppen samen. Verwachte uitkomst: ~15 koppen, geen regel
+minder inhoud. Let ook op §Gate-discipline: 142 regels, bijna een kwart, en het bevat
+bestandsoperatie-lessen die bij §Browsercheck horen.
+
+**(b) De P-reeks in `likara-ux` staat in omgekeerde volgorde.** In het bestand: P8 → P9 → P8d → P8c →
+P8b → P8a. Elk nieuw stuk is vóór het vorige anker ingevoegd (in LI048 vier keer). Wie het bestand
+leest komt P8d tegen vóór P8a. Puur een leesprobleem, snel op te lossen, en het groeit door bij elke
+volgende toevoeging.
+
+**(c) Drie borgingsregels staan in `likara-frontend` terwijl ze niet frontend-specifiek zijn:** het
+bereik-van-een-scan-versmalt-stiller-patroon, de uitzondering-is-een-precedent-regel, en
+afleiden-i.p.v.-opsommen. Ze horen in `likara-tests`. **Dit is geen ordeningsdetail:** een
+borgingsregel in de frontend-skill wordt niet gevonden door wie aan de backend werkt — en drie van de
+vijf misgelopen bijt-bewijzen van LI048 gingen juist over backend-toetsen. Verplaatsen kost
+verwijzingen die elders naar `likara-frontend` wijzen; controleer die.
+
+**Regel voor LI049: wie er patronen bij wil zetten, consolideert eerst.** Voor de tweede keer
+opgeschreven — als het ook nu niet gebeurt, is de regel zelf het probleem en hoort hij te vervallen
+of afgedwongen te worden.
 
 Waarom dit vooropgaat: een protocol dat niemand meer leest geeft **schijnzekerheid**. Elke discipline
 die erop leunt — de gate, de browsercheck, de commit-trigger — leunt dan op niets. Het signaal komt nu,
@@ -89,6 +114,32 @@ terwijl het nog leesbaar is; dat is het goede moment, niet als het al te laat is
 Aanknopingspunten: de vier LI047-koppen onder §Gate-discipline horen waarschijnlijk bij elkaar onder één
 noemer ("wat je vaststelt vóór je bouwt"), en §Browsercheck draagt inmiddels drie verschillende soorten
 regels (voorbereiden, uitvoeren, en het draaiboek zelf).
+
+---
+
+### 0b. Laat de vereisten-check van `gen_build` actualiteit toetsen, niet alleen bestaan
+
+*Klein, en het hoort naast de consolidatie omdat het dezelfde soort fout afvangt.*
+
+De check leest nu of een pad **bestaat**. Daardoor zou de sessie-ZIP van V048 bijna een
+`PROJECTGEHEUGEN.md` hebben gebundeld dat nog V047 zei — met 1159 tests en de mededeling dat de
+LI046-afsluitcommit nog moest komen — zónder dat er iets rood werd. Dat bestand is het **vertrekpunt
+van de volgende sessie**.
+
+**Wat het zou doen:** vergelijk het bouwnummer dat gegenereerd wordt met het nummer dat ín het bestand
+staat. Staat daar het vórige nummer, dan is het niet bijgewerkt → rood.
+
+**Alleen voor de bestanden die een MENS bijwerkt** — `docs/PROJECTGEHEUGEN.md` en `NEXT_SESSION.md`.
+`CLAUDE.md` en `SESSIE_BRIEFING.md` worden dóór `gen_build` gegenereerd en dragen op het moment van de
+check per definitie het oude nummer; die meenemen levert alleen vals alarm.
+
+⚠ **Wat het NIET vangt:** een bestand waarin alleen het nummer is opgehoogd boven verouderde inhoud.
+Het vangt **vergeten, niet slordigheid** — zet dat erbij in de code, anders ontstaat er
+schijnzekerheid en leunt de volgende sessie op een check die minder bewijst dan hij lijkt.
+
+**Kosten:** een handvol regels in `gen_build.py`, plus een testje dat hem laat bijten op een bestand met
+het vorige nummer. Niet in LI047 gebouwd omdat `gen_build` al gedraaid was en de ZIP gevalideerd — er
+dan code bij leggen betekent opnieuw draaien en een bouwnummer dat verspringt.
 
 ---
 
@@ -124,7 +175,40 @@ bouwsteen weggooien is onomkeerbaarder dan hem niet meer mounten.
 
 ---
 
-## Top-5 prioriteiten LI048
+## Openstaand uit LI048 — in volgorde van wat de consultant merkt
+
+> Deze vier komen vóór de MVP-prioriteiten hieronder in **zichtbaarheid**, niet per se in gewicht.
+> Punt 1 is de scherpste openstaande vraag vóór MVP en is alleen in de browser te beantwoorden.
+
+1. **Vindbaarheid van de Geschiedenis-knop.** Kwam deze sessie **drie keer** terug: de knop bestond
+   al op alle zeven detailschermen, de weg erachter is soortonafhankelijk — en Bert liep tóch vast in
+   het auditlog en zocht daar naar een checklistvraag. Sinds LI048 draagt de knop bovendien géén
+   woord meer, alleen een klokje: mogelijk **minder** vindbaar, niet meer.
+   Geen bouwvraag maar een UX-vraag; alleen te beantwoorden door het scherm te gebruiken. Zolang dit
+   openstaat, is niet vast te stellen of het na-MVP-punt "zoeken naar soorten zonder eigen scherm"
+   (OPVOLGPUNTEN) wel het echte probleem is — misschien is het probleem dat niemand de knop ziet.
+   **Doe dit vóór er iets aan het auditlog-zoeken wordt gebouwd.**
+
+2. **De datumvelden op het auditlog.** Waargenomen: Van/Tot staan standaard op vandaag, waardoor je
+   ongemerkt in één dag van 45.000 regels kijkt. **De code zegt iets anders** — overal leeg/`None`,
+   geen enkele default (gemeten in LI048). Eerst reproduceren en de oorzaak vinden (autofill?
+   staat-herstel?), dán beslissen; anders wordt een default "weggehaald" die niet bestaat. De
+   UX-vraag staat los van de oorzaak en geldt vanaf het eerste geval (`likara-ux` §P8a).
+   Volledig punt: OPVOLGPUNTEN.
+
+3. **Signalering + Plaatsingssignalen** — het laatste hoofdmenu-scherm dat anders leest. Draagt een
+   handgebouwde tabrij die naar `AppTabs` moet, plus de lijstkop. Plaatsingssignalen is géén los
+   scherm maar een tabblad ván Signalering (`SignaleringView.vue:16`, ADR-035) en hoort in dezelfde
+   snede — apart een `<h1>` geven zou een tweede paginakop binnen een tabblad opleveren.
+
+4. **De acht beheerschermen** (`*ConfigBeheer`, buiten het hoofdmenu). Besloten: zij krijgen dezelfde
+   lijstkop, als eigen snede **zonder voorrang** — eenvormigheid voor de beheerder, niet voor de
+   consultant die de hele dag van lijst naar lijst loopt. ⚠ Let op het scan-bereik: dat wordt
+   afgeleid uit het hoofdmenu (`check-css-build.mjs`, lijstkop-scan) en deze acht staan daar niet in.
+
+---
+
+## Top-5 prioriteiten LI049
 
 > **Volgorde: eerst de leesbaarheid van het protocol waar alles op leunt (0), dan de MVP-feiten die nog
 > ontbreken.**
@@ -223,5 +307,5 @@ Verankerd in de likara-skills (`f11fd1c`), geen memory-duplicaat. Dertien patron
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V048"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V049"
 4. Wacht op START: [naam] van Bert

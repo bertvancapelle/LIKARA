@@ -1916,6 +1916,24 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   regels staan, en elke toetsaanslag een zoekopdracht laten afvuren is daar geen dienst. Geborgd
   met een toets die omvalt zodra iemand dat "verbetert".
 
+### Datumvelden op het auditlog — waargenomen gedrag wijkt af van de code (LI048, onbeslist)
+Bert nam waar dat **Van/Tot standaard op vandaag staan**, waardoor hij ongemerkt in één dag van een
+log met 45.000 regels keek — zonder dat iets dat zei. Zelfde familie als een verstopt filter
+(`likara-ux` §P8a): de lijst ziet er compleet uit en is het niet.
+
+**Gemeten, en de code zegt iets anders:** `AuditTrailView.vue:23` initialiseert
+`van: '', tot: ''` (leeg), de route declareert `van/tot: Query(None)` en de service filtert alleen
+`if van is not None`. Er is **geen enkele default** in de codebase. De waarneming is dus echt maar de
+oorzaak ligt elders — browser-autofill op `type="date"` is de eerste kandidaat, een bewaarde
+sessiestaat de tweede (dit scherm gebruikt `useLijstStaat` níét, dus dat is minder waarschijnlijk).
+
+**Eerst reproduceren en de oorzaak vaststellen, dan pas beslissen.** Anders wordt er een default
+"weggehaald" die niet bestaat. Als het autofill is, is de remedie een andere (bijv. `autocomplete="off"`)
+dan wanneer het staat-herstel is.
+
+Ongeacht de oorzaak blijft de UX-vraag staan: als er een datumbereik actief is, hoort dat zichtbaar
+te zijn zonder de filterbalk te lezen — dat is §P8a, en dat geldt vanaf het eerste geval.
+
 ### ConfigBeheer-schermen krijgen de lijstkop (besloten, eigen snede zonder voorrang)
 Bert heeft besloten: de acht `*ConfigBeheer`-schermen (platform-catalogusbeheer, buiten het
 hoofdmenu) krijgen dezelfde `LijstKop` als de veertien hoofdmenu-schermen. Als **eigen snede,
