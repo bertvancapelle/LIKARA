@@ -245,17 +245,45 @@ describe('OpenPuntenSectie — schakelaarvorm (LI048 2d)', () => {
     expect(groep.findAll('.lk-schakelaar-stand')).toHaveLength(3)
   })
 
-  it('onder de schakelaar staat één scheidingslijn — de lijst hangt er niet los onder', async () => {
+  it('de inhoud staat in een eigen kader — de lijst hangt er niet los onder', async () => {
+    // De streep-onder-de-schakelaar (eerste 2d-vorm) is vervangen door een kader ÓM de inhoud:
+    // zo wisselt zichtbaar de inhoud bínnen het kader wanneer je een andere stand kiest, in
+    // plaats van dat de lijst eronder hangt en de consultant het verband moet aannemen.
     const w = await mountSectie(_respons({
       moet_nog: { aantal: 1, punten: [{ feit: 'biv', route: null }] },
     }))
-    // De streep hoort NIET op de schakelaar zelf (die sluit strak om de knopjes) maar op de
-    // omhullende rij, zodat hij over de volle breedte loopt en kiezen van krijgen scheidt.
-    const streep = w.find('.lk-schakelaar-streep')
-    expect(streep.exists()).toBe(true)
-    expect(streep.classes()).not.toContain('lk-schakelaar')
-    // De schakelaar zit erbinnen; de lijst staat eronder.
-    expect(streep.find('[data-testid="op-filters"]').exists()).toBe(true)
+    const kader = w.find('[data-testid="op-inhoudskader"]')
+    expect(kader.exists()).toBe(true)
+    expect(kader.classes()).toContain('lk-inhoudskader')
+    // De lijst zit erIN; de schakelaar staat erbuiten (die is de keuze, niet de uitkomst).
+    expect(kader.find('[data-testid="op-lijst-moet_nog"]').exists()).toBe(true)
+    expect(kader.find('[data-testid="op-filters"]').exists()).toBe(false)
+  })
+
+  it('de schakelaar draagt GEEN grijze plaat meer — de vorm draagt zichzelf', async () => {
+    // De eerste 2d-vorm had een grijze vulling; een lichte lijn dáárop verdwijnt erin (in de
+    // browser geen zichtbaar verschil), en grijs-als-vulling is op dit scherm al bezet door de
+    // band onder de tabrijen. Deze toets valt om zodra de plaat terugsluipt.
+    const w = await mountSectie()
+    const schakelaar = w.find('[data-testid="op-filters"]')
+    const vulling = schakelaar.classes().filter((c) => c.startsWith('bg-'))
+    expect(vulling, 'de schakelaar draagt weer een achtergrondvulling').toEqual([])
+    // De vorm zit in de gedeelde klasse (omlijning + scheidingslijntjes), niet op de call-site.
+    expect(schakelaar.classes()).toContain('lk-schakelaar')
+  })
+
+  it('de uitlegregel staat BINNEN het kader, niet erbuiten', async () => {
+    // Hij verandert mee per stand: bij "Dit moet nog" gaat hij over wat de organisatie verplicht
+    // stelt, bij de andere standen over iets anders. Buiten het kader zou hij lijken te gelden
+    // voor alle drie de standen.
+    const w = await mountSectie(_respons({
+      moet_nog: { aantal: 2, punten: [{ feit: 'biv', route: null }, { feit: 'contract', route: null }] },
+    }))
+    const kader = w.find('[data-testid="op-inhoudskader"]')
+    const uitleg = kader.find('[data-testid="op-norm-aanduiding"]')
+    expect(uitleg.exists(), 'de uitlegregel staat buiten het kader').toBe(true)
+    // Bovenaan, met een lijn eronder — de gedeelde klasse draagt die lijn.
+    expect(uitleg.classes()).toContain('lk-inhoudskader-uitleg')
   })
 
   it('2d: de lijst draagt GEEN eigen achtergrondvulling — signaal hoort op wit', async () => {

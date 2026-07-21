@@ -253,17 +253,23 @@
      zijn nu toggle-knoppen (`role="group"` + `aria-pressed`).
 
      2d — de standen stonden als drie LOSSE knopjes op het witte vlak: ze lazen niet als één
-     keuze. Nu één aaneengesloten schakelaar met een grijs plaatje eromheen.
+     keuze. Nu één aaneengesloten knoppenblok.
 
-     Twee vormregels die uit het scherm zelf volgen:
+     Drie vormregels die uit het scherm zelf volgen:
      - **`display: inline-flex`, dus NIET tot de rand.** Een volle band over de breedte is op dit
-       scherm inmiddels het teken voor NAVIGATIE (`.lk-tabrij-sub` bloedt bewust wél uit). Liep dit
-       grijs door tot de rand, dan las de schakelaar opnieuw als een tabrij — precies het
-       onderscheid dat 2c aanbracht. Het grijs sluit dus strak om de knopjes.
+       scherm het teken voor NAVIGATIE (`.lk-tabrij-sub` bloedt bewust wél uit). Liep dit blok
+       door tot de rand, dan las de schakelaar opnieuw als een tabrij — precies het onderscheid
+       dat 2c aanbracht. Het blok sluit dus strak om de standen.
      - **De gekozen stand krijgt een VOLLE accentvulling.** Bij een tabblad zou vol blauw
        verwarren (daar is wít het teken van "gekozen", want een tab versmelt met zijn inhoud);
-       bij een schakelaar hoort de actieve stand juist uit te springen. De niet-gekozen standen
-       dragen géén eigen rand — de schakelaar is één ding, geen drie.
+       bij een schakelaar hoort de actieve stand juist uit te springen.
+     - **Geen grijze PLAAT als vulling** (vervallen; correctie op de eerste 2d-vorm). Twee
+       redenen: (a) een lichte lijn óp een grijze vulling verdwijnt erin — in de browser was er
+       geen zichtbaar verschil, dus de vorm werd met een hulplijn overeind gehouden in plaats van
+       dat hij het zelf droeg; (b) grijs als vulling is op dit scherm al bezet door de band onder
+       de tabrijen, en één betekenis per vorm is het hele punt van deze reeks. Het blok draagt nu
+       zijn eigen omlijning met scheidingslijntjes ertussen: drie hokjes die aan elkaar vastzitten
+       met één ingedrukt — dat lijkt op niets anders op dit scherm.
 
      ⚠ Dit gedrag bestaat elders al ZES keer met evenzoveel eigen vormen (Landschapskaart
      weergave/diepte/lezing, BedrijfsfunctieLijst Boom|Diagram, ArchitectuurView Lagen|Tabel,
@@ -272,9 +278,10 @@
   .lk-schakelaar {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    padding: 2px;
-    background: var(--lk-color-bg);
+    /* `overflow: hidden` laat de standen netjes binnen de afgeronde hoeken vallen; zonder dit
+       steekt de gevulde stand in de hoeken buiten de omlijning uit. */
+    overflow: hidden;
+    background: transparent;
     border: 1px solid var(--lk-color-border);
     border-radius: var(--lk-radius-btn);
   }
@@ -285,17 +292,23 @@
     font-size: var(--lk-text-xs);
     color: var(--lk-color-text-muted);
     background: transparent;
-    /* Geen eigen rand: de standen horen bij elkaar; het plaatje eromheen is de begrenzing. */
     border: 0;
-    border-radius: var(--lk-radius-badge);
+    /* Geen eigen radius: de standen zitten aan elkaar vast en de omlijning rondt af. */
+    border-radius: 0;
+  }
+  /* Het scheidingslijntje ertussen — niet vóór de eerste, anders staat er een dubbele lijn
+     tegen de omlijning aan. */
+  .lk-schakelaar-stand + .lk-schakelaar-stand {
+    border-left: 1px solid var(--lk-color-border);
   }
   .lk-schakelaar-stand:hover:not([aria-pressed='true']) {
     color: var(--lk-color-primary-700);
     background: var(--lk-color-primary-50);
   }
   .lk-schakelaar-stand:focus-visible {
+    /* Naar binnen, zodat de ring niet over de omlijning van het blok valt. */
     outline: 2px solid var(--lk-color-primary);
-    outline-offset: 1px;
+    outline-offset: -2px;
   }
   .lk-schakelaar-stand[aria-pressed='true'] {
     color: white;
@@ -303,20 +316,44 @@
     background: var(--lk-color-primary);
   }
 
-  /* Scheidt waarmee je kiest van wat je krijgt (2d). Over de VOLLE breedte — anders hangt de
-     lijst eronder los. De lijst zelf blijft op wit: daar staan de signalen (amber = bewust
+  /* Het kader om de inhoud die bij de gekozen stand hoort (LI048, correctie op 2d).
+     Zonder dit hing de lijst los onder de schakelaar en moest de consultant het verband
+     aannemen; nu wisselt de inhoud zichtbaar BINNEN dit kader wanneer hij een andere stand
+     kiest. Gewoon lijngewicht (`--lk-color-border`) — de zware buitenrand van het werkvlak
+     (`--lk-color-border-sterk`) blijft de zwaarste lijn op het scherm, anders wordt het een
+     raster van kaders in kaders. De vulling blijft WIT: daar staan de signalen (amber = bewust
      afgewogen, gedempt = verschoven lat, blauw = Vastleggen), en signaal hoort niet op een
-     gekleurde vloer — dezelfde reden waarom het gekleurde tabbladvlak eerder is afgewezen. */
-  .lk-schakelaar-streep {
+     gekleurde vloer. */
+  .lk-inhoudskader {
+    background: var(--lk-color-surface);
+    border: 1px solid var(--lk-color-border);
+    border-radius: var(--lk-border-radius);
+    padding: var(--lk-space-md);
+  }
+  /* De uitlegregel hoort BINNEN het kader, bovenaan, met een lijn eronder: hij verandert mee
+     per stand (bij "Dit moet nog" gaat hij over wat de organisatie verplicht stelt, bij de
+     andere standen over iets anders). Buiten het kader zou hij lijken te gelden voor alle drie. */
+  .lk-inhoudskader-uitleg {
+    margin-bottom: var(--lk-space-sm);
+    padding-bottom: var(--lk-space-sm);
     border-bottom: 1px solid var(--lk-color-border);
   }
 
   /* Het werkvlak waar de tabrij aan vastzit: wit, begrensd, aanwijsbaar — ook op
      een fel scherm of een beamer, waar het verschil tussen wit en de paginakleur
-     wegvalt (gemeten 1,05:1; de rand doet 1,23:1 en draagt dus het onderscheid). */
+     wegvalt (gemeten 1,05:1). De rand draagt dus het onderscheid — en moet daarvoor zwaarder
+     zijn dan de lijnen erbinnen: hij deed aanvankelijk 1,23:1, exact gelijk aan de `th/td`-
+     scheidingslijntjes, en las daardoor niet als buitengrens maar als zoveelste streepje.
+     Nu 1,48:1 via `--lk-color-border-sterk` (zie base.css voor de meting en de regel). */
   .lk-tabvlak {
     background: var(--lk-color-surface);
-    border: 1px solid var(--lk-color-border);
+    /* De BUITENrand is de sterkste lijn op het scherm; alles daarbinnen is lichter
+       (LI048 — zie `--lk-color-border-sterk` in base.css voor de meting en de reden).
+       Hij was `--lk-color-border`, exact dezelfde waarde als de `th/td`-scheidings-
+       lijntjes in een lijst: daardoor las hij niet als buitengrens maar als zoveelste
+       streepje. Alleen déze rand wijzigt; de lijnen bínnen lijsten en formulieren
+       blijven ongemoeid — anders verschuift het verschil weer mee. */
+    border: 1px solid var(--lk-color-border-sterk);
     border-radius: 0 var(--lk-border-radius) var(--lk-border-radius) var(--lk-border-radius);
     padding: var(--lk-space-lg);
   }

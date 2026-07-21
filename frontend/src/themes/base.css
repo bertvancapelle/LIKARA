@@ -43,6 +43,21 @@
   --lk-color-surface: #ffffff;
   --lk-color-bg: #f7fafc;
   --lk-color-border: #e2e8f0;
+  /* Buitenrand van een werkvlak (LI048) — ALTIJD zwaarder dan de lijnen erbinnen.
+     Die regel is het punt, niet deze waarde: is de buitenrand even zwaar als de
+     scheidingslijntjes in een lijst (beide waren `--lk-color-border`, 1,23:1 op wit),
+     dan hoort hij nergens meer bij en ziet de consultant niet waar zijn werkgebied
+     begint en ophoudt. Dat weegt hier extra zwaar omdat het verschil tussen pagina en
+     werkvlak klein MOET blijven: de paginatint mag niet dieper zonder gedempte tekst
+     onder de AA-grens te duwen (gemeten plafond #eef2f7 = 4,51:1). De lijn doet dus
+     het werk dat de tint niet mag doen.
+     Gekozen op meting: 1,48:1 op wit = 1,20× de binnenlijn — zichtbaar op een fel
+     scherm en op een beamer, maar niet zo zwaar dat het kader de aandacht van de
+     inhoud wegtrekt (slate-400 zou 2,08× zijn en bij twintig schermen per dag een
+     raster opleveren). Blijft in de bestaande slate-familie: bg=slate-50,
+     border=slate-200, deze=slate-300. Borging: tokens.contract.test.js vergelijkt de
+     LUMINANTIE van beide tokens, niet hun waarde. */
+  --lk-color-border-sterk: #cbd5e1;
   --lk-color-accent: #E8F0FB;
   /* Lichtblauwe primary-schaal — gevulde secondary-knop (neventactie) */
   --lk-color-primary-50:  #E6F1FB;  /* vul-tint */

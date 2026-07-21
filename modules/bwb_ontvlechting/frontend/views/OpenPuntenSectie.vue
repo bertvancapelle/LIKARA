@@ -123,74 +123,78 @@ watch(() => props.componentId, () => { actiefBlok.value = 'moet_nog' })
            er is geen enkele `role="tabpanel"` in deze sectie. Een schermlezer kondigde daarmee
            een tabblad aan en verwees naar het niets. Nu toggle-knoppen in een `role="group"`:
            `aria-pressed` zegt wat waar is, en de vorm (`.lk-schakelaar`) zegt dat dit één keuze
-           is en geen plek waar je heen gaat. De streep eronder scheidt waarmee je kiest van wat
-           je krijgt; de lijst zelf blijft op wit (de signalen erin hebben een schone vloer nodig). -->
-      <div class="lk-schakelaar-streep pb-[var(--lk-space-sm)] mb-[var(--lk-space-sm)]">
-        <div
-          role="group"
-          aria-label="Soorten open punten"
-          data-testid="op-filters"
-          class="lk-schakelaar"
-        >
-          <button
-            v-for="b in blokFilters"
-            :key="b.key"
-            type="button"
-            class="lk-schakelaar-stand"
-            :aria-pressed="b.key === actiefBlok"
-            :data-testid="`op-filter-${b.key}`"
-            @click="actiefBlok = b.key"
-          >{{ b.label }}</button>
-        </div>
+           is en geen plek waar je heen gaat. -->
+      <div
+        role="group"
+        aria-label="Soorten open punten"
+        data-testid="op-filters"
+        class="lk-schakelaar mb-[var(--lk-space-sm)]"
+      >
+        <button
+          v-for="b in blokFilters"
+          :key="b.key"
+          type="button"
+          class="lk-schakelaar-stand"
+          :aria-pressed="b.key === actiefBlok"
+          :data-testid="`op-filter-${b.key}`"
+          @click="actiefBlok = b.key"
+        >{{ b.label }}</button>
       </div>
 
-      <!-- Besluit 21 — de norm-aanduiding staat ÉÉN keer boven het blok, niet per rij: in blok 1 is
-           elk punt per definitie een norm-feit, en dat tien keer herhalen is geen informatie. -->
-      <p
-        v-if="actiefBlok === 'moet_nog' && huidig.aantal"
-        data-norm-lat
-        data-testid="op-norm-aanduiding"
-        class="mt-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
-      >
-        Uw organisatie heeft deze feiten verplicht gesteld om een component klaar te kunnen verklaren.
-      </p>
-
-      <p
-        v-if="!huidig.aantal"
-        :data-testid="`op-leeg-${actiefBlok}`"
-        class="mt-[var(--lk-space-md)] text-[var(--lk-color-text-muted)]"
-      >
-        {{ LEEG_TEKST[actiefBlok] }}
-      </p>
-
-      <ul v-else class="mt-[var(--lk-space-sm)] flex flex-col gap-[var(--lk-space-xs)]" :data-testid="`op-lijst-${actiefBlok}`">
-        <li
-          v-for="(punt, i) in huidig.punten"
-          :key="punt.feit ?? punt.soort"
-          :data-testid="`op-punt-${punt.feit ?? punt.soort}`"
-          class="lk-rij flex items-center gap-[var(--lk-space-sm)] border-t border-[var(--lk-color-border)] py-[var(--lk-space-xs)]"
-          :class="i === 0 ? 'border-t-0' : ''"
+      <!-- Het kader om wat er UIT de gekozen stand komt. Zonder dit hing de lijst los onder de
+           schakelaar en moest de consultant het verband aannemen; nu wisselt de inhoud zichtbaar
+           BINNEN dit kader. De vulling blijft wit — de signalen erin hebben een schone vloer. -->
+      <div class="lk-inhoudskader" data-testid="op-inhoudskader">
+        <!-- Besluit 21 — de norm-aanduiding staat ÉÉN keer boven het blok, niet per rij: in blok 1
+             is elk punt per definitie een norm-feit, en dat tien keer herhalen is geen informatie.
+             Hij hoort BINNEN het kader (bovenaan, met een lijn eronder): de regel verandert mee per
+             stand, en buiten het kader zou hij lijken te gelden voor alle drie. -->
+        <p
+          v-if="actiefBlok === 'moet_nog' && huidig.aantal"
+          data-norm-lat
+          data-testid="op-norm-aanduiding"
+          class="lk-inhoudskader-uitleg text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
         >
-          <span class="min-w-0 flex-1">{{ puntLabel(punt) }}</span>
-          <!-- Besluit 8 — elk punt een route. Geen route betekent dat er voor DIT componenttype
-               geen plek is om het antwoord vast te leggen; dan liever geen knop dan een dode link
-               (ADR-054: nooit een route beloven waar niets te landen valt). -->
-          <button
-            v-if="punt.route"
-            type="button"
-            :data-testid="`op-ga-${punt.feit ?? punt.soort}`"
-            class="shrink-0 text-[var(--lk-color-primary)] hover:underline"
-            @click="emit('ga-naar', punt.route)"
+          Uw organisatie heeft deze feiten verplicht gesteld om een component klaar te kunnen verklaren.
+        </p>
+
+        <p
+          v-if="!huidig.aantal"
+          :data-testid="`op-leeg-${actiefBlok}`"
+          class="text-[var(--lk-color-text-muted)]"
+        >
+          {{ LEEG_TEKST[actiefBlok] }}
+        </p>
+
+        <ul v-else class="flex flex-col gap-[var(--lk-space-xs)]" :data-testid="`op-lijst-${actiefBlok}`">
+          <li
+            v-for="(punt, i) in huidig.punten"
+            :key="punt.feit ?? punt.soort"
+            :data-testid="`op-punt-${punt.feit ?? punt.soort}`"
+            class="lk-rij flex items-center gap-[var(--lk-space-sm)] border-t border-[var(--lk-color-border)] py-[var(--lk-space-xs)]"
+            :class="i === 0 ? 'border-t-0' : ''"
           >
-            Vastleggen
-          </button>
-          <span
-            v-else
-            :data-testid="`op-geen-route-${punt.feit ?? punt.soort}`"
-            class="shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
-          >Geen invoerplek voor dit componenttype</span>
-        </li>
-      </ul>
+            <span class="min-w-0 flex-1">{{ puntLabel(punt) }}</span>
+            <!-- Besluit 8 — elk punt een route. Geen route betekent dat er voor DIT componenttype
+                 geen plek is om het antwoord vast te leggen; dan liever geen knop dan een dode link
+                 (ADR-054: nooit een route beloven waar niets te landen valt). -->
+            <button
+              v-if="punt.route"
+              type="button"
+              :data-testid="`op-ga-${punt.feit ?? punt.soort}`"
+              class="shrink-0 text-[var(--lk-color-primary)] hover:underline"
+              @click="emit('ga-naar', punt.route)"
+            >
+              Vastleggen
+            </button>
+            <span
+              v-else
+              :data-testid="`op-geen-route-${punt.feit ?? punt.soort}`"
+              class="shrink-0 text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+            >Geen invoerplek voor dit componenttype</span>
+          </li>
+        </ul>
+      </div>
     </template>
   </section>
 </template>

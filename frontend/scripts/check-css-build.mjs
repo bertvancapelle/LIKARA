@@ -46,6 +46,11 @@ const VEREIST = [
   // boven een losse lijn en is de hele snede visueel ongedaan — dus toetsen we hem apart.
   { naam: 'tab-zit-vast-aan-vlak', match: 'border-bottom-color:var(--lk-color-surface)' },
   { naam: 'werkvlak',           match: '.lk-tabvlak{' },
+  // LI048 — de buitenrand moet de STERKE token dragen, niet de gewone. Beide waren
+  // `--lk-color-border`, waardoor de buitengrens even zwaar was als de scheidingslijntjes
+  // in een lijst en dus niet als buitengrens las. Zet iemand hem terug op `--lk-color-border`,
+  // dan faalt dit LUID — de klassenaam alleen toetsen zou dat niet vangen.
+  { naam: 'werkvlak-sterke-rand', match: '.lk-tabvlak{background:var(--lk-color-surface);border:1px solid var(--lk-color-border-sterk)' },
   // LI048 2c — HET DEFECT dat deze snede verhielp: de sub-rij stond transparant op het witte
   // werkvlak, dus een niet-gekozen sub-tabblad had geen ondergrond om uit naar voren te komen
   // (alleen de gekozen pil was zichtbaar; de rest zweefde als losse tekst). De GRIJZE BAND is
@@ -62,14 +67,23 @@ const VEREIST = [
   // `flex`, dan leest de schakelaar opnieuw als tabrij en is het 2c-onderscheid weg. Daarom
   // toetsen we de vorm-eigenschap zelf, niet alleen het bestaan van de klasse. De minifier zet
   // `display` achteraan in de regel — gemeten in de dist, niet gegokt.
-  { naam: 'schakelaar-niet-tot-de-rand', match: '.lk-schakelaar{background:var(--lk-color-bg)' },
-  { naam: 'schakelaar-inline',  match: 'padding:2px;display:inline-flex}' },
+  // De omlijning draagt de vorm; er is GEEN grijze plaat meer (`background:0 0` = transparant,
+  // zoals de minifier het schrijft). Sluipt de plaat terug, dan faalt dit LUID: een lichte lijn
+  // op een grijze vulling verdwijnt erin, en de vorm werd dan met een hulplijn overeind gehouden.
+  { naam: 'schakelaar-omlijnd-zonder-plaat',
+    match: '.lk-schakelaar{border:1px solid var(--lk-color-border);border-radius:var(--lk-radius-btn);background:0 0' },
+  { naam: 'schakelaar-inline',  match: 'display:inline-flex;overflow:hidden}' },
+  // De standen zitten aan elkaar vast met een scheidingslijntje ertussen — niet vóór de eerste.
+  { naam: 'schakelaar-scheidingslijn',
+    match: '.lk-schakelaar-stand+.lk-schakelaar-stand{border-left' },
   { naam: 'schakelaar-stand',   match: '.lk-schakelaar-stand{' },
+  // Het kader om de inhoud: gewoon lijngewicht, NIET de sterke rand — die blijft de zwaarste
+  // lijn op het scherm, anders wordt het een raster van kaders in kaders.
+  { naam: 'inhoudskader',       match: '.lk-inhoudskader{background:var(--lk-color-surface);border:1px solid var(--lk-color-border)' },
+  { naam: 'inhoudskader-uitleg', match: '.lk-inhoudskader-uitleg{' },
   // De actieve stand springt eruit met een VOLLE vulling — anders dan een tabblad, waar juist
   // wit "gekozen" betekent (een tab versmelt met zijn inhoud, een schakelaar staat op zichzelf).
   { naam: 'schakelaar-stand-gekozen', match: '.lk-schakelaar-stand[aria-pressed=true]' },
-  // Scheidt waarmee je kiest van wat je krijgt: zonder deze streep hangt de lijst los.
-  { naam: 'schakelaar-streep',  match: '.lk-schakelaar-streep{border-bottom' },
   { naam: 'secondary-vulling', match: j('bg-[var(--lk-color-primary-50)', ']') },
   { naam: 'primary-vulling',   match: j('bg-[var(--lk-color-primary)', ']') },
   { naam: 'danger-vulling',    match: j('bg-[var(--lk-color-danger)', ']') },
