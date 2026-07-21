@@ -382,6 +382,20 @@ ongedefinieerde methodes → 405.
   (beheerder) → email; historische rij (geen sub) → email. Nooit leeg. Naam wordt read-side als
   **transient attribuut** gezet (`verklaard_door_naam`/`bevestigd_door_naam`/`actor_naam`),
   conform het `eigenaar_organisatie_naam`-patroon. **Engine-import-afwezigheid** geborgd.
+- **`SUB_ENTITEITEN` — de geschiedenis van een ding bevat zijn sub-entiteiten (LI048).** Sta je op
+  een partij, dan hoort daarin te staan dat iemand haar een rol gaf of afnam. Dat gebeurde alleen
+  als het toevallig in dezelfde handeling zat: 154 van de 229 roltoewijzingen waren onvindbaar —
+  hier niet, en nergens anders. De code légde bovendien uit dat het wél gebeurde
+  (`routes/objecthistorie.py`: "verschijnt in de historie van de ouder"); dat is waargemaakt in
+  plaats van bijgesteld. Vorm gelijk aan `NAAMBRON`: `[(sub_type, veld), …]` of `("geen", reden)`,
+  met toetsen in **beide** richtingen plus een reden-eis.
+  ⚠ Twee dingen die makkelijk misgaan:
+  (1) het object-deel en de sub-takken horen als **één OR** bij elkaar — blijft het object-deel een
+  losse AND, dan sluit het de sub-takken juist uit;
+  (2) `oud` én `nieuw` allebei — een **ingetrokken** rol draagt zijn `partij_id` alleen in `oud`, en
+  dat is precies de vraag "sinds wanneer niet meer".
+  `component` staat er bewust NIET in: dat heeft zijn eigen, rijkere modus (component_id + koppelingen).
+  Eén waarheid, twee ingangen — het componentdetail en het auditlog-filter roepen dezelfde tak aan.
 - **Het component-filter beantwoordt "wat is er met dit ding gebeurd" (LI048).** Drie takken in
   `_record_filters`: (1) de entiteit ÍS het component — dekt ook de rijen die hun PK met het
   component delen (`element`, `component_profiel`); (2) het component staat als `component_id` in
