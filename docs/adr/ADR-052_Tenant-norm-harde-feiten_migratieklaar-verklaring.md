@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Aanvaard — **slices 1–3 gebouwd** (`fae7593` norm-opslag/-toetsing · `626dc76` "bewust geen" · `7e2ff25` verrijkte klaarverklaring). **Slice 4 gesplitst (besluit 14, bindende volgorde): 4a — het onderscheid tussen "bewust over de lat" en "de lat is verschoven" + het werkvoorraadsignaal (besluiten 8–11); 4b — het norm-beheerscherm (besluiten 12–13). Beide OPEN (LI045).** Subknopen 1–5 + besluiten 8–14 besloten (zie onder). |
+| **Status** | Aanvaard — **slices 1–3 gebouwd** (`fae7593` norm-opslag/-toetsing · `626dc76` "bewust geen" · `7e2ff25` verrijkte klaarverklaring). **Slice 4 gesplitst (besluit 14, bindende volgorde): 4a — het onderscheid tussen "bewust over de lat" en "de lat is verschoven" + het werkvoorraadsignaal (besluiten 8–11); 4b — het norm-beheerscherm (besluiten 12–13). Beide GEBOUWD; 4a afgerond in LI048 (het open-punten-kader miste het onderscheid — zie de noot bij 4a).** Subknopen 1–5 + besluiten 8–14 besloten (zie onder). |
 | **Datum** | 2026-07-17 (uitgebreid 2026-07-18, LI045 — besluiten 8–14) |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-027 (component-klaarverklaring — dit verrijkt haar) · ADR-013/016 (lifecycle-engine — ongemoeid) · ADR-035 (registratiegat-signalen) · ADR-028 (BIV/componentrol) · ADR-044/049 ("bewust niets" op de bedrijfsfunctie-plek) · ADR-006 (append-only audit) · OPVOLGPUNTEN L1a (ijkpunt) + LI043-1 (beoordelingsgrondslag) |
@@ -291,10 +291,21 @@ Slices, elk met engine-onaangeroerd-borging + gate-discipline:
 2. ✅ **"Bewust geen" voor koppelingen en contract** (`component_bevinding`, spiegel bedrijfsfunctie) — **gebouwd `626dc76`**.
 3. ✅ **Verrijkte klaarverklaring** (snapshot-kolom `open_feiten` + bevestiging bij afwijking + badge/log uit één feit; slice 3b verantwoordingsvenster, 3c reden-achter-de-waarschuwing) — **gebouwd `7e2ff25`**.
 4. **Norm-beheerscherm — gesplitst in de bindende volgorde van besluit 14 (LI045):**
-   - 4a. ⏳ **Het onderscheid + het werkvoorraadsignaal** (besluiten 8–11): "bewust over de lat" (amber,
+   - 4a. ✅ **Het onderscheid + het werkvoorraadsignaal** (besluiten 8–11): "bewust over de lat" (amber,
      met verantwoording) vs. "de lat is verschoven sinds de verklaring" (neutraal), en één gebundelde
      werkvoorraadregel met het componentsignaal als afgeleide. Puur leeslaag — geen nieuwe opslag, engine
-     onaangeroerd (afleiding uit de bevroren snapshot × de live norm-status). — **OPEN (LI045-prioriteit 1).**
+     onaangeroerd (afleiding uit de bevroren snapshot × de live norm-status). — **gebouwd; afgerond LI048.**
+
+     ⚠ **Het onderscheid gold aanvankelijk maar in één venster.** Het migratiegereedheid-blok
+     (`MigratiegereedheidSectie`) kreeg amber vs. neutraal, maar het open-punten-kader
+     (`OpenPuntenSectie`, in LI047 apart gebouwd) nam die tweedeling nooit over: daar stonden beide
+     soorten in dezelfde toon, met alleen andere woorden. Twee vensters, één afleiding
+     (`splits_afwijking`), twee presentaties — precies de situatie waarin een lezer een besluit
+     toeschrijft aan wie het niet nam, en dus de misleiding die besluit 8 verbiedt. Niets in de
+     tests dekte dit: ze toetsten wél *dát* de groepen gescheiden waren, niets over toon.
+     **Gerepareerd in LI048** met `afwijkingCodering.js` als gedeelde PRESENTATIE-bron (toon, icoon
+     én zinsbouw) plus `.lk-afwijking-bewust`/`-verschoven`; beide vensters erven eruit, geborgd met
+     een bronscan die per element bewijst dat er geen tweede toon naast staat.
    - 4b. ✅ **Norm-beheerscherm** (de beheerder stelt de verplicht-vlaggen in; tenant-schil, broer van
      Checklistvragen), mét de gevolg-cijfers bij het verzetten (besluit 12) en de leesroute vanuit de
      klaarverklaring (besluit 13). **Gaat niet live vóór 4a bestaat (besluit 14, bindend).** — **gebouwd (`d748fcf`).**

@@ -786,9 +786,21 @@ besluit 6, `component_klaarverklaring.open_feiten` (snapshot) vs. `norm_status` 
   "sindsdien verplicht gesteld; daar is hier nog niet naar gekeken"). Dragen beide tegelijk: **beide tonen,
   elk in eigen toon** — er wint er geen. **Het verschil snapshot × live ís het signaal — geen extra opslag**
   (geen derde bron; het audit-log voedt alléén de "wanneer/door wie"-metadata, niet de classificatie).
-  Borging: pure `splits_afwijking(live, snapshot)` (één bron voor componentvenster én werkvoorraad) +
-  `test_component_norm_adr052`. Referentie: `component_norm_service`, `MigratiegereedheidSectie`,
-  `SignaleringView` (verschoven-lat-sectie).
+
+  ⚠ **Één afleiding is niet één presentatie — de les van LI048.** Deze regel stond hier, `splits_afwijking`
+  was al de enige bron, en het onderscheid was gebouwd — maar alléén in `MigratiegereedheidSectie`. Het
+  open-punten-kader (`OpenPuntenSectie`, in LI047 apart gebouwd) toonde beide soorten in **dezelfde toon**
+  met alleen andere woorden. Twee vensters, één afleiding, twee presentaties: precies de misleiding die
+  deze regel verbiedt, ín het scherm waar de consultant zijn werk aftekent. En **niets werd rood** — de
+  tests dekten wél *dát* de groepen gescheiden waren, niets over toon.
+  **Vuistregel:** noemt een regel een KLEUR of een TOON, dan is de borging pas compleet als de presentatie
+  óók één bron heeft (LI043) én een toets de twee tonen tegen elkaar legt. Een gedeelde data-afleiding
+  garandeert niets over wat de gebruiker ziet.
+  Borging (nu): pure `splits_afwijking(live, snapshot)` + `test_component_norm_adr052` voor de DATA;
+  `afwijkingCodering.js` + `.lk-afwijking-bewust`/`-verschoven` voor de PRESENTATIE, met
+  `afwijkingCodering.test.js` (de twee tonen verschillen in klasse, icoon én kleur; de neutrale zin draagt
+  geen verwijt-taal; beide vensters lezen de bron en zetten er geen tweede toon naast).
+  Referentie: `component_norm_service`, `MigratiegereedheidSectie`, `OpenPuntenSectie`, `SignaleringView`.
 
 - **Het sterretje is gereserveerd voor opslaan-blokkerend.** Een **genormeerd** veld is géén **verplicht**
   veld: opslaan mag, de norm geldt op het **beoordelingsmoment** (het klaar-verklaren), niet op het invullen.
