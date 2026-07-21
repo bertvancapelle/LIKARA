@@ -16,6 +16,9 @@ import { usePopoverPositie } from '@/composables/popoverPositie'
 import { Button, Dialog, Tag, Textarea, useToast } from '@/primevue'
 import { api } from '@/api'
 import { KLAARVERKLARING_SEVERITY, KLAARVERKLARING_STATUS, NORM_FEIT_LABEL, REGISTER_FOUT, label } from '../labels'
+// ADR-052 besluit 8 — de gedeelde PRESENTATIE-bron voor bewust (amber) vs. verschoven (neutraal).
+// Dit venster droeg de toon inline; het open-punten-kader had hem helemaal niet. Nu één bron.
+import { AFWIJKING_CODERING } from '../afwijkingCodering'
 
 const props = defineProps({
   componentId: { type: String, required: true },
@@ -246,10 +249,10 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
         :aria-expanded="verantwoordingOpen ? 'true' : 'false'"
         :aria-controls="PANEEL_ID"
         aria-label="Klaar verklaard met openstaande verplichte feiten — bekijk de verantwoording"
-        class="flex w-full items-start gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-input)] bg-[color-mix(in_srgb,var(--lk-color-warning)_12%,transparent)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-left text-[length:var(--lk-text-sm)] text-[var(--lk-color-warning)] underline decoration-dotted underline-offset-2 hover:bg-[color-mix(in_srgb,var(--lk-color-warning)_18%,transparent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-warning)]"
+        :class="[AFWIJKING_CODERING.bewust.klasse, 'flex w-full items-start gap-[var(--lk-space-xs)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-left text-[length:var(--lk-text-sm)] underline decoration-dotted underline-offset-2 hover:bg-[color-mix(in_srgb,var(--lk-color-warning)_18%,transparent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-warning)]']"
         @click="openVerantwoording"
       >
-        <span aria-hidden="true">⚠</span>
+        <span aria-hidden="true">{{ AFWIJKING_CODERING.bewust.icoon }}</span>
         <span>Klaar verklaard, maar {{ bewust.length }} verplicht{{ bewust.length === 1 ? ' feit is' : 'e feiten zijn' }} nog niet vastgesteld: {{ bewustLabels.join(', ') }}.</span>
       </button>
 
@@ -286,10 +289,10 @@ const _datum = (iso) => (iso ? new Date(iso).toLocaleString('nl-NL', { dateStyle
     <div
       v-if="heeftVerschovenLat"
       data-testid="mg-verschoven-lat"
-      class="mt-[var(--lk-space-sm)] rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+      :class="[AFWIJKING_CODERING.verschoven.klasse, 'mt-[var(--lk-space-sm)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]']"
     >
       <p class="flex items-start gap-[var(--lk-space-xs)]">
-        <span aria-hidden="true">↔</span>
+        <span aria-hidden="true">{{ AFWIJKING_CODERING.verschoven.icoon }}</span>
         <span>Deze verklaring is destijds beoordeeld tegen de lat die toen gold<template v-if="bewust.length === 0"> en was toen compleet</template>.</span>
       </p>
       <p class="mt-[var(--lk-space-xs)]" data-testid="mg-verschoven-tekst">

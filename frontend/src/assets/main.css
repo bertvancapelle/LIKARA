@@ -339,6 +339,37 @@
     border-bottom: 1px solid var(--lk-color-border);
   }
 
+  /* ── Norm-afwijking: wie besloot wat (ADR-052 besluit 8, slice 4a) ────────────
+     Twee soorten die er NIET hetzelfde uit mogen zien:
+
+       bewust     — een MENS zag dit open feit bij het klaar verklaren en ging toch door.
+                    AMBER: hier is bewust van de norm afgeweken, en dat verdient
+                    verantwoording.
+       verschoven — de ORGANISATIE scherpte haar norm ná die verklaring aan. Niemand heeft
+                    hier iets besloten. NEUTRAAL in kleur én taal: een uitnodiging om
+                    opnieuw te kijken, geen verwijt. Amber zou hier een besluit toeschrijven
+                    aan wie het niet nam — precies de misleiding die besluit 8 verbiedt.
+
+     Beide vensters (migratiegereedheid-blok én open-punten-kader) lazen al dezelfde
+     AFLEIDING (`splits_afwijking`), maar toonden hem verschillend: het ene amber/neutraal,
+     het andere alleen met andere woorden. Deze klassen + `afwijkingCodering.js` zijn de
+     gedeelde PRESENTATIE-bron, zodat ze niet opnieuw uiteen kunnen lopen (LI043).
+
+     Het amber leeft in de INHOUD, niet in de omranding: de lijntaal (zware buitenrand,
+     gewoon kader, dunne streepjes) blijft ongemoeid, en de lijst blijft wit zodat amber
+     als eerste de aandacht pakt. */
+  .lk-afwijking-bewust {
+    color: var(--lk-color-warning);
+    background: color-mix(in srgb, var(--lk-color-warning) 12%, transparent);
+    border-radius: var(--lk-radius-input);
+  }
+  .lk-afwijking-verschoven {
+    color: var(--lk-color-text-muted);
+    background: var(--lk-color-surface);
+    border: 1px solid var(--lk-color-border);
+    border-radius: var(--lk-radius-input);
+  }
+
   /* Het werkvlak waar de tabrij aan vastzit: wit, begrensd, aanwijsbaar — ook op
      een fel scherm of een beamer, waar het verschil tussen wit en de paginakleur
      wegvalt (gemeten 1,05:1). De rand draagt dus het onderscheid — en moet daarvoor zwaarder

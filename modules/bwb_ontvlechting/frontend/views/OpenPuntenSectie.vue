@@ -16,6 +16,10 @@
  */
 import { computed, ref, watch } from 'vue'
 import { NORM_FEIT_LABEL } from '../labels'
+// ADR-052 besluit 8 — de gedeelde PRESENTATIE-bron voor de twee soorten norm-afwijking. Dit
+// venster en het migratiegereedheid-blok lazen al dezelfde afleiding (`splits_afwijking`), maar
+// toonden hem verschillend; nu erven beide de toon uit één plek (LI043).
+import { AFWIJKING_CODERING, afwijkingZin } from '../afwijkingCodering'
 
 // LI047 snede 2 — ÉÉN laadpunt: `ComponentDetail` haalt de open punten op en voedt hiermee zowel
 // het getal in het tablabel "Open punten (N)" als deze lijst. Deze sectie laadt dus NIET zelf; een
@@ -45,6 +49,10 @@ const blokFilters = computed(() =>
 )
 const huidig = computed(() => props.data?.[actiefBlok.value] ?? { aantal: 0, punten: [] })
 const kv = computed(() => props.data?.klaarverklaring ?? null)
+// De feitnamen komen uit de gedeelde labelbron (besluit 20); de TOON uit `afwijkingCodering`.
+const _labels = (feiten) => (feiten ?? []).map((f) => NORM_FEIT_LABEL[f] ?? f)
+const bewustLabels = computed(() => _labels(kv.value?.bewust))
+const verschovenLabels = computed(() => _labels(kv.value?.verschoven))
 
 // Besluit 3 — blok 3 draagt wat géén ontbrekend feit is; de checklistregel is GEBUNDELD.
 const VALT_OP_TEKST = {
@@ -108,12 +116,27 @@ watch(() => props.componentId, () => { actiefBlok.value = 'moet_nog' })
           {{ verantwoordingszin }}
           De punten hieronder zijn niet vastgesteld; er is besloten er niet op te wachten.
         </p>
-        <!-- Besluit 17 — nooit op één hoop: LIKARA schrijft geen besluit toe aan wie het niet nam. -->
-        <p v-if="kv.bewust?.length" data-testid="op-kv-bewust" class="mt-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-          Bij het klaar verklaren afgewogen: {{ kv.bewust.map((f) => NORM_FEIT_LABEL[f] ?? f).join(', ') }}.
+        <!-- Besluit 17 / besluit 8 (slice 4a) — nooit op één hoop: LIKARA schrijft geen besluit toe
+             aan wie het niet nam. De twee soorten stonden hier in dezelfde toon, met alleen andere
+             woorden; wie snel las kon het besluit van de organisatie aanzien voor dat van de mens.
+             Toon, icoon én zinsbouw komen nu uit `afwijkingCodering` — dezelfde bron die het
+             migratiegereedheid-blok gebruikt, zodat hetzelfde feit er overal hetzelfde uitziet.
+             Beide kunnen tegelijk staan (besluit 3): het een overschrijft het ander niet. -->
+        <p
+          v-if="bewustLabels.length"
+          data-testid="op-kv-bewust"
+          :class="[AFWIJKING_CODERING.bewust.klasse, 'mt-[var(--lk-space-sm)] flex items-start gap-[var(--lk-space-xs)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]']"
+        >
+          <span aria-hidden="true">{{ AFWIJKING_CODERING.bewust.icoon }}</span>
+          <span>{{ afwijkingZin('bewust', bewustLabels) }}</span>
         </p>
-        <p v-if="kv.verschoven?.length" data-testid="op-kv-verschoven" class="mt-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
-          Pas daarna verplicht gesteld: {{ kv.verschoven.map((f) => NORM_FEIT_LABEL[f] ?? f).join(', ') }}.
+        <p
+          v-if="verschovenLabels.length"
+          data-testid="op-kv-verschoven"
+          :class="[AFWIJKING_CODERING.verschoven.klasse, 'mt-[var(--lk-space-sm)] flex items-start gap-[var(--lk-space-xs)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]']"
+        >
+          <span aria-hidden="true">{{ AFWIJKING_CODERING.verschoven.icoon }}</span>
+          <span>{{ afwijkingZin('verschoven', verschovenLabels) }}</span>
         </p>
       </div>
 

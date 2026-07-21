@@ -81,6 +81,17 @@ const VEREIST = [
   // lijn op het scherm, anders wordt het een raster van kaders in kaders.
   { naam: 'inhoudskader',       match: '.lk-inhoudskader{background:var(--lk-color-surface);border:1px solid var(--lk-color-border)' },
   { naam: 'inhoudskader-uitleg', match: '.lk-inhoudskader-uitleg{' },
+  // ADR-052 besluit 8 — de twee soorten norm-afwijking mogen er NIET hetzelfde uitzien: bewust
+  // (een mens besloot door te gaan) is amber, verschoven (de organisatie scherpte aan) neutraal.
+  // Trekt iemand ze gelijk, dan schrijft het scherm een besluit toe aan wie het niet nam. Beide
+  // tonen apart toetsen, want juist het VERSCHIL is de regel.
+  // NB de builder splitst `.lk-afwijking-bewust` over meerdere regels (hij zet een pre-color-mix
+  // fallback vóór de echte regel — bestaand projectbreed gedrag, zie ook `.lk-scroll-schaduw`);
+  // we matchen daarom op de color-mix-regel zelf, gemeten in de dist.
+  { naam: 'afwijking-bewust-amber',
+    match: '.lk-afwijking-bewust{background:color-mix(in srgb, var(--lk-color-warning)' },
+  { naam: 'afwijking-verschoven-neutraal',
+    match: '.lk-afwijking-verschoven{color:var(--lk-color-text-muted)' },
   // De actieve stand springt eruit met een VOLLE vulling — anders dan een tabblad, waar juist
   // wit "gekozen" betekent (een tab versmelt met zijn inhoud, een schakelaar staat op zichzelf).
   { naam: 'schakelaar-stand-gekozen', match: '.lk-schakelaar-stand[aria-pressed=true]' },
