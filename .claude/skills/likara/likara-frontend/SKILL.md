@@ -1063,6 +1063,28 @@ if (gapZichtbaar || egoCentrum || setLid || metZichtbareEdge.has(n.id)) uniek.se
 // labels.js — actorWeergave(record)
 actor_naam → actor_email → actor_sub → "—"
 ```
+**Waardevertaling: `waardeLabel(veld, waarde)` (LI048 snede 3).** De veldnamen hadden één bron
+(`VELD_LABELS`); de waardenmaps bestonden al maar waren nergens aan een veld gekoppeld — daardoor
+las het auditlog `levensfase: production → phase_out` terwijl het detailscherm *In productie* en
+*Uitfaseren* zei. `_WAARDENBRON` is die koppeling en **verwijst naar dezelfde maps** die de rest van
+het product gebruikt; het is nadrukkelijk GEEN tweede tabel. Een eigen lijstje zou precies de
+divergentie opleveren die de regel wil voorkomen (vgl. het amber-onderscheid). Alleen vaste
+keuzelijsten; `*_id` blijft een code (eigen slice). Er staat een toets op die élke sleutel van
+`LEVENSFASE`/`HOSTINGMODEL` langsloopt — die valt om zodra iemand een eigen tabel ernaast zet.
+
+**Lange waarden gestapeld (LI048).** `van → naar` op één regel is bij korte waarden het duidelijkst
+en bij een zin van twintig woorden onleesbaar: je moet eerst zoeken waar de ene ophoudt. Boven
+`isLangeWaarde` (40 tekens) rendert `diffWeergave` daarom `{gestapeld, was, nu}` en toont de UI ze
+onder elkaar op dezelfde beginpositie. **Geen markering, doorhalingen of woord-voor-woord-diff** —
+machinerie voor een probleem dat LIKARA niet heeft. De regel past zichzelf toe, dus een later
+toegevoegd lang veld werkt vanzelf mee.
+
+⚠ **Het zoekveld op Auditlog volgt DEZELFDE keten** (LI048). Het keek eerst alleen in
+`Partij.naam`, waardoor iedereen zonder gekoppelde persoon onvindbaar was terwijl de kolom hun
+e-mailadres toonde — zie likara-ux §P8b. Wijzigt deze keten, dan moet
+`auditlog_service._record_filters` mee: naam-treffer via `subs`, e-mail-treffer alléén voor rijen
+zónder koppeling (`actor_sub.notin_(gekoppelde_subs)`), zodat je niemand vindt op iets wat op dit
+scherm niet getoond wordt.
 
 Systeem-actor labels (SYSTEEM_ACTOR-map in labels.js):
 - `system:dev_seed` → "Systeem (seed)"

@@ -382,10 +382,62 @@ ongedefinieerde methodes → 405.
   (beheerder) → email; historische rij (geen sub) → email. Nooit leeg. Naam wordt read-side als
   **transient attribuut** gezet (`verklaard_door_naam`/`bevestigd_door_naam`/`actor_naam`),
   conform het `eigenaar_organisatie_naam`-patroon. **Engine-import-afwezigheid** geborgd.
-- **Naam-filter = naam→sub vóór de query.** Een audit-filter op naam: zoek `Partij`(persoon)
-  `naam ILIKE %frag%` (ge-escapet, tenant-scoped) → join `gebruiker_persoon` → `actor_sub IN
-  (subs)`. Geen match → lege lijst (geen fout). AND-combineerbaar met het exacte actor(sub)-filter.
+- **Het component-filter beantwoordt "wat is er met dit ding gebeurd" (LI048).** Drie takken in
+  `_record_filters`: (1) de entiteit ÍS het component — dekt ook de rijen die hun PK met het
+  component delen (`element`, `component_profiel`); (2) het component staat als `component_id` in
+  de diff (score, blokkade, functievervulling, klaarverklaring, bevinding); (3) **het component is
+  BRON of DOEL van een koppeling** (`bron_id`/`doel_id`, elk in `oud` én `nieuw`). Die derde
+  ontbrak en dat was een fout, geen afbakening: een `relatie` draagt nooit een `component_id` (0
+  van 9.291 regels), dus een ontkoppeling was onvindbaar terwijl de lijst compleet oogde.
+  ⚠ **`oud` én `nieuw` allebei**: een verwijderde koppeling draagt zijn ids alleen in `oud`; alleen
+  naar `nieuw` kijken mist juist de ontkoppelingen — het geval waar de consultant naar zoekt.
+- **`NAAMBRON` — élke geauditeerde soort spreekt uit waar zijn naam vandaan komt (LI048 snede 3).**
+  Twee soorten toonden een kale code (`Checklistvraag — e123f280…`, `Componentprofiel — d7f127c0…`).
+  Die twee los repareren lost het GEVAL op, niet het PATROON: de volgende soort komt er weer
+  naamloos bij. Vandaar een register in `auditlog_service` met vier vormen —
+  `("veld", <naam>)` · `("leen_veld", <idveld>)` · `("leen_identiteit",)` · `("geen", <reden>)` —
+  en **twee toetsen die beide richtingen afdwingen**: elke soort uit `AUDIT_TENANT_ENTITEITEN`
+  staat erin, én het register verzint geen soorten die niet geauditeerd worden. Ook `"geen"` moet
+  een leesbare reden dragen; anders is het alsnog een stille terugval, alleen met een vinkje ervoor.
+  ⚠ **Meet de bron, neem hem niet aan.** Drie aannames sneuvelden tijdens het bouwen:
+  `component_profiel` heeft géén `component_id` in zijn wijziging (0 van 2.085 — het deelt zijn
+  PK met `component`, dus de gedeelde sleutel is de route); `gebruikersgroep` heeft helemaal geen
+  naamkolom; en `relatietype` heeft geen labelmap. Elk daarvan zou als "werkt niet" zijn geland
+  als het register niet dwong om per soort een bron aan te wijzen.
+- **De auditregel benoemt zichzelf — de UI leidt niets af (LI048).** Twee regels, beide in
+  `auditlog_service`, beide met een eigen helper zodat ze los toetsbaar zijn:
+  1. **`_kies_driver`** — de gebeurtenis wordt benoemd door de eerste record die iets INHOUDELIJKS
+     zegt, niet door de chronologisch eerste. Bij een element-subtype ontstaat eerst de supertype-rij
+     (tabel `element`) die alleen het discriminator-veld draagt; die werd stelselmatig de aanleiding
+     en leverde *"Element — 9f1282d4… · Aangemaakt (+1 afgeleid)"* — 14.398 regels. Het criterium is
+     **inhoudelijk** (`_is_betekenisloos`: de hele `wijziging` bevat niets dan de discriminator), niet
+     op tabelnaam — zo vangt het ook een toekomstig subtype zonder namenlijst. `aantal_afgeleid` telt
+     alleen betekenisdragende records, anders droeg élke aanmaak een "(+1 afgeleid)" die nergens
+     naar verwees.
+  2. **`_toon_naam`** — de naam van TÓÉN wint: eerst de vastgelegde naam uit `wijziging.naam`
+     (bij `delete` de `oud`-waarde), dan pas de huidige uit `entiteit_resolutie`. **Bij een
+     verwijdering nooit de huidige** — het object hoort niet te bestaan, dus wat daar uitkomt is een
+     hergebruikt id of een halfverwijderde rij. Anders verandert de geschiedenis mee bij elke
+     hernoeming en klopt het log niet meer met wat er destijds op het scherm stond.
+  De SAMENVATTING (`entiteit_type`/`entiteit_naam`/`actie`/`aantal_afgeleid`) staat op
+  `AuditGebeurtenis` zelf. De UI mag hem niet opnieuw afleiden: deden beide kanten dat, dan lopen ze
+  uiteen zodra één verandert.
+  ⚠ **Les uit deze slice:** de delete-tak zat eerst inline in de leslus en een opzettelijke breuk
+  erin bleef **groen** — geen enkele toets oefende hem. Een keuze die een eigen regel is, verdient
+  een eigen functie, juist om hem te kúnnen breken.
+- **"Wie"-filter volgt de WEERGAVE-keten, niet één bron (LI048 — was een fout).** Het audit-filter
+  op naam deed alleen `Partij`(persoon) `naam ILIKE %frag%` → `actor_sub IN (subs)`, met een vroege
+  `return [], None` bij nul treffers. Maar de kolom *Wie* toont `naam or e-mail`: elke actor zónder
+  gekoppelde persoon was dus **onvindbaar terwijl zijn e-mailadres in beeld stond** — geen fout, wel
+  "Geen gebeurtenissen gevonden", en de consultant concludeert dat er niets gebeurd is.
+  Nu (`auditlog_service._record_filters`): `OR` van (a) naam-treffer via `subs`, en (b)
+  `actor_email ILIKE %frag%` **beperkt tot `actor_sub.notin_(gekoppelde_subs)`** — want een rij mét
+  koppeling toont de naam, en hem vinden op zijn e-mailadres zou hem vinden op iets wat nergens
+  staat. Geen vroege return meer: een fragment zonder naam-treffer kan nog een e-mail-treffer
+  hebben; vindt geen van beide iets, dan levert de query zelf leeg op.
+  Escaping/tenant-scoping ongewijzigd; AND-combineerbaar met het exacte actor(sub)-filter.
   Search-semantiek (fragment), dus UI = vrije tekst, niet ZoekSelect-pick.
+  Helper: `actor_resolutie.gekoppelde_subs(session, tid)`. Regel: likara-ux §P8b.
 - **gebruiker_persoon-koppeltabel (Fase 2).** Tenant-scoped, FORCE RLS, `keycloak_sub` UNIQUE +
   `persoon_id` UNIQUE per tenant, composiet-FK `(tenant_id, persoon_id) → element` ON DELETE
   CASCADE, index op `(tenant_id, keycloak_sub)`. De brug login↔persoon; ontstaat bij aanmaak
