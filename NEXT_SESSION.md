@@ -37,15 +37,40 @@
 
 ---
 
-## Vertrekpunt LI048 — begin hier
+## Vertrekpunt LI049 — begin hier
 
-### 0. Consolideer het werkprotocol vóór je er iets bij zet
+### 0. Consolideer de skills vóór je er iets bij zet
 
-**Dit gaat vóór alles wat hieronder staat.** `likara-werkprotocol` staat op **595 regels**, en
-§Gate-discipline kreeg deze sessie **vier nieuwe koppen** erbij. Een sectie met vier nieuwe koppen
-beschrijft niet meer één ding — die is een verzameling geworden.
+**Dit gaat vóór alles wat hieronder staat.** Het stond ook als punt 0 van LI048 en is er niet van
+gekomen; er zijn in plaats daarvan zes patronen bijgezet. Bewuste afweging (er wordt niets in geheugen
+bewaard, dus wat niet landt is weg), maar de schuld is daarmee groter geworden, niet kleiner.
 
-**Regel voor LI048: wie er patronen bij wil zetten, consolideert eerst.**
+**Drie dingen, in deze volgorde:**
+
+**(a) `likara-werkprotocol` — 621 regels, 22 koppen.** Vijf daarvan zijn chronologische
+verzamelbakken (`LI035`, `LI036`, `LI039`, `LI040`, `LI048`), samen 105 regels. Het probleem is niet
+hun lengte maar dat ze **concurreren met de onderwerpskoppen**: een browsercheck-les kan in
+§Browsercheck (84 regels) óf in §LI035 landen; een UX-first-les in drie verschillende secties. Hef de
+vijf sessiekoppen op en hang hun inhoud onder het onderwerp waar ze bij horen — verplaatsen, niet
+herschrijven. Voeg daarna de drie UX-first-koppen samen. Verwachte uitkomst: ~15 koppen, geen regel
+minder inhoud. Let ook op §Gate-discipline: 142 regels, bijna een kwart, en het bevat
+bestandsoperatie-lessen die bij §Browsercheck horen.
+
+**(b) De P-reeks in `likara-ux` staat in omgekeerde volgorde.** In het bestand: P8 → P9 → P8d → P8c →
+P8b → P8a. Elk nieuw stuk is vóór het vorige anker ingevoegd (in LI048 vier keer). Wie het bestand
+leest komt P8d tegen vóór P8a. Puur een leesprobleem, snel op te lossen, en het groeit door bij elke
+volgende toevoeging.
+
+**(c) Drie borgingsregels staan in `likara-frontend` terwijl ze niet frontend-specifiek zijn:** het
+bereik-van-een-scan-versmalt-stiller-patroon, de uitzondering-is-een-precedent-regel, en
+afleiden-i.p.v.-opsommen. Ze horen in `likara-tests`. **Dit is geen ordeningsdetail:** een
+borgingsregel in de frontend-skill wordt niet gevonden door wie aan de backend werkt — en drie van de
+vijf misgelopen bijt-bewijzen van LI048 gingen juist over backend-toetsen. Verplaatsen kost
+verwijzingen die elders naar `likara-frontend` wijzen; controleer die.
+
+**Regel voor LI049: wie er patronen bij wil zetten, consolideert eerst.** Voor de tweede keer
+opgeschreven — als het ook nu niet gebeurt, is de regel zelf het probleem en hoort hij te vervallen
+of afgedwongen te worden.
 
 Waarom dit vooropgaat: een protocol dat niemand meer leest geeft **schijnzekerheid**. Elke discipline
 die erop leunt — de gate, de browsercheck, de commit-trigger — leunt dan op niets. Het signaal komt nu,

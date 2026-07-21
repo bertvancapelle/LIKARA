@@ -222,6 +222,19 @@ Twee vormregels die uit het scherm zelf volgen — beide getoetst in de dist-CSS
   *wit* "gekozen" betekent (een tab versmelt met zijn inhoud; een schakelaar staat op zichzelf en
   moet uitspringen). De niet-gekozen standen dragen géén eigen rand: het is één ding, geen N.
 
+**VORM DRAAGT BETEKENIS — de algemene regel (LI048).** Het punt hierboven is één instantie: wit
+betekent bij een tabblad "gekozen" en bij een schakelaar niets, omdat de vorm zelf iets zegt en niet
+alleen een vlak vult. Twee regels die daaruit volgen en die deze sessie beslissend waren:
+
+- **Hoe dieper het niveau, hoe lichter de vorm.** Een hoofdrij mag de zwaarste vorm dragen; een
+  sub-rij een lichtere; een schakelaar dáárbinnen de lichtste. Draagt een dieper niveau een even
+  zware vorm als het niveau erboven, dan lijken ze gelijkwaardig en verdwijnt de rangorde die de
+  gebruiker nodig heeft om te weten waar hij is.
+- **Een kleur of ondergrond die op een scherm al iets betekent, kan daarnaast niet iets anders
+  betekenen.** Grijs-als-volle-band betekent hier "navigatie"; datzelfde grijs als vulling van een
+  schakelaar maakt die onleesbaar als schakelaar. Betekenis is per scherm exclusief — controleer bij
+  élke nieuwe vorm eerst wat de gekozen tint of vorm er al zegt, vóór je hem opnieuw gebruikt.
+
 - **Geen grijze plaat als vulling** (de eerste 2d-vorm had die; vervallen). Een lichte lijn óp een
   grijze vulling verdwijnt erin — in de browser was er geen zichtbaar verschil, dus de vorm werd
   met een hulplijn overeind gehouden in plaats van dat hij het zelf droeg. En grijs-als-vulling is
@@ -262,6 +275,23 @@ scheidingslijntjes in een lijst, en las daardoor niet als buitengrens maar als z
 paginatint mag niet dieper zonder gedempte tekst onder de AA-grens te duwen (gemeten plafond
 `#eef2f7` = 4,51:1). De lijn doet dus het werk dat de tint niet mag doen — en dan moet die lijn wel
 meedoen.
+
+**DRIE LIJNGEWICHTEN, DRIE BETEKENISSEN (LI048).** De bovengrens hieronder is de zwaarste van drie;
+samen vormen ze één taal, en elk gewicht zegt iets anders:
+
+| Gewicht | Token | Betekenis |
+|---|---|---|
+| zwaar | `--lk-color-border-sterk` | de grens van mijn werkgebied — hier houdt het scherm op |
+| gewoon | `--lk-color-border` | dit hoort bij elkaar (een kader om inhoud, een omlijnde schakelaar) |
+| dun | `th`/`td`-scheiding | regels binnen een lijst |
+
+**In beide richtingen te bewaken:** de buitenrand mag niet verzwakken tot binnenlijn-niveau (dan
+leest hij als zoveelste streepje — het defect dat deze regel opriep), en een binnenlijn mag niet
+verzwaren tot buitenrand-niveau (dan wordt elk kader een werkvlak en is het scherm een raster).
+
+⚠ **Niet te verwarren met de tabrij-notitie elders in dit bestand** ("drie gewichten zou overdreven
+zijn"): die gaat over het aantal **niveaus in een tabrij** (hoofdrij en sub-rij volstaan), niet over
+lijngewichten. Ander onderwerp, zelfde woord.
 
 **De regel, niet de waarde:** de buitenrand is de sterkste lijn op het scherm, alles daarbinnen is
 lichter. Welke tint dat precies is mag veranderen; de verhouding niet. Bandbreedte: zwaarder dan de
@@ -1438,6 +1468,15 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   Genoteerd zodat een volgende sessie hem niet hoeft te reconstrueren — en weet dat het geen
   goedgekeurde norm is. ⚠ De **UX-regel** eronder geldt wél vanaf het eerste geval: likara-ux §P8a
   ("een opgeborgen filter blijft zichtbaar"). Dát is niet-onderhandelbaar; de bouwwijze is dat niet.
+  **DE ALGEMENE REGEL (LI048): een regel geldt vanaf het eerste geval, een bouwwijze pas vanaf het tweede.**
+  Een uitspraak over wat de gebruiker mag overkomen ("een opgeborgen filter blijft
+  zichtbaar", "wat je leest moet je kunnen zoeken") is meteen bindend — daar is geen tweede geval
+  voor nodig, want de eerste gebruiker die het treft heeft het al mis. Hoe je iets bouwt wacht op
+  n=2 (harde regel 8, likara-domeinmodel): pas een tweede plek laat zien of de vorm past.
+  Twee dingen die dan wél moeten: **noteer de bouwwijze mét vindplaats**, zodat niemand hem hoeft te
+  reconstrueren, en **zeg erbij dat hij geen norm is**, zodat niemand hem als afgedwongen leest.
+  Het omgekeerde — een bouwwijze te vroeg tot patroon verheffen — is duurder: die zit dan in twee
+  schermen vóór iemand ontdekt dat hij niet past.
 - **Regel-acties-patroon** — elke registratie-/relatieregel krijgt **Bewerken** (dialoog
   op de kenmerk-velden; de identiteit/ankers zichtbaar maar read-only) en **Verwijderen**
   (áltijd via de gedeelde `src/components/BevestigVerwijderDialog.vue`, met de regel

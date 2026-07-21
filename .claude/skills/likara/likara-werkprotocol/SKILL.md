@@ -359,6 +359,23 @@ raakt, verifieert **Bert de betrokken schermen in de echte browser vóór `AKKOO
 gate-rapport levert daarvoor een **browsercheck-draaiboek** (per stap: handeling → verwacht
 resultaat). Groene tests ≠ commit-toestemming.
 
+**Twee eisen aan dat draaiboek, allebei vanuit de gebruiker (LI048):**
+
+1. **Elke stap draagt óók een faalbeeld** — niet alleen "wat je moet zien", maar **waaraan je ziet
+   dát het mis is**. Zonder faalbeeld moet de beoordelaar zelf bedenken wanneer iets fout is, en dan
+   wordt "het ziet er goed uit" de uitkomst van elke twijfel. Het faalbeeld is bovendien de plek waar
+   het defect wordt benoemd dat de slice oploste — daarmee weet de beoordelaar waar hij op let.
+2. **De taal is die van het scherm, niet van de bouw.** Geen commando's, geen bestandsnamen, geen
+   vindplaatsen, geen testids — schermnamen, knopteksten en menupaden. Wie het scherm beoordeelt
+   hoeft de code niet te kennen; staat er een bestandsnaam in, dan is de stap voor de bouwer
+   geschreven en niet voor de gebruiker.
+
+**En meld wat het landschap NIET kan tonen.** Dekt de demodata een geval niet, zeg dat vóór de stap
+in plaats van de beoordelaar te laten zoeken naar iets wat er niet is — of laat hem het geval zelf
+aanmaken, met de handeling erbij. (LI048: het demolandschap bevatte geen partij met een los
+toegekende rol, geen gebruiker mét gekoppelde persoon in het auditlog, en geen componentprofiel met
+een nog bestaand component. Drie draaiboeken openen daarom met wat er ontbreekt.)
+
 **LI041 = zevende bevestiging:** zeven bevindingen deze sessie, geen enkele zichtbaar in 1200+
 groene tests. De regel is niet nieuw — dit is opnieuw bewijs dat de browsercheck het sluitpunt is.
 

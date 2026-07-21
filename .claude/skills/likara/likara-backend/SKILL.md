@@ -382,6 +382,24 @@ ongedefinieerde methodes → 405.
   (beheerder) → email; historische rij (geen sub) → email. Nooit leeg. Naam wordt read-side als
   **transient attribuut** gezet (`verklaard_door_naam`/`bevestigd_door_naam`/`actor_naam`),
   conform het `eigenaar_organisatie_naam`-patroon. **Engine-import-afwezigheid** geborgd.
+- **HET REGISTER-PATROON — elk geval doet een uitspraak, of het bestaat niet (LI048).** De twee
+  registers hieronder (`SUB_ENTITEITEN`, `NAAMBRON`) zijn instanties van één regel; die staat hier
+  los zodat een derde geval hem niet uit twee voorbeelden hoeft af te leiden.
+  Aanleiding: een gat per geval repareren lost het GEVAL op, niet het PATROON — de volgende soort
+  komt er weer zonder binnen. Drie eisen, alle drie nodig:
+  1. **Elk geval staat erin.** Een toets vergelijkt het register met de gezaghebbende verzameling
+     (bijv. `AUDIT_TENANT_ENTITEITEN`) en faalt bij een ontbrekende sleutel.
+  2. **Het register verzint niets.** De omgekeerde toets ook — een sleutel die nergens wordt
+     aangeroepen suggereert dat er iets geregeld is terwijl niets die tak raakt. Zonder deze
+     tweede richting zegt de eerste weinig.
+  3. **"Bewust geen" draagt een leesbare reden**, en een toets dwingt dat af. Zonder reden is het
+     alsnog een stille terugval, alleen met een vinkje ervoor.
+  Bewezen waarde: het register dwingt je per geval een bron aan te wijzen, en dáár sneuvelen
+  aannames. In LI048 drie stuks — een veronderstelde `component_id` die er niet was, een
+  naamkolom die niet bestond, een labelmap die ontbrak. Zonder register waren ze stil blijven staan.
+  ⚠ Neem in het register geen geval op dat **zijn eigen, rijkere weg** heeft (zoals `component` bij
+  beide registers hieronder): dan bepalen twee plekken hetzelfde en lopen ze uiteen.
+
 - **`SUB_ENTITEITEN` — de geschiedenis van een ding bevat zijn sub-entiteiten (LI048).** Sta je op
   een partij, dan hoort daarin te staan dat iemand haar een rol gaf of afnam. Dat gebeurde alleen
   als het toevallig in dezelfde handeling zat: 154 van de 229 roltoewijzingen waren onvindbaar —
@@ -392,8 +410,11 @@ ongedefinieerde methodes → 405.
   ⚠ Twee dingen die makkelijk misgaan:
   (1) het object-deel en de sub-takken horen als **één OR** bij elkaar — blijft het object-deel een
   losse AND, dan sluit het de sub-takken juist uit;
-  (2) `oud` én `nieuw` allebei — een **ingetrokken** rol draagt zijn `partij_id` alleen in `oud`, en
-  dat is precies de vraag "sinds wanneer niet meer".
+  (2) **`oud` én `nieuw` allebei — DE REGEL: een verwijzing zit bij een verwijdering alléén in de
+  oude waarde.** Een ingetrokken rol draagt zijn `partij_id` in `oud`, een verbroken koppeling haar
+  `bron_id`/`doel_id` idem. Kijk je alleen naar `nieuw`, dan mis je precies de ontkoppelingen en
+  intrekkingen — en dat is waar de consultant naar zoekt ("sinds wanneer niet meer"). Geldt voor
+  élk `wijziging`-veld waarop gefilterd wordt, niet alleen voor deze twee registers.
   `component` staat er bewust NIET in: dat heeft zijn eigen, rijkere modus (component_id + koppelingen).
   Eén waarheid, twee ingangen — het componentdetail en het auditlog-filter roepen dezelfde tak aan.
 - **Het component-filter beantwoordt "wat is er met dit ding gebeurd" (LI048).** Drie takken in
@@ -403,8 +424,9 @@ ongedefinieerde methodes → 405.
   BRON of DOEL van een koppeling** (`bron_id`/`doel_id`, elk in `oud` én `nieuw`). Die derde
   ontbrak en dat was een fout, geen afbakening: een `relatie` draagt nooit een `component_id` (0
   van 9.291 regels), dus een ontkoppeling was onvindbaar terwijl de lijst compleet oogde.
-  ⚠ **`oud` én `nieuw` allebei**: een verwijderde koppeling draagt zijn ids alleen in `oud`; alleen
-  naar `nieuw` kijken mist juist de ontkoppelingen — het geval waar de consultant naar zoekt.
+  ⚠ `oud` én `nieuw` allebei — zie de regel bij `SUB_ENTITEITEN` hierboven. (Stond hier eerst in
+  eigen bewoordingen; twee formuleringen van dezelfde regel lopen uiteen, zoals LI048 met het
+  amber-onderscheid liet zien.)
 - **`NAAMBRON` — élke geauditeerde soort spreekt uit waar zijn naam vandaan komt (LI048 snede 3).**
   Twee soorten toonden een kale code (`Checklistvraag — e123f280…`, `Componentprofiel — d7f127c0…`).
   Die twee los repareren lost het GEVAL op, niet het PATROON: de volgende soort komt er weer
