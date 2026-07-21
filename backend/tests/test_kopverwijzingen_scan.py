@@ -25,6 +25,16 @@ werkende verwijzingen vals rood maken — en een scan die vals alarm slaat wordt
      fragment wordt van achteren ingekort zodat proza dat aan een verwijzing vastplakt geen
      vals alarm geeft (zie `_matcht`), en de prijs daarvan is dat het levende voorvoegsel
      dan alsnog matcht.
+
+**Werking (vastgesteld in blok 0, LI049) — de grens waarbinnen de bewaking doet wat ze
+belooft:** de scan leest een bestand als DOORLOPENDE tekst, niet regelgewijs — een verwijzing
+waarvan skillnaam en `§` door een regeleinde gescheiden zijn breekt hem dus niet (anders dan
+een regelgewijze grep, de faalmodus van de LI049-meting en de LI048-null-byte-grep). Per
+`§`-teken kijkt hij een venster van 50 tekens TERUG om de skillnaam te vinden; staat de naam
+verder weg dan dat venster, of staat er ander proza tussen naam en `§` (ook over een
+regeleinde), dan wordt de verwijzing bewust NIET toegeschreven — hij zwijgt dan. Wie een
+langere verwijsvorm introduceert (naam en `§` meer dan ~50 tekens uit elkaar) valt dus stil
+buiten beeld.
 Zonder deze notitie lijkt "verwijzingen zijn bewaakt" waar, terwijl alleen de ondubbelzinnige
 dat zijn — dat is schijnzekerheid, en die is duurder dan een gat dat je kent.
 
