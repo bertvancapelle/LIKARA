@@ -515,8 +515,7 @@ les in LI047 zijn de twee null-bytes **letterlijk als voorbeeld in de tekst geze
    **Vuistregel:** krijg je nul treffers op een bestand waarvan je wéét dat de tekst er staat, toets
    dan `file <bestand>` vóór je je zoekterm gaat betwijfelen.
 
-**De algemene regel hierachter: een regel die een valkuil beschrijft, is zelf niet immuun voor die
-valkuil.** De null-byte-les werd besmet door zijn eigen voorbeeld; hij is niet het enige geval waarin
+**De algemene regel: een regel die een valkuil beschrijft is zelf niet immuun voor die valkuil.** De null-byte-les werd besmet door zijn eigen voorbeeld; hij is niet het enige geval waarin
 dat kán — elke instructie over een gevaarlijk teken, een breed matchend patroon of een fragiel
 bestandsformaat loopt hetzelfde risico zodra hij een voorbeeld toont. **Pas een controle-instructie
 daarom meteen toe op het bestand waarin je hem opschrijft**, vóór je verdergaat. Dat kost één

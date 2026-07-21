@@ -1763,9 +1763,9 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   legitimeerde een VORM.** De volgende sessie die één scherm niet kan omzetten, heeft dan een
   voorbeeld. Zo ontstaan achterdeuren — niet met een besluit, maar met een precedent. De uitweg
   was wat de regel al zei: *het GEVAL is fout, niet de regel.* De twee dingen die het scherm
-  tegenhielden bleken allebei al beslist; er was geen ontwerpvraag, alleen bouwwerk. **Toets bij
-  een voorgestelde uitzondering dus niet "richt hij schade aan?" maar "welke vorm maak ik hiermee
-  navolgbaar?"** — en kijk eerst of het geval zelf op te lossen valt.
+  tegenhielden bleken allebei al beslist; er was geen ontwerpvraag, alleen bouwwerk.
+  **Toets bij een uitzondering niet "richt hij schade aan?" maar "welke vorm maak ik navolgbaar?"**
+  — en kijk eerst of het geval zelf op te lossen valt.
 
 ## LI047 — teller en lijst uit ÉÉN laadpunt (niet alleen één bron)
 
