@@ -1916,6 +1916,30 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
   regels staan, en elke toetsaanslag een zoekopdracht laten afvuren is daar geen dienst. Geborgd
   met een toets die omvalt zodra iemand dat "verbetert".
 
+### ConfigBeheer-schermen krijgen de lijstkop (besloten, eigen snede zonder voorrang)
+Bert heeft besloten: de acht `*ConfigBeheer`-schermen (platform-catalogusbeheer, buiten het
+hoofdmenu) krijgen dezelfde `LijstKop` als de veertien hoofdmenu-schermen. Als **eigen snede,
+zonder voorrang** — het is eenvormigheid voor de beheerder, niet voor de consultant die de hele dag
+van lijst naar lijst loopt. Let bij het bouwen op het scan-bereik: dat wordt nu afgeleid uit het
+hoofdmenu, en deze acht staan daar niet in.
+
+### Objecthistorie compleet (LI048) — gebouwd; twee bevindingen
+- **Sub-entiteiten horen in de geschiedenis van hun ouder.** Een roltoewijzing verscheen alleen in
+  de partijhistorie als hij toevallig in dezelfde handeling ontstond; deed iemand het later apart,
+  dan stond het nergens. `SUB_ENTITEITEN` in `auditlog_service` spreekt nu per objecthistorie-type
+  uit welke sub-entiteiten erbij horen — óók waar het antwoord "geen" is, met reden. Twee toetsen
+  dwingen beide richtingen af, zoals bij `NAAMBRON`.
+- **Het demolandschap bevat GEEN partij met een losse roltoewijzing.** Gemeten: 229 roltoewijzingen,
+  waarvan 75 naar een nog bestaande partij verwijzen — en die ontstonden alle 75 in dezelfde
+  handeling als hun partij. Het herstel is daarom niet in de browser te tonen op bestaande data; de
+  integratietoets maakt het geval zelf aan (twee gescheiden audit-contexten met een commit ertussen).
+  Wil je het in de browser zien, dan moet je zelf een rol toekennen aan een bestaande partij.
+- **`ASSOCIATIE-typen zonder sub-entiteiten`**: plateau, werkpakket, deliverable en gap hebben hun
+  lidmaatschap via koppelingen (ADR-023 Fase E), en gemeten leveren die vandaag **0** auditregels op
+  met een van die vier als uiteinde. Vandaar een "geen"-uitspraak met die reden. Komen die regels er,
+  dan is het hetzelfde geval als de koppelingen bij component — en dan hoort het in het register,
+  niet in een losse uitzondering.
+
 ### Detailkop-tekens (LI048) — gebouwd; één bevinding
 - **Er was géén iconenvoorziening**, terwijl één knop er wel naar verwees: `icon="pi pi-info-circle"`
   op de Geschiedenis-knop wees naar een primeicons-klasse, en primeicons is geen afhankelijkheid van
@@ -1929,17 +1953,26 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
 
 ### Auditlog component-filter — hersteld; één na-MVP-punt en twee bevindingen
 
-**NA-MVP — Zoek elk ding in het auditlog.**
-De consultant moet uiteindelijk kunnen vragen *"laat me zien wat er met dít ding gebeurd is"*,
-ongeacht of dat een component, checklistvraag, werkpakket of partij is. **Eén zoekveld waarin alles
-kiesbaar is** — nadrukkelijk **niet** eerst een soort kiezen en dan een naam: die extra stap kost
-tijd en dwingt de gebruiker te weten in welk hokje zijn ding valt.
+**NA-MVP — zoeken in het auditlog naar soorten ZONDER eigen scherm.**
+In het auditlog kun je alleen op een component filteren. Voor de **zeven soorten met een
+detailscherm** (component, contract, partij, plateau, werkpakket, deliverable, gap) is dat opgelost:
+daar geeft de **Geschiedenis-knop** het antwoord — je zoekt niet *naar* een ding in het log, je
+vraagt de geschiedenis *van* het ding waar je toch al staat. Die knop bestaat op alle zeven schermen
+en de weg erachter is soortonafhankelijk (`routes/objecthistorie.py`).
 
-Nu niet gebouwd omdat er geen manier is om in één zoekopdracht door alle soorten te zoeken. Dat is
-echt bouwwerk, geen bijvangst van een labelcorrectie. De route accepteert al een `entiteit_type`
-(`routes/auditlog.py:41`, ongebruikt door de UI); dat is een aanknopingspunt, geen oplossing.
+Wat overblijft zijn de soorten **zonder** eigen scherm — checklistvraag, koppeling, gebruikersgroep.
+Dáár is nu geen weg naartoe. Eén zoekveld waarin alles kiesbaar is blijft de gewenste vorm
+(nadrukkelijk **niet** eerst een soort kiezen en dan een naam: die extra stap dwingt de gebruiker te
+weten in welk hokje zijn ding valt), maar het gaat om een kleinere verzameling dan dit punt eerder
+suggereerde. **Niet inplannen als "alles doorzoekbaar maken"** — dat is grotendeels al gedaan.
 
-Zodra dit er is, heet het filter niet langer *Component*.
+De route accepteert al een `entiteit_type` (`routes/auditlog.py:41`, ongebruikt door de UI); dat is
+een aanknopingspunt, geen oplossing. Zodra dit er is, heet het filter niet langer *Component*.
+
+**Vindbaarheid is de échte openstaande vraag.** De Geschiedenis-knop bestond al op alle zeven
+schermen, en tóch liep de consultant vast in het auditlog. Sinds LI048 draagt die knop bovendien geen
+woord meer maar een klokje — mogelijk minder vindbaar, niet meer. Dat is een UX-vraag voor de
+browsercheck, geen bouwvraag.
 
 **Bevindingen uit deze snede:**
 - **De dev-seed schrijft de complete seed onder ÉÉN correlatie_id** — 1.648 records, 18 soorten.
