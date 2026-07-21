@@ -222,11 +222,20 @@ Twee vormregels die uit het scherm zelf volgen — beide getoetst in de dist-CSS
   *wit* "gekozen" betekent (een tab versmelt met zijn inhoud; een schakelaar staat op zichzelf en
   moet uitspringen). De niet-gekozen standen dragen géén eigen rand: het is één ding, geen N.
 
-**Eronder één streep over de volle breedte** (`.lk-schakelaar-streep`) — die scheidt waarmee je
-kiest van wat je krijgt; zonder streep hangt de lijst los. **De lijst zelf blijft op wit:** daar
-staan de signalen (amber = bewust afgewogen, gedempt = verschoven lat, blauw = Vastleggen), en
-signaal hoort niet op een gekleurde vloer — dezelfde reden waarom het gekleurde tabbladvlak eerder
-is afgewezen. Vier ondergronden boven elkaar is er één te veel.
+- **Geen grijze plaat als vulling** (de eerste 2d-vorm had die; vervallen). Een lichte lijn óp een
+  grijze vulling verdwijnt erin — in de browser was er geen zichtbaar verschil, dus de vorm werd
+  met een hulplijn overeind gehouden in plaats van dat hij het zelf droeg. En grijs-als-vulling is
+  al bezet door de band onder de tabrijen. Het blok draagt nu zijn eigen omlijning met
+  scheidingslijntjes tussen de standen.
+
+**De uitkomst krijgt een eigen kader** (`.lk-inhoudskader`, gewoon lijngewicht) in plaats van een
+streep eronder: zo wisselt de inhoud zichtbaar *binnen* het kader bij een andere stand, in plaats
+van dat de lijst eronder hangt en de gebruiker het verband moet aannemen. De **uitlegregel hoort
+binnen dat kader**, bovenaan met een lijn eronder (`.lk-inhoudskader-uitleg`) — hij verandert mee
+per stand, en buiten het kader zou hij lijken te gelden voor alle standen. **De vulling blijft
+wit:** daar staan de signalen (amber = bewust afgewogen, gedempt = verschoven lat, blauw =
+Vastleggen), en signaal hoort niet op een gekleurde vloer — dezelfde reden waarom het gekleurde
+tabbladvlak eerder is afgewezen.
 
 ⚠ **Dit gedrag bestond al zes keer met evenzoveel eigen vormen** (Landschapskaart weergave/diepte/
 lezing, BedrijfsfunctieLijst Boom|Diagram, ArchitectuurView Lagen|Tabel, ArchitectuurLagenView
@@ -242,6 +251,33 @@ er geen `role="tabpanel"` tegenover je `role="tab"`, dan is het geen tabrij.** B
 `OpenPuntenSectie.test.js` (geen `role="tab"`, geen `aria-controls`, wél `role="group"`).
 - `.lk-tabvlak` — het witte, omrande werkvlak waar de rij aan vastzit. **Eén vlak om álle panelen**,
   niet één per paneel; anders loopt het bij het volgende paneel weer uiteen.
+
+### De buitenrand is altijd zwaarder dan de lijnen erbinnen (LI048)
+
+De buitenrand van een werkvlak draagt **`--lk-color-border-sterk`**, niet `--lk-color-border`.
+Beide waren aanvankelijk `#e2e8f0` — dus de buitengrens was exact even zwaar als de `th/td`-
+scheidingslijntjes in een lijst, en las daardoor niet als buitengrens maar als zoveelste streepje.
+
+**Waarom dit meer is dan opmaak:** het verschil tussen pagina en werkvlak *moet* klein blijven. De
+paginatint mag niet dieper zonder gedempte tekst onder de AA-grens te duwen (gemeten plafond
+`#eef2f7` = 4,51:1). De lijn doet dus het werk dat de tint niet mag doen — en dan moet die lijn wel
+meedoen.
+
+**De regel, niet de waarde:** de buitenrand is de sterkste lijn op het scherm, alles daarbinnen is
+lichter. Welke tint dat precies is mag veranderen; de verhouding niet. Bandbreedte: zwaarder dan de
+binnenlijn, maar onder ~1,8× het contrast ervan — een rand om élk werkvlak wordt bij twintig
+schermen per dag anders een raster (slate-400 ≈ 2,08× overschrijdt dat). Huidige keuze `#cbd5e1`
+(slate-300, 1,48:1 op wit = 1,20×) blijft in de bestaande slate-familie: bg=slate-50,
+border=slate-200, buitenrand=slate-300.
+
+Borging in **twee** richtingen: `tokens.contract.test.js` vergelijkt de **luminantie** van beide
+tokens (valt om als de buitenrand verlicht wórdt én als de binnenlijn verzwaard wordt — die tweede
+is de sluipweg die anders niemand opmerkt) plus de bovengrens; `check-css-build.mjs`
+(`werkvlak-sterke-rand`) toetst dat de bouwsteen de sterke token daadwerkelijk draagt in de
+gebouwde CSS.
+
+⚠ **`.card` draagt géén rand** (alleen `--lk-shadow-sm`) en beweegt dus niet mee — zie
+OPVOLGPUNTEN. Lijstschermen en de kaart hebben op dit moment helemaal geen omrand werkvlak.
 
 ### Een tabrij telt maximaal vijf tabbladen (LI048 snede 2b)
 

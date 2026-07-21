@@ -7,6 +7,23 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI048 (2026-07-21) — één werkvlak, drie schermsoorten zónder
+
+0a. **De sterkere buitenrand raakt één scherm; de rest heeft helemaal geen omrand werkvlak.**
+    LI048 gaf `.lk-tabvlak` de sterke rand (`--lk-color-border-sterk`) zodat de buitengrens niet
+    langer even zwaar is als de scheidingslijntjes erbinnen. Maar `.lk-tabvlak` heeft **één**
+    consument: `ComponentDetail.vue:550`. Daarnaast:
+    - **`.card`** (46 treffers in 32 bestanden, `main.css`) draagt **geen border** — alleen
+      `--lk-shadow-sm`. Kaarten bewegen dus niet mee met deze regel.
+    - **Lijstschermen** (bv. `ComponentLijst.vue`) zetten hun `DataTable` niet in een omhullend
+      vlak: er ís geen buitengrens om te verzwaren.
+    - **De landschapskaart** tekent op `bg-[var(--lk-color-surface)]` (`LandschapskaartView.vue:3125`)
+      zónder rand.
+    **Waarom het uitmaakt:** de regel "de buitenrand is de sterkste lijn" geldt nu op één scherm.
+    Op de andere schermen is de vraag niet "welke rand" maar "hoort hier een werkvlak?" — en dat
+    raakt de nog onbeantwoorde vraag uit snede 2 over witte kaarten op een wit vlak.
+    Status: **open — ontwerpvraag Bert (welke schermen dragen een omrand werkvlak?)**.
+
 ### Nieuw uit LI048 (2026-07-21) — zes schakelaars, zes vormen
 
 0. **Hetzelfde keuze-gedrag is zes keer los nagebouwd; er is nu één bouwsteen voor.** LI048 2d
