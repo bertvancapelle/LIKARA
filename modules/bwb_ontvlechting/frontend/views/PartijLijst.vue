@@ -12,6 +12,7 @@ import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
+import LijstKop from '@/components/LijstKop.vue'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import IdentiteitLabel from '@modules/bwb_ontvlechting/frontend/views/IdentiteitLabel.vue'
 
@@ -114,22 +115,39 @@ onMounted(() => {
 
 <template>
   <section aria-labelledby="partijen-titel">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1
-        id="partijen-titel"
-        class="text-[var(--lk-color-primary)]"
-      >
-        Partijen
-      </h1>
-      <router-link
-        v-if="magAanmaken"
-        :to="{ name: 'partij-nieuw' }"
-        data-testid="nieuwe-partij"
-        class="ml-auto inline-flex items-center rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-white text-[length:var(--lk-text-sm)] font-semibold hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-      >
-        Nieuwe partij
-      </router-link>
-    </div>
+    <!-- LI048 — de gedeelde LijstKop: naam · zoeken · aanmaken, overal op dezelfde plek.
+         Dit scherm heeft (nog) geen filtervenster, dus het filter-slot blijft leeg; de
+         filterbalk eronder blijft ongewijzigd tot een latere snede. -->
+    <LijstKop titel="Partijen" titel-id="partijen-titel">
+      <template #zoek>
+        <label class="flex items-center gap-[var(--lk-space-sm)]">
+          <span class="sr-only">Naam</span>
+          <input
+            v-model="filterZoek"
+            type="search"
+            maxlength="255"
+            data-testid="filter-zoek"
+            aria-label="Zoek op partijnaam"
+            placeholder="Zoek op naam…"
+            class="lk-veld w-full"
+            @input="herfilterDebounced"
+          />
+        </label>
+      </template>
+      <template v-if="magAanmaken" #actie>
+        <!-- Blijft een router-link (openen in nieuw tabblad moet kunnen), maar krijgt de
+             KNOPHOOGTE `--lk-veld-h` zodat hij op één lijn staat met het zoekveld ernaast.
+             Dat hij het Button-preset niet gebruikt, is een bestaande afwijking — zie het
+             gate-rapport; die wordt hier niet stilzwijgend meegenomen. -->
+        <router-link
+          :to="{ name: 'partij-nieuw' }"
+          data-testid="nieuwe-partij"
+          class="inline-flex h-[var(--lk-veld-h)] items-center rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] text-[length:var(--lk-text-sm)] font-semibold text-white hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+        >
+          Nieuwe partij
+        </router-link>
+      </template>
+    </LijstKop>
 
     <div
       data-testid="filterbalk"
@@ -146,19 +164,6 @@ onMounted(() => {
         >
           <option v-for="o in AARD_OPTIES" :key="o.waarde" :value="o.waarde">{{ o.tekst }}</option>
         </select>
-      </label>
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Naam</span>
-        <input
-          v-model="filterZoek"
-          type="search"
-          maxlength="255"
-          data-testid="filter-zoek"
-          aria-label="Zoek op partijnaam"
-          placeholder="zoeken…"
-          class="lk-veld"
-          @input="herfilterDebounced"
-        />
       </label>
       <button
         v-if="heeftFilters"

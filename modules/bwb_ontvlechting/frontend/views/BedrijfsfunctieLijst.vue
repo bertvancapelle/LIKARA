@@ -35,6 +35,7 @@ import { useLijstStaat } from '@/composables/useLijstStaat'
 import { useRoute } from '@/composables/router'
 import { useToonInBoom } from '@/composables/useToonNieuweRij'
 import { api } from '@/api'
+import LijstKop from '@/components/LijstKop.vue'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import MeldingBanner from '@/components/MeldingBanner.vue'
 import RijActies from '@/components/RijActies.vue'
@@ -897,32 +898,75 @@ onMounted(async () => {
 
 <template>
   <section aria-labelledby="bedrijfsfuncties-titel">
+    <!-- LI048 snede 1b — dit scherm staat nu óók op de gedeelde LijstKop. Wat het tegenhield is
+         hier opgelost, niet uitgezonderd: de weergaveschakelaar en "Model inlezen" zijn naar de
+         zone ONDER de kop gegaan (zie hieronder). In de kop staat alleen nog wat bepaalt WELKE
+         functies je ziet.
+
+         Het zoekveld verschijnt alleen in de Boom-weergave — het diagram toont `alle` items en
+         wordt niet door `zoekterm` gefilterd, dus in Diagram-stand zou het veld doen alsof het
+         iets doet. Dat het zoekslot dan LEEG is, is precies het geval waar regel 3 van de
+         bouwsteen voor bestaat: de ruimte blijft gevuld, dus "Nieuwe functie" staat in beide
+         standen op exact dezelfde plek. Geen filter-slot: dit scherm heeft (nog) geen
+         filtervenster, en een Filter-knop die niets filtert is erger dan geen knop. -->
+    <LijstKop titel="Bedrijfsfuncties" titel-id="bedrijfsfuncties-titel">
+      <template #zoek>
+        <label v-if="weergave === 'boom'" class="flex items-center">
+          <span class="sr-only">Zoeken</span>
+          <input
+            v-model="zoekterm"
+            type="search"
+            maxlength="255"
+            data-testid="filter-zoek"
+            aria-label="Zoek op functienaam"
+            placeholder="Zoek op naam…"
+            class="lk-veld w-full"
+          />
+        </label>
+      </template>
+      <template v-if="magBewerken" #actie>
+        <Button label="Nieuwe functie" data-testid="nieuwe-functie" @click="openNieuw(null)" />
+      </template>
+    </LijstKop>
+
+    <!-- De zone onder de kop: wat er over deze HELE lijst te zeggen valt. Twee dingen die
+         bewust NIET in de kop staan.
+
+         1. De weergaveschakelaar bepaalt *hoe* je naar hetzelfde kijkt, niet *welke* functies je
+            ziet. Hij draagt nu de gedeelde `.lk-schakelaar`-bouwsteen in plaats van zijn eigen
+            inline vorm — dezelfde schakelaar als in de open-punten-sectie, dus de consultant
+            herkent hem meteen als "kies een stand" en niet als twee losse knoppen.
+         2. "Model inlezen" doet de beheerder één of twee keer per jaar en raakt de hele lijst in
+            één keer. Naast "Nieuwe functie" in dezelfde vorm zouden ze even gewoon lezen. Als
+            lichte tekstknop blijft hij vindbaar voor wie hem zoekt, zonder zich op te dringen
+            aan wie hem nooit nodig heeft. -->
     <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="bedrijfsfuncties-titel" class="text-[var(--lk-color-primary)]">
-        Bedrijfsfuncties
-      </h1>
-      <div
-        class="ml-auto inline-flex overflow-hidden rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)]"
-        role="group"
-        aria-label="Weergave"
-        data-testid="functie-weergave-schakelaar"
-      >
+      <div role="group" aria-label="Weergave" data-testid="functie-weergave-schakelaar" class="lk-schakelaar">
         <button
-          type="button" data-testid="weergave-boom"
+          type="button"
+          class="lk-schakelaar-stand"
+          data-testid="weergave-boom"
           :aria-pressed="weergave === 'boom'"
-          :class="['px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold', weergave === 'boom' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
           @click="weergave = 'boom'"
         >Boom</button>
         <button
-          type="button" data-testid="weergave-diagram"
-          :aria-pressed="weergave === 'diagram'"
+          type="button"
+          class="lk-schakelaar-stand"
+          data-testid="weergave-diagram"
           title="Functie-structuurbeeld"
-          :class="['border-l border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] font-semibold', weergave === 'diagram' ? 'bg-[var(--lk-color-primary)] text-white' : 'bg-white text-[var(--lk-color-primary)] hover:bg-[var(--lk-color-accent)]']"
+          :aria-pressed="weergave === 'diagram'"
           @click="weergave = 'diagram'"
         >Diagram</button>
       </div>
-      <Button v-if="magInlezen" label="Model inlezen" severity="secondary" data-testid="model-inlezen" @click="openInlezen" />
-      <Button v-if="magBewerken" label="Nieuwe functie" data-testid="nieuwe-functie" @click="openNieuw(null)" />
+      <button
+        v-if="magInlezen"
+        type="button"
+        data-testid="model-inlezen"
+        class="ml-auto rounded-[var(--lk-radius-btn)] px-[var(--lk-space-sm)] py-1 text-[length:var(--lk-text-sm)] text-[var(--lk-color-primary)] underline underline-offset-2 hover:bg-[var(--lk-color-accent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+        @click="openInlezen"
+      >
+        Model inlezen
+      </button>
     </div>
 
     <!-- Diagram-weergave: de gegeneraliseerde ProcesDiagram-bouwsteen met functie-taal;
@@ -951,24 +995,7 @@ onMounted(async () => {
       </template>
     </ProcesDiagram>
 
-    <div
-      v-if="weergave === 'boom'"
-      data-testid="filterbalk"
-      class="mb-[var(--lk-space-md)] flex flex-wrap items-end gap-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]"
-    >
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Zoeken</span>
-        <input
-          v-model="zoekterm"
-          type="search"
-          maxlength="255"
-          data-testid="filter-zoek"
-          aria-label="Zoek op functienaam"
-          placeholder="zoeken…"
-          class="lk-veld"
-        />
-      </label>
-    </div>
+    <!-- De filterbalk die hier stond droeg alleen het zoekveld; dat staat nu in de kop. -->
 
     <p v-if="fout" role="alert" data-testid="lijst-fout" class="mb-[var(--lk-space-md)] rounded-[var(--lk-radius-badge)] border border-[var(--lk-color-danger)] bg-[var(--lk-color-danger)]/10 px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-danger)]">{{ fout }}</p>
 

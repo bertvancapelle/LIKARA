@@ -1035,3 +1035,62 @@ describe('BedrijfsfunctieLijst — ADR-051 correctie: twee lagen + taal', () => 
     expect(api.functievervullingen.zetOordeel).toHaveBeenCalledWith('v-c1', 'noodoplossing')
   })
 })
+
+describe('BedrijfsfunctieLijst — LI048 snede 1b: de gedeelde lijstkop', () => {
+  it('draagt de gedeelde LijstKop met de naam en de aanmaakactie', async () => {
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    const kop = w.find('[data-testid="lijst-kop"]')
+    expect(kop.exists()).toBe(true)
+    expect(w.get('[data-testid="lijst-kop-titel"]').text()).toBe('Bedrijfsfuncties')
+    // De aanmaakactie zit IN de kop — op elk lijstscherm op dezelfde plek.
+    expect(kop.find('[data-testid="nieuwe-functie"]').exists()).toBe(true)
+  })
+
+  it('heeft precies één zoekveld', async () => {
+    // Op drie schermen stond zoeken zowel in de kop als in de filterbalk, elk met een eigen
+    // binding: de consultant typte in het ene veld terwijl het andere meefilterde, en zag een
+    // lijst die bij geen van beide hoorde. Eén veld, of het klopt niet.
+    const w = await mountLijst()
+    expect(w.findAll('input[type="search"]').length).toBe(1)
+  })
+
+  it('zet de weergaveschakelaar ONDER de kop, niet erin', async () => {
+    // De grens die de kop op termijn leeg houdt: Boom|Diagram bepaalt HOE je naar hetzelfde
+    // kijkt, niet WELKE functies je ziet. Schuift hij terug de kop in, dan valt deze om.
+    const w = await mountLijst()
+    const schakelaar = w.get('[data-testid="functie-weergave-schakelaar"]')
+    expect(schakelaar.exists()).toBe(true)
+    expect(w.get('[data-testid="lijst-kop"]').element.contains(schakelaar.element)).toBe(false)
+  })
+
+  it('zet "Model inlezen" onder de kop, niet naast "Nieuwe functie"', async () => {
+    // Eén of twee keer per jaar, en het raakt de hele lijst in één keer. In dezelfde vorm naast
+    // een wekelijkse actie zouden ze even gewoon lezen.
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    const inlezen = w.get('[data-testid="model-inlezen"]')
+    expect(w.get('[data-testid="lijst-kop"]').element.contains(inlezen.element)).toBe(false)
+  })
+
+  it('gebruikt de gedeelde schakelaar-bouwsteen, geen eigen inline vorm', async () => {
+    // Dezelfde vorm als in de open-punten-sectie: de consultant herkent "kies een stand"
+    // en niet "twee losse knoppen". Eén van de zes schakelaars uit OPVOLGPUNT LI048-0.
+    const w = await mountLijst()
+    expect(w.get('[data-testid="functie-weergave-schakelaar"]').classes()).toContain('lk-schakelaar')
+    expect(w.get('[data-testid="weergave-boom"]').classes()).toContain('lk-schakelaar-stand')
+    expect(w.get('[data-testid="weergave-diagram"]').classes()).toContain('lk-schakelaar-stand')
+  })
+
+  it('verbergt het zoekveld in Diagram-stand maar houdt de actie op zijn plek', async () => {
+    // Het diagram toont `alle` items en wordt niet door `zoekterm` gefilterd — een zichtbaar
+    // zoekveld zou doen alsof het iets doet. Dat het slot dan leeg is mag de aanmaakknop niet
+    // verplaatsen: dat is regel 3 van de bouwsteen, hier in de praktijk.
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    expect(w.findAll('input[type="search"]').length).toBe(1)
+    await w.get('[data-testid="weergave-diagram"]').trigger('click')
+    expect(w.findAll('input[type="search"]').length).toBe(0)
+    const kinderen = [...w.get('[data-testid="lijst-kop"]').element.children]
+      .map((el) => el.getAttribute('data-testid'))
+    expect(kinderen[kinderen.length - 1]).toBe('lijst-kop-actie')
+    expect(kinderen).toContain('lijst-kop-zoek')
+  })
+})

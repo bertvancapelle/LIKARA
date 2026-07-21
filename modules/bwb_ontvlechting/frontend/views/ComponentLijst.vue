@@ -20,6 +20,7 @@ import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
 import FilterResultaatRegel from '@/components/FilterResultaatRegel.vue'
+import LijstKop from '@/components/LijstKop.vue'
 import ComponentFormulier from '@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import {
@@ -541,77 +542,71 @@ onMounted(async () => {
 
 <template>
   <section aria-labelledby="componenten-titel">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1
-        id="componenten-titel"
-        class="text-[var(--lk-color-primary)]"
-      >
-        Componenten
-      </h1>
-      <Button
-        v-if="magAanmaken"
-        label="Nieuw component"
-        data-testid="nieuw-component"
-        class="ml-auto"
-        @click="nieuwOverlayOpen = true"
-      />
-    </div>
+    <!-- LI048 — één kop voor élk lijstscherm (LijstKop): naam · zoeken · filteren · aanmaken, in
+         die volgorde en op dezelfde plek. De consultant hoeft per scherm niet opnieuw te zoeken
+         waar hij zoekt. Het zoekveld en de Filter-knop stonden hier in een apart blok eronder;
+         ze zijn nu de slots van de kop. -->
+    <LijstKop titel="Componenten" titel-id="componenten-titel">
+      <template #zoek>
+        <label class="flex items-center gap-[var(--lk-space-sm)]">
+          <span class="sr-only">Naam</span>
+          <input
+            v-model="filterZoek"
+            type="search"
+            maxlength="100"
+            data-testid="filter-zoek"
+            aria-label="Zoek op componentnaam"
+            placeholder="Zoek op naam…"
+            class="lk-veld w-full"
+            @input="herfilterDebounced"
+          />
+        </label>
+      </template>
+      <template #filter>
+        <button
+          type="button"
+          data-testid="filter-knop"
+          :aria-label="aantalFilters ? `Filter — ${aantalFilters} actief` : 'Filter'"
+          class="lk-veld inline-flex items-center gap-[var(--lk-space-xs)] hover:bg-[var(--lk-color-primary-50)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          @click="openFilterVenster"
+        >
+          <span>Filter</span>
+          <!-- Bij nul geen getal: de rust ís het signaal dat er niets gefilterd wordt (likara-ux). -->
+          <span
+            v-if="aantalFilters"
+            data-testid="filter-knop-teller"
+            class="font-semibold text-[var(--lk-color-primary)]"
+          >({{ aantalFilters }})</span>
+        </button>
+      </template>
+      <template v-if="magAanmaken" #actie>
+        <Button
+          label="Nieuw component"
+          data-testid="nieuw-component"
+          @click="nieuwOverlayOpen = true"
+        />
+      </template>
+    </LijstKop>
 
     <!-- ADR-042 4b — aanmaak-overlay: de lijst blijft eronder zichtbaar. Lazy gemount
          (v-if): pas bij openen laden de opties; sluiten unmount hem weer. -->
     <ComponentFormulier v-if="nieuwOverlayOpen" v-model:visible="nieuwOverlayOpen" :id="null" @opgeslagen="onAangemaakt" />
 
-    <!-- LI048 — bovenin staat alleen waarmee de consultant BEGINT: zoeken op naam. De dertien
-         filtervelden namen drie rijen in beslag, waardoor de lijst pas daaronder begon; ze wonen
-         nu in een venster achter de Filter-knop. Het aantal actieve filters staat op die knop en
-         de filters zelf staan als chips onder deze balk (FilterResultaatRegel) — een verstopt
-         filter is een onzichtbaar filter, en dan trekt de consultant verkeerde conclusies over
-         zijn landschap. De vraag "waarom zie ik er maar zeven?" is altijd beantwoord zonder iets
-         te openen. -->
-    <div
-      data-testid="zoekbalk"
-      class="mb-[var(--lk-space-md)] flex flex-wrap items-end gap-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]"
-    >
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Naam</span>
-        <input
-          v-model="filterZoek"
-          type="search"
-          maxlength="100"
-          data-testid="filter-zoek"
-          aria-label="Zoek op componentnaam"
-          placeholder="zoeken…"
-          class="lk-veld"
-          @input="herfilterDebounced"
-        />
-      </label>
-
-      <button
-        type="button"
-        data-testid="filter-knop"
-        :aria-label="aantalFilters ? `Filter — ${aantalFilters} actief` : 'Filter'"
-        class="lk-veld inline-flex items-center gap-[var(--lk-space-xs)] hover:bg-[var(--lk-color-primary-50)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-        @click="openFilterVenster"
-      >
-        <span>Filter</span>
-        <!-- Bij nul geen getal: de rust ís het signaal dat er niets gefilterd wordt (likara-ux). -->
-        <span
-          v-if="aantalFilters"
-          data-testid="filter-knop-teller"
-          class="font-semibold text-[var(--lk-color-primary)]"
-        >({{ aantalFilters }})</span>
-      </button>
-
-      <button
-        v-if="heeftFilters"
-        type="button"
-        data-testid="filters-wissen"
-        class="ml-auto rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-        @click="wisFilters"
-      >
-        Filters wissen
-      </button>
+    <!-- "Filters wissen" hoort bij de UITKOMST, niet bij de besturing: hij verschijnt pas als er
+         iets te wissen is en staat daarom bij de chiprij, niet in de kop (regel 1 — in de kop
+         staat wat de lijst bepaalt, en dit ruimt op wat al bepaald ís). -->
+    <div v-if="heeftFilters" class="mb-[var(--lk-space-md)] flex">
+        <button
+          v-if="heeftFilters"
+          type="button"
+          data-testid="filters-wissen"
+          class="ml-auto rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+          @click="wisFilters"
+        >
+          Filters wissen
+        </button>
     </div>
+
 
     <!-- Het filtervenster (CD017-filters, AND-gecombineerd). ALLE velden staan hier — niet een
          selectie van "de meest gebruikte": dan hoeft niemand te raden welke de consultant het

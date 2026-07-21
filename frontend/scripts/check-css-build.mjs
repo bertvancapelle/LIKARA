@@ -403,6 +403,154 @@ if (kopOvertredingen.length > 0) {
 }
 console.log(`[css-build-check] OK — detailkop-scan: ${detailGescand} detailschermen op de bouwsteen (object-acties in de kop).`)
 
+// ── LI048: lijstkop-bron-scan — de besturing staat op élk lijstscherm op dezelfde plek ──────
+// De spiegel van de detailkop-scan hierboven. Zes lijstschermen bouwden hun kop met de hand,
+// byte-identiek; zonder scan bouwt het zevende hem gewoon terug en lopen ze weer uiteen. Elk
+// `*Lijst.vue` (de bouwsteen zelf uitgezonderd) MOET <LijstKop> gebruiken, en de drie dingen
+// die de kop bestuurt — het zoekveld, de Filter-knop, de aanmaakactie — mogen niet daarnaast
+// nog eens los in de template staan.
+//
+// Wat de scan afdwingt:
+//  (a) een `*Lijst.vue` zonder <LijstKop> is een overtreding;
+//  (b) een <h1> BUITEN het LijstKop-blok is een overtreding — dat is een tweede kop;
+//  (c) een `type="search"`-veld buiten het blok is een overtreding — het zoekveld hoort
+//      in de kop, niet nog eens in een filterbalk eronder (precies de dubbeling die deze
+//      snede in ComponentLijst, PartijLijst en ContractLijst opruimde);
+//  (d) MEER DAN ÉÉN `type="search"` in het hele scherm is een overtreding, ook als beide
+//      in de kop zouden staan. Dit was een echt defect dat niemand had gemeld: op drie
+//      schermen stond zoeken zowel in de kop als in de filterbalk, elk met een eigen
+//      `v-model`-binding — de consultant kon in het ene veld typen terwijl het andere
+//      meefilterde, en zag dan een lijst die bij geen van beide velden hoorde;
+//  (e) een weergaveschakelaar (`role="group"` + `aria-label="Weergave"`) BINNEN het
+//      LijstKop-blok is een overtreding. Die bepaalt *hoe* je naar hetzelfde kijkt, niet
+//      *welke* dingen je ziet, en hoort in de zone eronder. Dit is de grens die de kop op
+//      termijn leeg houdt: zonder deze regel schuift er vroeg of laat weer iets in.
+//
+// GEEN UITZONDERINGENLIJST. Er stond er even één in (BedrijfsfunctieLijst, dat de
+// schakelaar en een tweede actie in de kop droeg). Hij deed geen schade en werd elke run
+// afgedrukt — maar hij legitimeerde een VORM: de volgende sessie die één scherm niet kan
+// omzetten heeft dan een voorbeeld. Zo ontstaan achterdeuren: niet met een besluit, maar
+// met een precedent. Het scherm is omgezet, de lijst is weg.
+
+function scanLijstkopOvertredingen(bron, label) {
+  const overtredingen = []
+  const tmpl = /<template>([\s\S]*)<\/template>/.exec(bron)
+  if (!tmpl) return overtredingen
+  const t = tmpl[1].replace(/<!--[\s\S]*?-->/g, '')
+  const kopStart = t.indexOf('<LijstKop')
+  if (kopStart < 0) {
+    overtredingen.push(`${label}: lijstscherm zonder <LijstKop> — de kop wordt niet met de hand gebouwd`)
+    return overtredingen
+  }
+  const kopEinde = t.indexOf('</LijstKop>', kopStart)
+  if (kopEinde < 0) {
+    overtredingen.push(`${label}: <LijstKop> zonder sluittag`)
+    return overtredingen
+  }
+  const BUITEN_VERBODEN = [
+    { naald: '<h1', uitleg: 'een tweede paginakop' },
+    { naald: 'type="search"', uitleg: 'het zoekveld hoort in de kop, niet ook in een filterbalk' },
+  ]
+  for (const { naald, uitleg } of BUITEN_VERBODEN) {
+    let idx = t.indexOf(naald)
+    while (idx >= 0) {
+      if (idx < kopStart || idx > kopEinde) {
+        overtredingen.push(`${label}: ${naald} staat buiten de LijstKop — ${uitleg}`)
+      }
+      idx = t.indexOf(naald, idx + 1)
+    }
+  }
+  // (d) Eén zoekveld per lijstscherm. Twee velden met elk hun eigen binding tonen een lijst
+  // die bij geen van beide hoort — het defect dat deze snede op drie schermen opruimde.
+  const zoekvelden = (t.match(/type="search"/g) || []).length
+  if (zoekvelden > 1) {
+    overtredingen.push(
+      `${label}: ${zoekvelden} zoekvelden — een lijstscherm heeft er precies één (twee bindingen filteren langs elkaar heen)`,
+    )
+  }
+  // (e) De weergaveschakelaar hoort onder de kop, niet erin.
+  const schakelaar = /aria-label="Weergave"/g
+  let m
+  while ((m = schakelaar.exec(t)) !== null) {
+    if (m.index > kopStart && m.index < kopEinde) {
+      overtredingen.push(
+        `${label}: de weergaveschakelaar staat IN de LijstKop — die bepaalt hoe je kijkt, niet welke dingen je ziet (hoort in de zone eronder)`,
+      )
+    }
+  }
+  return overtredingen
+}
+
+// Zelftest — bewijs dat de lijstkop-scan bijt, bij élke run.
+const LIJSTKOP_ZELFTEST = [
+  { naam: 'zonder-lijstkop-gevangen', verwacht: 1, bron: '<template><h1>X</h1><input type="search" /></template>' },
+  {
+    naam: 'geldig-scherm-passeert', verwacht: 0,
+    bron: '<template><LijstKop titel="X" titel-id="x"><input type="search" /></LijstKop><table /></template>',
+  },
+  {
+    naam: 'tweede-kop-gevangen', verwacht: 1,
+    bron: '<template><LijstKop titel="X" titel-id="x"></LijstKop><h1>Nog een kop</h1></template>',
+  },
+  {
+    naam: 'gewone-velden-triggeren-niet', verwacht: 0,
+    bron: '<template><LijstKop titel="X" titel-id="x"></LijstKop><select /><input type="date" /></template>',
+  },
+  // (d) Twee zoekvelden — ook als ze allebei netjes in de kop zouden staan.
+  {
+    naam: 'twee-zoekvelden-in-de-kop-gevangen', verwacht: 1,
+    bron: '<template><LijstKop titel="X" titel-id="x"><input type="search" /><input type="search" /></LijstKop></template>',
+  },
+  // Buiten de kop levert het er twee: "staat buiten de kop" én "twee zoekvelden". Beide
+  // zijn waar en wijzen naar hetzelfde defect vanuit een andere hoek.
+  {
+    naam: 'dubbel-zoekveld-telt-beide-regels', verwacht: 2,
+    bron: '<template><LijstKop titel="X" titel-id="x"><input type="search" /></LijstKop><input type="search" /></template>',
+  },
+  // (e) De weergaveschakelaar in de kop.
+  {
+    naam: 'schakelaar-in-de-kop-gevangen', verwacht: 1,
+    bron: '<template><LijstKop titel="X" titel-id="x"><div role="group" aria-label="Weergave"><button>Boom</button></div></LijstKop></template>',
+  },
+  {
+    naam: 'schakelaar-onder-de-kop-passeert', verwacht: 0,
+    bron: '<template><LijstKop titel="X" titel-id="x"></LijstKop><div role="group" aria-label="Weergave"><button>Boom</button></div></template>',
+  },
+]
+let lijstkopZelftestFouten = 0
+for (const { naam, verwacht, bron } of LIJSTKOP_ZELFTEST) {
+  const n = scanLijstkopOvertredingen(bron, 'zelftest').length
+  if (n !== verwacht) {
+    console.error(`  ✗ zelftest "${naam}": ${n} overtreding(en), verwacht ${verwacht} — de lijstkop-scan bijt niet zoals bedoeld`)
+    lijstkopZelftestFouten++
+  }
+}
+if (lijstkopZelftestFouten > 0) {
+  console.error('\n[css-build-check] FAAL: de lijstkop-bron-scan doorstaat zijn eigen zelftest niet.')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — lijstkop-scan-zelftest: ${LIJSTKOP_ZELFTEST.length}/${LIJSTKOP_ZELFTEST.length} (de scan bijt).`)
+
+let lijstkopOvertredingen = []
+let lijstGescand = 0
+for (const wortel of SCAN_WORTELS) {
+  for (const bestand of vueBestanden(path.join(FRONTEND, wortel))) {
+    const naam = path.basename(bestand)
+    if (!naam.endsWith('Lijst.vue') || naam === 'LijstKop.vue') continue
+    lijstGescand++
+    lijstkopOvertredingen = lijstkopOvertredingen.concat(
+      scanLijstkopOvertredingen(readFileSync(bestand, 'utf8'), path.relative(FRONTEND, bestand)),
+    )
+  }
+}
+if (lijstkopOvertredingen.length > 0) {
+  console.error(`\n[css-build-check] FAAL: ${lijstkopOvertredingen.length} lijstkop-afwijking(en):`)
+  for (const o of lijstkopOvertredingen) console.error(`  ✗ ${o}`)
+  console.error('De besturing staat op élk lijstscherm op dezelfde plek: gebruik de LijstKop-bouwsteen (src/components/LijstKop.vue).')
+  process.exit(1)
+}
+console.log(`[css-build-check] OK — lijstkop-scan: ${lijstGescand} lijstschermen op de bouwsteen (geen uitzonderingen).`)
+
 // ── LI047: kopstijl-bron-scan — één maat voor de paginatitel ────────────────────────────────
 // Tailwind-preflight zet h1..h6 op `font-size: inherit; font-weight: inherit`; de basislaag
 // (assets/main.css) herstelt maat + gewicht. Dáár leeft de kopstijl — een scherm dat 'm zelf

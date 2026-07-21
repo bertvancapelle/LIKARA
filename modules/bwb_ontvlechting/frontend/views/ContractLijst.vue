@@ -11,6 +11,7 @@ import { detailRoute } from '@/detailIngang'
 import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
+import LijstKop from '@/components/LijstKop.vue'
 import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, label } from '../labels'
 
 const auth = useAuthStore()
@@ -155,19 +156,38 @@ onMounted(async () => {
 
 <template>
   <section aria-labelledby="contracten-titel">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1 id="contracten-titel" class="text-[var(--lk-color-primary)]">
-        Contracten
-      </h1>
-      <router-link
-        v-if="magAanmaken"
-        :to="{ name: 'contract-nieuw' }"
-        data-testid="nieuw-contract"
-        class="ml-auto inline-flex items-center rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-white text-[length:var(--lk-text-sm)] font-semibold hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
-      >
-        Nieuw contract
-      </router-link>
-    </div>
+    <!-- LI048 — de gedeelde LijstKop: naam · zoeken · aanmaken, overal op dezelfde plek.
+         Nog geen filtervenster op dit scherm, dus het filter-slot blijft leeg; de filterbalk
+         eronder blijft ongewijzigd tot een latere snede. -->
+    <LijstKop titel="Contracten" titel-id="contracten-titel">
+      <template #zoek>
+        <label class="flex items-center">
+          <span class="sr-only">Naam</span>
+          <input
+            v-model="filterZoek"
+            type="search"
+            maxlength="255"
+            data-testid="filter-zoek"
+            aria-label="Zoek op contractnaam"
+            placeholder="Zoek op naam…"
+            class="lk-veld w-full"
+            @input="herfilterDebounced"
+          />
+        </label>
+      </template>
+      <template v-if="magAanmaken" #actie>
+        <!-- Blijft een router-link (openen in nieuw tabblad moet kunnen), met de KNOPHOOGTE
+             `--lk-veld-h` zodat hij op één lijn staat met het zoekveld. Dat hij het
+             Button-preset niet gebruikt is een bestaande afwijking — zie het gate-rapport. -->
+        <router-link
+          :to="{ name: 'contract-nieuw' }"
+          data-testid="nieuw-contract"
+          class="inline-flex h-[var(--lk-veld-h)] items-center rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-primary)] px-[var(--lk-space-md)] text-[length:var(--lk-text-sm)] font-semibold text-white hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+        >
+          Nieuw contract
+        </router-link>
+      </template>
+    </LijstKop>
 
     <div
       data-testid="filterbalk"
@@ -200,10 +220,6 @@ onMounted(async () => {
           <option value="">Alle</option>
           <option v-for="o in kostenmodelOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
         </select>
-      </label>
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Naam</span>
-        <input v-model="filterZoek" type="search" maxlength="255" data-testid="filter-zoek" aria-label="Zoek op contractnaam" placeholder="zoeken…" class="lk-veld" @input="herfilterDebounced" />
       </label>
       <button v-if="heeftFilters" type="button" data-testid="filters-wissen" class="ml-auto rounded-[var(--lk-radius-btn)] border border-[var(--lk-color-border)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)] hover:bg-[var(--lk-color-accent)]" @click="wisFilters">
         Filters wissen

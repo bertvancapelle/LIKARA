@@ -186,3 +186,22 @@ describe('PartijLijst — lijststaat behouden bij terugnavigeren (useLijstStaat)
     w.unmount() // listener netjes opruimen voor de volgende test
   })
 })
+
+describe('PartijLijst — LI048: de gedeelde lijstkop', () => {
+  it('draagt de gedeelde LijstKop met naam en aanmaakactie op vaste plek', async () => {
+    const w = await mountLijst({ rollen: ['beheerder'] })
+    const kop = w.find('[data-testid="lijst-kop"]')
+    expect(kop.exists()).toBe(true)
+    // De actie is het laatste kind — op élk lijstscherm, zodat de consultant hem niet
+    // per scherm opnieuw hoeft te zoeken.
+    const kinderen = [...kop.element.children].map((el) => el.getAttribute('data-testid'))
+    expect(kinderen[kinderen.length - 1]).toBe('lijst-kop-actie')
+  })
+
+  it('heeft precies één zoekveld', async () => {
+    // Twee zoekvelden met elk hun eigen binding tonen een lijst die bij geen van beide hoort.
+    // Dat stond hier: één in de kop, één in de filterbalk eronder.
+    const w = await mountLijst()
+    expect(w.findAll('input[type="search"]').length).toBe(1)
+  })
+})
