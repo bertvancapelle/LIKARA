@@ -174,9 +174,112 @@ witte tekst is onleesbaar en de knop oogt disabled/dood (incident LI030: de groe
 dit niet; pas in de echte browser zichtbaar). Voorkeur: gebruik het Button-preset (dwingt dit af); bij
 een losse knop een class-assert op de primaire token in de view-test.
 
-**Tabbladen** (`AppTabs.vue`) volgen dezelfde kleurtaal én hoogte (`h-10`, `--lk-radius-btn`):
-omlijnd = beschikbaar, lichtblauw (`--lk-color-primary-50/700`) = hover, donkerblauw
-(`--lk-color-primary`, wit, semibold) = gekozen.
+**Tabbladen zijn GEEN knoppen (herzien LI048 — vervangt de oude "zelfde vorm en hoogte als een
+knop"-regel).** Tot LI048 droeg een tabblad de knopvorm (`h-10`, `--lk-radius-btn`, omlijning,
+donkerblauwe vulling bij gekozen). Bij dertien tabbladen over twee regels las die rij als dertien
+losse knoppen: de gebruiker moest per scherm uitzoeken wat hem stuurt en wat een actie is — **de
+vorm droeg de betekenis niet.** Een tabrij zónder zichtbare keuze (de LI047-uitzondering) was
+daardoor niet eens als tabrij herkenbaar.
+
+De vorm leeft nu in **handgeschreven main.css-klassen**, niet in Tailwind-utilities op de call-site
+(Tailwind kan ze niet seeden → de build-check kan niet vals-groen worden):
+- `.lk-tabrij` + `.lk-tabrij-h`/`-v` — de **rij** draagt de doorlopende lijn (onder resp. rechts).
+- `.lk-tab` — geen omkadering, geen knophoogte (`padding: .5rem`), gedempte tekst, transparante
+  randen (zodat er niets verspringt bij het wisselen); hover = `--lk-color-primary-50/700`.
+- `.lk-tab[aria-selected='true']` — **de stijl leest ARIA, niet een aparte staat-class**, zodat het
+  toegankelijkheidsfeit en het zichtbare feit structureel niet uiteen kunnen lopen. Gekozen = wit
+  als het vlak + `--lk-color-primary` als **accentlijn en tekst** (géén nieuwe kleur, en géén
+  vulling: een gevulde tab kán niet aan een wit vlak vastzitten) + `border-bottom-color: surface`,
+  waarmee hij de rij-lijn doorbreekt.
+- `.lk-tabrij-sub` (prop `niveau="2"`) — een rij **binnen** een gekozen groep is zichtbaar
+  ondergeschikt: kleiner en dunner (geen 2px-accentbalk — die is de hoofdrij voorbehouden). Het
+  gewicht leeft in de **bouwsteen**, niet op de aanroepplek — elke volgende sub-rij erft het.
+  *(Dit was snede 3; het landde mee met 2b omdat een tweede rij zonder gewichtsverschil direct
+  onleesbaar is. Van snede 3 blijft niets over.)*
+
+  ⚠ **Wit op wit was het defect (2c).** De eerste versie zette de sub-rij **transparant** op het
+  witte werkvlak. Een niet-gekozen tabblad had dan geen ondergrond om uit naar voren te komen:
+  alleen de gekozen pil was zichtbaar, de rest zweefde als losse tekst, en de rij las niet als een
+  rij. **Een tabrij heeft altijd een ondergrond die verschilt van zijn gekozen tabblad** — anders
+  is er niets om uit naar voren te komen. De sub-rij draagt daarom een **grijze band** (de
+  paginatint, uitbloedend tot de randen van `.lk-tabvlak`); het gekozen tabblad is **wit** en loopt
+  over in de witte inhoud. Dezelfde regel als de hoofdrij, één maat kleiner. Borging: `subrij-band`
+  + `subrij-band-verticaal` + `subtab-versmelt` in `check-css-build.mjs`.
+
+### Navigatie ziet er anders uit dan een schakelaar (LI048 2c/2d)
+
+Een rij die **een paneel wisselt** is navigatie (tabvorm). Een rij die **één lijst filtert** is een
+**schakelaar**: `role="group"` + `aria-pressed`, vorm `.lk-schakelaar` / `.lk-schakelaar-stand`.
+De vorm moet zeggen wát het ding is.
+
+Twee vormregels die uit het scherm zelf volgen — beide getoetst in de dist-CSS:
+- **De schakelaar loopt NIET door tot de rand** (`display: inline-flex`; het grijs sluit strak om
+  de standen). Een volle band over de breedte is inmiddels hét teken voor navigatie
+  (`.lk-tabrij-sub` bloedt bewust wél uit tot de vlakranden). Wordt dit `flex`, dan leest de
+  schakelaar opnieuw als tabrij en is het hele 2c-onderscheid weg. Borging: `schakelaar-inline`
+  toetst `padding:2px;display:inline-flex}` — de vorm-eigenschap zelf, niet het bestaan van de klasse.
+- **De actieve stand krijgt een VOLLE accentvulling** — precies omgekeerd aan een tabblad, waar
+  *wit* "gekozen" betekent (een tab versmelt met zijn inhoud; een schakelaar staat op zichzelf en
+  moet uitspringen). De niet-gekozen standen dragen géén eigen rand: het is één ding, geen N.
+
+**Eronder één streep over de volle breedte** (`.lk-schakelaar-streep`) — die scheidt waarmee je
+kiest van wat je krijgt; zonder streep hangt de lijst los. **De lijst zelf blijft op wit:** daar
+staan de signalen (amber = bewust afgewogen, gedempt = verschoven lat, blauw = Vastleggen), en
+signaal hoort niet op een gekleurde vloer — dezelfde reden waarom het gekleurde tabbladvlak eerder
+is afgewezen. Vier ondergronden boven elkaar is er één te veel.
+
+⚠ **Dit gedrag bestond al zes keer met evenzoveel eigen vormen** (Landschapskaart weergave/diepte/
+lezing, BedrijfsfunctieLijst Boom|Diagram, ArchitectuurView Lagen|Tabel, ArchitectuurLagenView
+aspect-filter). De bouwsteen is generiek gehouden zodat ze er alle zes op kunnen; de omzetting is
+een eigen snede (OPVOLGPUNTEN LI048-0). **Bouw geen zevende variant** — haak aan de bouwsteen.
+
+⚠ **Toets het gedrag, niet de gelijkenis.** De drie blokken in `OpenPuntenSectie` (*Dit moet nog /
+Dit zou netjes zijn / Dit valt op*) waren als `AppTabs` gebouwd — inclusief `role="tab"` en
+`aria-controls` naar `open-punten-panel-*`, panelen die **niet bestaan**: er is geen enkele
+`role="tabpanel"` in die sectie. Een schermlezer kondigde dus "tabblad 1 van 3" aan en verwees naar
+het niets. Ze zijn nu toggle-knoppen in een `role="group"` met `aria-pressed`. **Vuistregel: staat
+er geen `role="tabpanel"` tegenover je `role="tab"`, dan is het geen tabrij.** Borging:
+`OpenPuntenSectie.test.js` (geen `role="tab"`, geen `aria-controls`, wél `role="group"`).
+- `.lk-tabvlak` — het witte, omrande werkvlak waar de rij aan vastzit. **Eén vlak om álle panelen**,
+  niet één per paneel; anders loopt het bij het volgende paneel weer uiteen.
+
+### Een tabrij telt maximaal vijf tabbladen (LI048 snede 2b)
+
+Dertien tabbladen liepen over naar een tweede regel — en dán hangt het gekozen tabblad los boven
+een vlak dat pas onder regel twee begint, dus de tabvorm hierboven valt om precies waar hij nodig
+is. Dertien woorden zijn bovendien niet te scannen: alles weegt even zwaar. **Een overloopmenu is
+géén oplossing** (dan is een deel gewoon onzichtbaar — dat ís de klacht).
+
+`ComponentDetail` groepeert daarom naar **hoe de consultant denkt**: Overzicht · Beoordeling (N) ·
+Wat het doet · Samenhang · Afspraken. Verworpen groepsnamen — niet opnieuw voorstellen: *"Status"*
+en *"Inventarisatie"* (beide dragen elders op hetzelfde scherm al een andere betekenis, en geen van
+beide is telbaar).
+
+**Sleuteldiscipline (niet-onderhandelbaar):** `?tab=` en `activeTop` spreken de **onderdeel**-taal
+(`checklist`, `contracten`, …), nooit de groep. De groep is **afgeleid** (`actieveGroep`). Zo blijft
+élke bestaande ingang letterlijk werken — gemeten waren dat er acht: drie kaart-aanleidingen, de
+blokkade-doorklik, vier backend-routes uit het open-punten-overzicht, en de gedeelde URL uit snede 1.
+Een tweede sleutel in de URL zou een tweede waarheid zijn die stil uit de pas loopt.
+
+Vier gedragsregels, elk met een eigen bijtende toets (`ComponentDetail.test.js`): (1) een groep
+zonder beschikbare onderdelen verschijnt niet; (2) een groep met precies één onderdeel toont **geen**
+sub-rij — een keuzerij met één keuze is geen keuze, en het paneel labelt dan naar het *groeps*tabblad;
+(3) op **beide** rijen is altijd precies één gekozen (de snede-1-invariant geldt onverkort); (4) een
+groep openen kiest het **eerste** beschikbare onderdeel.
+
+⚠ **Teltip bij tests:** `findAll('[role="tablist"]')` telt óók verborgen rijen mee — het
+open-punten-paneel draagt zijn eigen blokken-rij en is altijd gemount (`v-show`). Tel op de
+`data-testid`-prefix van de rij die je bedoelt.
+- Radius: `--lk-radius-tab` / `--lk-radius-tab-v` (alleen de hoek áf van het vlak is rond) — niet de
+  knopradius.
+
+**De knopvorm blijft gereserveerd voor knoppen.** Borging: `interactiestates.test.js` toetst per
+knopvorm-signaal (`h-10`, knopradius, `border-[0.5px]`, gevulde staat) dat een tabblad het níét
+draagt, plus dat gekozen en niet-gekozen tab **dezelfde classes** hebben (valt om zodra iemand
+terugvalt op class-gebaseerde staat); `check-css-build.mjs` toetst de vijf vormregels in de
+**gebouwde** CSS, waaronder apart `border-bottom-color:var(--lk-color-surface)` — sneuvelt juist
+díé, dan zweeft de tab weer boven een losse lijn en is de snede visueel ongedaan. Beide aantoonbaar
+bijtend.
 
 ## UI-interactiestates + borging (niet-onderhandelbaar)
 
@@ -195,8 +298,9 @@ klassen **stil** in de productie-CSS (bewezen: zonder `@source` vallen de tab-ho
 1. **Token-contracttest** (`tokens.contract.test.js`) — afgesproken `--lk-`-tokens bestaan en zijn
    niet-leeg.
 2. **Component-render-state-test** (`interactiestates.test.js`) — Button-preset (elke variant zet
-   de juiste token-klasse + vaste `h-10`) en AppTabs (states op de juiste — klikbare — `role="tab"`,
-   juiste token-klassen).
+   de juiste token-klasse + vaste `h-10`) en AppTabs (de tabvorm: géén knopvorm-signaal op een
+   tabblad, de vorm in de gedeelde `.lk-tab*`-klassen, de staat op `aria-selected` — zie
+   §Tabbladen zijn GEEN knoppen).
 3. **Build-CSS-check** (`scripts/check-css-build.mjs`, script `test:css-build`) — faalt als een
    kritische interactie-klasse niet in de **gebouwde** CSS belandt, óók bij een ontbrekende
    `@source`. Draait een productie-build en greep't de dist-CSS.
@@ -524,8 +628,11 @@ backend-borging `test_rollengrens_adr050`.)
   deep-link incl. een onzin-`?tab=`) dat er precies één `aria-selected="true"` én precies één
   `tabindex="0"` is — aantoonbaar bijtend (een heringevoerde uitzondering laat de telling naar 0
   zakken).
-- **2-laags tabs + deep-link** (ComponentDetail; herkomst CD022/ApplicatieDetail): top- én sub-niveau zijn elk een echte
-  `AppTabs`; de actieve tab(s) in de URL via query-params (`?tab=`/`&cat=`), `router.replace`
+- **3-laags tabs + deep-link** (ComponentDetail; herkomst CD022/ApplicatieDetail). Sinds LI048 2b:
+  groepsrij → sub-rij (onderdelen) → de verticale checklist-categorierij. Elk niveau is een echte
+  `AppTabs`; de sub-rij en de categorierij dragen `niveau="2"` (drie gewichten zou overdreven zijn,
+  en de categorierij staat bovendien op een andere as — verticaal, naast het paneel).
+  De actieve plek in de URL via query-params (`?tab=`/`&cat=`), `router.replace`
   (geen history-spam), default = schone URL. Alle panelen blijven **gemount** (`v-show`) → geen
   state-verlies bij wisselen, en refs/voortgang-tellers blijven geldig. De 12 categorie-tabs
   voeden **één gedeelde** sectie-instantie met een `categorieNr`-filterprop (één load, gedeelde

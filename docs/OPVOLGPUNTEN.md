@@ -7,6 +7,39 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI048 (2026-07-21) — zes schakelaars, zes vormen
+
+0. **Hetzelfde keuze-gedrag is zes keer los nagebouwd; er is nu één bouwsteen voor.** LI048 2d
+   maakte `.lk-schakelaar` / `.lk-schakelaar-stand` (main.css) voor "één keuze met N standen"
+   (`role="group"` + `aria-pressed`, géén tabrij). Bij het bouwen bleek dat gedrag **al zes keer**
+   te bestaan, elk met een eigen inline vorm:
+   `LandschapskaartView.vue:2835` (weergave Overzicht|Praatplaat|Lagen) · `:3069` (diepte 1|2) ·
+   `:3275` (kaart-lezing) · `BedrijfsfunctieLijst.vue:906` (Boom|Diagram) ·
+   `ArchitectuurView.vue:113` (Lagen|Tabel) · `ArchitectuurLagenView.vue:85` (aspect-filter).
+   Twee ervan (`:2835`, `:906`) zijn al een aaneengesloten schakelaar mét rand — die staan het
+   dichtst bij de nieuwe bouwsteen; de andere vier zijn losse knopjes.
+   **Waarom het uitmaakt:** zes vormen voor één betekenis betekent dat de gebruiker per scherm
+   opnieuw moet leren wat een schakelaar is (n≥2-convergentieregel, ruim overschreden). De
+   klassen zijn bewust generiek gehouden zodat alle zes erop kunnen.
+   **Bewust niet omgezet in LI048 2d** — dat raakt vier schermen buiten de scope van deze snede
+   en verdient een eigen browsercheck. Status: **open — eigen snede (converge-voorstel)**.
+
+### Nieuw uit LI048 (2026-07-21) — dood seed-pad met plausibele namen
+
+1. **`_seed_technische_laag` wordt niet aangeroepen — maar zaait wél namen die echt lijken.**
+   De functie (`backend/dev_seed_testdata.py:650`) maakt `Oracle FIN-DB` (database, `:676`) en
+   `Geo-fileshare` (fileshare, `:677`) plus drie assignment-relaties, maar staat **niet** in `main()`
+   (`:1923` e.v. roept `_seed_bvowb_scenario` aan, niet deze). Geen van beide componenten bestaat dus in
+   het demolandschap — live geverifieerd in de dev-tenant `11111111-…-111111111111`: 19 componenten,
+   waarvan de enige database `Shared DB-server` heet en de enige fileshare `Shared fileshare`
+   (beide uit `_seed_bvowb_scenario`, `:1487`/`:1491`).
+   **Risico:** een volgende sessie leest deze namen uit de bron, gebruikt ze in een draaiboek of een
+   test, en stuurt de lezer naar een component dat niet bestaat — precies wat in LI048 gebeurde
+   (een browsercheck-stap wees naar "Oracle FIN-DB", waarna het scherm 0 van 19 meldde). Een dood
+   seed-pad is gevaarlijker dan géén seed-pad, want het oogt geldig.
+   Status: **open — besluit Bert: pad opruimen óf alsnog aansluiten in `main()`**. Bewust niet
+   opgeruimd in LI048.
+
 ### Nieuw uit LI046 (2026-07-19) — terugweg naar de kaart (open ontwerpbesluit)
 
 1. **Wat kan er stil verschuiven tussen weggaan en terugkomen op de kaart?** Bij terugkeer naar de
