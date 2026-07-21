@@ -1895,6 +1895,48 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
 - **ADR-032 "Start vanuit..."-wijzer** — scope besloten (5 ingangen), open subknopen
   nog te beslissen vóór de bouw.
 
+## LI048 — Openstaande punten (lijstkop)
+
+### Afgedaan in snede 1b
+- ~~**Bedrijfsfuncties past niet in de kop.**~~ **Opgelost.** Het scherm staat nu óók op de
+  bouwsteen; de weergaveschakelaar (Boom|Diagram) en "Model inlezen" zijn naar de zone ónder de kop
+  gegaan. `LIJSTKOP_OPENSTAAND` is volledig verdwenen — de scan draait zonder uitzonderingenlijst.
+  De les staat in `likara-frontend`: een uitzondering die geen schade doet en netjes wordt
+  afgedrukt, is nog steeds een achterdeur, want hij maakt een **vorm** navolgbaar.
+- **De schakelaar-teller krimpt.** De Boom|Diagram-schakelaar draagt nu `.lk-schakelaar` in plaats
+  van zijn eigen inline vorm. Dat is er één van de zes uit **OPVOLGPUNT LI048-0** (zes schakelaars,
+  convergentievraag) — nog vier eigen vormen te gaan (de open-punten-sectie was de eerste).
+
+### Besluit nodig
+- **Auditlog is geen lijstscherm in deze zin.** De opdracht ging uit van "zoek + filter + knop";
+  gemeten heeft het scherm géén zoekveld (`type="search"` = 0), géén aanmaakknop en géén
+  `FilterResultaatRegel` — wel vier filters in een open balk met een expliciete `Zoeken`-knop.
+  Het is een **doorzoek**scherm, geen beheerslijst. Het kan de kop krijgen als het lege geval
+  (regel 3 dekt dat: naam links, ruimte in het midden), maar dat is een andere uitkomst dan de
+  opdracht veronderstelde en daarom niet meegenomen.
+  **Te beslissen: hoort een doorzoekscherm dezelfde kop te dragen als het lege geval, of is het
+  een eigen soort scherm met een eigen vorm?** Het verschil zit in wat de gebruiker er doet: op
+  een beheerslijst kijkt hij naar alles en maakt hij dingen aan; op een doorzoekscherm begint hij
+  met een vraag en drukt hij bewust op Zoeken. De scan raakt dit scherm nu niet (hij pakt
+  `*Lijst.vue`, en dit is `AuditTrailView.vue`) — valt het besluit "kop toepassen", dan moet ook
+  het scan-bereik mee.
+
+### Defect dat en passant is verholpen (niemand had het gemeld)
+- **Vier lijstschermen hadden twéé zoekvelden.** Componenten, Partijen, Contracten en
+  Bedrijfsfuncties droegen zoeken zowel in de kop als in de filterbalk eronder, elk met een eigen
+  `v-model`-binding. De consultant kon in het ene veld typen terwijl het andere meefilterde — de
+  lijst hoorde dan bij geen van beide velden, zonder dat iets dat aangaf. Nu geborgd op twee
+  niveaus: een vitest-toets per scherm (`heeft precies één zoekveld`) én een bronscan-regel
+  (`>1 type="search"` = overtreding, ook als beide netjes in de kop zouden staan).
+
+### Bijvangst — geconstateerd, niet stilzwijgend meegenomen
+- **Partijen en Contracten maken hun aanmaakknop met de hand**, niet met het Button-preset:
+  een `router-link` met eigen kleur/radius/hover. Bewust gelaten (een link moet in een nieuw
+  tabblad te openen zijn — dat kan een `<Button>` niet), maar de stijl staat nu op twee plekken.
+  In deze snede alleen de **hoogte** gelijkgetrokken (`--lk-veld-h`) zodat hij op één lijn staat
+  met het zoekveld. Kleinste echte stap: een `lk-knop-link`-recept in `main.css`, zodat het
+  knopuiterlijk één bron heeft ongeacht of het een knop of een link is.
+
 ## LI047 — Openstaande punten
 
 ### VÓÓR PRODUCTIE oplossen — niet parkeren
