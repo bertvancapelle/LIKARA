@@ -48,6 +48,7 @@ import DatatypeSectie from './DatatypeSectie.vue'
 import GebruikersgroepSectie from './GebruikersgroepSectie.vue'
 import OrganisatiegebruikSectie from './OrganisatiegebruikSectie.vue'
 import KoppelingSectie from './KoppelingSectie.vue'
+import Icoon from '@/components/Icoon.vue'
 
 const props = defineProps({ id: { type: String, required: true } })
 const router = useRouter()
@@ -510,14 +511,21 @@ watch(() => props.id, async () => {
             data-testid="klaarverklaar-knop"
             @click="(e) => gereedheidSectie?.openDialog(e)"
           />
-          <!-- Navigatie — visueel lichter. -->
+          <!-- LI048 — WEGWIJZER, dus een teken. Deze knop brengt je naar de landschapskaart en
+               verandert niets; verkeerd geklikt kost één klik terug. De knoppen hierbóven
+               (Start beoordeling, Klaar verklaren/Heropenen) en hieronder (Verwijderen)
+               veranderen wél iets en blijven daarom een WOORD — de vorm zegt zo zelf welke knop
+               iets doet en welke je verplaatst. Zie de grens in Icoon.vue. -->
           <Button
             v-if="magKaartZien"
-            label="Bekijk op kaart"
             severity="secondary"
+            title="Bekijk op kaart"
+            aria-label="Bekijk op kaart"
             data-testid="bekijk-op-kaart-knop"
             @click="bekijkOpKaart"
-          />
+          >
+            <Icoon naam="kaart" />
+          </Button>
           <ObjectHistoriePaneel entiteit-type="component" :entiteit-id="props.id" />
         </template>
         <template v-if="magVerwijderen" #destructief>

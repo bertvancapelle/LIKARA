@@ -403,6 +403,86 @@ if (kopOvertredingen.length > 0) {
 }
 console.log(`[css-build-check] OK — detailkop-scan: ${detailGescand} detailschermen op de bouwsteen (object-acties in de kop).`)
 
+// ── LI048: icoon-bron-scan — een aangeroepen teken bestaat ook echt ─────────────────────────
+// HET DEFECT DAT HIER ONDER LAG: op de Geschiedenis-knop stond `icon="pi pi-info-circle"` —
+// een verwijzing naar een primeicons-klasse, terwijl primeicons geen afhankelijkheid van dit
+// project is. Die klasse bestond nergens, dus er rendeerde al maanden niets, en niets meldde
+// het. Een stille lege render is de faalmodus die geen enkele suite vangt.
+//
+// Twee regels, allebei tegen dezelfde soort fout:
+//  (a) `<Icoon naam="…">` mag alleen namen gebruiken die in Icoon.vue gedefinieerd staan;
+//  (b) een `icon="pi …"`-attribuut is per definitie dood — die iconenset bestaat hier niet.
+//      Dat verbod hoort in de scan en niet in iemands hoofd, want de code zag er plausibel uit.
+function iconenUitBouwsteen() {
+  const bron = readFileSync(path.join(FRONTEND, 'src/components/Icoon.vue'), 'utf8')
+  const blok = /const TEKENS = \{([\s\S]*?)\n\}/.exec(bron)
+  if (!blok) {
+    console.error('\n[css-build-check] FAAL: kan TEKENS niet lezen uit src/components/Icoon.vue.')
+    process.exit(1)
+  }
+  return new Set([...blok[1].matchAll(/^\s{2}([a-z_]+):\s*\{/gm)].map((m) => m[1]))
+}
+
+function scanIcoonOvertredingen(bron, label, bekend) {
+  const overtredingen = []
+  const tmpl = /<template>([\s\S]*)<\/template>/.exec(bron)
+  if (!tmpl) return overtredingen
+  const t = tmpl[1].replace(/<!--[\s\S]*?-->/g, '')
+  for (const m of t.matchAll(/<Icoon\s[^>]*naam="([^"]+)"/g)) {
+    if (!bekend.has(m[1])) {
+      overtredingen.push(`${label}: <Icoon naam="${m[1]}"> — dat teken staat niet in Icoon.vue (rendert stil niets)`)
+    }
+  }
+  for (const m of t.matchAll(/icon="pi[ -][^"]*"/g)) {
+    overtredingen.push(`${label}: ${m[0]} — primeicons is geen afhankelijkheid van dit project; deze klasse bestaat nergens`)
+  }
+  return overtredingen
+}
+
+const ICOON_ZELFTEST = [
+  { naam: 'bekend-teken-passeert', verwacht: 0, bron: '<template><Icoon naam="kaart" /></template>' },
+  { naam: 'onbekend-teken-gevangen', verwacht: 1, bron: '<template><Icoon naam="verzonnen" /></template>' },
+  // Het exacte defect dat deze slice opruimde.
+  { naam: 'dode-primeicons-verwijzing-gevangen', verwacht: 1, bron: '<template><Button icon="pi pi-info-circle" /></template>' },
+  { naam: 'gewone-attributen-triggeren-niet', verwacht: 0, bron: '<template><Button label="Bewerken" severity="secondary" /></template>' },
+  { naam: 'teken-in-commentaar-telt-niet', verwacht: 0, bron: '<template><!-- <Icoon naam="verzonnen" /> --></template>' },
+]
+{
+  const bekend = iconenUitBouwsteen()
+  let fouten = 0
+  for (const { naam, verwacht, bron } of ICOON_ZELFTEST) {
+    const n = scanIcoonOvertredingen(bron, 'zelftest', bekend).length
+    if (n !== verwacht) {
+      console.error(`  ✗ zelftest "${naam}": ${n} overtreding(en), verwacht ${verwacht} — de icoon-scan bijt niet zoals bedoeld`)
+      fouten++
+    }
+  }
+  if (fouten > 0) {
+    console.error('\n[css-build-check] FAAL: de icoon-bron-scan doorstaat zijn eigen zelftest niet.')
+    process.exit(1)
+  }
+  console.log(`[css-build-check] OK — icoon-scan-zelftest: ${ICOON_ZELFTEST.length}/${ICOON_ZELFTEST.length} (de scan bijt).`)
+
+  let overtredingen = []
+  let gescand = 0
+  for (const wortel of SCAN_WORTELS) {
+    for (const bestand of vueBestanden(path.join(FRONTEND, wortel))) {
+      if (path.basename(bestand) === 'Icoon.vue') continue
+      gescand++
+      overtredingen = overtredingen.concat(
+        scanIcoonOvertredingen(readFileSync(bestand, 'utf8'), path.relative(FRONTEND, bestand), bekend),
+      )
+    }
+  }
+  if (overtredingen.length > 0) {
+    console.error(`\n[css-build-check] FAAL: ${overtredingen.length} icoon-afwijking(en):`)
+    for (const o of overtredingen) console.error(`  ✗ ${o}`)
+    console.error('Tekens komen uit src/components/Icoon.vue — een verwijzing naar iets anders rendert stil niets.')
+    process.exit(1)
+  }
+  console.log(`[css-build-check] OK — icoon-scan: ${gescand} views, ${bekend.size} bekende tekens, 0 dode verwijzingen.`)
+}
+
 // ── LI048: lijstkop-bron-scan — de besturing staat op élk lijstscherm op dezelfde plek ──────
 // De spiegel van de detailkop-scan hierboven. Zes lijstschermen bouwden hun kop met de hand,
 // byte-identiek; zonder scan bouwt het zevende hem gewoon terug en lopen ze weer uiteen. Elk

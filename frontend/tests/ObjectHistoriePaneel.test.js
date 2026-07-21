@@ -105,3 +105,26 @@ describe('ObjectHistoriePaneel', () => {
     expect(w.find('[data-testid="oh-meer"]').exists()).toBe(false)     // cursor null → knop weg
   })
 })
+
+describe('ObjectHistoriePaneel — LI048: wegwijzer als teken', () => {
+  it('de knop draagt het klokje, met een uitgesproken naam', () => {
+    // Alle zeven detailschermen erven deze knop, dus dit is één plek voor zeven schermen.
+    const w = mountPaneel()
+    const knop = w.get('[data-testid="oh-knop"]')
+    expect(knop.find('svg[data-icoon="geschiedenis"]').exists()).toBe(true)
+    // Een schermlezer moet "Geschiedenis" horen, niet "knop".
+    expect(knop.attributes('aria-label')).toBe('Geschiedenis')
+    expect(knop.attributes('aria-label')).not.toBe('')
+    // De tooltip komt uit `title`; die is niet hetzelfde als aria-label en beide zijn nodig —
+    // een tooltip verschijnt pas bij hangen (op een tablet nooit), en een schermlezer leest
+    // `title` niet betrouwbaar voor.
+    expect(knop.attributes('title')).toBe('Geschiedenis')
+  })
+
+  it('draagt geen dode icoon-verwijzing meer', () => {
+    // Hier stond `icon="pi pi-info-circle"` — een klasse die nergens bestaat, dus er rendeerde
+    // niets. Niet ingevuld maar vervangen: deze knop hoort een klokje te dragen, geen "i".
+    const w = mountPaneel()
+    expect(w.html()).not.toContain('pi-info-circle')
+  })
+})

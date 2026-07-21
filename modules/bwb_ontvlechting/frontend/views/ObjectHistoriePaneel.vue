@@ -10,6 +10,7 @@ import { ref } from 'vue'
 import { Button, Dialog } from '@/primevue'
 import { api } from '@/api'
 import { AUDIT_ACTIE, AUDIT_ENTITEIT, VELD_LABELS, humaniseer, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import Icoon from '@/components/Icoon.vue'
 
 const props = defineProps({
   entiteitType: { type: String, required: true },
@@ -68,14 +69,28 @@ function toon() {
 
 <template>
   <span>
+    <!-- LI048 — WEGWIJZER, dus een teken: deze knop brengt je ergens heen en verandert niets.
+         Klik je er per ongeluk op, dan sluit je het venster weer. De handelingen in dezelfde rij
+         (Bewerken, Heropenen, Verwijderen) blijven bewust een WOORD — zie de grens in Icoon.vue.
+
+         Hier stond een verwijzing naar een informatie-icoontje uit een iconenpakket dat geen
+         afhankelijkheid van dit project is. Die klasse bestond nergens, dus er rendeerde al
+         maanden niets zonder dat iets het meldde. Niet ingevuld maar vervangen — deze knop hoort
+         een klokje te dragen, geen "i". De bron-scan in check-css-build.mjs vangt zo'n dode
+         verwijzing voortaan bij elke build.
+
+         `title` levert de tooltip, `aria-label` de uitgesproken naam. Beide nodig: een tooltip
+         verschijnt pas bij hangen (en op een tablet nooit), en een schermlezer leest `title`
+         niet betrouwbaar voor. -->
     <Button
-      icon="pi pi-info-circle"
-      label="Geschiedenis"
       severity="secondary"
-      aria-label="Toon geschiedenis"
+      title="Geschiedenis"
+      aria-label="Geschiedenis"
       data-testid="oh-knop"
       @click="toon"
-    />
+    >
+      <Icoon naam="geschiedenis" />
+    </Button>
     <Dialog
       v-model:visible="open"
       modal

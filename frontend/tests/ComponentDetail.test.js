@@ -922,3 +922,66 @@ describe('ComponentDetail — één aanduiding per feit (slice 4c besluit 21)', 
     expect(w.findAll('[data-norm-lat]').length).toBe(2)
   })
 })
+
+describe('ComponentDetail — LI048: wegwijzers zijn een teken, handelingen een woord', () => {
+  it('"Bekijk op kaart" draagt het kaartteken met een uitgesproken naam', async () => {
+    const { w } = await mountDetail()
+    const knop = w.get('[data-testid="bekijk-op-kaart-knop"]')
+    expect(knop.find('svg[data-icoon="kaart"]').exists()).toBe(true)
+    expect(knop.attributes('aria-label')).toBe('Bekijk op kaart')
+    expect(knop.attributes('title')).toBe('Bekijk op kaart')
+    // Geen zichtbaar woord meer — dát is de ruimtewinst.
+    expect(knop.text().trim()).toBe('')
+  })
+
+  it('DE REGEL: elke handeling in de kop draagt een zichtbaar woord', async () => {
+    // Dit is de regel, niet het geval. Wie er later "voor de consistentie" een teken van maakt,
+    // laat deze toets omvallen — en dat is de bedoeling: een handeling verandert iets, en moet
+    // in één blik te lezen zijn, ook door iemand die het scherm voor het eerst ziet. Een tooltip
+    // verschijnt pas als je met de muis blijft hangen, en op een tablet nooit.
+    const { w } = await mountDetail()
+    const HANDELINGEN = [
+      'bewerk-knop',
+      'verwijder-knop',
+      'klaarverklaar-knop',
+    ]
+    for (const testid of HANDELINGEN) {
+      const knop = w.find(`[data-testid="${testid}"]`)
+      if (!knop.exists()) continue          // niet elke statusovergang is altijd zichtbaar
+      expect(knop.text().trim().length, testid).toBeGreaterThan(0)
+      expect(knop.find('svg').exists(), `${testid} hoort geen teken te dragen`).toBe(false)
+    }
+  })
+
+  it('de tekens houden dezelfde hoogte als de woordknoppen', async () => {
+    // Loopt dit uit de pas, dan valt de rij visueel uiteen — het probleem van de lijstkop eerder
+    // deze sessie. Het teken schaalt op `1em`, dus het erft de regelhoogte van de knop; er staat
+    // nergens een eigen pixelmaat die daarvan af kan wijken.
+    const { w } = await mountDetail()
+    for (const naam of ['kaart', 'geschiedenis']) {
+      const svg = w.find(`svg[data-icoon="${naam}"]`)
+      if (!svg.exists()) continue
+      expect(svg.attributes('height')).toBe('1em')
+      expect(svg.attributes('width')).toBe('1em')
+    }
+    // Beide knoppen komen uit hetzelfde Button-preset als de woordknoppen: dezelfde padding,
+    // dezelfde regelhoogte. Zou een van beide een eigen `class` met hoogte krijgen, dan is dat
+    // hier zichtbaar.
+    const kaart = w.get('[data-testid="bekijk-op-kaart-knop"]')
+    const bewerk = w.find('[data-testid="bewerk-knop"]')
+    if (bewerk.exists()) {
+      expect(kaart.classes().join(' ')).not.toMatch(/\bh-\[|\bheight/)
+      expect(bewerk.classes().join(' ')).not.toMatch(/\bh-\[|\bheight/)
+    }
+  })
+
+  it('de volgorde van de knoppen is onveranderd', async () => {
+    // De wijziging gaat over de VORM van twee knoppen, niet over hun plaats.
+    const { w } = await mountDetail()
+    const html = w.html()
+    const pos = (t) => html.indexOf(`data-testid="${t}"`)
+    expect(pos('bekijk-op-kaart-knop')).toBeGreaterThan(pos('bewerk-knop'))
+    expect(pos('oh-knop')).toBeGreaterThan(pos('bekijk-op-kaart-knop'))
+    expect(pos('verwijder-knop')).toBeGreaterThan(pos('oh-knop'))
+  })
+})
