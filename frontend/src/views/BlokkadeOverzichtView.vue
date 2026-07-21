@@ -16,6 +16,7 @@ import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import { detailRoute } from '@/detailIngang'
 import { BLOKKADE_STATUS, BLOKKADE_STATUS_SEVERITY, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import LijstKop from '@/components/LijstKop.vue'
 
 const route = useRoute()
 
@@ -132,26 +133,25 @@ onMounted(() => {
 
 <template>
   <section aria-labelledby="blokkades-titel">
-    <div class="flex items-center flex-wrap gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1
-        id="blokkades-titel"
-        class="text-[var(--lk-color-primary)]"
-      >
-        Blokkades
-      </h1>
-      <label class="ml-auto flex items-center gap-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[var(--lk-color-text-muted)]">Status</span>
-        <select
-          v-model="statusFilter"
-          data-testid="status-filter"
-          aria-label="Filter op blokkade-status"
-          class="lk-veld"
-          @change="onFilterWijziging"
-        >
-          <option v-for="o in STATUS_OPTIES" :key="o.waarde" :value="o.waarde">{{ o.tekst }}</option>
-        </select>
-      </label>
-    </div>
+    <!-- LI048 snede 2 — de gedeelde kop. Het statusfilter stond al in de kop-rij en blijft
+         daar: het bepaalt WELKE blokkades je ziet, en dat is precies wat in de kop hoort. Het
+         gaat naar het filter-slot, dus het staat op dezelfde plek als de Filter-knop elders. -->
+    <LijstKop titel="Blokkades" titel-id="blokkades-titel">
+      <template #filter>
+        <label class="flex items-center gap-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]">
+          <span class="text-[var(--lk-color-text-muted)]">Status</span>
+          <select
+            v-model="statusFilter"
+            data-testid="status-filter"
+            aria-label="Filter op blokkade-status"
+            class="lk-veld"
+            @change="onFilterWijziging"
+          >
+            <option v-for="o in STATUS_OPTIES" :key="o.waarde" :value="o.waarde">{{ o.tekst }}</option>
+          </select>
+        </label>
+      </template>
+    </LijstKop>
 
     <p
       v-if="fout"

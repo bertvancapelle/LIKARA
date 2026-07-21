@@ -13,6 +13,7 @@ import { api } from '@/api'
 import { detailRoute } from '@/detailIngang'
 import { ARCHIMATE_ASPECT, ARCHIMATE_ELEMENT, ARCHIMATE_LAAG, humaniseer, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import ArchitectuurLagenView from './ArchitectuurLagenView.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 // Filteropties: lagen + aspecten uit de label-maps; element-typen vast (de ElementType-enum).
 const LAAG_OPTIES = Object.keys(ARCHIMATE_LAAG)
@@ -101,16 +102,29 @@ onMounted(() => { if (weergave.value === 'tabel') laad({ reset: true }) })
 
 <template>
   <section aria-labelledby="arch-titel">
-    <h1
-      id="arch-titel"
-      class="mb-[var(--lk-space-md)] text-[var(--lk-color-primary)]"
-    >
-      Architectuur — lagen
-    </h1>
+    <!-- LI048 snede 2 — de gedeelde kop. Dit scherm heeft geen zoekveld en geen aanmaakactie:
+         het lege geval, met alleen de naam. "Architectuur — lagen" is de langste schermnaam die
+         er is; hij mag niet worden afgekapt, en dat is precies wat `shrink-0` in de bouwsteen
+         borgt. -->
+    <LijstKop titel="Architectuur — lagen" titel-id="arch-titel" />
 
-    <!-- LI025 — weergave-toggle Lagen/Tabel (default Lagen). -->
-    <div class="mb-[var(--lk-space-md)] flex w-fit gap-1 rounded-[var(--lk-radius-btn)] bg-[var(--lk-color-accent)] p-1">
-      <button v-for="m in ['lagen', 'tabel']" :key="m" type="button" :data-testid="`arch-weergave-${m}`" :aria-pressed="weergave === m" :class="['rounded-[var(--lk-radius-btn)] px-[var(--lk-space-md)] py-1 text-[length:var(--lk-text-sm)]', weergave === m ? 'bg-[var(--lk-color-primary)] text-white' : '']" @click="setWeergave(m)">{{ m === 'lagen' ? 'Lagen' : 'Tabel' }}</button>
+    <!-- LI025 — weergave-toggle Lagen/Tabel (default Lagen). LI048: verhuisd uit de kop naar de
+         zone eronder, en op de gedeelde `.lk-schakelaar`-bouwsteen (was een eigen inline vorm:
+         een grijze plaat met losse knopjes erin). Zelfde beweging als Boom|Diagram op
+         Bedrijfsfuncties, en om dezelfde reden: dit bepaalt HOE je naar dezelfde elementen
+         kijkt, niet WELKE je ziet. -->
+    <div class="mb-[var(--lk-space-md)] flex items-center">
+      <div role="group" aria-label="Weergave" data-testid="arch-weergave-schakelaar" class="lk-schakelaar">
+        <button
+          v-for="m in ['lagen', 'tabel']"
+          :key="m"
+          type="button"
+          class="lk-schakelaar-stand"
+          :data-testid="`arch-weergave-${m}`"
+          :aria-pressed="weergave === m"
+          @click="setWeergave(m)"
+        >{{ m === 'lagen' ? 'Lagen' : 'Tabel' }}</button>
+      </div>
     </div>
 
     <ArchitectuurLagenView v-if="weergave === 'lagen'" />

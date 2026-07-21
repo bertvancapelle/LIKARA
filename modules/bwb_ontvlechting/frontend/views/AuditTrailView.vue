@@ -14,6 +14,7 @@ import { Button, Column, DataTable, InputText } from '@/primevue'
 import { api } from '@/api'
 import { AUDIT_ACTIE, AUDIT_ENTITEIT, actorWeergave, diffWeergave, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import ZoekSelect from './ZoekSelect.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 const gebeurtenissen = ref([])
 const cursor = ref(null)
@@ -91,14 +92,38 @@ laad()
 
 <template>
   <section aria-labelledby="audit-titel">
-    <h1 id="audit-titel" class="mb-[var(--lk-space-md)]">Auditlog</h1>
+    <!-- LI048 snede 2 — de gedeelde kop. Auditlog is géén andere soort scherm: de consultant
+         komt hier om iets terug te vinden, dezelfde beweging als op Componenten. Staat de
+         besturing hier ergens anders, dan moet hij juist op het scherm waar hij uitzoekt wát er
+         gebeurd is, opnieuw leren hoe het werkt. Twee van de vier onderdelen ontbreken (geen
+         filtervenster, geen aanmaakactie) — en dat is precies waar regel 3 voor is.
 
-    <!-- Filterbalk -->
+         ÉÉN functioneel verschil blijft: de Zoeken-knop is EXPLICIET. Op een auditlog kunnen
+         heel veel regels staan; elke toetsaanslag een zoekopdracht laten afvuren is daar geen
+         dienst. Het veld luistert dus alleen naar Enter (`@keyup.enter`), nooit naar `@input`.
+         Dat verschil zit in het gedrag, niet in de vorm — de knop staat naast het veld, niet in
+         het actie-slot: hij maakt niets aan, hij voert de zoekopdracht uit. -->
+    <LijstKop titel="Auditlog" titel-id="audit-titel">
+      <template #zoek>
+        <div class="flex items-center gap-[var(--lk-space-sm)]">
+          <label for="filter-naam" class="sr-only">Naam</label>
+          <input
+            id="filter-naam"
+            v-model="filters.actor_naam"
+            type="search"
+            maxlength="255"
+            data-testid="filter-naam"
+            placeholder="Zoek op naam…"
+            class="lk-veld w-full"
+            @keyup.enter="pasToe"
+          />
+          <Button label="Zoeken" data-testid="audit-toepassen" class="shrink-0" @click="pasToe" />
+        </div>
+      </template>
+    </LijstKop>
+
+    <!-- Filterbalk — blijft onder de kop staan; deze vier verfijnen de zoekopdracht. -->
     <div class="flex flex-wrap items-end gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <div class="flex flex-col gap-[var(--lk-space-xs)]">
-        <label for="filter-naam" class="text-[length:var(--lk-text-sm)] font-semibold">Naam</label>
-        <InputText id="filter-naam" v-model="filters.actor_naam" data-testid="filter-naam" placeholder="Naam (deel)…" @keyup.enter="pasToe" />
-      </div>
       <div class="flex flex-col gap-[var(--lk-space-xs)]">
         <label for="filter-van" class="text-[length:var(--lk-text-sm)] font-semibold">Van</label>
         <input id="filter-van" v-model="filters.van" type="date" data-testid="filter-van" class="lk-veld" @change="pasToe" />
@@ -118,7 +143,6 @@ laad()
           <option v-for="a in ['create', 'update', 'delete', 'derive']" :key="a" :value="a">{{ label(AUDIT_ACTIE, a) }}</option>
         </select>
       </div>
-      <Button label="Zoeken" data-testid="audit-toepassen" @click="pasToe" />
       <Button label="Wissen" severity="secondary" data-testid="audit-wissen" @click="wis" />
     </div>
 

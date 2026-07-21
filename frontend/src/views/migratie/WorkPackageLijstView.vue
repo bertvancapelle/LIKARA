@@ -12,6 +12,7 @@ import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -87,12 +88,14 @@ onMounted(() => laad({ reset: true }))
 
 <template>
   <section aria-labelledby="wp-titel">
-    <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="wp-titel" class="text-[var(--lk-color-primary)]">
-        Werkpakketten
-      </h1>
-      <Button v-if="magAanmaken" label="+ Nieuw werkpakket" data-testid="wp-nieuw" class="ml-auto" @click="openNieuw" />
-    </div>
+    <!-- LI048 snede 2 — het lege geval van de gedeelde kop: niets te zoeken, niets te filteren.
+         De ruimte tussen naam en actie blijft leeg, zodat de aanmaakknop op exact dezelfde plek
+         staat als op Componenten. Dat is regel 3. -->
+    <LijstKop titel="Werkpakketten" titel-id="wp-titel">
+      <template v-if="magAanmaken" #actie>
+        <Button label="+ Nieuw werkpakket" data-testid="wp-nieuw" @click="openNieuw" />
+      </template>
+    </LijstKop>
 
     <p
       v-if="fout"

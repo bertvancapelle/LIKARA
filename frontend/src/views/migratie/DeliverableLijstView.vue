@@ -11,6 +11,7 @@ import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -81,12 +82,14 @@ onMounted(() => laad({ reset: true }))
 
 <template>
   <section aria-labelledby="del-titel">
-    <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="del-titel" class="text-[var(--lk-color-primary)]">
-        Deliverables
-      </h1>
-      <Button v-if="magAanmaken" label="+ Nieuwe deliverable" data-testid="del-nieuw" class="ml-auto" @click="openNieuw" />
-    </div>
+    <!-- LI048 snede 2 — het lege geval van de gedeelde kop: niets te zoeken, niets te filteren.
+         De ruimte tussen naam en actie blijft leeg, zodat de aanmaakknop op exact dezelfde plek
+         staat als op Componenten. Dat is regel 3. -->
+    <LijstKop titel="Deliverables" titel-id="del-titel">
+      <template v-if="magAanmaken" #actie>
+        <Button label="+ Nieuwe deliverable" data-testid="del-nieuw" @click="openNieuw" />
+      </template>
+    </LijstKop>
 
     <p
       v-if="fout"

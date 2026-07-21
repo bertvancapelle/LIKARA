@@ -15,6 +15,7 @@ import { api } from '@/api'
 import { GEBRUIKER_ROL, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import ZoekSelect from './ZoekSelect.vue'
 import AfdelingSelect from './AfdelingSelect.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 // ADR-029 Fase 2b — de vier toewijsbare tenant-rollen (rol-wijziging).
 const ROL_OPTIES = ['viewer', 'medewerker', 'beheerder', 'auditor']
@@ -328,16 +329,13 @@ onMounted(laad)
 
 <template>
   <section aria-labelledby="gebr-titel">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1 id="gebr-titel">Gebruikersbeheer</h1>
-      <Button
-        v-if="magBeheren"
-        label="Gebruiker toevoegen"
-        data-testid="gebr-toevoegen"
-        class="ml-auto"
-        @click="openDialog"
-      />
-    </div>
+    <!-- LI048 snede 2 — lege geval van de gedeelde kop (niets te zoeken of te filteren);
+         "Gebruiker toevoegen" staat daardoor op dezelfde plek als elke andere aanmaakactie. -->
+    <LijstKop titel="Gebruikersbeheer" titel-id="gebr-titel">
+      <template v-if="magBeheren" #actie>
+        <Button label="Gebruiker toevoegen" data-testid="gebr-toevoegen" @click="openDialog" />
+      </template>
+    </LijstKop>
 
     <p v-if="fout" role="alert" data-testid="gebr-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
     <p v-if="laden" data-testid="gebr-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>

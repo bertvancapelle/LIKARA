@@ -11,6 +11,7 @@ import { useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 const router = useRouter()
 const toast = useToast()
@@ -81,12 +82,15 @@ onMounted(() => laad({ reset: true }))
 
 <template>
   <section aria-labelledby="plateaus-titel">
-    <div class="mb-[var(--lk-space-md)] flex items-center gap-[var(--lk-space-md)]">
-      <h1 id="plateaus-titel" class="text-[var(--lk-color-primary)]">
-        Plateaus
-      </h1>
-      <Button v-if="magAanmaken" label="+ Nieuw plateau" data-testid="plateau-nieuw" class="ml-auto" @click="openNieuw" />
-    </div>
+    <!-- LI048 snede 2 — het LEGE GEVAL van de gedeelde kop: dit scherm heeft niets te zoeken
+         en niets te filteren, en juist daarom staat het hier. De ruimte tussen naam en actie
+         blijft leeg, zodat "+ Nieuw plateau" op exact dezelfde plek staat als "Nieuw component"
+         op Componenten. Dat is regel 3, en het is de hele reden dat zoekloze schermen meedoen. -->
+    <LijstKop titel="Plateaus" titel-id="plateaus-titel">
+      <template v-if="magAanmaken" #actie>
+        <Button label="+ Nieuw plateau" data-testid="plateau-nieuw" @click="openNieuw" />
+      </template>
+    </LijstKop>
 
     <p
       v-if="fout"

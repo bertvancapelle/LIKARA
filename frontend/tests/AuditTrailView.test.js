@@ -137,3 +137,35 @@ describe('AuditTrailView', () => {
     expect(diffWeergave({ actie: 'delete', wijziging: { naam: { oud: 'A' } } })).toEqual({ intro: 'Verwijderd:', regels: ['Naam was A'] })
   })
 })
+
+describe('AuditTrailView — LI048: de gedeelde kop, met expliciet zoeken', () => {
+  it('draagt de gedeelde LijstKop met het zoekveld erin', async () => {
+    const w = await mountView()
+    expect(w.get('[data-testid="lijst-kop"]').find('[data-testid="filter-naam"]').exists()).toBe(true)
+  })
+
+  it('zoekt NIET tijdens typen — alleen op Enter of op de knop', async () => {
+    // Op een auditlog kunnen heel veel regels staan; elke toetsaanslag een zoekopdracht laten
+    // afvuren is daar geen dienst. Dit is het ene functionele verschil dat blijft, dus valt deze
+    // toets om zodra iemand het "verbetert" naar zoeken-tijdens-typen.
+    const w = await mountView()
+    api.auditlog.lijst.mockClear()
+    const veld = w.get('[data-testid="filter-naam"]')
+    await veld.setValue('jansen')
+    await veld.trigger('input')
+    await flushPromises()
+    expect(api.auditlog.lijst).not.toHaveBeenCalled()   // typen doet niets
+
+    await veld.trigger('keyup.enter')
+    await flushPromises()
+    expect(api.auditlog.lijst).toHaveBeenCalled()       // Enter wél
+  })
+
+  it('de Zoeken-knop voert de zoekopdracht uit', async () => {
+    const w = await mountView()
+    api.auditlog.lijst.mockClear()
+    await w.get('[data-testid="audit-toepassen"]').trigger('click')
+    await flushPromises()
+    expect(api.auditlog.lijst).toHaveBeenCalled()
+  })
+})

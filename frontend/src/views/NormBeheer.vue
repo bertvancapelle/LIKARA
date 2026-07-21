@@ -18,6 +18,7 @@ import { toastSucces } from '@/meldingen'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { NORM_FEIT_LABEL, label } from '@modules/bwb_ontvlechting/frontend/labels'
+import LijstKop from '@/components/LijstKop.vue'
 
 const auth = useAuthStore()
 const toast = useToast()
@@ -86,10 +87,17 @@ laad()
 
 <template>
   <section aria-labelledby="norm-titel">
-    <h1 id="norm-titel" class="mb-[var(--lk-space-sm)]">
-      Migratienorm
-    </h1>
-    <p class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
+    <!-- LI048 snede 2 — de gedeelde kop; dit scherm heeft niets te zoeken en geen
+         aanmaakactie (de lat verzet je per regel), dus alleen de naam. -->
+    <LijstKop titel="Migratienorm" titel-id="norm-titel" />
+
+    <!-- De toelichting BLIJFT staan en gaat NIET achter een uitleg-"i". Ze is geen extra
+         informatie maar de sleutel tot het scherm: de consultant bepaalt hier wat er straks
+         bij élk component als verplicht verschijnt, en dat is te ingrijpend om op een gok te
+         doen. `max-w-prose` houdt hem smal — het is een alinea, geen kop, en over de volle
+         breedte leest hij slecht. Hij hoort in de zone onder de kop (regel 4): wat er over
+         deze hele lijst te zeggen valt. -->
+    <p data-testid="norm-toelichting" class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">
       De lat voor "migratieklaar": welke feiten moeten bekend zijn voordat een component klaar verklaard
       mag worden. Een verplicht feit dat nog niet is vastgesteld verschijnt als openstaand werk — het
       blokkeert niets.

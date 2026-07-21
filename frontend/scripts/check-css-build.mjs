@@ -442,10 +442,20 @@ function scanLijstkopOvertredingen(bron, label) {
     overtredingen.push(`${label}: lijstscherm zonder <LijstKop> — de kop wordt niet met de hand gebouwd`)
     return overtredingen
   }
-  const kopEinde = t.indexOf('</LijstKop>', kopStart)
-  if (kopEinde < 0) {
-    overtredingen.push(`${label}: <LijstKop> zonder sluittag`)
-    return overtredingen
+  // Een scherm zonder slots schrijft `<LijstKop ... />` — legitiem (Migratienorm en
+  // Architectuur hebben niets te zoeken, te filteren of aan te maken). Het kop-BLOK is dan
+  // de tag zelf. Zonder deze tak keurde de scan juist het schoonste geval af.
+  const tagEinde = t.indexOf('>', kopStart)
+  const zelfsluitend = tagEinde > 0 && t[tagEinde - 1] === '/'
+  let kopEinde
+  if (zelfsluitend) {
+    kopEinde = tagEinde
+  } else {
+    kopEinde = t.indexOf('</LijstKop>', kopStart)
+    if (kopEinde < 0) {
+      overtredingen.push(`${label}: <LijstKop> zonder sluittag`)
+      return overtredingen
+    }
   }
   const BUITEN_VERBODEN = [
     { naald: '<h1', uitleg: 'een tweede paginakop' },
@@ -516,6 +526,18 @@ const LIJSTKOP_ZELFTEST = [
     naam: 'schakelaar-onder-de-kop-passeert', verwacht: 0,
     bron: '<template><LijstKop titel="X" titel-id="x"></LijstKop><div role="group" aria-label="Weergave"><button>Boom</button></div></template>',
   },
+  // Een scherm zonder slots schrijft de bouwsteen zelfsluitend — legitiem, en het schoonste
+  // geval dat er is. De scan keurde dit ooit af ("zonder sluittag"); die tak blijft geborgd.
+  {
+    naam: 'zelfsluitende-kop-passeert', verwacht: 0,
+    bron: '<template><LijstKop titel="X" titel-id="x" /><table /></template>',
+  },
+  // ... maar de regels blijven gelden rond een zelfsluitende kop: alles staat er per definitie
+  // buiten, dus een zoekveld eronder is nog steeds fout.
+  {
+    naam: 'zelfsluitende-kop-dekt-niet-alles-af', verwacht: 1,
+    bron: '<template><LijstKop titel="X" titel-id="x" /><input type="search" /></template>',
+  },
 ]
 let lijstkopZelftestFouten = 0
 for (const { naam, verwacht, bron } of LIJSTKOP_ZELFTEST) {
@@ -531,17 +553,83 @@ if (lijstkopZelftestFouten > 0) {
 }
 console.log(`[css-build-check] OK — lijstkop-scan-zelftest: ${LIJSTKOP_ZELFTEST.length}/${LIJSTKOP_ZELFTEST.length} (de scan bijt).`)
 
+// Het BEREIK wordt AFGELEID, niet opgesomd (LI048 snede 2). Eerst pakte de scan `*Lijst.vue`
+// — dat waren toevallig precies de vier schermen uit snede 1, en géén van de tien die daarna
+// volgden (`AuditTrailView`, `NormBeheer`, `ChecklistConfigBeheer`, …). Een naamconventie is
+// hier dus geen criterium maar een toevalligheid, en dat is precies hoe een borging stilletjes
+// smaller wordt dan hij lijkt.
+//
+// Het echte criterium komt uit wat de GEBRUIKER ziet: een scherm dat in het hoofdmenu staat en
+// een lijst toont, is een lijstscherm. Hij loopt die menu-items achter elkaar af, en dáár moet
+// de besturing op dezelfde plek staan. Vandaar: lees de menu-routes uit AppLayout.vue, zoek de
+// bijbehorende componenten in de router, en scan die.
+//
+// Twee dingen vallen structureel af, allebei afleidbaar uit de bron — geen namenlijst:
+//  - een menu-scherm ZONDER lijst (Dashboard, Landschapskaart) heeft geen lijstkop nodig;
+//  - een scherm dat zijn EIGEN TABRIJ draagt (`role="tab"`) is geen enkelvoudig lijstscherm maar
+//    een container van deelschermen (Signalering, ADR-035: registratiegaten + plaatsing als
+//    tabs). Die krijgt zijn kop van de tab-bouwsteen, in een eigen snede — zijn tabblad-inhoud
+//    een eigen <h1> geven zou juist een tweede paginakop opleveren.
+function menuSchermen() {
+  const layout = readFileSync(path.join(FRONTEND, 'src/layouts/AppLayout.vue'), 'utf8')
+  const router = readFileSync(path.join(FRONTEND, 'src/router/index.js'), 'utf8')
+  // 1. routenamen uit de menu-links
+  const routes = new Set([...layout.matchAll(/:to="\{\s*name:\s*'([^']+)'/g)].map((m) => m[1]))
+  // 2. routenaam -> componentnaam, uit de router-definities
+  const perRoute = new Map()
+  for (const m of router.matchAll(/name:\s*'([^']+)',\s*component:\s*([A-Za-z0-9_]+)/g)) {
+    perRoute.set(m[1], m[2])
+  }
+  // 3. componentnaam -> bestandspad, uit de lazy imports
+  const perComponent = new Map()
+  for (const m of router.matchAll(/const\s+([A-Za-z0-9_]+)\s*=\s*\(\)\s*=>\s*import\('([^']+)'\)/g)) {
+    perComponent.set(m[1], m[2])
+  }
+  const uit = []
+  for (const route of routes) {
+    const comp = perRoute.get(route)
+    const rel = comp && perComponent.get(comp)
+    if (!rel) continue
+    // Alias-resolutie. HIER GING HET ÉÉN KEER MIS en het is leerzaam: zonder deze twee regels
+    // resolveden alleen de relatieve paden, vielen alle zeven `@modules/...`-schermen (Componenten,
+    // Partijen, Auditlog, …) stil weg, en meldde de scan monter "8 schermen op de bouwsteen" —
+    // een groene uitslag over nog niet de helft. Vandaar dat een onleesbaar pad hieronder LUID
+    // faalt in plaats van `continue`: een borging die stilletjes smaller wordt dan hij lijkt is
+    // gevaarlijker dan geen borging, want hij wekt vertrouwen dat hij niet waarmaakt.
+    const vol = rel.startsWith('@modules/') ? path.join(FRONTEND, '..', rel.slice('@'.length))
+      : rel.startsWith('@/') ? path.join(FRONTEND, 'src', rel.slice(2))
+      : path.resolve(path.join(FRONTEND, 'src/router'), rel)
+    let bron
+    try {
+      bron = readFileSync(vol, 'utf8')
+    } catch {
+      console.error(`\n[css-build-check] FAAL: menu-route '${route}' wijst naar '${rel}', maar dat bestand is niet te lezen (${vol}).`)
+      console.error('De lijstkop-scan zou dit scherm stil overslaan — repareer de padresolutie in menuSchermen().')
+      process.exit(1)
+    }
+    const tmpl = /<template>([\s\S]*)<\/template>/.exec(bron)
+    if (!tmpl) continue
+    const t = tmpl[1].replace(/<!--[\s\S]*?-->/g, '')
+    if (/role="tab"|<AppTabs/.test(t)) continue        // container van deelschermen
+    // "Toont een lijst" = een tabel, OF het scherm staat al op de bouwsteen. Die tweede tak is
+    // geen slappe truc maar dekt een echt gat: Bedrijfsfuncties toont een BOOM en een diagram,
+    // geen tabel — het viel dus buiten een puur tabel-criterium, terwijl het sinds snede 1b wel
+    // degelijk op de kop staat. Zonder deze tak kon het er stilletjes weer af, ongezien. Het
+    // effect is een ratel: een scherm dat de bouwsteen eenmaal draagt, blijft bewaakt; een nieuw
+    // scherm mét tabel wordt alsnog gedwongen.
+    if (!/<DataTable|<table/.test(t) && !t.includes('<LijstKop')) continue
+    uit.push({ bestand: vol, bron, route })
+  }
+  return uit
+}
+
 let lijstkopOvertredingen = []
 let lijstGescand = 0
-for (const wortel of SCAN_WORTELS) {
-  for (const bestand of vueBestanden(path.join(FRONTEND, wortel))) {
-    const naam = path.basename(bestand)
-    if (!naam.endsWith('Lijst.vue') || naam === 'LijstKop.vue') continue
-    lijstGescand++
-    lijstkopOvertredingen = lijstkopOvertredingen.concat(
-      scanLijstkopOvertredingen(readFileSync(bestand, 'utf8'), path.relative(FRONTEND, bestand)),
-    )
-  }
+for (const { bestand, bron } of menuSchermen()) {
+  lijstGescand++
+  lijstkopOvertredingen = lijstkopOvertredingen.concat(
+    scanLijstkopOvertredingen(bron, path.relative(FRONTEND, bestand)),
+  )
 }
 if (lijstkopOvertredingen.length > 0) {
   console.error(`\n[css-build-check] FAAL: ${lijstkopOvertredingen.length} lijstkop-afwijking(en):`)
@@ -549,7 +637,7 @@ if (lijstkopOvertredingen.length > 0) {
   console.error('De besturing staat op élk lijstscherm op dezelfde plek: gebruik de LijstKop-bouwsteen (src/components/LijstKop.vue).')
   process.exit(1)
 }
-console.log(`[css-build-check] OK — lijstkop-scan: ${lijstGescand} lijstschermen op de bouwsteen (geen uitzonderingen).`)
+console.log(`[css-build-check] OK — lijstkop-scan: ${lijstGescand} hoofdmenu-lijstschermen op de bouwsteen (bereik afgeleid uit het menu, geen uitzonderingen).`)
 
 // ── LI047: kopstijl-bron-scan — één maat voor de paginatitel ────────────────────────────────
 // Tailwind-preflight zet h1..h6 op `font-size: inherit; font-weight: inherit`; de basislaag

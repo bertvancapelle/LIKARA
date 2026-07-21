@@ -14,6 +14,7 @@ import { computed, reactive, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
+import LijstKop from '@/components/LijstKop.vue'
 
 const ANTWOORDTYPES = ['geen', 'enkelvoudige_keuze', 'meerkeuze', 'getal']
 const TYPE_LABEL = {
@@ -231,20 +232,25 @@ laad()
 
 <template>
   <section aria-labelledby="beheer-titel">
-    <div class="flex items-center gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">
-      <h1 id="beheer-titel">Checklistvragen</h1>
-      <label class="ml-auto flex items-center gap-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]">
-        Categorie
-        <select
-          v-model="categorieFilter"
-          data-testid="cfg-categorie-filter"
-          class="lk-veld"
-        >
-          <option value="">Alle</option>
-          <option v-for="nr in categorieen" :key="nr" :value="String(nr)">Categorie {{ nr }}</option>
-        </select>
-      </label>
-    </div>
+    <!-- LI048 snede 2 — de gedeelde kop. Het categoriefilter bepaalt WELKE vragen je ziet en
+         hoort dus in de kop; het gaat naar het filter-slot, op dezelfde plek als de Filter-knop
+         elders. De "vraag toevoegen"-actie staat bewust NIET in de kop: dat is hier geen knop
+         maar een heel invulblok verderop op de pagina. -->
+    <LijstKop titel="Checklistvragen" titel-id="beheer-titel">
+      <template #filter>
+        <label class="flex items-center gap-[var(--lk-space-sm)] text-[length:var(--lk-text-sm)]">
+          Categorie
+          <select
+            v-model="categorieFilter"
+            data-testid="cfg-categorie-filter"
+            class="lk-veld"
+          >
+            <option value="">Alle</option>
+            <option v-for="nr in categorieen" :key="nr" :value="String(nr)">Categorie {{ nr }}</option>
+          </select>
+        </label>
+      </template>
+    </LijstKop>
 
     <p v-if="fout" role="alert" data-testid="cfg-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
     <p v-if="actieFout" role="alert" data-testid="cfg-actie-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ actieFout }}</p>
