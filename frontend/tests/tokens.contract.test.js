@@ -94,7 +94,7 @@ describe('LI048 — buitenrand zwaarder dan binnenlijn', () => {
   })
 
   it('de RANGORDE klopt: zware buitenrand > kader/blok > streepjes erbinnen', () => {
-    // Drie lijnen, drie betekenissen (likara-frontend §lijntaal):
+    // Drie lijnen, drie betekenissen (likara-frontend §"Drie lijngewichten, drie betekenissen"):
     //   zwaar  = hier begint en eindigt mijn werkgebied  (--lk-color-border-sterk)
     //   gewoon = dit hoort bij elkaar, één blok          (--lk-color-border)
     //   dun    = regels binnen een lijst                 (--lk-color-border, lichter door 1px op wit)

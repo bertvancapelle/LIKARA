@@ -1493,8 +1493,8 @@ async def _seed_bvowb_scenario(session, tenant_id) -> dict:
         await _draait_op(fs_id, app_naam)
     # ADR-055 — HET geval waarvoor de gebruik-verfijning component-breed is gemaakt: de gedeelde
     # G-schijf waar Burgerzaken op werkt. Zonder dit geval toont een browsercheck een LEEG tabblad en
-    # kan hij niet aantonen dát de verbreding werkt (werkprotocol §LI044: seed de demostaat zó dat de
-    # browsercheck iets te zien geeft). De afdeling bestaat al als organisatie_eenheid onder Gemeente
+    # kan hij niet aantonen dát de verbreding werkt (werkprotocol §"Seed de demostaat zó dat de
+    # browsercheck iets te zien geeft", LI044). De afdeling bestaat al als organisatie_eenheid onder Gemeente
     # Tiel — geen extra partij nodig. Idempotent: alleen als de fileshare nog geen serving heeft.
     _fs_heeft_gg = (
         await session.execute(

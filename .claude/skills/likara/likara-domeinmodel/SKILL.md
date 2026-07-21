@@ -508,7 +508,8 @@ de DELETE bewaakt** volgt uit `verwijder_actie(entiteit)` + de frozensets
 registratie-feit **erft** de regel. Geborgd door `test_rollengrens_adr050`
 (`test_classificatie_disjunct_en_verwijder_actie` + `test_primaire_delete_erft_categorie_en_bijt`:
 faalt als een content-entiteit niet geclassificeerd is of haar primaire DELETE niet met haar
-categorie strookt). Frontend-gating: `likara-frontend`/`likara-security` §LI037-reparatie.
+categorie strookt). Frontend-gating: `likara-frontend` §"Destructieve gating volgt de rollengrens" +
+`likara-security` §"Welk recht een DELETE eist".
 `IMPACT_VIEW`/`GEBRUIKER_VOORKEUR` vallen buiten de grens (eigen-beheer, `_EIGEN_*`).
 
 ### Audit: ADR-006 (append-only, hash-chained)
@@ -993,7 +994,7 @@ antwoord gelezen. De MVP-vorm van de latere beoordelingsgrondslag.)*
   "gedeeltelijk".** Bewijs: GEMMA bood 12 bedrijfsfunctie↔bedrijfsproces-relaties (**4%** dekking) → géén
   automatische brug functie↔proces gebouwd. Levert de bron de brug niet, dan moet de **gemeente hem zelf
   leggen** — een implementatieproject vóór er waarde is, tegen de kern van LIKARA. Dan niet bouwen.
-  Aansluitend op §LI039 *"telling vóór besluit — denkbaar is niet geteld"*. Referentie:
+  Aansluitend op likara-werkprotocol §LI039 *"telling vóór besluit — denkbaar is niet geteld"*. Referentie:
   `docs/Meting-gemma-functie-proces-relatie-V045.md`.
 
 - **Een feit hoort in de platform-default; de verplichtstelling is een tenant-keuze (LI045).** Kun je een

@@ -2142,7 +2142,7 @@ Parkeer-items — laat die twee niet door elkaar lopen.*
   correct), maar "onbekend" leest als een persoon. De open-punten-zin lost dit anders op ("wie dat
   deed is niet vastgelegd"), maar dat is een volzin waar dit een compacte metaregel is.
   **Alleen zinvol als dat blok blijft bestaan** — de kopknop van LI047 vervangt het mogelijk.
-- **`likara-werkprotocol` staat op 595 regels**, met vier nieuwe koppen onder §Gate-discipline na
+- **`likara-werkprotocol` staat op 638 regels**, met vier nieuwe koppen onder §Gate-discipline na
   LI047. Een sectie met vier nieuwe koppen beschrijft niet meer één ding. **Wie er patronen bij wil
   zetten, consolideert eerst** — een protocol dat niemand meer leest geeft schijnzekerheid, en elke
   discipline die erop leunt leunt dan op niets. Staat als punt 0 in NEXT_SESSION.
