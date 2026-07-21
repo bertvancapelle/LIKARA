@@ -37,10 +37,28 @@ async function mountLijst({ rollen = ['medewerker'], pad = '/componenten' } = {}
   const auth = useAuthStore(pinia)
   auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: rollen }
   const wrapper = mount(ComponentLijst, {
-    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], router] },
+    // LI048 — de filters wonen in een Dialog, die naar body teleporteert; zonder deze stub
+    // ziet `find()` de velden niet.
+    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], router], stubs: { teleport: true } },
   })
   await flushPromises()
   return wrapper
+}
+
+/**
+ * LI048 — een filter zetten loopt sinds deze slice via het filtervenster: openen, kiezen,
+ * toepassen. Dat is precies de weg die de consultant loopt; de toetsen die hier doorheen gaan
+ * bewijzen dus de KETEN (venster → concept → toepassen → api-call), niet alleen de api-laag.
+ *
+ * `zet` krijgt de geopende wrapper en doet de veldbediening; daarna wordt toegepast.
+ */
+async function viaFilterVenster(w, zet) {
+  await w.find('[data-testid="filter-knop"]').trigger('click')
+  await flushPromises()
+  await zet(w)
+  await flushPromises()
+  await w.find('[data-testid="filter-toepassen"]').trigger('click')
+  await flushPromises()
 }
 
 const _comp = (naam, id, { type = 'database', label = 'Database', subtype = false } = {}) => ({
@@ -122,8 +140,7 @@ describe('ComponentLijst', () => {
   it('type-filter stuurt componenttype mee en reset de cursor', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-type"]').setValue('database')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-type"]').setValue('database'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ componenttype: 'database', after: undefined }),
     )
@@ -133,8 +150,7 @@ describe('ComponentLijst', () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
     // Het laag-filter wordt uit de catalogus-typing afgeleid (application/technology).
-    await w.find('[data-testid="filter-laag"]').setValue('technology')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-laag"]').setValue('technology'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ laag: 'technology', after: undefined }),
     )
@@ -205,9 +221,10 @@ describe('ComponentLijst', () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
     // Multi-select dropdown: open de trigger, vink een status aan.
-    await w.find('[data-testid="filter-status-trigger"]').trigger('click')
-    await w.find('[data-testid="filter-status-checkbox-geblokkeerd"]').trigger('change')
-    await flushPromises()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-status-trigger"]').trigger('click')
+      await w.find('[data-testid="filter-status-checkbox-geblokkeerd"]').trigger('change')
+    })
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: ['geblokkeerd'], after: undefined }),
     )
@@ -216,22 +233,21 @@ describe('ComponentLijst', () => {
   it('hostingmodel- en eigenaar-filter worden meegestuurd', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-hosting"]').setValue('saas')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-hosting"]').setValue('saas'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ hostingmodel: 'saas' }))
     // UX-B6-b — eigenaar-filter is een organisatie-keuze (ZoekSelect op eigenaar_organisatie_id).
-    await w.find('[data-testid="filter-eigenaar-input"]').trigger('focus')
-    await flushPromises()
-    await w.find('[data-testid="filter-eigenaar-optie-org-1"]').trigger('mousedown')
-    await flushPromises()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-eigenaar-input"]').trigger('focus')
+      await flushPromises()
+      await w.find('[data-testid="filter-eigenaar-optie-org-1"]').trigger('mousedown')
+    })
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ eigenaar_organisatie_id: 'org-1' }))
   })
 
   it('ADR-046: het levensfase-filter belandt END-TO-END in de api-call en wist mee (V012-les)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-levensfase"]').setValue('uitfaseren')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-levensfase"]').setValue('uitfaseren'))
     // De client zet de filter écht in de call (snake_case, exact de backend-param).
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ levensfase: 'uitfaseren', after: undefined }),
@@ -264,15 +280,15 @@ describe('ComponentLijst', () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
     // Rol-multiselect (zelfde component als status): open + vink externe_dataprovider.
-    await w.find('[data-testid="filter-rol-trigger"]').trigger('click')
-    await w.find('[data-testid="filter-rol-checkbox-externe_dataprovider"]').trigger('change')
-    await flushPromises()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-rol-trigger"]').trigger('click')
+      await w.find('[data-testid="filter-rol-checkbox-externe_dataprovider"]').trigger('change')
+    })
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ componentrol: ['externe_dataprovider'], after: undefined }),
     )
     // LI040 — één BIV-filter (hoogste as ≥ drempel) i.p.v. drie per-as-dropdowns.
-    await w.find('[data-testid="filter-biv"]').setValue('hoog')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-biv"]').setValue('hoog'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ componentrol: ['externe_dataprovider'], biv_min: 'hoog' }),
     )
@@ -281,8 +297,7 @@ describe('ComponentLijst', () => {
   it('LI040: BIV "nog niet vastgelegd" stuurt biv_ontbreekt (het gat vindbaar)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-biv"]').setValue('__zonder__')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-biv"]').setValue('__zonder__'))
     const call = api.componenten.lijst.mock.calls.at(-1)[0]
     expect(call.biv_ontbreekt).toBe(1)
     expect(call.biv_min).toBeUndefined()
@@ -291,8 +306,7 @@ describe('ComponentLijst', () => {
   it('LI040: het bedoeling-filter belandt END-TO-END in de api-call (param migratiepad)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-bedoeling"]').setValue('vervangen')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-bedoeling"]').setValue('vervangen'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ migratiepad: 'vervangen', after: undefined }),
     )
@@ -301,9 +315,10 @@ describe('ComponentLijst', () => {
   it('LI040: de resultaatregel toont "X van Y componenten" + chips; één chip wissen wist ALLEEN die filter', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-levensfase"]').setValue('in_ontwikkeling')
-    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
-    await flushPromises()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-levensfase"]').setValue('in_ontwikkeling')
+      await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
+    })
     // Het aantal + de twee actieve filters staan uitgeschreven naast de lege-melding.
     expect(w.find('[data-testid="resultaat-aantal"]').text()).toBe('0 van 19 componenten')
     expect(w.find('[data-testid="filter-chip-levensfase"]').text()).toContain('Levensfase: In ontwikkeling')
@@ -330,14 +345,12 @@ describe('ComponentLijst', () => {
   it('LI040: "nog niet vastgelegd" filtert op AFWEZIGHEID (levensfase_ontbreekt/migratiepad_ontbreekt) + chips', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 13, totaal_ongefilterd: 19 })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-levensfase"]').setValue('__zonder__')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-levensfase"]').setValue('__zonder__'))
     let call = api.componenten.lijst.mock.calls.at(-1)[0]
     expect(call.levensfase_ontbreekt).toBe(1)
     expect(call.levensfase).toBeUndefined() // afwezigheid, geen sentinel-waarde
     expect(w.find('[data-testid="filter-chip-levensfase"]').text()).toContain('Levensfase: nog niet vastgelegd')
-    await w.find('[data-testid="filter-bedoeling"]').setValue('__zonder__')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-bedoeling"]').setValue('__zonder__'))
     call = api.componenten.lijst.mock.calls.at(-1)[0]
     expect(call.migratiepad_ontbreekt).toBe(1)
     expect(call.migratiepad).toBeUndefined()
@@ -369,13 +382,11 @@ describe('ComponentLijst', () => {
   it('LI040: oordeel-filters end-to-end — waarde én "nog niet vastgelegd" (complexiteit/prioriteit)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-complexiteit"]').setValue('hoog')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-complexiteit"]').setValue('hoog'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ complexiteit: 'hoog', after: undefined }),
     )
-    await w.find('[data-testid="filter-prioriteit"]').setValue('__zonder__')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-prioriteit"]').setValue('__zonder__'))
     const call = api.componenten.lijst.mock.calls.at(-1)[0]
     expect(call.prioriteit_ontbreekt).toBe(1)
     expect(call.prioriteit).toBeUndefined() // afwezigheid, geen sentinel-waarde
@@ -409,9 +420,10 @@ describe('ComponentLijst', () => {
   it('ADR-028/LI040: wisFilters wist ook rol + BIV + bedoeling', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-biv"]').setValue('midden')
-    await w.find('[data-testid="filter-bedoeling"]').setValue('herbouw')
-    await flushPromises()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-biv"]').setValue('midden')
+      await w.find('[data-testid="filter-bedoeling"]').setValue('herbouw')
+    })
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ biv_min: 'midden', migratiepad: 'herbouw' }),
     )
@@ -426,27 +438,23 @@ describe('ComponentLijst', () => {
   it('ADR-045: ondersteunt-werk-filter belandt als boolean in de api-call en reset de cursor', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ ondersteunt_werk: false, after: undefined }),
     )
-    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('ja')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-ondersteunt-werk"]').setValue('ja'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ ondersteunt_werk: true }),
     )
     // Terug naar "Alle": de param verdwijnt volledig uit de call (default-pad).
-    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-ondersteunt-werk"]').setValue(''))
     expect(api.componenten.lijst.mock.calls.at(-1)[0].ondersteunt_werk).toBeUndefined()
   })
 
   it('ADR-045: wisFilters wist ook het ondersteunt-werk-filter', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-ondersteunt-werk"]').setValue('nee'))
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ ondersteunt_werk: false }))
     await w.find('[data-testid="filters-wissen"]').trigger('click')
     await flushPromises()
@@ -467,8 +475,13 @@ describe('ComponentLijst', () => {
     expect(api.componenten.lijst).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: ['geblokkeerd'] }),
     )
-    // De dropdown-trigger toont de voorgezette selectie (1 gekozen → het statuslabel).
-    expect(w.find('[data-testid="filter-status-trigger"]').text()).toContain('Geblokkeerd')
+    // LI048 — de voorgezette selectie is zichtbaar ZONDER het filtervenster te openen: als chip
+    // én in de knoptelling. Dat is de kern: wie via een dashboard-doorklik binnenkomt moet kunnen
+    // zien waaróm hij een deelverzameling ziet. (Voorheen toetste dit de dropdown-trigger; die
+    // zit nu in het venster en zegt dus niets over wat de gebruiker ziet.)
+    // (De chiprij zelf rendert alleen mét een server-totaal — dat toetst de LI040-chiptoets
+    // hierboven, die wél een `totaal` mockt. Hier gaat het om de knoptelling, die altijd staat.)
+    expect(w.find('[data-testid="filter-knop-teller"]').text()).toBe('(1)')
   })
 
   it('ADR-027: ?klaarverklaring=klaar belandt als api-filter + toont de wisbare chip', async () => {
@@ -612,6 +625,11 @@ describe('ComponentLijst — lijststaat behouden bij terugnavigeren (useLijstSta
       }),
     )
     // LI032: het herstelde eigenaar-id toont zijn naam — geen leeg veld op een actief filter.
+    // LI048: het veld woont in het filtervenster, dus dat moet open om het te kunnen zien. De
+    // conceptstaat kopieert de herstelde waarde mee — anders zou de gebruiker bij het openen
+    // een leeg eigenaarveld zien terwijl het filter wél actief is (en zou Toepassen het wissen).
+    await w.find('[data-testid="filter-knop"]').trigger('click')
+    await flushPromises()
     expect(w.find('[data-testid="filter-eigenaar-input"]').element.value).toBe('Gemeente Veldendam')
   })
 
@@ -644,11 +662,141 @@ describe('ComponentLijst — lijststaat behouden bij terugnavigeren (useLijstSta
   it('bewaart een wijziging ná herstel (beforeunload-pad = F5-gedrag)', async () => {
     api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
     const w = await mountLijst()
-    await w.find('[data-testid="filter-type"]').setValue('database')
-    await flushPromises()
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-type"]').setValue('database'))
     window.dispatchEvent(new Event('beforeunload'))
     const bewaard = JSON.parse(sessionStorage.getItem('lijst-state:component-lijst'))
     expect(bewaard.filterType).toBe('database')
     w.unmount()
+  })
+})
+
+// ── LI048 — de filters wonen in een venster; wat er zichtbaar blijft is de kern ──────────────
+// Een verstopt filter is een onzichtbaar filter: een consultant die naar een stiekem gefilterde
+// lijst kijkt, trekt verkeerde conclusies over zijn landschap. De vraag "waarom zie ik er maar
+// zeven?" moet altijd beantwoord zijn zónder iets te openen.
+describe('ComponentLijst — filtervenster (LI048)', () => {
+  it('bovenin staat alleen het zoekveld en de Filter-knop; de filtervelden zitten in het venster', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
+    const w = await mountLijst()
+    // Zoeken blijft direct bereikbaar — dat is waar de consultant mee begint.
+    expect(w.find('[data-testid="filter-zoek"]').exists()).toBe(true)
+    expect(w.find('[data-testid="filter-knop"]').exists()).toBe(true)
+    // De filtervelden zijn er niet zolang het venster dicht is.
+    expect(w.find('[data-testid="filter-type"]').exists()).toBe(false)
+    expect(w.find('[data-testid="filter-biv"]').exists()).toBe(false)
+    await w.find('[data-testid="filter-knop"]').trigger('click')
+    await flushPromises()
+    // ALLE velden staan erin — geen selectie van "de meest gebruikte" achter een "toon meer".
+    for (const veld of ['type', 'laag', 'hosting', 'levensfase', 'bedoeling', 'complexiteit',
+                        'prioriteit', 'ondersteunt-werk', 'biv', 'eigenaar-input']) {
+      expect(w.find(`[data-testid="filter-${veld}"]`).exists(), `filter-${veld} ontbreekt`).toBe(true)
+    }
+  })
+
+  it('het getal op de knop is exact het aantal actieve filters — en verdwijnt bij nul', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 3, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    expect(w.find('[data-testid="filter-knop-teller"]').exists(), 'nul draagt een getal').toBe(false)
+
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-type"]').setValue('database'))
+    expect(w.find('[data-testid="filter-knop-teller"]').text()).toBe('(1)')
+    await viaFilterVenster(w, (w) => w.find('[data-testid="filter-hosting"]').setValue('saas'))
+    expect(w.find('[data-testid="filter-knop-teller"]').text()).toBe('(2)')
+
+    await w.find('[data-testid="filters-wissen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="filter-knop-teller"]').exists()).toBe(false)
+  })
+
+  it('élk actief filter krijgt een chip — knoptelling en chiprij kunnen niet uiteenlopen', async () => {
+    // DIT is het defect dat de opdracht wil voorkomen: een filter dat wél werkt maar geen chip
+    // krijgt, filtert onzichtbaar. Beide lezen `filterChips`, dus de toets legt ze tegen elkaar.
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 2, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-type"]').setValue('database')
+      await w.find('[data-testid="filter-hosting"]').setValue('saas')
+      await w.find('[data-testid="filter-levensfase"]').setValue('uitfaseren')
+    })
+    const chips = w.findAll('[data-testid^="filter-chip-"]')
+    expect(chips.length, 'niet elk actief filter heeft een chip').toBe(3)
+    expect(w.find('[data-testid="filter-knop-teller"]').text()).toBe(`(${chips.length})`)
+    // En het aantal getoonde componenten staat ernaast — de vraag "waarom maar 2?" is beantwoord.
+    expect(w.find('[data-testid="resultaat-aantal"]').text()).toContain('2 van 19')
+  })
+
+  it('een chip wegklikken werkt zonder het venster te openen', async () => {
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 2, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await viaFilterVenster(w, async (w) => {
+      await w.find('[data-testid="filter-type"]').setValue('database')
+      await w.find('[data-testid="filter-hosting"]').setValue('saas')
+    })
+    await w.find('[data-testid="chip-wis-type"]').trigger('click')
+    await flushPromises()
+    const call = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(call.componenttype).toBeUndefined()
+    expect(call.hostingmodel).toBe('saas') // alléén die ene filter weg
+    expect(w.find('[data-testid="filter-knop-teller"]').text()).toBe('(1)')
+  })
+
+  it('kiezen past nog niets toe; pas de knop onderin commit — en Annuleren gooit het weg', async () => {
+    // De timers lopen hier ECHT door: de live-teller draait tijdens het kiezen, en juist dán moet
+    // blijken dat het concept niet naar de echte filters lekt. Zonder die stap oefent de toets
+    // het geval niet en zou een lek onopgemerkt blijven.
+    vi.useFakeTimers()
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 5, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+
+    await w.find('[data-testid="filter-knop"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="filter-type"]').setValue('database')
+    vi.advanceTimersByTime(300) // de teller draait
+    vi.useRealTimers()
+    await flushPromises()
+    // De teller heeft geteld, maar de LIJST is niet omgegooid: hij kan van gedachten veranderen.
+    // (De laatste call is de telling — `limit: 1`; die telt niet als "toegepast".)
+    expect(w.find('[data-testid="filter-knop-teller"]').exists(),
+           'het concept lekte naar de toegepaste filters vóór Toepassen').toBe(false)
+    const naTellen = api.componenten.lijst.mock.calls.length
+
+    await w.find('[data-testid="filter-annuleer"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="filter-knop-teller"]').exists(), 'annuleren liet het filter staan').toBe(false)
+    expect(api.componenten.lijst.mock.calls.length).toBe(naTellen) // geen herlaad na annuleren
+  })
+
+  it('de teller in het venster leest dezelfde bron als de teller naast de chips', async () => {
+    // Eén filterwaarheid: beide komen uit het lijst-endpoint (`svc.tel` deelt `_pas_filters_toe`
+    // met `lijst`). Zou het venster zelf tellen, dan zegt het "7" terwijl de lijst er acht toont.
+    vi.useFakeTimers()
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 7, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-knop"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="filter-type"]').setValue('database')
+    vi.advanceTimersByTime(300)
+    vi.useRealTimers()
+    await flushPromises()
+    // De tel-aanroep is hetzelfde endpoint met de CONCEPT-filters (limit 1 — alleen het getal).
+    const telCall = api.componenten.lijst.mock.calls.at(-1)[0]
+    expect(telCall.limit).toBe(1)
+    expect(telCall.componenttype).toBe('database')
+    // En het venster toont dat getal, ook op de knop.
+    expect(w.find('[data-testid="filter-venster-telling"]').text()).toContain('7 van 19')
+    expect(w.find('[data-testid="filter-toepassen"]').text()).toContain('Toon 7 componenten')
+  })
+
+  it('een combinatie die op nul uitkomt waarschuwt vóór het sluiten', async () => {
+    vi.useFakeTimers()
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 0, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-knop"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-testid="filter-type"]').setValue('database')
+    vi.advanceTimersByTime(300)
+    vi.useRealTimers()
+    await flushPromises()
+    expect(w.find('[data-testid="filter-venster-telling"]').text()).toContain('Geen componenten')
   })
 })

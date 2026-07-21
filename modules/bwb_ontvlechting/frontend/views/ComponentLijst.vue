@@ -11,8 +11,8 @@
  * ComponentDetail. Een `?type=`-query (bv. via de /applicaties-redirect) preselecteert
  * het typefilter.
  */
-import { computed, onMounted, ref } from 'vue'
-import { Button, Column, DataTable, Tag } from '@/primevue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { Button, Column, DataTable, Dialog, Tag } from '@/primevue'
 import { detailRoute } from '@/detailIngang'
 import { useRoute, useRouter } from '@/composables/router'
 import { useAuthStore } from '@/store/auth'
@@ -95,6 +95,23 @@ const bivLabel = (sleutel) => bivNiveaus.value.find((o) => o.optie_sleutel === s
 // LI040: zichtbaar + wisbaar via de resultaatregel-chips (geen losse chip meer).
 const filterKlaarverklaring = ref('') // '' | 'klaar'
 const filterAfwijking = ref(false)
+
+// LI048 — de filters wonen in een venster. `VELDEN` is DE lijst van filters die daarheen reizen,
+// `_refs` koppelt elke naam aan zijn ref. Eén plek: een nieuw filter dat hier ontbreekt staat wel
+// in het venster maar doet niets bij Toepassen — en dat valt meteen op. Het zoekveld staat er
+// bewust NIET bij: dat blijft bovenin en wordt direct toegepast.
+const VELDEN = [
+  'filterStatus', 'filterType', 'filterLaag', 'filterHosting', 'filterLevensfase',
+  'filterBedoeling', 'filterComplexiteit', 'filterPrioriteit', 'filterEigenaarId',
+  'filterEigenaarNaam', 'filterRol', 'filterBiv', 'filterWerk', 'filterZonderBedrijfsfunctie',
+  'filterKlaarverklaring', 'filterAfwijking',
+]
+const _refs = {
+  filterStatus, filterType, filterLaag, filterHosting, filterLevensfase, filterBedoeling,
+  filterComplexiteit, filterPrioriteit, filterEigenaarId, filterEigenaarNaam, filterRol,
+  filterBiv, filterWerk, filterZonderBedrijfsfunctie, filterKlaarverklaring, filterAfwijking,
+}
+const _kopie = (w) => (Array.isArray(w) ? [...w] : w)
 
 // Organisatie-keuze (filter): server-side zoeken, beperkt tot aard=organisatie.
 const zoekOrganisaties = (params) => api.partijen.lijst({ ...params, aard: 'organisatie' })
@@ -269,39 +286,57 @@ function _pruneTegenCatalogus() {
   }
 }
 
+/**
+ * Filterwaarden → API-parameters. ÉÉN plek (LI048): zowel de lijst als de live-teller in het
+ * filtervenster bouwen hier hun params, alleen met een andere bron (`_refs` = de toegepaste
+ * stand, `concept` = wat de gebruiker aan het kiezen is). Een tweede opbouw zou betekenen dat
+ * het venster "7" zegt terwijl de lijst er acht toont — dezelfde faalmodus als een tweede
+ * telling, maar dan een laag eerder.
+ *
+ * `bron` levert per veldnaam de waarde; `_refs`-waarden komen via `.value`, concept-waarden
+ * direct. Vandaar de kleine helper i.p.v. twee varianten van deze functie.
+ */
+function _paramsUit(bron) {
+  const w = (naam) => (bron === _refs ? _refs[naam].value : bron[naam])
+  const params = {}
+  if (w('filterStatus')?.length) params.status = w('filterStatus')
+  if (w('filterType')) params.componenttype = w('filterType')
+  if (w('filterLaag')) params.laag = w('filterLaag')
+  if (w('filterHosting')) params.hostingmodel = w('filterHosting')
+  // ADR-046/LI040 — levensfase; "nog niet vastgelegd" filtert op afwezigheid (NULL).
+  if (w('filterLevensfase') === ZONDER) params.levensfase_ontbreekt = 1
+  else if (w('filterLevensfase')) params.levensfase = w('filterLevensfase')
+  // LI040 — bedoeling (API-param `migratiepad`); idem voor het gat.
+  if (w('filterBedoeling') === ZONDER) params.migratiepad_ontbreekt = 1
+  else if (w('filterBedoeling')) params.migratiepad = w('filterBedoeling')
+  // LI040 — oordelen: echte niveaus of het gat ("nooit naar gekeken" ≠ "vastgesteld").
+  if (w('filterComplexiteit') === ZONDER) params.complexiteit_ontbreekt = 1
+  else if (w('filterComplexiteit')) params.complexiteit = w('filterComplexiteit')
+  if (w('filterPrioriteit') === ZONDER) params.prioriteit_ontbreekt = 1
+  else if (w('filterPrioriteit')) params.prioriteit = w('filterPrioriteit')
+  if (w('filterEigenaarId')) params.eigenaar_organisatie_id = w('filterEigenaarId')
+  // ADR-028 — rol (array → herhaalde param). LI040 — één BIV-filter: hoogste as ≥
+  // drempel (`biv_min`) of het registratiegat (`biv_ontbreekt`).
+  if (w('filterRol')?.length) params.componentrol = w('filterRol')
+  if (w('filterBiv') === ZONDER) params.biv_ontbreekt = 1
+  else if (w('filterBiv')) params.biv_min = w('filterBiv')
+  // ADR-045 — server-side op de catalogus-eigenschap (leeg = geen clause).
+  if (w('filterWerk')) params.ondersteunt_werk = w('filterWerk') === 'ja'
+  // ADR-043 gate 4 (G4) — werkvoorraad: alleen werk-ondersteunende systemen zonder koppeling.
+  if (w('filterZonderBedrijfsfunctie') === ZONDER) params.zonder_bedrijfsfunctie = 1
+  if (w('filterAfwijking')) params.afwijking = 1
+  else if (w('filterKlaarverklaring')) params.klaarverklaring = w('filterKlaarverklaring')
+  return params
+}
+
 async function laad({ reset = false } = {}) {
   laden.value = true
   fout.value = null
   try {
-    const params = { limit: 25, after: reset ? undefined : cursor.value }
-    if (filterStatus.value.length) params.status = filterStatus.value
-    if (filterType.value) params.componenttype = filterType.value
-    if (filterLaag.value) params.laag = filterLaag.value
-    if (filterHosting.value) params.hostingmodel = filterHosting.value
-    // ADR-046/LI040 — levensfase; "nog niet vastgelegd" filtert op afwezigheid (NULL).
-    if (filterLevensfase.value === ZONDER) params.levensfase_ontbreekt = 1
-    else if (filterLevensfase.value) params.levensfase = filterLevensfase.value
-    // LI040 — bedoeling (API-param `migratiepad`); idem voor het gat.
-    if (filterBedoeling.value === ZONDER) params.migratiepad_ontbreekt = 1
-    else if (filterBedoeling.value) params.migratiepad = filterBedoeling.value
-    // LI040 — oordelen: echte niveaus of het gat ("nooit naar gekeken" ≠ "vastgesteld").
-    if (filterComplexiteit.value === ZONDER) params.complexiteit_ontbreekt = 1
-    else if (filterComplexiteit.value) params.complexiteit = filterComplexiteit.value
-    if (filterPrioriteit.value === ZONDER) params.prioriteit_ontbreekt = 1
-    else if (filterPrioriteit.value) params.prioriteit = filterPrioriteit.value
-    if (filterEigenaarId.value) params.eigenaar_organisatie_id = filterEigenaarId.value
+    const params = { limit: 25, after: reset ? undefined : cursor.value, ..._paramsUit(_refs) }
+    // Het zoeken staat BUITEN het filtervenster (het blijft bovenin) en reist dus niet mee in
+    // de conceptstaat — vandaar hier, niet in `_paramsUit`.
     if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
-    // ADR-028 — rol (array → herhaalde param). LI040 — één BIV-filter: hoogste as ≥
-    // drempel (`biv_min`) of het registratiegat (`biv_ontbreekt`).
-    if (filterRol.value.length) params.componentrol = filterRol.value
-    if (filterBiv.value === ZONDER) params.biv_ontbreekt = 1
-    else if (filterBiv.value) params.biv_min = filterBiv.value
-    // ADR-045 — server-side op de catalogus-eigenschap (leeg = geen clause).
-    if (filterWerk.value) params.ondersteunt_werk = filterWerk.value === 'ja'
-    // ADR-043 gate 4 (G4) — werkvoorraad: alleen werk-ondersteunende systemen zonder koppeling.
-    if (filterZonderBedrijfsfunctie.value === ZONDER) params.zonder_bedrijfsfunctie = 1
-    if (filterAfwijking.value) params.afwijking = 1
-    else if (filterKlaarverklaring.value) params.klaarverklaring = filterKlaarverklaring.value
     if (sortVeld.value) {
       params.sort = sortVeld.value
       params.order = sortRichting.value
@@ -354,6 +389,95 @@ function wisFilters() {
   filterZonderBedrijfsfunctie.value = ''
   herfilter()
 }
+
+// ── LI048 — de filters wonen in een venster; het zoeken blijft bovenin ──────────────────────
+// Dertien filtervelden namen drie rijen in beslag, dus de lijst — waar de consultant voor komt —
+// begon pas daaronder. Zijn werkvolgorde is een andere: eerst een naam zoeken, dáárna soms
+// filteren. Alle velden verhuizen, niet een selectie van "de meest gebruikte": dan hoeft niemand
+// te raden welke hij het vaakst nodig heeft, en mist hij nooit een filter omdat het verstopt zit.
+//
+// CONCEPTSTAAT (besluit 4): kiezen in het venster wijzigt de lijst nog niet. De echte filter-refs
+// blijven staan tot hij op "Toon N componenten" drukt, zodat hij van gedachten kan veranderen
+// zonder dat de lijst al is omgegooid. Escape en het kruisje gooien het concept weg.
+const filterVensterOpen = ref(false)
+const concept = reactive({})
+const conceptTotaal = ref(null)
+const conceptBezig = ref(false)
+let _filterKnop = null
+let _telTimer = null
+
+function openFilterVenster(e) {
+  _filterKnop = e?.currentTarget ?? null
+  for (const naam of VELDEN) concept[naam] = _kopie(_refs[naam].value)
+  conceptTotaal.value = totaal.value // tot de eerste telling: de huidige stand, geen leeg vak
+  filterVensterOpen.value = true
+}
+
+/** Sluiten ZONDER toepassen (Annuleren) — het concept wordt weggegooid. */
+function sluitFilterVenster() {
+  filterVensterOpen.value = false
+}
+
+/**
+ * Ná élke manier van sluiten — Annuleren, het kruisje, Escape én Toepassen. De focus keert
+ * terug naar de Filter-knop, zodat wie met het toetsenbord werkt niet bovenaan de pagina
+ * belandt. Aan `@hide` gehangen en niet aan de knoppen: Escape en het kruisje lopen niet door
+ * onze eigen handlers, dus een focus-herstel per knop zou juist die twee missen.
+ */
+function naVensterSluiten() {
+  clearTimeout(_telTimer) // een lopende telling hoeft niet meer te landen
+  conceptBezig.value = false
+  nextTick(() => _filterKnop?.focus?.())
+}
+
+/** Toepassen: het concept wordt de echte stand, en pas dán herlaadt de lijst. */
+function pasFiltersToe() {
+  for (const naam of VELDEN) _refs[naam].value = _kopie(concept[naam])
+  filterVensterOpen.value = false
+  herfilter()
+}
+
+// Besluit 3 — LIVE meetellen terwijl hij kiest, zodat hij vóór het sluiten weet wat hij krijgt en
+// niet pas achteraf ontdekt dat hij op nul is uitgekomen. Met dertien filters gebeurt dat makkelijk.
+// ÉÉN BRON: dit is exact het lijst-endpoint dat ook de teller naast de chips voedt — de server telt
+// via `svc.tel`, dat `_pas_filters_toe` deelt met `lijst` (LI040: één filterwaarheid). Alleen de
+// PARAMETERS verschillen (concept vs. toegepast); er is geen tweede berekening.
+watch(concept, () => {
+  if (!filterVensterOpen.value) return
+  clearTimeout(_telTimer)
+  conceptBezig.value = true
+  _telTimer = setTimeout(async () => {
+    // Nogmaals kijken of het venster nog openstaat: tussen het plannen en het vuren kan hij
+    // gesloten zijn. Zonder deze poort doet een late timer alsnog een aanroep op een venster dat
+    // niemand meer ziet — en die aanroep landt dan als "laatste api-call", wat in de suite de
+    // volgende toets omver duwde. De timer wordt óók opgeruimd (bij sluiten en bij unmount); dit
+    // is de vangrail die niet afhangt van of dat opruimen op tijd gebeurt.
+    if (!filterVensterOpen.value) return
+    try {
+      const pagina = await api.componenten.lijst({ ..._paramsUit(concept), limit: 1 })
+      conceptTotaal.value = pagina.totaal ?? null
+    } catch {
+      conceptTotaal.value = null // telling is een hulpje; een fout hier mag het venster niet breken
+    } finally {
+      conceptBezig.value = false
+    }
+  }, 250)
+}, { deep: true })
+
+// Beide debounce-timers opruimen bij het verlaten van het scherm. Zonder dit vuurt een lopende
+// telling ná unmount — in de app een overbodige call op een scherm dat niemand meer ziet, en in
+// de suite testvervuiling: de late call landt in de VOLGENDE test, waar `calls.at(-1)` dan de
+// teller aanwijst i.p.v. de lijst. Dat gebeurde ook echt: de toets slaagde geïsoleerd en viel om
+// in de volle run.
+onBeforeUnmount(() => {
+  clearTimeout(_telTimer)
+  clearTimeout(_zoekTimer)
+})
+
+// Het aantal actieve filters op de knop. ÉÉN BRON met de chiprij: beide lezen `filterChips`, dus
+// een filter kan niet wél tellen en géén chip krijgen (of andersom) — precies het defect waar deze
+// opdracht voor bestaat: een verstopt filter is een onzichtbaar filter.
+const aantalFilters = computed(() => filterChips.value.length)
 
 function rijRoute(rij) {
   // LI059 Slice 4 — één detailscherm voor élk type.
@@ -437,205 +561,17 @@ onMounted(async () => {
          (v-if): pas bij openen laden de opties; sluiten unmount hem weer. -->
     <ComponentFormulier v-if="nieuwOverlayOpen" v-model:visible="nieuwOverlayOpen" :id="null" @opgeslagen="onAangemaakt" />
 
-    <!-- Filterbalk (CD017) — AND-gecombineerd; elke wijziging reset de cursor. -->
+    <!-- LI048 — bovenin staat alleen waarmee de consultant BEGINT: zoeken op naam. De dertien
+         filtervelden namen drie rijen in beslag, waardoor de lijst pas daaronder begon; ze wonen
+         nu in een venster achter de Filter-knop. Het aantal actieve filters staat op die knop en
+         de filters zelf staan als chips onder deze balk (FilterResultaatRegel) — een verstopt
+         filter is een onzichtbaar filter, en dan trekt de consultant verkeerde conclusies over
+         zijn landschap. De vraag "waarom zie ik er maar zeven?" is altijd beantwoord zonder iets
+         te openen. -->
     <div
-      data-testid="filterbalk"
+      data-testid="zoekbalk"
       class="mb-[var(--lk-space-md)] flex flex-wrap items-end gap-[var(--lk-space-md)] rounded-[var(--lk-radius-card)] bg-[var(--lk-color-surface)] p-[var(--lk-space-md)] shadow-[var(--lk-shadow-sm)]"
     >
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">{{ veldLabel('lifecycle_status') }}</span>
-        <!-- Multi-select dropdown (zelfde stijl als Type/Laag/Hosting); meervoudige
-             selectie behouden (filterStatus blijft een array → server-side IN). -->
-        <MultiSelectDropdown
-          v-model="filterStatus"
-          :opties="STATUS_OPTIES"
-          :weergave="lifecycleLabel"
-          placeholder="Alle"
-          aria-label="Filter op status"
-          testid="filter-status"
-          @change="herfilter"
-        />
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Type</span>
-        <select
-          v-model="filterType"
-          data-testid="filter-type"
-          aria-label="Filter op componenttype"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="o in typeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Laag</span>
-        <select
-          v-model="filterLaag"
-          data-testid="filter-laag"
-          aria-label="Filter op ArchiMate-laag"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="o in laagOpties" :key="o.waarde" :value="o.waarde">{{ o.label }}</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Hosting</span>
-        <select
-          v-model="filterHosting"
-          data-testid="filter-hosting"
-          aria-label="Filter op hostingmodel"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
-        </select>
-      </label>
-
-      <!-- ADR-046 — levensfase-filter: "welke systemen faseren uit?" is één klik. -->
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Levensfase</span>
-        <select
-          v-model="filterLevensfase"
-          data-testid="filter-levensfase"
-          aria-label="Filter op levensfase"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="f in LEVENSFASE_OPTIES" :key="f" :value="f">{{ levensfaseLabel(f) }}</option>
-          <option :value="ZONDER">nog niet vastgelegd</option>
-        </select>
-      </label>
-
-      <!-- LI040 — bedoeling-filter: "welke systemen gaan we vervangen?" is één klik
-           (de tweede vraag naast de levensfase — ADR-046). -->
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Bedoeling</span>
-        <select
-          v-model="filterBedoeling"
-          data-testid="filter-bedoeling"
-          aria-label="Filter op bedoeling"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="code in Object.keys(MIGRATIEPAD)" :key="code" :value="code">{{ label(MIGRATIEPAD, code) }}</option>
-          <option :value="ZONDER">nog niet vastgelegd</option>
-        </select>
-      </label>
-
-      <!-- LI040 — oordeel-filters: niveaus + het gat (geen verzonnen 'Midden' meer). -->
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Complexiteit</span>
-        <select
-          v-model="filterComplexiteit"
-          data-testid="filter-complexiteit"
-          aria-label="Filter op complexiteit"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="n in Object.keys(NIVEAU)" :key="n" :value="n">{{ niveau(n) }}</option>
-          <option :value="ZONDER">nog niet vastgelegd</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Prioriteit</span>
-        <select
-          v-model="filterPrioriteit"
-          data-testid="filter-prioriteit"
-          aria-label="Filter op prioriteit"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="n in Object.keys(NIVEAU)" :key="n" :value="n">{{ niveau(n) }}</option>
-          <option :value="ZONDER">nog niet vastgelegd</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Ondersteunt werk</span>
-        <select
-          v-model="filterWerk"
-          data-testid="filter-ondersteunt-werk"
-          aria-label="Filter op ondersteunt werk"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option value="ja">Ja</option>
-          <option value="nee">Nee</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Bedrijfsfunctie</span>
-        <select
-          v-model="filterZonderBedrijfsfunctie"
-          data-testid="filter-zonder-bedrijfsfunctie"
-          aria-label="Filter op componenten zonder bedrijfsfunctie"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option :value="ZONDER">nog geen bedrijfsfunctie</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Rol</span>
-        <MultiSelectDropdown
-          v-model="filterRol"
-          :opties="rolOpties.map((o) => o.optie_sleutel)"
-          :weergave="rolLabel"
-          placeholder="Alle"
-          aria-label="Filter op componentrol"
-          testid="filter-rol"
-          @change="herfilter"
-        />
-      </label>
-
-      <!-- LI040 — één BIV-filter (de zwaarste as bepaalt): ≥ drempel op de hoogste van de
-           drie assen, of "nog niet vastgelegd" (geen enkele as ingevuld — het gat vindbaar).
-           Waarden uit de beheerbare BIV-schaal-catalogus, nooit hardcoded. -->
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">BIV ≥</span>
-        <select
-          v-model="filterBiv"
-          data-testid="filter-biv"
-          aria-label="Filter op BIV-classificatie (hoogste as)"
-          class="lk-veld"
-          @change="herfilter"
-        >
-          <option value="">Alle</option>
-          <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
-          <option :value="ZONDER">nog niet vastgelegd</option>
-        </select>
-      </label>
-
-      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Eigenaar</span>
-        <ZoekSelect
-          testid="filter-eigenaar"
-          v-model="filterEigenaarId"
-          :zoek-functie="zoekOrganisaties"
-          :initieel-weergave="filterEigenaarNaam"
-          placeholder="Kies een organisatie…"
-          @keuze="(p) => (filterEigenaarNaam = p?.naam || '')"
-          @update:model-value="herfilter"
-        />
-      </label>
-
       <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
         <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Naam</span>
         <input
@@ -651,6 +587,22 @@ onMounted(async () => {
       </label>
 
       <button
+        type="button"
+        data-testid="filter-knop"
+        :aria-label="aantalFilters ? `Filter — ${aantalFilters} actief` : 'Filter'"
+        class="lk-veld inline-flex items-center gap-[var(--lk-space-xs)] hover:bg-[var(--lk-color-primary-50)] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+        @click="openFilterVenster"
+      >
+        <span>Filter</span>
+        <!-- Bij nul geen getal: de rust ís het signaal dat er niets gefilterd wordt (likara-ux). -->
+        <span
+          v-if="aantalFilters"
+          data-testid="filter-knop-teller"
+          class="font-semibold text-[var(--lk-color-primary)]"
+        >({{ aantalFilters }})</span>
+      </button>
+
+      <button
         v-if="heeftFilters"
         type="button"
         data-testid="filters-wissen"
@@ -660,6 +612,240 @@ onMounted(async () => {
         Filters wissen
       </button>
     </div>
+
+    <!-- Het filtervenster (CD017-filters, AND-gecombineerd). ALLE velden staan hier — niet een
+         selectie van "de meest gebruikte": dan hoeft niemand te raden welke de consultant het
+         vaakst nodig heeft, en mist hij nooit een filter omdat het achter een "toon meer" zit.
+         Kiezen past nog niets toe (besluit 4): pas de knop onderin commit het concept, zodat hij
+         van gedachten kan veranderen zonder dat de lijst al is omgegooid. -->
+    <Dialog
+      v-model:visible="filterVensterOpen"
+      modal
+      header="Filter componenten"
+      data-testid="filter-venster"
+      class="!w-[48rem] !max-w-[95vw]"
+      @hide="naVensterSluiten"
+    >
+      <div
+        data-testid="filterbalk"
+        class="flex flex-wrap items-end gap-[var(--lk-space-md)]"
+      >
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">{{ veldLabel('lifecycle_status') }}</span>
+        <!-- Multi-select dropdown (zelfde stijl als Type/Laag/Hosting); meervoudige
+             selectie behouden (filterStatus blijft een array → server-side IN). -->
+        <MultiSelectDropdown
+          v-model="concept.filterStatus"
+          :opties="STATUS_OPTIES"
+          :weergave="lifecycleLabel"
+          placeholder="Alle"
+          aria-label="Filter op status"
+          testid="filter-status"
+        />
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Type</span>
+        <select
+          v-model="concept.filterType"
+          data-testid="filter-type"
+          aria-label="Filter op componenttype"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="o in typeOpties" :key="o.optie_sleutel" :value="o.optie_sleutel">{{ o.label }}</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Laag</span>
+        <select
+          v-model="concept.filterLaag"
+          data-testid="filter-laag"
+          aria-label="Filter op ArchiMate-laag"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="o in laagOpties" :key="o.waarde" :value="o.waarde">{{ o.label }}</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Hosting</span>
+        <select
+          v-model="concept.filterHosting"
+          data-testid="filter-hosting"
+          aria-label="Filter op hostingmodel"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="h in HOSTING_OPTIES" :key="h" :value="h">{{ hosting(h) }}</option>
+        </select>
+      </label>
+
+      <!-- ADR-046 — levensfase-filter: "welke systemen faseren uit?" is één klik. -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Levensfase</span>
+        <select
+          v-model="concept.filterLevensfase"
+          data-testid="filter-levensfase"
+          aria-label="Filter op levensfase"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="f in LEVENSFASE_OPTIES" :key="f" :value="f">{{ levensfaseLabel(f) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
+      <!-- LI040 — bedoeling-filter: "welke systemen gaan we vervangen?" is één klik
+           (de tweede vraag naast de levensfase — ADR-046). -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Bedoeling</span>
+        <select
+          v-model="concept.filterBedoeling"
+          data-testid="filter-bedoeling"
+          aria-label="Filter op bedoeling"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="code in Object.keys(MIGRATIEPAD)" :key="code" :value="code">{{ label(MIGRATIEPAD, code) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
+      <!-- LI040 — oordeel-filters: niveaus + het gat (geen verzonnen 'Midden' meer). -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Complexiteit</span>
+        <select
+          v-model="concept.filterComplexiteit"
+          data-testid="filter-complexiteit"
+          aria-label="Filter op complexiteit"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="n in Object.keys(NIVEAU)" :key="n" :value="n">{{ niveau(n) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Prioriteit</span>
+        <select
+          v-model="concept.filterPrioriteit"
+          data-testid="filter-prioriteit"
+          aria-label="Filter op prioriteit"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="n in Object.keys(NIVEAU)" :key="n" :value="n">{{ niveau(n) }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Ondersteunt werk</span>
+        <select
+          v-model="concept.filterWerk"
+          data-testid="filter-ondersteunt-werk"
+          aria-label="Filter op ondersteunt werk"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option value="ja">Ja</option>
+          <option value="nee">Nee</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Bedrijfsfunctie</span>
+        <select
+          v-model="concept.filterZonderBedrijfsfunctie"
+          data-testid="filter-zonder-bedrijfsfunctie"
+          aria-label="Filter op componenten zonder bedrijfsfunctie"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option :value="ZONDER">nog geen bedrijfsfunctie</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Rol</span>
+        <MultiSelectDropdown
+          v-model="concept.filterRol"
+          :opties="rolOpties.map((o) => o.optie_sleutel)"
+          :weergave="rolLabel"
+          placeholder="Alle"
+          aria-label="Filter op componentrol"
+          testid="filter-rol"
+        />
+      </label>
+
+      <!-- LI040 — één BIV-filter (de zwaarste as bepaalt): ≥ drempel op de hoogste van de
+           drie assen, of "nog niet vastgelegd" (geen enkele as ingevuld — het gat vindbaar).
+           Waarden uit de beheerbare BIV-schaal-catalogus, nooit hardcoded. -->
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">BIV ≥</span>
+        <select
+          v-model="concept.filterBiv"
+          data-testid="filter-biv"
+          aria-label="Filter op BIV-classificatie (hoogste as)"
+          class="lk-veld"
+        >
+          <option value="">Alle</option>
+          <option v-for="n in bivNiveaus" :key="n.optie_sleutel" :value="n.optie_sleutel">{{ n.label }}</option>
+          <option :value="ZONDER">nog niet vastgelegd</option>
+        </select>
+      </label>
+
+      <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+        <span class="text-[length:var(--lk-text-xs)] font-semibold uppercase tracking-wide text-[var(--lk-color-text-muted)]">Eigenaar</span>
+        <ZoekSelect
+          testid="filter-eigenaar"
+          v-model="concept.filterEigenaarId"
+          :zoek-functie="zoekOrganisaties"
+          :initieel-weergave="filterEigenaarNaam"
+          placeholder="Kies een organisatie…"
+          @keuze="(p) => (concept.filterEigenaarNaam = p?.naam || '')"
+        />
+      </label>
+
+      </div>
+
+      <!-- Besluit 3 — de teller telt LIVE mee terwijl hij kiest, zodat hij vóór het sluiten weet
+           wat hij krijgt en niet pas achteraf ontdekt dat hij op nul is uitgekomen. Met dertien
+           filters gebeurt dat makkelijk. Dezelfde bron als de teller naast de chips: het
+           lijst-endpoint (`svc.tel` deelt `_pas_filters_toe` met `lijst`), alleen met de
+           concept-parameters. -->
+      <template #footer>
+        <div class="flex w-full items-center gap-[var(--lk-space-md)]">
+          <span
+            data-testid="filter-venster-telling"
+            aria-live="polite"
+            class="text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+          >
+            <template v-if="conceptBezig">tellen…</template>
+            <template v-else-if="conceptTotaal === 0">Geen componenten — verruim een filter.</template>
+            <template v-else-if="conceptTotaal !== null">
+              {{ conceptTotaal }} van {{ totaalAlles ?? conceptTotaal }} componenten
+            </template>
+          </span>
+          <Button
+            label="Annuleren"
+            severity="secondary"
+            data-testid="filter-annuleer"
+            class="ml-auto"
+            @click="sluitFilterVenster"
+          />
+          <Button
+            :label="conceptTotaal === null ? 'Toon componenten' : `Toon ${conceptTotaal} ${conceptTotaal === 1 ? 'component' : 'componenten'}`"
+            data-testid="filter-toepassen"
+            @click="pasFiltersToe"
+          />
+        </div>
+      </template>
+    </Dialog>
 
     <p
       v-if="fout"
