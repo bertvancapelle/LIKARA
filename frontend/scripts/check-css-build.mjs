@@ -507,10 +507,9 @@ const ICOON_ZELFTEST = [
 //      termijn leeg houdt: zonder deze regel schuift er vroeg of laat weer iets in.
 //
 // GEEN UITZONDERINGENLIJST. Er stond er even één in (BedrijfsfunctieLijst, dat de
-// schakelaar en een tweede actie in de kop droeg). Hij deed geen schade en werd elke run
-// afgedrukt — maar hij legitimeerde een VORM: de volgende sessie die één scherm niet kan
-// omzetten heeft dan een voorbeeld. Zo ontstaan achterdeuren: niet met een besluit, maar
-// met een precedent. Het scherm is omgezet, de lijst is weg.
+// schakelaar en een tweede actie in de kop droeg). Het scherm is omgezet, de lijst is weg.
+// Waaróm een benoemde uitzondering een achterdeur is — óók een zichtbare die geen schade
+// doet — staat canoniek in likara-tests §Bronscans.
 
 function scanLijstkopOvertredingen(bron, label) {
   const overtredingen = []
