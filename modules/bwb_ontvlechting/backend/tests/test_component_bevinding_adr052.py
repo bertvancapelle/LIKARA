@@ -18,7 +18,7 @@ from services import component_norm_service as cn
 
 # Eigen test-tenant (LI047) — zelfde reden als test_component_norm_adr052.py: `_norm_alles_verplicht`
 # en de teardowns wissen `component_norm` TENANT-breed (die tabel hangt aan de tenant, niet aan een
-# component), dus op de dev-tenant vaagden ze het demolandschap leeg. Norm: likara-tests §LI039.
+# component), dus op de dev-tenant vaagden ze het demolandschap leeg. Norm: likara-tests §Live-DB-tests.
 _TID = "99990052-0200-0000-0000-000000000002"
 _LK_APP_URL = "postgresql+asyncpg://lk_app:changeme_dev@localhost:5432/likara"
 

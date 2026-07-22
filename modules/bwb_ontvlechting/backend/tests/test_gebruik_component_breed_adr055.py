@@ -5,7 +5,7 @@ De verfijning "welke afdeling/team gebruikt dit component" was gebonden aan comp
 ADR-055 heft die op met de catalogus-vlag als grens.
 
 Offline: de aanname mag niet terugkruipen (bron-scan op een typevergelijking in de service).
-Live (skip-if-no-DB, EIGEN test-tenant — likara-tests §LI039): de registratie lukt op ÉLK type dat
+Live (skip-if-no-DB, EIGEN test-tenant — likara-tests §Live-DB-tests): de registratie lukt op ÉLK type dat
 werk ondersteunt en wordt geweigerd op élk type dat dat niet doet, met een weigering die de
 waarheid vertelt (422 "die vraag geldt hier niet", nooit 404 "bestaat niet"). Beide toetsen lopen
 OVER DE CATALOGUS, nooit tegen een uitgeschreven typelijst — zo erft een nieuw componenttype de

@@ -22,7 +22,7 @@ from services import registratiegaten_service as rg
 # component — de teardown kan zich dus niet tot eigen fixtures beperken en wist onvermijdelijk de
 # hele norm van de tenant waarin hij draait. Op de dev-tenant vaagde dat het demolandschap leeg
 # (de norm was na elke suite-run weg; zie docs/Onderzoek-normdrift-en-taal-V047.md deel A).
-# Zelfde reden en zelfde vorm als test_component_norm_beheer_adr052.py — norm likara-tests §LI039.
+# Zelfde reden en zelfde vorm als test_component_norm_beheer_adr052.py — norm likara-tests §Live-DB-tests.
 _TID = "99990052-0100-0000-0000-000000000001"
 _LK_APP_URL = "postgresql+asyncpg://lk_app:changeme_dev@localhost:5432/likara"
 

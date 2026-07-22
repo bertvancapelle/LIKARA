@@ -204,6 +204,43 @@ fout) en **`vitest run`** (alles groen). Geen eslint/type-check aanwezig.
   `attachTo` gaf `isVisible()` een vals-positief op een `v-show`-verborgen paneel; assert dan op het
   style-attribuut (`v-show` schrijft `display: none`) — `expect(el.attributes('style') || '').toContain('display: none')` —
   óf mount met `attachTo: document.body` (zoals de VeldUitleg-tests, die daarom `isVisible()` wél mogen gebruiken).
+- **Frontend single-flight/async-tests**: `vi.stubGlobal('fetch', …)` met per-URL-state
+  (401-dan-200) om refresh-on-401 + retry te bewijzen; `attachTo: document.body` +
+  macrotask-defer voor focus-asserts; `:closable="false"` Dialog focust het eerste veld. [CD007/CD003] (V004, geverifieerd)
+- **Een service-/SQL-meting bewijst het SCHERM-gedrag NIET — verifieer end-to-end.** De Fase-2-"leden-
+  filter"-meting was een directe SQL-query en bleef daardoor blind voor de **api-client** die de filter
+  stil dropte (V012-bug). Toets een filter/sortering die het scherm aanstuurt **via de keten** (api-
+  client → endpoint), niet alleen op service-niveau. In de frontend-test: assert dat
+  `api.<resource>.lijst` mét de filter/sort wordt aangeroepen **én** dat de client die in de query zet. (V012, geverifieerd)
+- **Succes-toast-asserts**: mock de helper-module (`vi.mock('@/meldingen', () => ({
+  toastSucces: vi.fn() }))`) en assert `toHaveBeenCalledWith(expect.anything(),
+  '<werkwoord>')` in de succes-flow; de vorm zelf (severity/life) borgt
+  `tests/meldingen.test.js` één keer centraal. (LI035)
+- **vitest draait ALTIJD vanuit `frontend/`** (cwd-valkuil trad in LI035 drie keer op:
+  vanaf de repo-root falen de alias-resolves met "Cannot find package '@/store/auth'").
+- **Suite-flakiness onder belasting (bekend broos punt, geen code-regressie).** Tests met
+  échte `setTimeout`-waits (m.n. de dubbeltap-tests, `_DBLTAP_MS`) kunnen bij rug-aan-rug
+  volledige-suite-runs/CPU-verzadiging massaal timeouten (LI036-meting: 1 van ~7 runs
+  faalde met 16 timeouts à 12s+; geïsoleerd en in 4 opeenvolgende runs daarna groen).
+  Duiding: belastinggevoeligheid van de timer-tests, niet de gewijzigde code. Keert het in
+  een rustige omgeving terug → dan wél de gerichte `git stash`-vergelijking (ADR-028-
+  diagnose-recept in likara-backend) draaien vóór er iets "gefixt" wordt.
+- **Elk UI-pad dat de gebruiker opent (popup/dialoog/overlay) heeft minstens één test die
+  hem ÉCHT opent.** Payload-groen zegt niets over een pad dat nooit gemount wordt.
+  Referenties: de diagram-popup-tests ("popup bestaat op inhoud, óók zonder uitgang") en de
+  inleesdialoog-tests (openen → voorbeeld → bevestigen). ⚠ Tekst-regel — geen bouwsteen;
+  discipline per slice. (LI039)
+- **Vorm-asserts (aanscherping op de LI030-regel "toets de interactie-staat"):** assert ook
+  de KNOPVORM waar die betekenis draagt — doorklik vs. mutatie:
+  `expect(w.findComponent('[data-testid=…]').props('outlined')).toBe(true)` (referentie:
+  BedrijfsfunctieLijst.test.js:325-329). Een payload-assert ziet niet dat een mutatie-knop
+  per ongeluk als doorklik oogt. ⚠ Tekst-regel — per test een keuze. (LI039)
+- **Assert op zichtbare TEKST, niet op "rendert"** (aanscherping van de LI030-regel): een test
+  die alleen controleert dát een component rendert, vangt een leeg scherm niet — een ontbrekende
+  component-`import` rendert in Vue STIL als leeg element en de suite blijft groen. Assert dus de
+  letterlijke gebruikerstekst (`expect(...text()).toBe('nog niet vastgelegd')`,
+  `not.toContain('Onbekend')`), en bij UI-wijzigingen blijft de browsercheck het sluitpunt. (LI040)
+
 
 ## Offline-grens (bewust)
 
@@ -212,92 +249,44 @@ structureel** geassert i.p.v. live: de `ON DELETE CASCADE` op kind-FK's (assert 
 `fk.ondelete=='CASCADE'`) en de lifecycle-keten (pure `bepaal_lifecycle` +
 spy op `herbereken_lifecycle`-aanroep). De live keten is in V003 wél éénmalig
 empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
-
-## V004-patronen (CD003–CD012, geverifieerd)
-
 - **Empirische verificatie tegen de draaiende stack** voor risicovolle aannames die de
   offline-grens niet dekt: `refresh_token` aanwezig? (handmatige PKCE-flow), logout-
   confirm-scherm vs. 302 mét `id_token_hint`, end-session-config. Aanvullend op de
-  offline-tests, niet vervangend. [CD007/CD008/CD010]
-- **Regressie-borging als vast onderdeel**: 422-native bij foutformaat-werk; auto-pad
-  ongemoeid bij guard-werk; cross-tenant-identiek voor platform-data; bestaande
-  auth-tests groen na auth-wijzigingen. [CD009/CD011/CD004]
-- **Frontend single-flight/async-tests**: `vi.stubGlobal('fetch', …)` met per-URL-state
-  (401-dan-200) om refresh-on-401 + retry te bewijzen; `attachTo: document.body` +
-  macrotask-defer voor focus-asserts; `:closable="false"` Dialog focust het eerste veld. [CD007/CD003]
-
-## V007-patronen (CD039–CD056, geverifieerd)
-
+  offline-tests, niet vervangend. [CD007/CD008/CD010] (V004, geverifieerd)
 - **Tweeluik herbevestigd**: offline **structureel** (mocks/AsyncMock; FK-`ondelete`, schema-
   invarianten, allowlist-synctests, pure beslisregels) + een **eenmalige empirische live-
   verificatie** tegen de geseede `lk_app`-DB (skip-if-onbereikbaar via een verbindings-probe).
   Live-tests **ruimen hun eigen testdata op** (structuurrelaties vóór componenten — anders
   `IN_GEBRUIK`) zodat de baseline ongemoeid blijft. Cyclus-/graaftests bewijzen **terminatie**
-  (maak A↔B en assert dat de traversal eindigt + correct telt). [CD052/CD056]
+  (maak A↔B en assert dat de traversal eindigt + correct telt). [CD052/CD056] (V007, geverifieerd)
+- **Pure signaal-matrix offline**: test de afleidings-helper (bv. `_signaal(score, draait_op)`) DB-vrij
+  over alle combinaties (positief/niet-positief/ongescoord × draait_op aan/uit), en `lijst` met een
+  gemockte `session.execute().all()` die rijen van **meerdere** componenttypen levert (bewijst genericiteit
+  + dat alleen gesignaleerde rijen + `reden` terugkomen, en dat de session **niet** muteert). (V010 Fase F, geverifieerd)
+
+## Live-DB-tests — fixtures, teardown, drift en eigen test-tenant
+
 - **Force-recreate-les (niet onderhandelbaar)**: bind-mounts laden **geen** nieuwe code in een
   draaiend proces — herstart de api-container (`docker compose up -d --force-recreate api`) vóór
-  élke live-check ná een codewijziging, anders test je de oude code. [CD048-sweep]
-- **Baseline-rapportage met benoemde tellingen**: tel categorieën **apart en benoemd**
-  (app-koppelingen **vs.** contract-koppelingen; engine apps/blokkades) in een vaste volgorde —
-  een kale "register=N" verbergt drift. Rapporteer de baseline vóór én na een walkthrough; check
-  expliciet op walkthrough-restdata (bv. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056]
-- **Allowlist-synctest per sorteerbare lijst**: `{e.value for e in <Sorteerveld>} == set(svc._SORTEERBARE_KOLOMMEN)`
-  — borgt dat de schema-enum en de service-allowlist 1-op-1 blijven (geen rauwe kolomnaam in
-  `ORDER BY`). [CD054]
-
-## V009/V010-patronen (ADR-023 Fase A–E, geverifieerd)
-
-- **Gate-per-schema-slice vs. doorloop-bij-licht-additief.** Een **schema-rakende** bouwslice (nieuwe
-  tabel/RLS/migratie/RBAC/audit, of iets dat werkend domein raakt): bouw volledig uit, draai de tests,
-  en **STOP met een gate-rapport VÓÓR de commit** — Bert verifieert en geeft pas dan `AKKOORD: commit`;
-  zo wordt elke nieuwe entiteit geverifieerd vóór de volgende erop bouwt. Een **doorloop-tot-eindrapport-
-  met-afsluitende-commit** geldt **alléén** voor lichte, volledig additieve fasen zonder open knopen
-  (alleen read-side/frontend/constants/docs — géén schema). De bouwopdracht-`.md` markeert expliciet
-  gate of doorloop. In beide gevallen: bij iets buiten de vastgelegde beslissingen (onvoorziene
-  model-/RLS-/semantiekkeuze) STOP + terugkoppelen.
-- **Engine-onaangeroerd = dubbele regressie-borging** (machine-geborgd, niet beweerd): (a) **offline
-  import-afwezigheidstest** — `import <service> as m; assert not hasattr(m, naam)` voor
-  `lifecycle_service`/`herbereken_lifecycle`/`bepaal_lifecycle`/`ComponentProfiel`/`Blokkade`/
-  `Checklistscore` (een tekstscan struikelt over docstrings — gebruik import-afwezigheid); (b) **live
-  test** — de nieuwe entiteit/koppeling doet géén `component_profiel`/lifecycle-state ontstaan of
-  muteren. Readiness wordt altijd puur read-only afgeleid; consistentiechecks zijn signalering.
+  élke live-check ná een codewijziging, anders test je de oude code. [CD048-sweep] (V007, geverifieerd)
 - **Live-test-teardown structureel** (V009-follow-up a): live element-subtype-tests ruimen hun
   `element`-rijen op via `DELETE FROM element` (cascade subtype + relaties); bij een self-FK (RESTRICT)
   **leaf→root**. Residu-check ná de run = **0**. Harness: `zet_tenant_context` + `zet_audit_context` +
   `session.info['rls']=True` op een verse async-sessie; `skipif` als de lk_app-DB onbereikbaar is
   (offline blijft alles groen via de offline-tests). Importeer `app.core.audit` zodat de capture-hook
-  actief is bij een live audit-test.
+  actief is bij een live audit-test. (V009/V010, geverifieerd)
 - **Nieuwe migratie ⇒ dev-DB bijwerken vóór de live-run**: pas de migratie als `lk_admin` toe
   (`DATABASE_URL_SYNC=postgresql://lk_admin:changeme_dev@localhost:5432/likara python3 -m alembic
   upgrade head`) zodat de skip-if-DB-tests de nieuwe tabellen/kolommen zien; ID ≤32 tekens. Een
   ORM-`SELECT` die een **nog niet gemigreerde** kolom noemt → "column does not exist" + aborted
-  transaction in **alle** live-tests van dat bestand (signaal: migratie nog niet toegepast).
-
-## V010 — Fase F afgerond (F-3): signaal-fixtures + werkwijze (geverifieerd)
-
+  transaction in **alle** live-tests van dat bestand (signaal: migratie nog niet toegepast). (V009/V010, geverifieerd)
 - **Live signaal-fixture (oriëntatie + scope-via-markering)**: maak componenten **direct via ORM**
   (`Element`→`flush`→subtype) — dit triggert **géén** lifecycle/profiel, dus de plaatsingsvraag is van
   nature **ongescoord** (handig om `vastgelegd_niet_beoordeeld` te bewijzen). Leg een `assignment`
   (`bron=host, doel=app`) → de app telt als `draait_op` (oriëntatie `doel==component`); een app die enkel
   als **bron** in een assignment zit telt **niet** (bewijst de oriëntatie). Een componenttype **zonder**
   de betekenis-markering (bv. `applicatieserver`) valt buiten scope ondanks `draait_op` (bewijst scope-
-  via-markering). Teardown: `DELETE FROM element` cascadeert subtypes **én** relaties → residu 0.
-- **Pure signaal-matrix offline**: test de afleidings-helper (bv. `_signaal(score, draait_op)`) DB-vrij
-  over alle combinaties (positief/niet-positief/ongescoord × draait_op aan/uit), en `lijst` met een
-  gemockte `session.execute().all()` die rijen van **meerdere** componenttypen levert (bewijst genericiteit
-  + dat alleen gesignaleerde rijen + `reden` terugkomen, en dat de session **niet** muteert).
-- **Read-only meting in het gate-rapport (borging)**: bij een afgeleide read-API meet je de **feitelijke
-  dev-stand** (welke componenten welk signaal, met waarom) via een klein script onder `_run_rls`, en zet
-  je die in het gate-rapport zodat Bert de regel op echte data toetst (F-3: 8× `beoordeeld_niet_vastgelegd`).
-- **OPVOLGPUNTEN.md is een NORMAAL TRACKED projectbestand** (besluit DC011 — geverifieerd `git ls-files`,
-  niet in `.gitignore`). Behandel het als elk ander tracked bestand. De achterhaalde aanname
-  "OPVOLGPUNTEN is untracked tijdens de sessie en landt pas bij close" geldt **niet** meer — niet
-  herintroduceren. Bij een feature-commit hoort een OPVOLGPUNTEN-wijziging er niet stil in mee te liften:
-  gebruik **gerichte staging** (`git add <expliciete feature-paden>` + `git diff --cached --stat` als
-  bewijs); de afsluit-/parkeer-updates van OPVOLGPUNTEN landen in de **sessie-afsluit-commit**.
-- **Dev-ergonomie**: `psql` staat **niet** op de host → `docker exec lk-postgres psql -U lk_admin -d
-  likara -At -F'|' -c "…"` voor read-only metingen als lk_admin (ziet álle tenants). `rm` is in de
-  sandbox geweigerd → ruim een per ongeluk aangemaakt stray-bestand op met `find <pad> -type f -delete`.
+  via-markering). Teardown: `DELETE FROM element` cascadeert subtypes **én** relaties → residu 0. (V010 Fase F, geverifieerd)
 - **Teardown MOET via het element-supertype (les uit V011 — wees-elementen).** Een live-test-teardown
   ruimt een element-subtype (component/contract/…) **uitsluitend** op met `DELETE FROM element WHERE id=…`
   (cascade omlaag: element → subtype → profiel/scores/blokkades + relatie-endpoints). `DELETE FROM
@@ -309,26 +298,12 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   id=e.id)` per subtype — en eis **0**. Het productie-delete-pad (`*_service.verwijder`) verwijdert al
   correct via `element`; dit was puur een test-teardown-fout (4 bestanden, V011). **Grep
   case-insensitive** (`grep -niE "delete[[:space:]]+from[[:space:]]+component"`) — lowercase SQL in
-  tests wordt anders gemist.
-
-## V012-patronen (dekking: live-DB + end-to-end, geverifieerd)
-
+  tests wordt anders gemist. (V010 Fase F, geverifieerd)
 - **Live-DB-dekkingstest NAAST de seed-test.** Borg een invariant niet alleen tegen de seed-functie
   maar óók tegen de **draaiende database** (een `@live`/`skipif`-test die de live DB controleert), zodat
   wat via het **beheer** ontstaat ook gedekt is. Voorbeelden (V012, partij-lidmaatschap): live
   CHECK-backstop (een directe insert van persoon/afdeling zónder organisatie ⇒ DB weigert met de
-  benoemde constraint), wees-element-telling = 0 per subtype, geen trigger op `partij`.
-- **Een service-/SQL-meting bewijst het SCHERM-gedrag NIET — verifieer end-to-end.** De Fase-2-"leden-
-  filter"-meting was een directe SQL-query en bleef daardoor blind voor de **api-client** die de filter
-  stil dropte (V012-bug). Toets een filter/sortering die het scherm aanstuurt **via de keten** (api-
-  client → endpoint), niet alleen op service-niveau. In de frontend-test: assert dat
-  `api.<resource>.lijst` mét de filter/sort wordt aangeroepen **én** dat de client die in de query zet.
-- **Sorteer-allowlist-synchroon-test breidt mee uit**: voeg je een sorteerveld toe (bv. `aard`), borg
-  dan in één test `set(_SORTEERBARE_KOLOMMEN) == {e.value for e in *Sorteerveld} == set(_WAARDE_PARSERS)`
-  (enum ⟺ kolommen ⟺ parsers), zodat een half toegevoegde kolom faalt.
-
-## LI020-patronen (test-hygiëne live-DB)
-
+  benoemde constraint), wees-element-telling = 0 per subtype, geen trigger op `partij`. (V012, geverifieerd)
 - **Live-DB-tests moeten zelf-opruimend zijn via `finally`/teardown, NIET inline.** Een test die de
   rijen pas aan het eind van de happy-flow opruimt, lekt bij een fout (een falende assert vóór dat
   punt) zijn rijen naar de dev-DB. Bewezen mechanisme (LI020): `CD052-db-*`
@@ -340,70 +315,24 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   livetests (`for eid in ids: DELETE FROM element ...` in `finally`) zijn de juiste vorm.
 - **Bij twijfel over vreemde data in de dev-DB: meet de SEED-functie, niet de live-DB-staat.** De
   live-DB kan test-residu bevatten; tel/inspecteer `_seed_bvowb_scenario` (of query mét de
-  artefact-prefixen — `CD052-*`/`AUDIT-SRV-*` — uitgesloten) om de échte dekking te beoordelen.
-
-## LI021-patronen (reset + live-DB-test-drift)
-
+  artefact-prefixen — `CD052-*`/`AUDIT-SRV-*` — uitgesloten) om de échte dekking te beoordelen. (LI020)
 - **Na elke `docker compose down -v` moet de dev-seed HANDMATIG.** De init-container draait
   `alembic upgrade head` + `platform_init` (referentiedata), maar **niet** de dev-seed
   (`_seed_bvowb_scenario`). Na een reset dus expliciet:
   `docker compose exec <api-service> python dev_seed_testdata.py` (of lokaal
   `cd backend && python3 dev_seed_testdata.py`). Vergeten = lege scenario-data → veel live-DB-
   tests falen. (Of de seed automatisch mee zou moeten draaien is een open vraag; voor nu:
-  handmatige stap.)
+  handmatige stap.) (LI021)
 - **Live-DB-tests kunnen "drift" vertonen t.o.v. de seed.** Symptoom: een test asserteert op
   rijen die de huidige `_seed_bvowb_scenario` níét (meer) maakt (bv. namen uit dode seed-paden
   als `_seed_technische_laag`). De `finally`-hygiëne (LI020) lost het *lekken* op, maar niet de
   *drift*: een falende test die zijn fixtures netjes opruimt blijft falen tot óf de seed de
   verwachte rijen levert óf de test herijkt is op de canonieke seed. Diagnose: vergelijk de
-  test-verwachting met wat `main()`/`_seed_bvowb_scenario` daadwerkelijk aanmaakt.
+  test-verwachting met wat `main()`/`_seed_bvowb_scenario` daadwerkelijk aanmaakt. (LI021)
 - **Nieuwe live-DB-tests altijd self-contained:** maak je eigen `WT-*`-fixtures aan + ruim ze
   in `finally` op, en asserteer alléén op je eigen data — dan ben je immuun voor seed-drift en
   residu. (Let op: `applicatie_service.maak_aan` geeft een **object** terug (`.id`),
-  `component_service.maak_aan` een **dict** (`["id"]`).)
-
-## LI022-patronen (strategie A — testmigratie bij een laadpad-omslag, geverifieerd)
-
-- **Wijzigt een view zijn laadgedrag fundamenteel** (bv. van "laad altijd alles" naar set-gestuurd via
-  een nieuw endpoint), **herschrijf de bestaande gedragstests dan niet** — richt ze op de **modus waar
-  dat gedrag aantoonbaar nog leeft**. Recept (Landschapskaart Fase B slice 0+1):
-  - een gedeelde `mountView`-helper die ná mount de **"volledige" modus** laadt, zodat de bestaande
-    full-graph-asserties (filters/scope/ego/impact/swimlane/history/ringen) geldig blijven;
-  - **één setter voedt beide laadpaden**: de oude full-load én de nieuwe subgraaf-mock leveren
-    **dezelfde data**, zodat een set opbouwen de graaf niet leegt onder de bestaande tests;
-  - **nieuwe bedrading-tests apart** (eigen `describe`): dekken alléén het nieuwe laad-/reset-/
-    teller-gedrag (lege set = geen fetch + placeholder; set → subgraaf; mutatie → herfetch hele set;
-    hele-landschap → full-graph + set geleegd; begin-opnieuw → reset).
-- **Nagel onbesliste semantiek niet vast in tests.** Wat nog niet ontworpen is (bv. wat
-  filter/scope/impact/swimlane betekenen op een opgebouwde subgraaf) hoort **niet** in een assertie —
-  dek alleen de bedrading; de inhoudelijke semantiek volgt in een eigen ontwerpslice. Een test die een
-  nog-open ontwerpkeuze fixeert, blokkeert dat ontwerp later.
-- **Function-bronscan met `ast`-docstring-strip** voor engine-/read-only-borging van een nieuwe
-  service-functie in een module die de engine elders wél raakt: een platte tekstscan struikelt over een
-  docstring die een verboden symbool ter uitleg noemt → strip de docstring via `ast` vóór de scan.
-
-## LI035-patronen (CSS-borging + succes-asserts)
-
-- **Class-asserts bewijzen geen rendering.** vitest assert klasse-STRINGS; of een klasse
-  daadwerkelijk stijl oplevert bewijst alléén de dist-CSS. Laag C
-  (`frontend/scripts/check-css-build.mjs`) checkt daarom (1) kritische klassen in de
-  gebouwde CSS en (2) élke fallback-loze `var(--lk-…)`-verwijzing tegen de
-  token-definities (de MeldingBanner-les: token `--lk-color-warn` bestond niet — heette
-  `-warning` — en de banner rendeerde stil zonder tint).
-- **Tailwind-candidate-valkuil in de check zelf.** Alles onder `frontend/` (ook
-  testbestanden en het check-script) wordt door Tailwind gescand; een aaneengesloten
-  class-literal in een comment seedt de klasse en maakt de check vals-groen. Bouw te
-  matchen tokens uit fragmenten (gesplitste `]`), behalve voor handgeschreven
-  main.css-klassen (die kan Tailwind nooit zelf genereren).
-- **Succes-toast-asserts**: mock de helper-module (`vi.mock('@/meldingen', () => ({
-  toastSucces: vi.fn() }))`) en assert `toHaveBeenCalledWith(expect.anything(),
-  '<werkwoord>')` in de succes-flow; de vorm zelf (severity/life) borgt
-  `tests/meldingen.test.js` één keer centraal.
-- **vitest draait ALTIJD vanuit `frontend/`** (cwd-valkuil trad in LI035 drie keer op:
-  vanaf de repo-root falen de alias-resolves met "Cannot find package '@/store/auth'").
-
-## LI036-patronen (teardown-aanvulling + suite-flakiness)
-
+  `component_service.maak_aan` een **dict** (`["id"]`).) (LI021)
 - **Teardown bij een self-FK-RESTRICT — aanvulling op de bestaande leaf→root-regel.**
   (1) Een via core-SQL geconstrueerde **kring** (bv. de proces-cyclus-test: `UPDATE proces
   SET ouder_id=…` buiten de service-validatie om) is met leaf→root alléén niet te wissen —
@@ -412,16 +341,6 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   **stapelt residu over runs heen** (LI036: 16 WT-PL-rijen uit 2 gefaalde runs, pas zichtbaar
   in een latere sanity-meting). Borging is niet sluitend zonder meting: check restdata = 0
   ná de run (`SELECT count(*) … WHERE naam LIKE 'WT-%'`), zeker na een gefaalde run.
-- **Suite-flakiness onder belasting (bekend broos punt, geen code-regressie).** Tests met
-  échte `setTimeout`-waits (m.n. de dubbeltap-tests, `_DBLTAP_MS`) kunnen bij rug-aan-rug
-  volledige-suite-runs/CPU-verzadiging massaal timeouten (LI036-meting: 1 van ~7 runs
-  faalde met 16 timeouts à 12s+; geïsoleerd en in 4 opeenvolgende runs daarna groen).
-  Duiding: belastinggevoeligheid van de timer-tests, niet de gewijzigde code. Keert het in
-  een rustige omgeving terug → dan wél de gerichte `git stash`-vergelijking (ADR-028-
-  diagnose-recept in likara-backend) draaien vóór er iets "gefixt" wordt.
-
-## LI039-patronen (test-tenant-grens, UI-pad-dekking, vorm-asserts)
-
 - **Eigen test-tenant zodra de teardown breder veegt dan de eigen fixtures (besluit Bert,
   LI039).** De bestaande norm blijft: live-tests self-contained (WT-fixtures, opruimen in
   `finally`) — in de dev-tenant is dat prima. Maar zodra een teardown NIET tot eigen rijen
@@ -430,46 +349,21 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   tenant `9999…`). Reden (les LI039): de import-teardown draaide eerst in de dev-tenant en
   at de geseede GEMMA-boom op. Bewust NIET als absolute "nooit dev-tenant"-regel vastgelegd —
   die zou de gezonde bestaande praktijk tot overtreding verklaren en daarmee genegeerd worden.
-- **Elk UI-pad dat de gebruiker opent (popup/dialoog/overlay) heeft minstens één test die
-  hem ÉCHT opent.** Payload-groen zegt niets over een pad dat nooit gemount wordt.
-  Referenties: de diagram-popup-tests ("popup bestaat op inhoud, óók zonder uitgang") en de
-  inleesdialoog-tests (openen → voorbeeld → bevestigen). ⚠ Tekst-regel — geen bouwsteen;
-  discipline per slice.
-- **Vorm-asserts (aanscherping op de LI030-regel "toets de interactie-staat"):** assert ook
-  de KNOPVORM waar die betekenis draagt — doorklik vs. mutatie:
-  `expect(w.findComponent('[data-testid=…]').props('outlined')).toBe(true)` (referentie:
-  BedrijfsfunctieLijst.test.js:325-329). Een payload-assert ziet niet dat een mutatie-knop
-  per ongeluk als doorklik oogt. ⚠ Tekst-regel — per test een keuze.
-
-
-## LI040-patronen (leegte-borging, scan-zelftests, catalogus-asserts)
-
-- **Assert op zichtbare TEKST, niet op "rendert"** (aanscherping van de LI030-regel): een test
-  die alleen controleert dát een component rendert, vangt een leeg scherm niet — een ontbrekende
-  component-`import` rendert in Vue STIL als leeg element en de suite blijft groen. Assert dus de
-  letterlijke gebruikerstekst (`expect(...text()).toBe('nog niet vastgelegd')`,
-  `not.toContain('Onbekend')`), en bij UI-wijzigingen blijft de browsercheck het sluitpunt.
-- **Bewijs dat een test/scan bijt.** Elke bron-scan draagt een ZELFTEST die bij élke run
-  opzettelijk foute voorbeelden invoert en verifieert dat ze gevangen worden (referenties:
-  veld-scan + detailkop-scan in `check-css-build.mjs`, elk 5/5). Zonder bijt-bewijs is een
-  vangnet een aanname.
 - **Complementariteit bij gat-filters**: *gat-set ∪ waarde-sets = totaal* — geen enkel object
   valt buiten beide, en een gezette waarde verlaat het gat. Referenties:
-  `test_leeg_vindbaar_li040.py` / `test_geen_oordeel_li040.py` (live).
+  `test_leeg_vindbaar_li040.py` / `test_geen_oordeel_li040.py` (live). (LI040)
 - **Assert alleen op eigen data — óók bij catalogi** (aanscherping van de LI021-regel):
   set-GELIJKHEID over een hele beheerbare catalogus breekt zodra een beheerder legitiem een
   optie toevoegt (dat is een feature, geen regressie) — gebruik een **subset-assert**
   (`{verwachte} <= {gevonden}`) of assert op de eigen WT-fixtures. Exacte gelijkheid alleen op
-  code-eigen enums.
-- **Engine-grens dubbel borgen — nu óók de omgekeerde richting**: naast de bestaande
-  import-afwezigheid ("de nieuwe service importeert de engine niet") de **woord-scan op de
-  engine-bronnen zelf** — `lifecycle_service`/`checklistscore_service`/`blokkade_service`
-  bevatten het nieuwe registratieve veld als wóórd niet (`levensfase`, `migratiepad`,
-  `complexiteit`, `prioriteit`) — plus live: een edit muteert lifecycle niet, 0 scores,
-  0 blokkades. Referenties: `test_levensfase_adr046.py`, `test_geen_oordeel_li040.py`.
+  code-eigen enums. (LI040)
 
-## LI041-patronen (bronscan-norm + rollengrens-borging)
+## Bronscans — bijten, vals alarm en bereik
 
+- **Bewijs dat een test/scan bijt.** Elke bron-scan draagt een ZELFTEST die bij élke run
+  opzettelijk foute voorbeelden invoert en verifieert dat ze gevangen worden (referenties:
+  veld-scan + detailkop-scan in `check-css-build.mjs`, elk 5/5). Zonder bijt-bewijs is een
+  vangnet een aanname. (LI040)
 - **Elke gedeelde leesregel/afleiding krijgt een bronscan-test die een tweede implementatie laat
   falen.** Drie sessies raak — LI038 (twee ankers, één model) · LI040 (de "3 van 19"-teller/lijst-
   splitsing) · LI041 (`dekking_overzicht` / `plek_standen`) — dus geen zin meer maar een **norm**:
@@ -489,8 +383,69 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   een nieuw feit niet geclassificeerd is of op de verkeerde actie guardt. Precedenten:
   `test_classificatie_disjunct_en_verwijder_actie` · `test_primaire_delete_erft_categorie_en_bijt`
   (test_rollengrens_adr050). Zo kan "zeven feiten vergaten de regel" niet opnieuw ontstaan.
+- **Function-bronscan met `ast`-docstring-strip** voor engine-/read-only-borging van een nieuwe
+  service-functie in een module die de engine elders wél raakt: een platte tekstscan struikelt over een
+  docstring die een verboden symbool ter uitleg noemt → strip de docstring via `ast` vóór de scan. (LI022, geverifieerd)
+- **Class-asserts bewijzen geen rendering.** vitest assert klasse-STRINGS; of een klasse
+  daadwerkelijk stijl oplevert bewijst alléén de dist-CSS. Laag C
+  (`frontend/scripts/check-css-build.mjs`) checkt daarom (1) kritische klassen in de
+  gebouwde CSS en (2) élke fallback-loze `var(--lk-…)`-verwijzing tegen de
+  token-definities (de MeldingBanner-les: token `--lk-color-warn` bestond niet — heette
+  `-warning` — en de banner rendeerde stil zonder tint). (LI035)
+- **Tailwind-candidate-valkuil in de check zelf.** Alles onder `frontend/` (ook
+  testbestanden en het check-script) wordt door Tailwind gescand; een aaneengesloten
+  class-literal in een comment seedt de klasse en maakt de check vals-groen. Bouw te
+  matchen tokens uit fragmenten (gesplitste `]`), behalve voor handgeschreven
+  main.css-klassen (die kan Tailwind nooit zelf genereren). (LI035)
 
-## LI046 — groen bewijst geen schone bron (bronbestand-hygiëne)
+## Engine-borging — import-afwezigheid en de omgekeerde woord-scan
+
+- **Engine-onaangeroerd = dubbele regressie-borging** (machine-geborgd, niet beweerd): (a) **offline
+  import-afwezigheidstest** — `import <service> as m; assert not hasattr(m, naam)` voor
+  `lifecycle_service`/`herbereken_lifecycle`/`bepaal_lifecycle`/`ComponentProfiel`/`Blokkade`/
+  `Checklistscore` (een tekstscan struikelt over docstrings — gebruik import-afwezigheid); (b) **live
+  test** — de nieuwe entiteit/koppeling doet géén `component_profiel`/lifecycle-state ontstaan of
+  muteren. Readiness wordt altijd puur read-only afgeleid; consistentiechecks zijn signalering. (V009/V010, geverifieerd)
+- **Engine-grens dubbel borgen — nu óók de omgekeerde richting**: naast de bestaande
+  import-afwezigheid ("de nieuwe service importeert de engine niet") de **woord-scan op de
+  engine-bronnen zelf** — `lifecycle_service`/`checklistscore_service`/`blokkade_service`
+  bevatten het nieuwe registratieve veld als wóórd niet (`levensfase`, `migratiepad`,
+  `complexiteit`, `prioriteit`) — plus live: een edit muteert lifecycle niet, 0 scores,
+  0 blokkades. Referenties: `test_levensfase_adr046.py`, `test_geen_oordeel_li040.py`. (LI040)
+
+## Allowlist-synctests
+
+- **Allowlist-synctest per sorteerbare lijst**: `{e.value for e in <Sorteerveld>} == set(svc._SORTEERBARE_KOLOMMEN)`
+  — borgt dat de schema-enum en de service-allowlist 1-op-1 blijven (geen rauwe kolomnaam in
+  `ORDER BY`). [CD054] (V007, geverifieerd)
+- **Sorteer-allowlist-synchroon-test breidt mee uit**: voeg je een sorteerveld toe (bv. `aard`), borg
+  dan in één test `set(_SORTEERBARE_KOLOMMEN) == {e.value for e in *Sorteerveld} == set(_WAARDE_PARSERS)`
+  (enum ⟺ kolommen ⟺ parsers), zodat een half toegevoegde kolom faalt. (V012, geverifieerd)
+
+## Regressie-borging
+
+- **Regressie-borging als vast onderdeel**: 422-native bij foutformaat-werk; auto-pad
+  ongemoeid bij guard-werk; cross-tenant-identiek voor platform-data; bestaande
+  auth-tests groen na auth-wijzigingen. [CD009/CD011/CD004] (V004, geverifieerd)
+
+## Testmigratie bij een laadpad-omslag — strategie A (LI022, geverifieerd)
+
+- **Wijzigt een view zijn laadgedrag fundamenteel** (bv. van "laad altijd alles" naar set-gestuurd via
+  een nieuw endpoint), **herschrijf de bestaande gedragstests dan niet** — richt ze op de **modus waar
+  dat gedrag aantoonbaar nog leeft**. Recept (Landschapskaart Fase B slice 0+1):
+  - een gedeelde `mountView`-helper die ná mount de **"volledige" modus** laadt, zodat de bestaande
+    full-graph-asserties (filters/scope/ego/impact/swimlane/history/ringen) geldig blijven;
+  - **één setter voedt beide laadpaden**: de oude full-load én de nieuwe subgraaf-mock leveren
+    **dezelfde data**, zodat een set opbouwen de graaf niet leegt onder de bestaande tests;
+  - **nieuwe bedrading-tests apart** (eigen `describe`): dekken alléén het nieuwe laad-/reset-/
+    teller-gedrag (lege set = geen fetch + placeholder; set → subgraaf; mutatie → herfetch hele set;
+    hele-landschap → full-graph + set geleegd; begin-opnieuw → reset).
+- **Nagel onbesliste semantiek niet vast in tests.** Wat nog niet ontworpen is (bv. wat
+  filter/scope/impact/swimlane betekenen op een opgebouwde subgraaf) hoort **niet** in een assertie —
+  dek alleen de bedrading; de inhoudelijke semantiek volgt in een eigen ontwerpslice. Een test die een
+  nog-open ontwerpkeuze fixeert, blokkeert dat ontwerp later.
+
+## Groen bewijst geen schone bron — bronbestand-hygiëne (LI046)
 
 Een tekstbronbestand (.js/.py/.vue/.md) moet **schone UTF-8** zijn. Groene tests bewijzen dat **niet**:
 Node/vitest parseren een `.js` mét **null-bytes** (`\0`) probleemloos, dus de suite bleef groen —
@@ -521,7 +476,7 @@ bestandsformaat loopt hetzelfde risico zodra hij een voorbeeld toont. **Pas een 
 daarom meteen toe op het bestand waarin je hem opschrijft**, vóór je verdergaat. Dat kost één
 commando en vangt precies de fout die je zojuist beschreef.
 
-## LI047 — `vi.clearAllMocks()` wist aanroepen, niet implementaties
+## Mock-reset wist aanroepen, niet implementaties (LI047)
 
 `vi.clearAllMocks()` in een `beforeEach` reset `mock.calls`, maar **laat een via `mockResolvedValue`
 gezette implementatie staan**. Een respons die één toets instelt, lekt daardoor door naar élke
@@ -536,3 +491,30 @@ leek een bouwfout te melden, en was testvervuiling.
 standaardrespons (naast `clearAllMocks`), of gebruik `mockResolvedValueOnce` waar het om één aanroep
 gaat. Referentie: `ComponentDetail.test.js` — de `componentNormen.openPunten`-mock wordt per toets
 teruggezet, met de reden erbij in een comment.
+
+## Cross-skill-kandidaten (LI049 — horen inhoudelijk elders; hier geparkeerd tot eigen besluit)
+
+- **Baseline-rapportage met benoemde tellingen**: tel categorieën **apart en benoemd**
+  (app-koppelingen **vs.** contract-koppelingen; engine apps/blokkades) in een vaste volgorde —
+  een kale "register=N" verbergt drift. Rapporteer de baseline vóór én na een walkthrough; check
+  expliciet op walkthrough-restdata (bv. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056] (V007, geverifieerd)
+- **Gate-per-schema-slice vs. doorloop-bij-licht-additief.** Een **schema-rakende** bouwslice (nieuwe
+  tabel/RLS/migratie/RBAC/audit, of iets dat werkend domein raakt): bouw volledig uit, draai de tests,
+  en **STOP met een gate-rapport VÓÓR de commit** — Bert verifieert en geeft pas dan `AKKOORD: commit`;
+  zo wordt elke nieuwe entiteit geverifieerd vóór de volgende erop bouwt. Een **doorloop-tot-eindrapport-
+  met-afsluitende-commit** geldt **alléén** voor lichte, volledig additieve fasen zonder open knopen
+  (alleen read-side/frontend/constants/docs — géén schema). De bouwopdracht-`.md` markeert expliciet
+  gate of doorloop. In beide gevallen: bij iets buiten de vastgelegde beslissingen (onvoorziene
+  model-/RLS-/semantiekkeuze) STOP + terugkoppelen. (V009/V010, geverifieerd)
+- **Read-only meting in het gate-rapport (borging)**: bij een afgeleide read-API meet je de **feitelijke
+  dev-stand** (welke componenten welk signaal, met waarom) via een klein script onder `_run_rls`, en zet
+  je die in het gate-rapport zodat Bert de regel op echte data toetst (F-3: 8× `beoordeeld_niet_vastgelegd`). (V010 Fase F, geverifieerd)
+- **OPVOLGPUNTEN.md is een NORMAAL TRACKED projectbestand** (besluit DC011 — geverifieerd `git ls-files`,
+  niet in `.gitignore`). Behandel het als elk ander tracked bestand. De achterhaalde aanname
+  "OPVOLGPUNTEN is untracked tijdens de sessie en landt pas bij close" geldt **niet** meer — niet
+  herintroduceren. Bij een feature-commit hoort een OPVOLGPUNTEN-wijziging er niet stil in mee te liften:
+  gebruik **gerichte staging** (`git add <expliciete feature-paden>` + `git diff --cached --stat` als
+  bewijs); de afsluit-/parkeer-updates van OPVOLGPUNTEN landen in de **sessie-afsluit-commit**. (V010 Fase F, geverifieerd)
+- **Dev-ergonomie**: `psql` staat **niet** op de host → `docker exec lk-postgres psql -U lk_admin -d
+  likara -At -F'|' -c "…"` voor read-only metingen als lk_admin (ziet álle tenants). `rm` is in de
+  sandbox geweigerd → ruim een per ongeluk aangemaakt stray-bestand op met `find <pad> -type f -delete`. (V010 Fase F, geverifieerd)

@@ -2,7 +2,7 @@
 
 Offline: engine-borging + de route-afleiding (besluit 8: elk punt een route, en NOOIT een route
 zonder landing — ADR-054).
-Live (skip-if-no-DB, EIGEN test-tenant — likara-tests §LI039): één bron/twee filters (13), teller ≡
+Live (skip-if-no-DB, EIGEN test-tenant — likara-tests §Live-DB-tests): één bron/twee filters (13), teller ≡
 lijst (14), de bewuste vaststelling verdwijnt uit blok 1 ÉN blok 3 (9 + 10), en de checklistregel is
 gebundeld (3).
 """

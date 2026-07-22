@@ -486,7 +486,7 @@ seedwijziging het schone geval vervuilt). Referentie: `_seed_schoon_geval` (HR-s
 - **Browserverificatie-faalmodus: de stil niet-geresolvede component.** Een ontbrekende `import`
   van een Vue-component geeft GEEN fout — Vue rendert het element stil leeg, en de suite blijft
   groen (mocks zien het niet). Dit is de scherpste reden achter de bestaande browsercheck-regel
-  (LI032) én de tests-regel "assert op zichtbare tekst" (likara-tests, LI040).
+  (LI032) én de tests-regel "assert op zichtbare tekst" (likara-tests §Frontend-testpatroon, LI040).
 - **Bedieningskennis hoort in de bedieningsdoc.** Wat een mens nodig heeft om te testen
   (platform-inlog, menupad) staat in `docs/LOKAAL-TESTEN.md` (de platform-login staat daar
   inmiddels, regel ~117-131) — niet alleen in een skill. *(LI040: een browsercheck-draaiboek liep
