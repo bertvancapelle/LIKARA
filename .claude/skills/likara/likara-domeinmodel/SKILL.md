@@ -994,7 +994,7 @@ antwoord gelezen. De MVP-vorm van de latere beoordelingsgrondslag.)*
   "gedeeltelijk".** Bewijs: GEMMA bood 12 bedrijfsfunctie↔bedrijfsproces-relaties (**4%** dekking) → géén
   automatische brug functie↔proces gebouwd. Levert de bron de brug niet, dan moet de **gemeente hem zelf
   leggen** — een implementatieproject vóór er waarde is, tegen de kern van LIKARA. Dan niet bouwen.
-  Aansluitend op likara-werkprotocol §LI039 *"telling vóór besluit — denkbaar is niet geteld"*. Referentie:
+  Aansluitend op likara-werkprotocol §Reikwijdte-scan *"telling vóór besluit — denkbaar is niet geteld"*. Referentie:
   `docs/Meting-gemma-functie-proces-relatie-V045.md`.
 
 - **Een feit hoort in de platform-default; de verplichtstelling is een tenant-keuze (LI045).** Kun je een

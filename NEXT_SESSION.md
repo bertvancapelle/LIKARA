@@ -47,14 +47,9 @@ bewaard, dus wat niet landt is weg), maar de schuld is daarmee groter geworden, 
 
 **Drie dingen, in deze volgorde:**
 
-**(a) `likara-werkprotocol` — 621 regels, 22 koppen.** Vijf daarvan zijn chronologische
-verzamelbakken (`LI035`, `LI036`, `LI039`, `LI040`, `LI048`), samen 105 regels. Het probleem is niet
-hun lengte maar dat ze **concurreren met de onderwerpskoppen**: een browsercheck-les kan in
-§Browsercheck (84 regels) óf in §LI035 landen; een UX-first-les in drie verschillende secties. Hef de
-vijf sessiekoppen op en hang hun inhoud onder het onderwerp waar ze bij horen — verplaatsen, niet
-herschrijven. Voeg daarna de drie UX-first-koppen samen. Verwachte uitkomst: ~15 koppen, geen regel
-minder inhoud. Let ook op §Gate-discipline: 142 regels, bijna een kwart, en het bevat
-bestandsoperatie-lessen die bij §Browsercheck horen.
+*(a) is uitgevoerd in LI049 — de vijf sessiekoppen (`LI035`/`LI036`/`LI039`/`LI040`/`LI048`) zijn
+opgeheven; hun inhoud staat onder de onderwerpskoppen, mét sessiemarkers. Nog open uit (a): de drie
+UX-first-koppen samenvoegen — eigen besluit, daar gaat inhoud verloren.*
 
 **(b) De P-reeks in `likara-ux` staat in omgekeerde volgorde.** In het bestand: P8 → P9 → P8d → P8c →
 P8b → P8a. Elk nieuw stuk is vóór het vorige anker ingevoegd (in LI048 vier keer). Wie het bestand

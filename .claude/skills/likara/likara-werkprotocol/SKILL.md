@@ -18,6 +18,11 @@ gebruikersvraag dat vereist: onmiddellijk terugkeren naar de functionele vraag.
 Bekende faalpatroon: te snel/diep de techniek of het proces in duiken.
 Correctie: terug naar de gebruikersvraag. Altijd.
 
+- **Gebruikerservaring is áltijd het uitgangspunt**; techniek, schema-keuzes, gates en
+  commit-discipline zijn vangrails — nooit de toon of het vertrekpunt van een antwoord.
+  Conflicteert gebruikerslogica met een technische voorkeur, dan wint de
+  gebruikerservaring. (LI035)
+
 ---
 
 ## KERNLES LI038 — een regel in de skills is geen borging; hij houdt pas als een gedeelde bouwsteen hem afdwingt
@@ -69,6 +74,12 @@ relatiesoort krijgt een eigen baan zónder hier een tak toe te voegen. Geometrie
 de invariant, i.p.v. "regel het per ring". Geborgd door de erven-test (`kaartBanen.test.js`: een
 onbekend relatietype krijgt een eigen baan).
 
+- **Convergentie-vorm bij twee waarheden (aanvulling op de KERNLES):** nooit een tweede
+  implementatie — een **tweede export in dezelfde module**, met de bestaande consument
+  byte-compatibel. Referentie: `procesBoom.js` (`procesBoomStructuur` ongewijzigd voor
+  ProcesLijst; `meervoudBoomStructuur` ernaast voor ADR-044).
+  (LI039, gevalideerd fase A: `docs/Validatie-patronen-LI039.md`.)
+
 ## Scope voeren op de ids van je eigen domein (LI038)
 
 Voer een set-/scope-actie op de identiteiten van het domein dat je toont — niet op een
@@ -91,6 +102,10 @@ aangeroepen". Verkies dit boven een afspraak of een test.
 4. **Formuleer altijd functioneel en bondig.** Technische of schema-taal alleen
    als Bert dit expliciet vraagt.
 5. **Analyses altijd vanuit functioneel gebruikersperspectief.**
+
+- **Kort, bondig, functioneel**: analyses starten bij de gebruiker, niet bij de tabel.
+  Vragen én adviezen strikt één voor één; CC-opdrachten altijd als zelfstandig leesbaar
+  `.md` met `START:` op regel 1. (LI035)
 
 ---
 
@@ -176,6 +191,16 @@ Die discipline blijft **ongewijzigd** voor alles wat muteert.
 - **Design-heavy / rimpel-fases**: altijd eerst checkpoint — CC legt codestaat
   vast + open vragen + gefaseerd bouwplan en STOPT; claude.ai lost open vragen
   één voor één op met Bert vóór de bouw-instructie de deur uit gaat.
+- **Nieuwe dependency ⇒ image herbouwen — deploy-consequentie in het gate-rapport.** Een
+  dependency in `requirements.txt` bestaat pas in de container ná `docker compose build`;
+  tot die tijd draait de api de oude omgeving (LI039: defusedxml — de api viel om tot de
+  rebuild). Het gate-rapport benoemt de rebuild expliciet.
+- **Migratie: bouw ÉN toepassing horen bij de slice.** Een model↔schema-mismatch legt élk
+  endpoint op die tabel plat (LI039-incident: `inlees_voltooid` in het ORM, migratie 0064
+  nog niet toegepast → 500 op het aanbod-endpoint). De migratie wordt gebouwd én toegepast
+  binnen dezelfde slice, vóór de code actief wordt; een onderbroken slice laat dit als
+  EERSTE herstelpunt na. (De lk-migrate-keten past bij een stackstart automatisch toe — het
+  gat ontstaat lokaal, bij bind-mounted code zonder upgrade.)
 
 ### Sneden die dezelfde functie ontsluiten, beoordeel je op ÉÉN beeld (LI047)
 
@@ -203,6 +228,12 @@ naar een **contractknoop** en beheerrol vanaf een **partij**, niet tussen de twe
 mockup/aanname **tegen het model vóór de bouw**; stoppen is geen vertraging maar de **goedkoopste
 correctie** (bouwen op een verkeerde premisse levert een feature die niet doet wat de mockup belooft).
 
+- **Read-only-eerst, tweemaal herbewezen (aanvulling op §Read-only-eerst).** Een hypothese
+  van de PNA is richting, geen bouwopdracht — LI039 leverde er twee die bij validatie
+  ANDERS bleken: de dubbele-melding-oorzaak (geen leeg aanbod maar een 500 door een
+  model↔schema-mismatch) en "de dev-seed vult het aanbod" (het is `platform_init` +
+  migratie 0061). Beide keren was de fix een andere dan de hypothese suggereerde.
+
 ### Meet tenant-data BINNEN de tenant-context (LI047)
 
 Een meting als `lk_admin` ziet **álle** tenants; RLS bepaalt wat de applicatie ziet. Meet daarom met
@@ -217,6 +248,36 @@ gemeten dat er één `nee`-checklistscore was, terwijl de dev-tenant er nul had 
 andere tenant); (3) "nul nee/deels-scores, de gebundelde regel is niet te bekijken" als vaststaand
 gerapporteerd, terwijl een verse seed er wél één levert — het was **drift**, geen ontbrekende data.
 **Regel: hermeten, of de commit erbij noemen.** Tellingen in gate-rapporten zijn momentopnamen.
+
+**LI048 — een inventarisatie is een meting, geen indruk.**
+
+**Het incident.** Een READ-ONLY checkpoint moest vaststellen welke lijstschermen al "zoek + filter
++ knop" hadden. De detectie zocht naar zoek-achtige tekst in de bron en pikte op het Auditlog-scherm
+`placeholder="Zoek een component…"` op — de placeholder van een ZoekSelect *filterveld*. Conclusie
+in de tabel: "Auditlog heeft een zoekveld ✅". Bij het bouwen bleek: `type="search"` = 0,
+aanmaakknop = 0, `FilterResultaatRegel` = 0. Het scherm was geen beheerslijst maar een
+**doorzoekscherm** — een andere soort, die de hele opdracht anders maakt.
+
+**De fout is niet de regex.** Het is dat een bron is gelezen zonder te toetsen of hij beschrijft
+wat hij lijkt te beschrijven. Dezelfde soort fout als bij "Oracle FIN-DB": een naam die klinkt als
+het ding, aangezien voor het ding. Een placeholder is *tekst in een veld*, geen bewijs dat het veld
+een zoekveld ís.
+
+**Regels die hieruit volgen:**
+- **Tel het ding zelf, niet iets wat erop lijkt.** "Heeft dit scherm een zoekveld?" meet je met
+  `type="search"`, niet met het woord "zoek". Kies per vraag het kenmerk dat alleen waar kan zijn
+  als het antwoord ja is.
+- **Een checkpointtabel is een meting met een teller per cel** — geen ✅/❌ zonder getal. Een 0 die
+  als ✅ leest valt op zodra er een getal naast staat.
+- **Wijkt de code van je eigen eerdere rapport af: het rapport is fout, niet de code.** Meld het
+  expliciet en corrigeer de vindplaats, anders bouwt de volgende sessie op de foute tabel. Staat
+  het rapport alleen in de chat en niet als `.md`, leg de correctie dan vast waar hij wél
+  teruggevonden wordt (OPVOLGPUNTEN of de betrokken skill) — een correctie in chat is geen
+  correctie.
+
+- **Reproduceerbaarheid van externe bronnen (LI040):** van elk ingelezen referentiemodel liggen
+  commit-hash (gepind) + SHA-256 vast in `HERKOMST.md` — voluit in likara-domeinmodel
+  §"LI039/ADR-044 — plaatsing als eerste-klas feit".
 
 ### Een typegebonden beperking zónder ADR is vaak een restant (ADR-055/LI047)
 
@@ -256,6 +317,14 @@ patroon nog? — vóór de fix wordt afgebakend. Niet één plek dichten en de r
 scan bepaalt de reikwijdte, Bert beslist over de afbakening. (LI037: seed-idempotentie en
 verwijder-gating beide zo aangepakt — de gating-scan vond zes plekken i.p.v. één, én
 falsifieerde een vermeende zevende.)
+
+- **Telling vóór besluit — "denkbaar is niet geteld" (aanscherping op §Reikwijdte-scan).**
+  Een ontwerpbesluit over een verschijnsel begint met de meting ervan: ADR-044 (meervoudige
+  ouders) is genomen op de GETELDE 7 gevallen uit de bron (Verkenning §B1), niet op "dat kan
+  voorkomen". Wie niet telt, dimensioneert op fantasie. *(LI040 herbevestigd: 25/32 grof-only
+  gebruiksfeiten besliste waar de uitstap-stand landt — ADR-046 besluit 4; en de vóór/ná-metingen
+  van 0066/0067/0068 bevestigden "datakost nul" feitelijk i.p.v. aangenomen.)*
+  (LI039, gevalideerd fase A: `docs/Validatie-patronen-LI039.md`.)
 
 ### Adversariële checkvraag vóór de bouw (LI041)
 
@@ -408,6 +477,21 @@ seed-stap aanroept en signaalloosheid ná een latverschuiving assert; hij valt o
 seedwijziging het schone geval vervuilt). Referentie: `_seed_schoon_geval` (HR-systeem) +
 `test_seed_schoon_geval_s1`.
 
+- **Browsercheck-bevindingen zijn patroon-signalen, geen punt-fixes.** De LI035-les: zes
+  bevindingen (overlay gedrukt, omlijning geclipt, voetbalk scrolde mee, schaduw grijs,
+  blokken versnipperd, succes stil) leidden elk tot patroon-onderzoek en werden zes
+  systeembrede patronen (breedte-override-borging, Dialog-primitive-regels,
+  scroll-schaduw, samengevoegd blok, succes-toast-standaard, MeldingBanner). Eerst de
+  vraag "waar bestaat dit nog meer / wat is de regel?", dán pas de fix.
+- **Browserverificatie-faalmodus: de stil niet-geresolvede component.** Een ontbrekende `import`
+  van een Vue-component geeft GEEN fout — Vue rendert het element stil leeg, en de suite blijft
+  groen (mocks zien het niet). Dit is de scherpste reden achter de bestaande browsercheck-regel
+  (LI032) én de tests-regel "assert op zichtbare tekst" (likara-tests, LI040).
+- **Bedieningskennis hoort in de bedieningsdoc.** Wat een mens nodig heeft om te testen
+  (platform-inlog, menupad) staat in `docs/LOKAAL-TESTEN.md` (de platform-login staat daar
+  inmiddels, regel ~117-131) — niet alleen in een skill. *(LI040: een browsercheck-draaiboek liep
+  vast op een platform-login die al bestónd maar alleen in skill-context leefde.)*
+
 ## Tool-cadans richting productie (LI042 — vaste stappen)
 
 Vaste slash-commando-cadans naast de gate-werkwijze. **Alle vier zijn user-triggered: Bert typt ze
@@ -502,6 +586,15 @@ Volgorde:
 
 ---
 
+## Sessiecapaciteit en overdracht
+
+- **Een volle CC-sessie levert stil kwaliteitsverlies.** Bij ~100% context: **verse sessie + een
+  zelfstandige overdracht-`.md`** (zelfde vorm als elke opdracht: stand vaststellen read-only,
+  suites bevestigen, dan wachten). Elke opdracht is zó geschreven dat opnieuw beginnen bijna
+  niets kost — dat is een eigenschap van het opdrachtformaat, geen toeval. (LI040)
+
+---
+
 ## UX-first analysekader (LI024, bevestigd werkprotocol)
 
 Bij elke feature-vraag, ADR-besluit of technische keuze:
@@ -526,113 +619,17 @@ de ADR tegen wat **écht gebouwd** is en veranker de afwijkingen — de ADR besc
 oplossing, niet het oorspronkelijke voorstel. (Deze sessie: de ADR schreef een layout voor die
 niet-deterministisch bleek; gebouwd werd een deterministische variant → dat hoort terug in de ADR.)
 
-## Keuze-sortering vóór je iets onthoudt (LI034, pointer)
-
-Vóór je een keuze onthoudt: sorteer 'm — **platformvormend → centraal beheer; persoonlijke werkstijl →
-voorkeur-laag; momentkeuze → inline/vers**. Detail (vaste bril vs. momentkeuze, "onthoud als mijn
-standaard") in **likara-ux**.
-
-## LI035 — UX-first-aanscherping + browsercheck-als-patroonbron (bevestigd)
-
-- **Gebruikerservaring is áltijd het uitgangspunt**; techniek, schema-keuzes, gates en
-  commit-discipline zijn vangrails — nooit de toon of het vertrekpunt van een antwoord.
-  Conflicteert gebruikerslogica met een technische voorkeur, dan wint de
-  gebruikerservaring.
-- **Kort, bondig, functioneel**: analyses starten bij de gebruiker, niet bij de tabel.
-  Vragen én adviezen strikt één voor één; CC-opdrachten altijd als zelfstandig leesbaar
-  `.md` met `START:` op regel 1.
-- **Browsercheck-bevindingen zijn patroon-signalen, geen punt-fixes.** De LI035-les: zes
-  bevindingen (overlay gedrukt, omlijning geclipt, voetbalk scrolde mee, schaduw grijs,
-  blokken versnipperd, succes stil) leidden elk tot patroon-onderzoek en werden zes
-  systeembrede patronen (breedte-override-borging, Dialog-primitive-regels,
-  scroll-schaduw, samengevoegd blok, succes-toast-standaard, MeldingBanner). Eerst de
-  vraag "waar bestaat dit nog meer / wat is de regel?", dán pas de fix.
-
-## LI036 — set-acties wijzigen nooit de weergave (herziening ADR-040 "ingang → brede plaat")
-
 Bevestigd besluit: **een set-actie muteert uitsluitend de set, nooit de weergave.**
 Toevoegen/verwijderen/"haal buren erbij"/"voeg vervullende componenten toe" laten de
 gebruiker in de weergave waar hij is (Lagen blijft Lagen; de nieuwe componenten
 verschijnen dáár). Hercentreren/weergave-wissel hoort bij dubbelklik en de expliciete
 weergave-schakelaar. De vroegere ADR-040-regel "een set opbouwen via een ingang = brede
 plaat → overzicht" (`toonOverzicht()` in het gedeelde set-pad) is hiermee HERZIEN en uit
-de code verwijderd. (Hoort óók terug in ADR-040 — staat op de ADR-onderhoudslijst.)
+de code verwijderd. (Hoort óók terug in ADR-040 — staat op de ADR-onderhoudslijst.) (LI036)
 
-## LI039 — werkprotocol-aanscherpingen (gevalideerd fase A: `docs/Validatie-patronen-LI039.md`)
+## Keuze-sortering vóór je iets onthoudt (LI034, pointer)
 
-*(Alle regels hieronder zijn procesdiscipline: tekst-regels zonder bouwsteen — ze rusten op
-naleving, niet op structuur. De bestaande regels waar ze op aanhaken staan erbij.)*
+Vóór je een keuze onthoudt: sorteer 'm — **platformvormend → centraal beheer; persoonlijke werkstijl →
+voorkeur-laag; momentkeuze → inline/vers**. Detail (vaste bril vs. momentkeuze, "onthoud als mijn
+standaard") in **likara-ux**.
 
-- **Read-only-eerst, tweemaal herbewezen (aanvulling op §Read-only-eerst).** Een hypothese
-  van de PNA is richting, geen bouwopdracht — LI039 leverde er twee die bij validatie
-  ANDERS bleken: de dubbele-melding-oorzaak (geen leeg aanbod maar een 500 door een
-  model↔schema-mismatch) en "de dev-seed vult het aanbod" (het is `platform_init` +
-  migratie 0061). Beide keren was de fix een andere dan de hypothese suggereerde.
-- **Telling vóór besluit — "denkbaar is niet geteld" (aanscherping op §Reikwijdte-scan).**
-  Een ontwerpbesluit over een verschijnsel begint met de meting ervan: ADR-044 (meervoudige
-  ouders) is genomen op de GETELDE 7 gevallen uit de bron (Verkenning §B1), niet op "dat kan
-  voorkomen". Wie niet telt, dimensioneert op fantasie. *(LI040 herbevestigd: 25/32 grof-only
-  gebruiksfeiten besliste waar de uitstap-stand landt — ADR-046 besluit 4; en de vóór/ná-metingen
-  van 0066/0067/0068 bevestigden "datakost nul" feitelijk i.p.v. aangenomen.)*
-- **Convergentie-vorm bij twee waarheden (aanvulling op de KERNLES):** nooit een tweede
-  implementatie — een **tweede export in dezelfde module**, met de bestaande consument
-  byte-compatibel. Referentie: `procesBoom.js` (`procesBoomStructuur` ongewijzigd voor
-  ProcesLijst; `meervoudBoomStructuur` ernaast voor ADR-044).
-- **Nieuwe dependency ⇒ image herbouwen — deploy-consequentie in het gate-rapport.** Een
-  dependency in `requirements.txt` bestaat pas in de container ná `docker compose build`;
-  tot die tijd draait de api de oude omgeving (LI039: defusedxml — de api viel om tot de
-  rebuild). Het gate-rapport benoemt de rebuild expliciet.
-- **Migratie: bouw ÉN toepassing horen bij de slice.** Een model↔schema-mismatch legt élk
-  endpoint op die tabel plat (LI039-incident: `inlees_voltooid` in het ORM, migratie 0064
-  nog niet toegepast → 500 op het aanbod-endpoint). De migratie wordt gebouwd én toegepast
-  binnen dezelfde slice, vóór de code actief wordt; een onderbroken slice laat dit als
-  EERSTE herstelpunt na. (De lk-migrate-keten past bij een stackstart automatisch toe — het
-  gat ontstaat lokaal, bij bind-mounted code zonder upgrade.)
-
-
-## LI040 — sessielessen (gevalideerd)
-
-- **Browserverificatie-faalmodus: de stil niet-geresolvede component.** Een ontbrekende `import`
-  van een Vue-component geeft GEEN fout — Vue rendert het element stil leeg, en de suite blijft
-  groen (mocks zien het niet). Dit is de scherpste reden achter de bestaande browsercheck-regel
-  (LI032) én de tests-regel "assert op zichtbare tekst" (likara-tests, LI040).
-- **Een volle CC-sessie levert stil kwaliteitsverlies.** Bij ~100% context: **verse sessie + een
-  zelfstandige overdracht-`.md`** (zelfde vorm als elke opdracht: stand vaststellen read-only,
-  suites bevestigen, dan wachten). Elke opdracht is zó geschreven dat opnieuw beginnen bijna
-  niets kost — dat is een eigenschap van het opdrachtformaat, geen toeval.
-- **Reproduceerbaarheid van externe bronnen.** Van elk ingelezen referentiemodel liggen
-  **commit-hash (gepind) + SHA-256** vast in `HERKOMST.md`
-  (`modules/bwb_ontvlechting/backend/referentiemodellen/`) — zodat een meting later herhaalbaar
-  is. *(Reden uit LI040: de verkenning liep vast doordat een eerdere GEMMA-release niet meer
-  vindbaar was; de raw-URL op de commit-hash haalt hem exact terug.)* Zie ook likara-domeinmodel
-  §ADR-043/044.
-- **Bedieningskennis hoort in de bedieningsdoc.** Wat een mens nodig heeft om te testen
-  (platform-inlog, menupad) staat in `docs/LOKAAL-TESTEN.md` (de platform-login staat daar
-  inmiddels, regel ~117-131) — niet alleen in een skill. *(LI040: een browsercheck-draaiboek liep
-  vast op een platform-login die al bestónd maar alleen in skill-context leefde.)*
-
-## LI048 — een inventarisatie is een meting, geen indruk
-
-**Het incident.** Een READ-ONLY checkpoint moest vaststellen welke lijstschermen al "zoek + filter
-+ knop" hadden. De detectie zocht naar zoek-achtige tekst in de bron en pikte op het Auditlog-scherm
-`placeholder="Zoek een component…"` op — de placeholder van een ZoekSelect *filterveld*. Conclusie
-in de tabel: "Auditlog heeft een zoekveld ✅". Bij het bouwen bleek: `type="search"` = 0,
-aanmaakknop = 0, `FilterResultaatRegel` = 0. Het scherm was geen beheerslijst maar een
-**doorzoekscherm** — een andere soort, die de hele opdracht anders maakt.
-
-**De fout is niet de regex.** Het is dat een bron is gelezen zonder te toetsen of hij beschrijft
-wat hij lijkt te beschrijven. Dezelfde soort fout als bij "Oracle FIN-DB": een naam die klinkt als
-het ding, aangezien voor het ding. Een placeholder is *tekst in een veld*, geen bewijs dat het veld
-een zoekveld ís.
-
-**Regels die hieruit volgen:**
-- **Tel het ding zelf, niet iets wat erop lijkt.** "Heeft dit scherm een zoekveld?" meet je met
-  `type="search"`, niet met het woord "zoek". Kies per vraag het kenmerk dat alleen waar kan zijn
-  als het antwoord ja is.
-- **Een checkpointtabel is een meting met een teller per cel** — geen ✅/❌ zonder getal. Een 0 die
-  als ✅ leest valt op zodra er een getal naast staat.
-- **Wijkt de code van je eigen eerdere rapport af: het rapport is fout, niet de code.** Meld het
-  expliciet en corrigeer de vindplaats, anders bouwt de volgende sessie op de foute tabel. Staat
-  het rapport alleen in de chat en niet als `.md`, leg de correctie dan vast waar hij wél
-  teruggevonden wordt (OPVOLGPUNTEN of de betrokken skill) — een correctie in chat is geen
-  correctie.
