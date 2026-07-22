@@ -137,6 +137,12 @@ aangeroepen". Verkies dit boven een afspraak of een test.
   bouwwerk — het krijgt zijn eigen `AKKOORD: commit`. **Uitzondering:** een **ADR en het read-only
   checkpoint dat hem grondt** landen in **één** commit; de ADR verwijst ernaar met `Grond:`. (LI044:
   ADR-052 + `docs/Checkpoint-…-V044.md` samen gecommit, de ADR draagt `| Grond | … |`.)
+- **OPVOLGPUNTEN.md is een NORMAAL TRACKED projectbestand** (besluit DC011 — geverifieerd `git ls-files`,
+  niet in `.gitignore`). Behandel het als elk ander tracked bestand. De achterhaalde aanname
+  "OPVOLGPUNTEN is untracked tijdens de sessie en landt pas bij close" geldt **niet** meer — niet
+  herintroduceren. Bij een feature-commit hoort een OPVOLGPUNTEN-wijziging er niet stil in mee te liften:
+  gebruik **gerichte staging** (`git add <expliciete feature-paden>` + `git diff --cached --stat` als
+  bewijs); de afsluit-/parkeer-updates van OPVOLGPUNTEN landen in de **sessie-afsluit-commit**. (V010 Fase F, geverifieerd)
 
 ### Stapelen in één werktree — alléén bij samenhangend, samen-committend werk (ADR-040)
 
@@ -202,6 +208,9 @@ Die discipline blijft **ongewijzigd** voor alles wat muteert.
   binnen dezelfde slice, vóór de code actief wordt; een onderbroken slice laat dit als
   EERSTE herstelpunt na. (De lk-migrate-keten past bij een stackstart automatisch toe — het
   gat ontstaat lokaal, bij bind-mounted code zonder upgrade.)
+- **Read-only meting in het gate-rapport (borging)**: bij een afgeleide read-API meet je de **feitelijke
+  dev-stand** (welke componenten welk signaal, met waarom) via een klein script onder `_run_rls`, en zet
+  je die in het gate-rapport zodat Bert de regel op echte data toetst (F-3: 8× `beoordeeld_niet_vastgelegd`). (V010 Fase F, geverifieerd)
 
 ### Sneden die dezelfde functie ontsluiten, beoordeel je op ÉÉN beeld (LI047)
 

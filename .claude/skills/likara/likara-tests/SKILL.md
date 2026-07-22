@@ -357,6 +357,9 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   optie toevoegt (dat is een feature, geen regressie) — gebruik een **subset-assert**
   (`{verwachte} <= {gevonden}`) of assert op de eigen WT-fixtures. Exacte gelijkheid alleen op
   code-eigen enums. (LI040)
+- **Baseline-rapportage bij een walkthrough:** voluit in CLAUDE.md §Walkthrough-protocol
+  (benoemde tellingen vóór én ná, vaste volgorde — een kale "register=N" verbergt drift;
+  restdata-check o.a. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056] (V007, geverifieerd)
 
 ## Bronscans — bijten, vals alarm en bereik
 
@@ -452,6 +455,9 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 - **Regressie-borging als vast onderdeel**: 422-native bij foutformaat-werk; auto-pad
   ongemoeid bij guard-werk; cross-tenant-identiek voor platform-data; bestaande
   auth-tests groen na auth-wijzigingen. [CD009/CD011/CD004] (V004, geverifieerd)
+- **Gate-per-schema-slice vs. doorloop:** de werkwijze staat voluit in likara-werkprotocol
+  §Gate-discipline; stoppen bij een onvoorziene model-/RLS-/semantiekkeuze: likara-werkprotocol
+  §CC-autonomiescope. (V009/V010, geverifieerd)
 
 ## Testmigratie bij een laadpad-omslag — strategie A (LI022, geverifieerd)
 
@@ -517,23 +523,3 @@ standaardrespons (naast `clearAllMocks`), of gebruik `mockResolvedValueOnce` waa
 gaat. Referentie: `ComponentDetail.test.js` — de `componentNormen.openPunten`-mock wordt per toets
 teruggezet, met de reden erbij in een comment.
 
-## Cross-skill-kandidaten (LI049 — horen inhoudelijk elders; hier geparkeerd tot eigen besluit)
-
-- **Baseline-rapportage bij een walkthrough:** voluit in CLAUDE.md §Walkthrough-protocol
-  (benoemde tellingen vóór én ná, vaste volgorde — een kale "register=N" verbergt drift;
-  restdata-check o.a. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056] (V007, geverifieerd)
-- **Gate-per-schema-slice vs. doorloop:** de werkwijze staat voluit in likara-werkprotocol
-  §Gate-discipline; stoppen bij een onvoorziene model-/RLS-/semantiekkeuze: likara-werkprotocol
-  §CC-autonomiescope. (V009/V010, geverifieerd)
-- **Read-only meting in het gate-rapport (borging)**: bij een afgeleide read-API meet je de **feitelijke
-  dev-stand** (welke componenten welk signaal, met waarom) via een klein script onder `_run_rls`, en zet
-  je die in het gate-rapport zodat Bert de regel op echte data toetst (F-3: 8× `beoordeeld_niet_vastgelegd`). (V010 Fase F, geverifieerd)
-- **OPVOLGPUNTEN.md is een NORMAAL TRACKED projectbestand** (besluit DC011 — geverifieerd `git ls-files`,
-  niet in `.gitignore`). Behandel het als elk ander tracked bestand. De achterhaalde aanname
-  "OPVOLGPUNTEN is untracked tijdens de sessie en landt pas bij close" geldt **niet** meer — niet
-  herintroduceren. Bij een feature-commit hoort een OPVOLGPUNTEN-wijziging er niet stil in mee te liften:
-  gebruik **gerichte staging** (`git add <expliciete feature-paden>` + `git diff --cached --stat` als
-  bewijs); de afsluit-/parkeer-updates van OPVOLGPUNTEN landen in de **sessie-afsluit-commit**. (V010 Fase F, geverifieerd)
-- **Dev-ergonomie**: `psql` staat **niet** op de host → `docker exec lk-postgres psql -U lk_admin -d
-  likara -At -F'|' -c "…"` voor read-only metingen als lk_admin (ziet álle tenants). `rm` is in de
-  sandbox geweigerd → ruim een per ongeluk aangemaakt stray-bestand op met `find <pad> -type f -delete`. (V010 Fase F, geverifieerd)

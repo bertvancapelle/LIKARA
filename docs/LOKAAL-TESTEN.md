@@ -185,6 +185,11 @@ niet gebruiken en andersom, strikte scheiding).
 
 ---
 
+## Read-only metingen op de dev-DB
+
+`psql` staat **niet** op de host → `docker exec lk-postgres psql -U lk_admin -d
+likara -At -F'|' -c "…"` voor read-only metingen als lk_admin (ziet álle tenants). (V010 Fase F, geverifieerd)
+
 ## Alternatief: backend zonder Docker
 
 Kan, maar **Keycloak is alsnog nodig** voor inloggen. `LIKARA_TEST_MODE=true`
