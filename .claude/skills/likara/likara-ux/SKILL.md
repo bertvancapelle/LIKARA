@@ -297,128 +297,6 @@ kunnen wegfilteren.)
   vangrail** — teller en getoonde lijst uit één bron (`dekking_overzicht`), nooit twee die uit de pas
   lopen (de kernregel-derde-gezicht, likara-domeinmodel §LI041).
 
-### P9 — Een teken mag alleen waar verkeerd klikken goedkoop is (LI048)
-
-De vraag "icoon of woord?" wordt meestal beantwoord met ruimte of met smaak. Geen van beide is de
-maat. De maat is: **wat gebeurt er als de gebruiker verkeerd klikt?**
-
-> **Een WEGWIJZER brengt je ergens heen — verkeerd geklikt kost één klik terug, dus die mag een
-> teken zijn. Een HANDELING verandert iets — die blijft een woord, ook als het teken mooier is.**
-
-**Waarom een tooltip het verschil niet dicht.** Hij verschijnt pas als je met de muis blijft
-hangen, dus alleen als je al vermoedt wat er staat. Op een tablet verschijnt hij helemaal niet. Voor
-een wegwijzer is dat prima; voor een knop die iets weggooit is het te laat.
-
-**Het geval (LI048).** In de detailkop werden *Bekijk op kaart* en *Geschiedenis* een teken;
-*Bewerken*, *Klaar verklaren/Heropenen* en *Verwijderen* bleven woorden. Heropenen geeft werk terug
-aan de wachtrij, Verwijderen is definitief — die moeten in één blik leesbaar zijn, ook voor iemand
-die het scherm voor het eerst ziet.
-
-**De winst is niet de ruimte maar het ONDERSCHEID:** doordat alleen wegwijzers een teken dragen,
-zegt de vorm zelf welke knop iets doet en welke je verplaatst. Wordt later "voor de consistentie"
-alles een teken, dan is dat onderscheid weg — en dat is verlies, geen opschoning. Vandaar een toets
-die omvalt zodra een handeling een teken krijgt (`ComponentDetail.test.js`, "DE REGEL").
-
-**Praktische ondergrens:** gebruik alleen tekens die de gebruiker al kent (kaart, klok-met-terugpijl).
-Bestaat er geen bekend teken voor een begrip — "heropenen" — dan verzin je een symbool dat hij moet
-leren, terwijl het woord er al stond.
-
-**Elk teken houdt zijn tekst** als `title` (tooltip) én `aria-label` (uitgesproken naam). Beide, niet
-één: een schermlezer leest `title` niet betrouwbaar voor, en `aria-label` levert geen tooltip.
-
-### P8d — Een filter heet naar wat het filtert (LI048)
-
-Vierde in de lijn van §P8a–c, en de goedkoopste om te voorkomen.
-
-> **Het label van een filter belooft een bereik. Dekt het veld een kleiner bereik dan het label
-> suggereert, dan zoekt de gebruiker naar iets wat er nooit in kán zitten — en krijgt hij "niets
-> gevonden" als antwoord op een vraag die het filter niet eens kan stellen.**
-
-**Het geval (Auditlog, LI048).** Een filter heette *Onderdeel* met de tekst *"Zoek een component…"*,
-terwijl de KOLOM *Onderdeel* ook checklistvragen, werkpakketten en partijen toont. Wie op een
-checklistvraag zocht kwam er nooit. Het filter heet nu *Component*; de kolom houdt zijn naam, want
-die toont wél alles. **Dat verschil is nu eerlijk in plaats van misleidend** — en het mag niet
-"opgelost" worden door de kolom ook te hernoemen: dan liegt de kolom.
-
-**Twee regels:**
-- **Naam volgt bereik, niet andersom.** Wordt het bereik later breder, dan verandert de naam mee.
-  Staat het bereik in de backlog om te groeien, noteer dan dat de naam meeverandert (hier: na-MVP
-  *"zoek elk ding"* → het filter heet dan niet langer *Component*).
-- **Label, veldtekst en kolomkop lopen uit elkaar zodra ze op losse plekken staan.** Zo ontstond
-  deze fout: drie hardgecodeerde literals in één bestand, waarvan er één iets anders beloofde.
-  Staan ze niet in één bron, zet er dan een toets op die afdwingt dat ze over hetzelfde gaan.
-
-**Naast het label geldt ook de INHOUD.** Hetzelfde filter miste de koppelingen van een component
-(een `relatie` draagt nooit een `component_id` — 0 van 9.291 regels). De consultant zag een compleet
-ogende lijst en concludeerde dat er verder niets gebeurd was, terwijl "iemand haalde de koppeling
-naar DigiD weg" vaak juist is waar hij naar zoekt. Vraag bij elk filter niet alleen *"klopt de
-naam?"* maar *"wat verwacht de gebruiker hier te vinden, en zit dat er allemaal in?"*
-
-### P8c — Een logregel benoemt de gebeurtenis, niet de opslag (LI048)
-
-Derde in dezelfde lijn als §P8a en §P8b, en dezelfde faalmodus: de consultant krijgt iets te zien
-dat formeel klopt en hem niets vertelt.
-
-> **Een regel in een overzicht moet zeggen wát er gebeurde en met wélk ding — in de taal van het
-> scherm. Toont hij de interne code, dan moet de consultant elke regel openklappen om te weten of
-> er iets belangrijks staat, en bij duizenden regels doet niemand dat.**
-
-**Het geval (Auditlog, LI048).** Een regel las: `Element — 9f1282d4-48ec-41d8-aadc-c794ac5fabd7 ·
-Aangemaakt (+1 afgeleid)`. Drie dingen waren tegelijk mis, en ze zijn alle drie leerzaam:
-1. **De verkeerde regel was de aanleiding.** Bij een aanmaak ontstaan twee auditrijen; de eerste
-   zegt alleen dát er iets bestaat. Het scherm koos stelselmatig die. → kies de regel die iets
-   inhoudelijks zegt, en leid dat af uit de INHOUD (draagt hij meer dan de discriminator?), niet
-   uit een tabelnaam.
-2. **De naam ontbrak** waar de code stond.
-3. **"(+1 afgeleid)" verwees naar niets** — het telde precies de regel die niets toevoegde. Een
-   teller die een betekenisloos ding telt, is erger dan geen teller: hij suggereert dat er iets te
-   zien valt.
-
-**Twee regels die hieruit volgen:**
-- **Toon de naam van TÓÉN, niet die van nu.** Een log beantwoordt de vraag wat er destijds gebeurde.
-  Haal je de naam bij het huidige object op, dan verandert de geschiedenis mee zodra iemand
-  hernoemt. Bij een verwijdering nooit de huidige naam: het object hoort niet meer te bestaan.
-- **Geen rauwe opslagtaal in een leesbare zin.** Werkt een geval niet, dan is dát een bevinding —
-  geen terugval op de code die je juist wilde verbergen. Borg het met een toets die het scherm
-  afleest en op verboden termen faalt (`work_package`, `phase_out`, interne sleutels).
-
-**Vangrail:** de samenvatting hoort in ÉÉN laag te worden bepaald (hier: de service), niet aan
-beide kanten afgeleid. Kiezen backend en UI allebei zelf "de eerste record", dan lopen ze uiteen
-zodra één van beide verandert — en dat is onzichtbaar tot iemand het meldt.
-
-### P8b — Wat de gebruiker leest, moet hij kunnen zoeken (LI048, niet-onderhandelbaar)
-
-De tweelingregel van §P8a, en hij hoort er direct naast: allebei laten ze de consultant een
-onvolledige lijst voor volledig aanzien. P8a gaat over een filter dat hij niet ziet; deze over een
-zoekveld dat iets anders doorzoekt dan het toont.
-
-> **Een zoekveld boven een lijst belooft dat het díé lijst doorzoekt — de kolommen die de gebruiker
-> voor zich ziet. Doorzoekt het in werkelijkheid een andere bron, dan is "niets gevonden" een
-> onwaarheid, en de gebruiker heeft geen enkele manier om dat te merken.**
-
-**Het geval (Auditlog, LI048).** De kolom *Wie* wordt gevuld met `naam or e-mail`: de naam van de
-gekoppelde persoon áls die er is, anders het e-mailadres. Het zoekveld keek uitsluitend in
-`Partij.naam`. Elke gebruiker zónder gekoppelde persoon was daarmee onvindbaar — in het
-demolandschap iedereen. Het scherm gaf geen fout, alleen *"Geen gebeurtenissen gevonden"*, en de
-consultant concludeert dan dat er niets gebeurd is. Op een auditlog is dat het ergst denkbare
-antwoord: hij komt er juist om vast te stellen wát er gebeurd is.
-
-**De regel praktisch:**
-- Het filter volgt **dezelfde samenstelling als de kolom**, in dezelfde volgorde. Toont de kolom
-  `A or B`, dan zoekt het veld in A, en in B voor de rijen die B tonen.
-- **Omgekeerd geldt hij ook**: zoek niet in een bron die op dat scherm níét getoond wordt. Een
-  gebruiker vinden op zijn e-mailadres terwijl de kolom zijn naam toont, is dezelfde fout — de
-  consultant ziet een treffer op iets wat er nergens staat. (Vandaar de `notin_`-beperking in
-  `auditlog_service._record_filters`.)
-- Het **label wijst naar de kolom**, niet naar de onderliggende bron: "Zoek op wie…", niet "Zoek op
-  naam…" wanneer die naam er meestal niet eens staat.
-
-**Vangrail — de toets moet RESULTAAT bewijzen, niet een verzoek.** Dit defect overleefde omdat de
-frontendtoets alleen controleerde dát `actor_naam` werd meegestuurd (met een nagebootste server), en
-de backendtoets alleen het geval dekte dat wél werkte (de gekoppelde persoon). Precies het kapotte
-geval werd overgeslagen — de suite was groen en het scherm was stuk. Een zoektoets die niet assert
-dat er **regels terugkomen**, bewaakt niets.
-
 ### P8a — Een opgeborgen filter blijft zichtbaar (LI048, niet-onderhandelbaar)
 
 Derde instantie van dezelfde lijn, en de scherpste: niet een filter dat verbergt, maar een filter
@@ -466,6 +344,128 @@ draagt `Filter (N)`, de chips staan eronder met het aantal ernaast.
 filterbalk, dus nog niet van toepassing): `PartijLijst` · `ContractLijst` · `BedrijfsfunctieLijst` ·
 `BlokkadeOverzichtView`. Genoteerd zodat een volgende sessie de regel tegenkomt **vóór** de bouw in
 plaats van erna.
+
+### P8b — Wat de gebruiker leest, moet hij kunnen zoeken (LI048, niet-onderhandelbaar)
+
+De tweelingregel van §P8a, en hij hoort er direct naast: allebei laten ze de consultant een
+onvolledige lijst voor volledig aanzien. P8a gaat over een filter dat hij niet ziet; deze over een
+zoekveld dat iets anders doorzoekt dan het toont.
+
+> **Een zoekveld boven een lijst belooft dat het díé lijst doorzoekt — de kolommen die de gebruiker
+> voor zich ziet. Doorzoekt het in werkelijkheid een andere bron, dan is "niets gevonden" een
+> onwaarheid, en de gebruiker heeft geen enkele manier om dat te merken.**
+
+**Het geval (Auditlog, LI048).** De kolom *Wie* wordt gevuld met `naam or e-mail`: de naam van de
+gekoppelde persoon áls die er is, anders het e-mailadres. Het zoekveld keek uitsluitend in
+`Partij.naam`. Elke gebruiker zónder gekoppelde persoon was daarmee onvindbaar — in het
+demolandschap iedereen. Het scherm gaf geen fout, alleen *"Geen gebeurtenissen gevonden"*, en de
+consultant concludeert dan dat er niets gebeurd is. Op een auditlog is dat het ergst denkbare
+antwoord: hij komt er juist om vast te stellen wát er gebeurd is.
+
+**De regel praktisch:**
+- Het filter volgt **dezelfde samenstelling als de kolom**, in dezelfde volgorde. Toont de kolom
+  `A or B`, dan zoekt het veld in A, en in B voor de rijen die B tonen.
+- **Omgekeerd geldt hij ook**: zoek niet in een bron die op dat scherm níét getoond wordt. Een
+  gebruiker vinden op zijn e-mailadres terwijl de kolom zijn naam toont, is dezelfde fout — de
+  consultant ziet een treffer op iets wat er nergens staat. (Vandaar de `notin_`-beperking in
+  `auditlog_service._record_filters`.)
+- Het **label wijst naar de kolom**, niet naar de onderliggende bron: "Zoek op wie…", niet "Zoek op
+  naam…" wanneer die naam er meestal niet eens staat.
+
+**Vangrail — de toets moet RESULTAAT bewijzen, niet een verzoek.** Dit defect overleefde omdat de
+frontendtoets alleen controleerde dát `actor_naam` werd meegestuurd (met een nagebootste server), en
+de backendtoets alleen het geval dekte dat wél werkte (de gekoppelde persoon). Precies het kapotte
+geval werd overgeslagen — de suite was groen en het scherm was stuk. Een zoektoets die niet assert
+dat er **regels terugkomen**, bewaakt niets.
+
+### P8c — Een logregel benoemt de gebeurtenis, niet de opslag (LI048)
+
+Derde in dezelfde lijn als §P8a en §P8b, en dezelfde faalmodus: de consultant krijgt iets te zien
+dat formeel klopt en hem niets vertelt.
+
+> **Een regel in een overzicht moet zeggen wát er gebeurde en met wélk ding — in de taal van het
+> scherm. Toont hij de interne code, dan moet de consultant elke regel openklappen om te weten of
+> er iets belangrijks staat, en bij duizenden regels doet niemand dat.**
+
+**Het geval (Auditlog, LI048).** Een regel las: `Element — 9f1282d4-48ec-41d8-aadc-c794ac5fabd7 ·
+Aangemaakt (+1 afgeleid)`. Drie dingen waren tegelijk mis, en ze zijn alle drie leerzaam:
+1. **De verkeerde regel was de aanleiding.** Bij een aanmaak ontstaan twee auditrijen; de eerste
+   zegt alleen dát er iets bestaat. Het scherm koos stelselmatig die. → kies de regel die iets
+   inhoudelijks zegt, en leid dat af uit de INHOUD (draagt hij meer dan de discriminator?), niet
+   uit een tabelnaam.
+2. **De naam ontbrak** waar de code stond.
+3. **"(+1 afgeleid)" verwees naar niets** — het telde precies de regel die niets toevoegde. Een
+   teller die een betekenisloos ding telt, is erger dan geen teller: hij suggereert dat er iets te
+   zien valt.
+
+**Twee regels die hieruit volgen:**
+- **Toon de naam van TÓÉN, niet die van nu.** Een log beantwoordt de vraag wat er destijds gebeurde.
+  Haal je de naam bij het huidige object op, dan verandert de geschiedenis mee zodra iemand
+  hernoemt. Bij een verwijdering nooit de huidige naam: het object hoort niet meer te bestaan.
+- **Geen rauwe opslagtaal in een leesbare zin.** Werkt een geval niet, dan is dát een bevinding —
+  geen terugval op de code die je juist wilde verbergen. Borg het met een toets die het scherm
+  afleest en op verboden termen faalt (`work_package`, `phase_out`, interne sleutels).
+
+**Vangrail:** de samenvatting hoort in ÉÉN laag te worden bepaald (hier: de service), niet aan
+beide kanten afgeleid. Kiezen backend en UI allebei zelf "de eerste record", dan lopen ze uiteen
+zodra één van beide verandert — en dat is onzichtbaar tot iemand het meldt.
+
+### P8d — Een filter heet naar wat het filtert (LI048)
+
+Vierde in de lijn van §P8a–c, en de goedkoopste om te voorkomen.
+
+> **Het label van een filter belooft een bereik. Dekt het veld een kleiner bereik dan het label
+> suggereert, dan zoekt de gebruiker naar iets wat er nooit in kán zitten — en krijgt hij "niets
+> gevonden" als antwoord op een vraag die het filter niet eens kan stellen.**
+
+**Het geval (Auditlog, LI048).** Een filter heette *Onderdeel* met de tekst *"Zoek een component…"*,
+terwijl de KOLOM *Onderdeel* ook checklistvragen, werkpakketten en partijen toont. Wie op een
+checklistvraag zocht kwam er nooit. Het filter heet nu *Component*; de kolom houdt zijn naam, want
+die toont wél alles. **Dat verschil is nu eerlijk in plaats van misleidend** — en het mag niet
+"opgelost" worden door de kolom ook te hernoemen: dan liegt de kolom.
+
+**Twee regels:**
+- **Naam volgt bereik, niet andersom.** Wordt het bereik later breder, dan verandert de naam mee.
+  Staat het bereik in de backlog om te groeien, noteer dan dat de naam meeverandert (hier: na-MVP
+  *"zoek elk ding"* → het filter heet dan niet langer *Component*).
+- **Label, veldtekst en kolomkop lopen uit elkaar zodra ze op losse plekken staan.** Zo ontstond
+  deze fout: drie hardgecodeerde literals in één bestand, waarvan er één iets anders beloofde.
+  Staan ze niet in één bron, zet er dan een toets op die afdwingt dat ze over hetzelfde gaan.
+
+**Naast het label geldt ook de INHOUD.** Hetzelfde filter miste de koppelingen van een component
+(een `relatie` draagt nooit een `component_id` — 0 van 9.291 regels). De consultant zag een compleet
+ogende lijst en concludeerde dat er verder niets gebeurd was, terwijl "iemand haalde de koppeling
+naar DigiD weg" vaak juist is waar hij naar zoekt. Vraag bij elk filter niet alleen *"klopt de
+naam?"* maar *"wat verwacht de gebruiker hier te vinden, en zit dat er allemaal in?"*
+
+### P9 — Een teken mag alleen waar verkeerd klikken goedkoop is (LI048)
+
+De vraag "icoon of woord?" wordt meestal beantwoord met ruimte of met smaak. Geen van beide is de
+maat. De maat is: **wat gebeurt er als de gebruiker verkeerd klikt?**
+
+> **Een WEGWIJZER brengt je ergens heen — verkeerd geklikt kost één klik terug, dus die mag een
+> teken zijn. Een HANDELING verandert iets — die blijft een woord, ook als het teken mooier is.**
+
+**Waarom een tooltip het verschil niet dicht.** Hij verschijnt pas als je met de muis blijft
+hangen, dus alleen als je al vermoedt wat er staat. Op een tablet verschijnt hij helemaal niet. Voor
+een wegwijzer is dat prima; voor een knop die iets weggooit is het te laat.
+
+**Het geval (LI048).** In de detailkop werden *Bekijk op kaart* en *Geschiedenis* een teken;
+*Bewerken*, *Klaar verklaren/Heropenen* en *Verwijderen* bleven woorden. Heropenen geeft werk terug
+aan de wachtrij, Verwijderen is definitief — die moeten in één blik leesbaar zijn, ook voor iemand
+die het scherm voor het eerst ziet.
+
+**De winst is niet de ruimte maar het ONDERSCHEID:** doordat alleen wegwijzers een teken dragen,
+zegt de vorm zelf welke knop iets doet en welke je verplaatst. Wordt later "voor de consistentie"
+alles een teken, dan is dat onderscheid weg — en dat is verlies, geen opschoning. Vandaar een toets
+die omvalt zodra een handeling een teken krijgt (`ComponentDetail.test.js`, "DE REGEL").
+
+**Praktische ondergrens:** gebruik alleen tekens die de gebruiker al kent (kaart, klok-met-terugpijl).
+Bestaat er geen bekend teken voor een begrip — "heropenen" — dan verzin je een symbool dat hij moet
+leren, terwijl het woord er al stond.
+
+**Elk teken houdt zijn tekst** als `title` (tooltip) én `aria-label` (uitgesproken naam). Beide, niet
+één: een schermlezer leest `title` niet betrouwbaar voor, en `aria-label` levert geen tooltip.
 
 ## Verhouding tot andere skills
 
