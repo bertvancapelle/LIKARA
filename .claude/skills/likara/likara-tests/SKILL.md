@@ -415,12 +415,12 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
 
 ## Allowlist-synctests
 
-- **Allowlist-synctest per sorteerbare lijst**: `{e.value for e in <Sorteerveld>} == set(svc._SORTEERBARE_KOLOMMEN)`
-  — borgt dat de schema-enum en de service-allowlist 1-op-1 blijven (geen rauwe kolomnaam in
-  `ORDER BY`). [CD054] (V007, geverifieerd)
-- **Sorteer-allowlist-synchroon-test breidt mee uit**: voeg je een sorteerveld toe (bv. `aard`), borg
-  dan in één test `set(_SORTEERBARE_KOLOMMEN) == {e.value for e in *Sorteerveld} == set(_WAARDE_PARSERS)`
-  (enum ⟺ kolommen ⟺ parsers), zodat een half toegevoegde kolom faalt. (V012, geverifieerd)
+- **Allowlist-synctest per sorteerbare lijst**: borg in één test
+  `set(_SORTEERBARE_KOLOMMEN) == {e.value for e in *Sorteerveld} == set(_WAARDE_PARSERS)`
+  (enum ⟺ kolommen ⟺ parsers) — zo blijven de schema-enum en de service-allowlist 1-op-1
+  (geen rauwe kolomnaam in `ORDER BY`; de tweedelige vorm `{e.value for e in <Sorteerveld>}
+  == set(svc._SORTEERBARE_KOLOMMEN)` was daar de grond van), en een half toegevoegde kolom
+  faalt zodra er een sorteerveld bij komt (bv. `aard`). [CD054] (V007 + V012, geverifieerd)
 
 ## Regressie-borging
 
@@ -494,18 +494,12 @@ teruggezet, met de reden erbij in een comment.
 
 ## Cross-skill-kandidaten (LI049 — horen inhoudelijk elders; hier geparkeerd tot eigen besluit)
 
-- **Baseline-rapportage met benoemde tellingen**: tel categorieën **apart en benoemd**
-  (app-koppelingen **vs.** contract-koppelingen; engine apps/blokkades) in een vaste volgorde —
-  een kale "register=N" verbergt drift. Rapporteer de baseline vóór én na een walkthrough; check
-  expliciet op walkthrough-restdata (bv. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056] (V007, geverifieerd)
-- **Gate-per-schema-slice vs. doorloop-bij-licht-additief.** Een **schema-rakende** bouwslice (nieuwe
-  tabel/RLS/migratie/RBAC/audit, of iets dat werkend domein raakt): bouw volledig uit, draai de tests,
-  en **STOP met een gate-rapport VÓÓR de commit** — Bert verifieert en geeft pas dan `AKKOORD: commit`;
-  zo wordt elke nieuwe entiteit geverifieerd vóór de volgende erop bouwt. Een **doorloop-tot-eindrapport-
-  met-afsluitende-commit** geldt **alléén** voor lichte, volledig additieve fasen zonder open knopen
-  (alleen read-side/frontend/constants/docs — géén schema). De bouwopdracht-`.md` markeert expliciet
-  gate of doorloop. In beide gevallen: bij iets buiten de vastgelegde beslissingen (onvoorziene
-  model-/RLS-/semantiekkeuze) STOP + terugkoppelen. (V009/V010, geverifieerd)
+- **Baseline-rapportage bij een walkthrough:** voluit in CLAUDE.md §Walkthrough-protocol
+  (benoemde tellingen vóór én ná, vaste volgorde — een kale "register=N" verbergt drift;
+  restdata-check o.a. `WT-Test%`, tijdelijke catalogus-sleutels). [CD054/CD056] (V007, geverifieerd)
+- **Gate-per-schema-slice vs. doorloop:** de werkwijze staat voluit in likara-werkprotocol
+  §Gate-discipline; stoppen bij een onvoorziene model-/RLS-/semantiekkeuze: likara-werkprotocol
+  §CC-autonomiescope. (V009/V010, geverifieerd)
 - **Read-only meting in het gate-rapport (borging)**: bij een afgeleide read-API meet je de **feitelijke
   dev-stand** (welke componenten welk signaal, met waarom) via een klein script onder `_run_rls`, en zet
   je die in het gate-rapport zodat Bert de regel op echte data toetst (F-3: 8× `beoordeeld_niet_vastgelegd`). (V010 Fase F, geverifieerd)

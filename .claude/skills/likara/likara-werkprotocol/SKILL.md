@@ -191,6 +191,7 @@ Die discipline blijft **ongewijzigd** voor alles wat muteert.
 - **Design-heavy / rimpel-fases**: altijd eerst checkpoint — CC legt codestaat
   vast + open vragen + gefaseerd bouwplan en STOPT; claude.ai lost open vragen
   één voor één op met Bert vóór de bouw-instructie de deur uit gaat.
+- De bouwopdracht-`.md` markeert expliciet gate of doorloop. (V009/V010, geverifieerd)
 - **Nieuwe dependency ⇒ image herbouwen — deploy-consequentie in het gate-rapport.** Een
   dependency in `requirements.txt` bestaat pas in de container ná `docker compose build`;
   tot die tijd draait de api de oude omgeving (LI039: defusedxml — de api viel om tot de
