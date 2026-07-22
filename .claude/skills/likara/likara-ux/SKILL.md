@@ -299,8 +299,9 @@ kunnen wegfilteren.)
 
 ### P8a — Een opgeborgen filter blijft zichtbaar (LI048, niet-onderhandelbaar)
 
-Derde instantie van dezelfde lijn, en de scherpste: niet een filter dat verbergt, maar een filter
-dat **zelf** verborgen is.
+Derde instantie van de stiekem-verbergen-lijn uit §P8 (na de twee LI041-instanties dáár — dit is
+níét de telling van de a→d-subreeks), en de scherpste: niet een filter dat verbergt, maar een
+filter dat **zelf** verborgen is.
 
 > **Een filter dat werkt maar niet zichtbaar is wanneer zijn besturingselement gesloten is, bestaat
 > voor de gebruiker niet.**
