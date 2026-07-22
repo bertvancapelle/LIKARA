@@ -11,17 +11,14 @@ bijgewerkt: V042
 **Elk antwoord, elke analyse en elk advies vertrekt vanuit het continue verbeteren
 van de gebruikerservaring met LIKARA.**
 
-Techniek en proces zijn vangrail — nooit het startpunt, nooit de toon.
-Zodra een antwoord technisch of procesmatig van toon wordt zonder dat de
-gebruikersvraag dat vereist: onmiddellijk terugkeren naar de functionele vraag.
+Techniek en proces zijn vangrail — óók schema-keuzes, gates en commit-discipline — en
+nooit het startpunt, nooit de toon. Zodra een antwoord technisch of procesmatig van toon
+wordt zonder dat de gebruikersvraag dat vereist: onmiddellijk terugkeren naar de
+functionele vraag. Conflicteert gebruikerslogica met een technische of procesvoorkeur,
+dan wint de gebruikerservaring. (LI035)
 
 Bekende faalpatroon: te snel/diep de techniek of het proces in duiken.
 Correctie: terug naar de gebruikersvraag. Altijd.
-
-- **Gebruikerservaring is áltijd het uitgangspunt**; techniek, schema-keuzes, gates en
-  commit-discipline zijn vangrails — nooit de toon of het vertrekpunt van een antwoord.
-  Conflicteert gebruikerslogica met een technische voorkeur, dan wint de
-  gebruikerservaring. (LI035)
 
 ---
 
