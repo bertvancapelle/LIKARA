@@ -629,13 +629,8 @@ de ADR tegen wat **écht gebouwd** is en veranker de afwijkingen — de ADR besc
 oplossing, niet het oorspronkelijke voorstel. (Deze sessie: de ADR schreef een layout voor die
 niet-deterministisch bleek; gebouwd werd een deterministische variant → dat hoort terug in de ADR.)
 
-Bevestigd besluit: **een set-actie muteert uitsluitend de set, nooit de weergave.**
-Toevoegen/verwijderen/"haal buren erbij"/"voeg vervullende componenten toe" laten de
-gebruiker in de weergave waar hij is (Lagen blijft Lagen; de nieuwe componenten
-verschijnen dáár). Hercentreren/weergave-wissel hoort bij dubbelklik en de expliciete
-weergave-schakelaar. De vroegere ADR-040-regel "een set opbouwen via een ingang = brede
-plaat → overzicht" (`toonOverzicht()` in het gedeelde set-pad) is hiermee HERZIEN en uit
-de code verwijderd. (Hoort óók terug in ADR-040 — staat op de ADR-onderhoudslijst.) (LI036)
+De LI036-kaartregel — een set-actie muteert uitsluitend de set, nooit de weergave — staat
+voluit in likara-ux §LI036-kaartpatronen (herziening ADR-040; in de ADR zelf al verankerd).
 
 ## Keuze-sortering vóór je iets onthoudt (LI034, pointer)
 

@@ -781,7 +781,14 @@ staat** — los van de `toonRegistratiegaps`-toggle. Afleiding via dezelfde roll
   Nooit "wis alles wat hierbij hoort": dat veegt eerder eigen werk weg (afgekeurd).
   Alles-zat-er-al → "(0)" disabled met hint (niets ongedaan te maken). Terugkoppeling bij
   elke klik: toevoegen licht het geraakte web op (bestaand selectie-pad), verwijderen
-  geeft een korte succes-toast. Set-acties wijzigen nooit de weergave.
+  geeft een korte succes-toast.
+- **Set-acties wijzigen nooit de weergave (LI036 — herziening van de ADR-040-regel "ingang →
+  brede plaat").** Toevoegen/verwijderen/"haal buren erbij"/"voeg vervullende componenten toe"
+  muteren uitsluitend de set: de gebruiker blijft in de weergave waar hij is (Lagen blijft
+  Lagen; de nieuwe componenten verschijnen dáár). Hercentreren/weergave-wissel hoort bij
+  dubbelklik en de expliciete weergave-schakelaar. De vroegere ADR-040-regel "een set opbouwen
+  via een ingang = brede plaat → overzicht" (`toonOverzicht()` in het gedeelde set-pad) is
+  hiermee HERZIEN en uit de code verwijderd.
 - **Detail-op-aanvraag (expliciete verankering).** Houd de plaat/lijst rustig en laag de
   onderbouwing gelaagd achter één klik: **badge** (aantal op de gebundelde lijn) →
   **inklap** (herkomst per component, standaard dicht) → **popup/detailscherm** (volledige
