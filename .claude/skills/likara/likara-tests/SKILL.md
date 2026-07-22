@@ -364,6 +364,31 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   opzettelijk foute voorbeelden invoert en verifieert dat ze gevangen worden (referenties:
   veld-scan + detailkop-scan in `check-css-build.mjs`, elk 5/5). Zonder bijt-bewijs is een
   vangnet een aanname. (LI040)
+- **Geen vals-positieven.** Een scan die vals alarm slaat wordt genegeerd en is erger dan geen
+  scan: scan precies de laag die je bedoelt en strip wat de regel niet draagt (commentaar,
+  strings; de frontend-invulling — template-only scannen, comments strippen, quote-bewust
+  multi-line tags lezen — staat als toepassing in likara-frontend §LI040-patronen). (LI040)
+- **Geen benoemde uitzondering — een uitzondering is een achterdeur (LI047).** Vraagt een geval om
+  een uitzondering in de scan, dan is meestal het GEVAL fout, niet de regel; en wie er één opneemt,
+  verbreedt de volgende. Moet er tóch iets buiten vallen, laat het dan **afleiden** i.p.v.
+  opsommen — tegenvoorbeeld waar dat wél mag: `test_schema_aanroepen_scan.py` slaat aanroepen
+  binnen `pytest.raises` over; die geven bewust een ongeldig veld door om te bewijzen dát
+  `extra="forbid"` bijt, en dat is een structurele eigenschap, geen lijst. **Een zichtbare
+  uitzondering is óók een achterdeur (LI048):** hij doet geen schade, hij legitimeert een VORM —
+  het volgende geval dat niet past heeft dan een voorbeeld; zo ontstaan achterdeuren, niet met een
+  besluit maar met een precedent. Toets bij een uitzondering niet "richt hij schade aan?" maar
+  "welke vorm maak ik navolgbaar?" — en kijk eerst of het geval zelf op te lossen valt.
+  (Frontend-casussen — de `GapDetailView`-tegels en `LIJSTKOP_OPENSTAAND`: likara-frontend
+  §LI040-patronen.)
+- **Het BEREIK van een scan is even belangrijk als zijn regels, en versmalt stiller (LI048).**
+  Leid het bereik af uit wat de scan hoort te dekken (de gezaghebbende bron), nooit uit
+  bestandsnamen — een naamconventie is geen criterium maar een toevalligheid. Drie eisen naast
+  het afleiden zelf: (1) een niet-resolvebaar pad faalt LUID, nooit `continue` — een borging die
+  stilletjes smaller wordt dan hij lijkt is gevaarlijker dan geen borging: hij wekt vertrouwen
+  dat hij niet waarmaakt; (2) het criterium mag het bestaande bereik niet uitsluiten — bouw een
+  ratel, zodat een gedekt geval er nooit ongezien vanaf valt; (3) toets het GETAL in een suite —
+  zakt het, dan is dat een bevinding, geen getal dat je bijwerkt. (Toepassing + de drie hard
+  geleerde bewijzen: de lijstkop-scan, likara-frontend §LI040-patronen.)
 - **Elke gedeelde leesregel/afleiding krijgt een bronscan-test die een tweede implementatie laat
   falen.** Drie sessies raak — LI038 (twee ankers, één model) · LI040 (de "3 van 19"-teller/lijst-
   splitsing) · LI041 (`dekking_overzicht` / `plek_standen`) — dus geen zin meer maar een **norm**:

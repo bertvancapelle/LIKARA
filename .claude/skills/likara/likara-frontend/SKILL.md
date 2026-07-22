@@ -1725,47 +1725,33 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   staan), icoon (`<Icoon naam="…">` gebruikt alleen namen die in `Icoon.vue` bestaan, en een
   `icon="pi …"`-attribuut is per definitie dood — primeicons is geen afhankelijkheid; plus: hoogstens één `type="search"` per scherm, en de weergaveschakelaar
   (`aria-label="Weergave"`) mag níét binnen het kop-blok — die bepaalt hoe je kijkt, niet wat je
-  ziet). Eisen aan élke scan: (1) **aantoonbaar bijten** — een zelftest
-  met opzettelijk foute voorbeelden draait bij elke run mee; (2) **geen vals-positieven**
-  (template-only scannen, comments strippen, quote-bewust multi-line tags lezen) — een scan die
-  vals alarm slaat wordt genegeerd en is erger dan geen scan; (3) **geen benoemde uitzondering —
-  een uitzondering is een achterdeur (LI047)**. Vraagt een geval om een uitzondering in de scan, dan
-  is meestal het GEVAL fout, niet de regel; en wie er één opneemt, verbreedt de volgende. Moet er
-  tóch iets buiten vallen, laat het dan **afleiden** i.p.v. opsommen. (LI047: twee tegels in
-  `GapDetailView` droegen hun label als `<h2>` en werden door de gedeelde kopstijl even groot als
-  hun waarde — niet de scan een uitzondering geven, maar vaststellen dat het geen kóppen waren en er
-  een definitiepaar (`dl`/`dt`/`dd`) van maken. Tegenvoorbeeld waar afleiden wél mag:
-  `test_schema_aanroepen_scan.py` slaat aanroepen binnen `pytest.raises` over — die geven bewust een
-  ongeldig veld door om te bewijzen dát `extra="forbid"` bijt, en dat is een structurele eigenschap,
-  geen lijst.)
-- **LI048 snede 2 — het BEREIK van een scan is even belangrijk als zijn regels, en versmalt
-  stiller.** De lijstkop-scan pakte `*Lijst.vue`. Dat leek een keurig criterium en was groen — maar
-  het waren toevallig precies de vier schermen uit snede 1, en géén van de tien die daarna volgden
-  (`AuditTrailView`, `NormBeheer`, `ChecklistConfigBeheer`, …). Een naamconventie is geen criterium
-  maar een toevalligheid. **Leid het bereik af uit wat de gebruiker ziet**, niet uit hoe bestanden
-  heten: hier de menu-routes uit `AppLayout.vue` → componenten uit `router/index.js` → scan die
-  bestanden. Drie dingen die dit patroon nodig heeft, alle drie hard geleerd in één sessie:
-  1. **Een niet-resolvebaar pad moet LUID falen, nooit `continue`.** Een vergeten alias
-     (`@modules/…`) liet zeven van de veertien schermen stil wegvallen; de scan meldde monter
-     "8 schermen op de bouwsteen" — een groene uitslag over nog niet de helft. Een borging die
-     stilletjes smaller wordt dan hij lijkt is gevaarlijker dan geen borging: hij wekt vertrouwen
-     dat hij niet waarmaakt.
-  2. **Het criterium mag het bestaande bereik niet uitsluiten.** "Toont een tabel" verloor
-     Bedrijfsfuncties (dat een boom toont) — een scherm dat al op de bouwsteen stónd. Vandaar
-     `tabel OF draagt de bouwsteen al`: een ratel, zodat een scherm er nooit ongezien vanaf valt.
-  3. **Toets het GETAL in een suite** (`LijstKopSchermen.test.js`: "vindt alle veertien schermen").
-     Zakt het, dan is dat een bevinding — geen getal dat je bijwerkt.
-- **LI048 — een zichtbare uitzondering is óók een achterdeur.** De lijstkop-scan droeg één sessie
-  lang `LIJSTKOP_OPENSTAAND = {BedrijfsfunctieLijst.vue}`: het scherm dat de schakelaar en een
-  tweede actie in de kop had. De uitzondering was verdedigd (afleiden kon niet zonder de fout te
-  cementeren), gedocumenteerd, en werd bij élke run afgedrukt — geen stille skip. Hij is er tóch
-  uitgegaan, en de reden is de scherpste vorm van deze regel: **hij deed geen schade, hij
-  legitimeerde een VORM.** De volgende sessie die één scherm niet kan omzetten, heeft dan een
-  voorbeeld. Zo ontstaan achterdeuren — niet met een besluit, maar met een precedent. De uitweg
-  was wat de regel al zei: *het GEVAL is fout, niet de regel.* De twee dingen die het scherm
-  tegenhielden bleken allebei al beslist; er was geen ontwerpvraag, alleen bouwwerk.
-  **Toets bij een uitzondering niet "richt hij schade aan?" maar "welke vorm maak ik navolgbaar?"**
-  — en kijk eerst of het geval zelf op te lossen valt.
+  ziet). De **eisen aan élke scan** — aantoonbaar bijten, geen vals-positieven, geen benoemde
+  uitzondering, bereik afleiden i.p.v. opsommen — staan canoniek in likara-tests §Bronscans.
+  Frontend-invulling van geen-vals-positieven: template-only scannen, comments strippen,
+  quote-bewust multi-line tags lezen. Frontend-geval van "het GEVAL is fout, niet de regel"
+  (LI047): twee tegels in `GapDetailView` droegen hun label als `<h2>` en werden door de
+  gedeelde kopstijl even groot als hun waarde — niet de scan een uitzondering geven, maar
+  vaststellen dat het geen kóppen waren en er een definitiepaar (`dl`/`dt`/`dd`) van maken.
+- **De bereik-les toegepast op de lijstkop-scan (LI048 snede 2 — de regel staat in likara-tests
+  §Bronscans).** De scan pakte `*Lijst.vue`: een keurig ogend criterium, groen — en toevallig
+  precies de vier schermen uit snede 1, géén van de tien die daarna volgden (`AuditTrailView`,
+  `NormBeheer`, `ChecklistConfigBeheer`, …); een naamconventie is geen criterium maar een
+  toevalligheid. Bereik hier afgeleid uit wat de gebruiker ziet: de menu-routes uit
+  `AppLayout.vue` → componenten uit `router/index.js` → scan die bestanden. De drie hard
+  geleerde bewijzen: een vergeten alias (`@modules/…`) liet zeven van de veertien schermen stil
+  wegvallen en de scan meldde monter "8 schermen op de bouwsteen" — een groene uitslag over nog
+  niet de helft (luid falen, nooit `continue`); "toont een tabel" verloor Bedrijfsfuncties — dat
+  een boom toont en al op de bouwsteen stónd — vandaar `tabel OF draagt de bouwsteen al` (de
+  ratel); en `LijstKopSchermen.test.js` toetst het getal ("vindt alle veertien schermen") —
+  zakt het, dan is dat een bevinding.
+- **De uitzondering-les toegepast (LI048 — de regel staat in likara-tests §Bronscans).** De
+  lijstkop-scan droeg één sessie lang `LIJSTKOP_OPENSTAAND = {BedrijfsfunctieLijst.vue}`: het
+  scherm dat de schakelaar en een tweede actie in de kop had. De uitzondering was verdedigd
+  (afleiden kon niet zonder de fout te cementeren), gedocumenteerd, en werd bij élke run
+  afgedrukt — geen stille skip. Hij is er tóch uitgegaan: **hij deed geen schade, hij
+  legitimeerde een VORM** — de casusconclusie waaruit de canonieke regel is getrokken. De twee
+  dingen die het scherm tegenhielden bleken allebei al beslist; er was geen ontwerpvraag,
+  alleen bouwwerk — het geval was op te lossen, en dat gebeurde.
 
 ## LI047 — teller en lijst uit ÉÉN laadpunt (niet alleen één bron)
 

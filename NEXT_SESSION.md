@@ -250,7 +250,7 @@ Verankerd in de likara-skills (`f11fd1c`), geen memory-duplicaat. Dertien patron
 - **Teller en lijst uit één laadpunt, niet alleen één bron** — twee aanroepen zijn geen tweede waarheid
   maar wél twee laadmomenten (frontend §LI047).
 - **Een scan met een benoemde uitzondering is een achterdeur** — derde eis naast bijten en
-  geen-vals-positieven (frontend).
+  geen-vals-positieven (likara-tests §Bronscans).
 - **Nul is een uitkomst: een lijst legt uit, een teller zwijgt** (ux).
 - **Een weigering zegt wát er aan de hand is** — "er is niets" en "die vraag geldt hier niet" zijn
   verschillende antwoorden (ux).

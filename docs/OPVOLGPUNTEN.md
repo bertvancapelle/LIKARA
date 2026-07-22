@@ -1901,7 +1901,7 @@ gedachtegang van ~120 regels is, geen afvinkbaar punt; de backlog blijft zo een 
 - ~~**Bedrijfsfuncties past niet in de kop.**~~ **Opgelost.** Het scherm staat nu óók op de
   bouwsteen; de weergaveschakelaar (Boom|Diagram) en "Model inlezen" zijn naar de zone ónder de kop
   gegaan. `LIJSTKOP_OPENSTAAND` is volledig verdwenen — de scan draait zonder uitzonderingenlijst.
-  De les staat in `likara-frontend`: een uitzondering die geen schade doet en netjes wordt
+  De les staat in `likara-tests` §Bronscans: een uitzondering die geen schade doet en netjes wordt
   afgedrukt, is nog steeds een achterdeur, want hij maakt een **vorm** navolgbaar.
 - **De schakelaar-teller krimpt.** De Boom|Diagram-schakelaar draagt nu `.lk-schakelaar` in plaats
   van zijn eigen inline vorm. Dat is er één van de zes uit **OPVOLGPUNT LI048-0** (zes schakelaars,
