@@ -212,10 +212,17 @@ PERMISSIES: dict[Entiteit, dict[Rol, frozenset[Actie]]] = {
     # (ownership via `sub` in de servicelaag). Strikt persoonlijk, nooit gedeeld.
     Entiteit.GEBRUIKER_VOORKEUR: dict(_EIGEN_VOORKEUR),
     # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer is een tenant-
-    # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). Inhoud-patroon:
-    # Viewer L · Medewerker LAW · Beheerder LAWV · Auditor L. ("Verwijderen" =
-    # soft-deactivatie via WIJZIGEN; geen hard-delete-pad in dit blok.)
-    Entiteit.CHECKLISTVRAAG: dict(_INHOUD),
+    # bevoegdheid (eigen entiteit, los van scoren via CHECKLISTSCORE). ADR-022 W2 /
+    # LI050 (besluit Bert): de lijst bepaalt wat er van élk component van een type
+    # gevraagd wordt — één mutatie raakt organisatiebreed (R2). Daarom het
+    # REFERENTIEMODEL-patroon: iedereen leest, alleen de beheerder muteert.
+    # ("Verwijderen" = soft-deactivatie via WIJZIGEN; geen hard-delete-pad.)
+    Entiteit.CHECKLISTVRAAG: {
+        Rol.VIEWER: _L,
+        Rol.MEDEWERKER: _L,
+        Rol.BEHEERDER: _LAWV,
+        Rol.AUDITOR: _L,
+    },
     # Auditlog — alleen Beheerder en Auditor mogen lezen; niemand muteert hier.
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN,

@@ -4,9 +4,10 @@
  * "raakt N componenten"-aankondiging (window.confirm). */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import PrimeVue from 'primevue/config'
 import ToastService from 'primevue/toastservice'
+import { useAuthStore } from '@/store/auth'
 
 vi.mock('@/api', () => ({
   api: {
@@ -61,9 +62,15 @@ const TYPE_OPTIES = {
   ],
 }
 
-async function mountView() {
+// ADR-022 W2 / LI050 — de view gate't bewerk-affordances op de beheerder-rol.
+// Default beheerder, zodat de bestaande CRUD-tests het bewerkpad blijven oefenen;
+// de rol-gating-tests mounten expliciet als viewer/medewerker.
+async function mountView(rollen = ['beheerder']) {
+  const pinia = createPinia()
+  setActivePinia(pinia)
+  useAuthStore().user = { roles: rollen }
   const wrapper = mount(ChecklistConfigBeheer, {
-    global: { plugins: [createPinia(), [PrimeVue, { unstyled: true }], ToastService] },
+    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService] },
   })
   await flushPromises()
   return wrapper
@@ -244,5 +251,50 @@ describe('ChecklistConfigBeheer', () => {
     await w.find('[data-testid="cfg-betekenis-9.1"]').setValue('technische_plaatsing')
     await flushPromises()
     expect(w.find('[data-testid="cfg-actie-fout"]').text()).toContain('draagt deze betekenis al')
+  })
+})
+
+describe('ChecklistConfigBeheer — rol-gating (ADR-022 W2 / LI050)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    api.checklistconfig.lijst.mockResolvedValue(structuredClone(VRAGEN))
+    api.checklistconfig.betekenissen.mockResolvedValue(structuredClone(BETEKENISSEN))
+    api.componenten.opties.mockResolvedValue(structuredClone(TYPE_OPTIES))
+    api.checklistconfig.impact.mockResolvedValue({ aantal_componenten: 4 })
+  })
+
+  it('niet-beheerder: géén bewerk-affordances, wél de uitlegzin en de leesbare lijst', async () => {
+    const w = await mountView(['medewerker'])
+    // De uitlegzin — zichtbare tekst, geen "rendert".
+    expect(w.text()).toContain('De vragenlijst wordt bepaald door de beheerder van uw organisatie.')
+    // Alle bewerk-affordances zijn AFWEZIG (niet uitgegrijsd).
+    expect(w.find('[data-testid="cfg-nieuwe-vraag"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-vraag-actief-9.1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-type-9.1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-betekenis-9.1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-optie-deactiveren-o2"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-toevoegen-1.3"]').exists()).toBe(false)
+    expect(w.text()).not.toContain('Deactiveren')
+    // De lijst blijft leesbaar: vraag, antwoordtype-als-tekst en optie-label zichtbaar.
+    expect(w.text()).toContain('V negen')
+    expect(w.find('[data-testid="cfg-type-tekst-9.1"]').text()).toBe('Geen')
+    expect(w.text()).toContain('BWB')
+  })
+
+  it('viewer: zelfde leesbeeld als medewerker (geen knoppen, wél de zin)', async () => {
+    const w = await mountView(['viewer'])
+    expect(w.text()).toContain('De vragenlijst wordt bepaald door de beheerder van uw organisatie.')
+    expect(w.find('[data-testid="cfg-nieuwe-vraag"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-vraag-actief-9.1"]').exists()).toBe(false)
+  })
+
+  it('beheerder: bewerk-affordances aanwezig, uitlegzin afwezig', async () => {
+    const w = await mountView(['beheerder'])
+    expect(w.text()).not.toContain('De vragenlijst wordt bepaald door de beheerder van uw organisatie.')
+    expect(w.find('[data-testid="cfg-nieuwe-vraag"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cfg-vraag-actief-9.1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cfg-type-9.1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').exists()).toBe(true)
   })
 })

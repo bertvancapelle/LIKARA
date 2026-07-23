@@ -160,3 +160,34 @@ De ADR is volledig geïmplementeerd:
 Borging: `test_engine_borging_li057`/`_li059` (score = enige lifecycle-driver),
 `test_backfill_beoordeeld_li058` (backfill), verse reseed (16 applicaties + database-scoring).
 Status: **Aanvaard — gerealiseerd t/m LI059**.
+
+## Wijziging W2 — LI050: vraagbeheer wordt een beheerdersbevoegdheid
+
+| | |
+|---|---|
+| **Status** | Aanvaard |
+| **Datum** | 2026-07-23 |
+| **Beslissers** | Bert van Capelle |
+| **Grond** | `docs/Analyse-rechtenverdeling-V050.md` (M3-1) + `docs/Checkpoint-productie-gereedheid-V050.md` (§2A) |
+
+**Context.** W1 maakte de vragenset tenant-eigendom, maar liet het mutatierecht op het
+inhoud-patroon staan (medewerker mag aanmaken/wijzigen/deactiveren). De rechtenanalyse LI050
+stelde vast dat vraagbeheer **organisatiebreed** reikt: één mutatie verandert wat er van élk
+component van een type gevraagd wordt (deactiveren raakte in de meting 20 componenten en 5
+gegeven antwoorden). Dat is dezelfde reikwijdte waarvoor het referentiemodel-inlezen eerder al
+van het inhoud-patroon naar beheerder-only is gecorrigeerd.
+
+**Besluit.** Vraagbeheer blijft per tenant, maar de mutaties (vraag aanmaken, wijzigen,
+antwoordtype en antwoordopties beheren, uit-/aanzetten) zijn **uitsluitend voor de
+beheerdersrol van de tenant**. Lezen blijft voor álle tenant-rollen — de vragenlijst is het
+antwoord op *"waarom vraagt LIKARA mij dit?"* en blijft voor iedereen inzichtelijk.
+
+**Vorm.** Eén plek: de `CHECKLISTVRAAG`-entry in de rechtenmatrix (`rbac.py`) volgt nu het
+REFERENTIEMODEL-patroon (Viewer/Medewerker/Auditor L · Beheerder LAWV). Alle acht
+mutatie-routes van `/checklistconfig` erven dit via hun bestaande guards — geen per-route
+wijziging. UI: bewerk-affordances afwezig voor niet-beheerders, met de uitlegzin
+*"De vragenlijst wordt bepaald door de beheerder van uw organisatie."* (NormBeheer-patroon).
+
+**Buiten dit besluit** (bekende gebreken rond deactiveren, blijven eigen vervolgpunten): de
+engine telt scores op gedeactiveerde vragen mee, en een blokkade op een gedeactiveerde vraag
+is via de UI niet af te sluiten (Checkpoint V050 §G2-1/G2-2).

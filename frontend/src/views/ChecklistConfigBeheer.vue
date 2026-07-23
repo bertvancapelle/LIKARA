@@ -13,8 +13,15 @@
 import { computed, reactive, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api'
+import { useAuthStore } from '@/store/auth'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 import LijstKop from '@/components/LijstKop.vue'
+
+// ADR-022 W2 / LI050 — vraagbeheer is beheerder-only: iedereen leest de lijst
+// (het antwoord op "waarom vraagt LIKARA mij dit?"), alleen de beheerder muteert.
+// Affordance — de backend handhaaft (CHECKLISTVRAAG-matrix, rbac.py).
+const auth = useAuthStore()
+const magBeheren = computed(() => auth.hasRole('beheerder'))
 
 const ANTWOORDTYPES = ['geen', 'enkelvoudige_keuze', 'meerkeuze', 'getal']
 const TYPE_LABEL = {
@@ -252,13 +259,23 @@ laad()
       </template>
     </LijstKop>
 
+    <!-- LI050 — wie niet mag bewerken ziet geen knoppen, wél waarom (NormBeheer-patroon). -->
+    <p
+      v-if="!magBeheren"
+      data-testid="cfg-alleen-lezen-hint"
+      class="mb-[var(--lk-space-md)] max-w-prose text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]"
+    >
+      De vragenlijst wordt bepaald door de beheerder van uw organisatie.
+    </p>
+
     <p v-if="fout" role="alert" data-testid="cfg-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ fout }}</p>
     <p v-if="actieFout" role="alert" data-testid="cfg-actie-fout" class="text-[var(--lk-color-danger)] mb-[var(--lk-space-sm)]">{{ actieFout }}</p>
     <p v-if="laden" data-testid="cfg-laden" class="text-[var(--lk-color-text-muted)]">Laden…</p>
 
-    <!-- Vraag toevoegen (ADR-022 W1) — tenant-CRUD. Toont 409 CHECKLISTVRAAG_BESTAAT
-         netjes via de actieFout-melding; tellende actie → impact-aankondiging. -->
+    <!-- Vraag toevoegen (ADR-022 W1) — tenant-CRUD, beheerder-only (W2/LI050). Toont 409
+         CHECKLISTVRAAG_BESTAAT netjes via de actieFout-melding; tellende actie → impact-aankondiging. -->
     <form
+      v-if="magBeheren"
       data-testid="cfg-nieuwe-vraag"
       class="card flex flex-wrap items-end gap-[var(--lk-space-sm)] mb-[var(--lk-space-md)]"
       @submit.prevent="maakVraag"
@@ -339,6 +356,7 @@ laad()
             :class="['text-[length:var(--lk-text-xs)]', vraag.actief ? 'text-[var(--lk-color-success)]' : 'text-[var(--lk-color-danger)]']"
           >{{ vraag.actief ? 'actief' : 'gedeactiveerd' }}</span>
           <button
+            v-if="magBeheren"
             type="button"
             :data-testid="`cfg-vraag-actief-${vraag.code}`"
             class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
@@ -349,6 +367,7 @@ laad()
           <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
             Antwoordtype
             <select
+              v-if="magBeheren"
               :data-testid="`cfg-type-${vraag.code}`"
               :value="vraag.antwoordtype"
               class="lk-veld"
@@ -356,6 +375,7 @@ laad()
             >
               <option v-for="t in ANTWOORDTYPES" :key="t" :value="t">{{ TYPE_LABEL[t] }}</option>
             </select>
+            <span v-else :data-testid="`cfg-type-tekst-${vraag.code}`">{{ TYPE_LABEL[vraag.antwoordtype] }}</span>
           </label>
           <VeldUitleg veld="antwoordtype" opties="antwoordtype" :testid="`uitleg-antwoordtype-${vraag.code}`" />
           <!-- ADR-023 Fase F (F-3): betekenis-toekenning. Leeg = geen betekenis; de server
@@ -363,6 +383,7 @@ laad()
           <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
             Betekenis
             <select
+              v-if="magBeheren"
               :data-testid="`cfg-betekenis-${vraag.code}`"
               :value="vraag.betekenis || ''"
               class="lk-veld"
@@ -371,10 +392,11 @@ laad()
               <option value="">— geen —</option>
               <option v-for="b in betekenisOpties" :key="b.optie_sleutel" :value="b.optie_sleutel">{{ b.label }}</option>
             </select>
+            <span v-else :data-testid="`cfg-betekenis-tekst-${vraag.code}`">{{ betekenisOpties.find((b) => b.optie_sleutel === vraag.betekenis)?.label || '— geen —' }}</span>
           </label>
           <VeldUitleg veld="betekenis" :testid="`uitleg-betekenis-${vraag.code}`" />
         </div>
-        <p v-if="vraag.antwoordtype !== 'geen'" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
+        <p v-if="magBeheren && vraag.antwoordtype !== 'geen'" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
           Een reeds geconfigureerde vraag kan niet van antwoordtype wisselen (de server weigert dat).
         </p>
 
@@ -402,20 +424,24 @@ laad()
                 <td class="font-mono">{{ optie.optie_sleutel }}</td>
                 <td>
                   <input
+                    v-if="magBeheren"
                     :data-testid="`cfg-optie-label-${optie.id}`"
                     v-model="optie.label"
                     type="text"
                     class="lk-veld"
                   />
+                  <span v-else>{{ optie.label }}</span>
                 </td>
                 <td>
                   <input
+                    v-if="magBeheren"
                     :data-testid="`cfg-optie-volgorde-${optie.id}`"
                     v-model="optie.volgorde"
                     type="number"
                     :disabled="!!optie.afgeleid_bron"
                     class="lk-veld w-20"
                   />
+                  <span v-else>{{ optie.volgorde }}</span>
                 </td>
                 <td>
                   <span v-if="optie.afgeleid_bron" :data-testid="`cfg-bron-${optie.id}`" class="text-[length:var(--lk-text-xs)]">afgeleid · {{ optie.afgeleid_bron }}</span>
@@ -424,6 +450,7 @@ laad()
                 </td>
                 <td class="flex gap-[var(--lk-space-xs)]">
                   <button
+                    v-if="magBeheren"
                     type="button"
                     :data-testid="`cfg-optie-opslaan-${optie.id}`"
                     class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
@@ -432,7 +459,7 @@ laad()
                     Opslaan
                   </button>
                   <button
-                    v-if="!optie.afgeleid_bron && optie.actief"
+                    v-if="magBeheren && !optie.afgeleid_bron && optie.actief"
                     type="button"
                     :data-testid="`cfg-optie-deactiveren-${optie.id}`"
                     class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
@@ -445,9 +472,9 @@ laad()
             </tbody>
           </table>
 
-          <!-- Optie toevoegen (niet bij afgeleide sets) -->
+          <!-- Optie toevoegen (niet bij afgeleide sets; beheerder-only, W2/LI050) -->
           <form
-            v-if="!isAfgeleideSet(vraag)"
+            v-if="magBeheren && !isAfgeleideSet(vraag)"
             :data-testid="`cfg-toevoegen-${vraag.code}`"
             class="flex items-end gap-[var(--lk-space-sm)] mt-[var(--lk-space-xs)]"
             @submit.prevent="voegToe(vraag)"

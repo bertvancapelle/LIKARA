@@ -81,7 +81,11 @@ VERWACHT = {
     Entiteit.GEBRUIKER_VOORKEUR: {
         Rol.VIEWER: _LAWV, Rol.MEDEWERKER: _LAWV, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _LAWV,
     },
-    Entiteit.CHECKLISTVRAAG: _INHOUD,  # ADR-022 W1: tenant-eigen vragenset (CRUD)
+    # ADR-022 W2 / LI050 — vraagbeheer raakt organisatiebreed (R2): iedereen leest,
+    # alleen de beheerder muteert (REFERENTIEMODEL-patroon).
+    Entiteit.CHECKLISTVRAAG: {
+        Rol.VIEWER: _L, Rol.MEDEWERKER: _L, Rol.BEHEERDER: _LAWV, Rol.AUDITOR: _L,
+    },
     Entiteit.AUDITLOG: {
         Rol.VIEWER: _GEEN, Rol.MEDEWERKER: _GEEN, Rol.BEHEERDER: _L, Rol.AUDITOR: _L,
     },
@@ -125,14 +129,17 @@ def test_kernregels_expliciet():
         assert heeft_permissie(["beheerder"], entiteit, Actie.AANMAKEN)
         for rol in ("viewer", "medewerker", "auditor"):
             assert not heeft_permissie([rol], entiteit, Actie.LEZEN)
-    # ADR-022 W1: de vragenset is tenant-eigendom — vraagbeheer volgt het inhoud-
-    # patroon (medewerker mag muteren, viewer/auditor alleen lezen).
+    # ADR-022 W1+W2 / LI050: de vragenset is tenant-eigendom, maar vraagbeheer raakt
+    # organisatiebreed — iedereen leest, alléén de beheerder muteert (aanmaken,
+    # wijzigen én uitzetten). De medewerker verliest expliciet zijn mutatierecht.
     for rol in ("viewer", "medewerker", "beheerder", "auditor"):
         assert heeft_permissie([rol], Entiteit.CHECKLISTVRAAG, Actie.LEZEN)
-    assert heeft_permissie(["medewerker"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+    assert heeft_permissie(["beheerder"], Entiteit.CHECKLISTVRAAG, Actie.AANMAKEN)
+    assert heeft_permissie(["beheerder"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
     assert heeft_permissie(["beheerder"], Entiteit.CHECKLISTVRAAG, Actie.VERWIJDEREN)
-    assert not heeft_permissie(["viewer"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
-    assert not heeft_permissie(["auditor"], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+    for rol in ("viewer", "medewerker", "auditor"):
+        assert not heeft_permissie([rol], Entiteit.CHECKLISTVRAAG, Actie.AANMAKEN)
+        assert not heeft_permissie([rol], Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
     # ADR-033 slice 2 — opgeslagen views: Viewer/Auditor mogen gedeelde views lezen/gebruiken
     # maar niet aanmaken; Medewerker mag aanmaken én eigen view VERWIJDEREN (eigen-beheer-patroon).
     for rol in ("viewer", "medewerker", "beheerder", "auditor"):
@@ -232,3 +239,64 @@ def test_guard_200_voldoende_rechten(monkeypatch):
     r = c.get("/verwijder-component")
     assert r.status_code == 200
     assert "beheerder" in r.json()["roles"]
+
+
+# ── ADR-022 W2 / LI050 — vraagbeheer is beheerder-only (bijtende guard-test) ─────
+# Spiegelt de échte checklistconfig-guards (LEZEN/AANMAKEN/WIJZIGEN op CHECKLISTVRAAG):
+# een medewerker wordt op aanmaken én uitzetten geweigerd, de beheerder slaagt, en
+# élke rol blijft lezen. Faalt zodra iemand de matrix-entry terugzet naar _INHOUD.
+
+
+def _maak_vraagbeheer_app():
+    app = FastAPI()
+    app.add_exception_handler(OnvoldoendeRechten, onvoldoende_rechten_handler)
+    app.add_exception_handler(NietGeauthenticeerd, niet_geauthenticeerd_handler)
+
+    @app.get("/vragen")
+    async def _lees(
+        user: AuthenticatedUser = Depends(
+            vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.LEZEN)
+        ),
+    ):
+        return {"ok": True}
+
+    @app.post("/vragen")
+    async def _maak(
+        user: AuthenticatedUser = Depends(
+            vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.AANMAKEN)
+        ),
+    ):
+        return {"ok": True}
+
+    @app.post("/vragen/actief")
+    async def _zet_actief(
+        user: AuthenticatedUser = Depends(
+            vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+        ),
+    ):
+        return {"ok": True}
+
+    return app
+
+
+def test_vraagbeheer_medewerker_geweigerd_op_mutaties(monkeypatch):
+    monkeypatch.setattr("app.middleware.auth.decode_token", lambda t: _payload(["medewerker"]))
+    c = TestClient(_maak_vraagbeheer_app())
+    c.cookies.set(settings.cookie_name, "tok")
+    assert c.post("/vragen").status_code == 403          # aanmaken geweigerd
+    assert c.post("/vragen/actief").status_code == 403   # uitzetten geweigerd
+    assert c.get("/vragen").status_code == 200           # lezen blijft
+
+
+def test_vraagbeheer_beheerder_slaagt_viewer_leest(monkeypatch):
+    monkeypatch.setattr("app.middleware.auth.decode_token", lambda t: _payload(["beheerder"]))
+    c = TestClient(_maak_vraagbeheer_app())
+    c.cookies.set(settings.cookie_name, "tok")
+    assert c.post("/vragen").status_code == 200
+    assert c.post("/vragen/actief").status_code == 200
+
+    monkeypatch.setattr("app.middleware.auth.decode_token", lambda t: _payload(["viewer"]))
+    c2 = TestClient(_maak_vraagbeheer_app())
+    c2.cookies.set(settings.cookie_name, "tok")
+    assert c2.get("/vragen").status_code == 200
+    assert c2.post("/vragen").status_code == 403
