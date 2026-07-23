@@ -104,6 +104,36 @@ aangeroepen". Verkies dit boven een afspraak of een test.
   Vragen én adviezen strikt één voor één; CC-opdrachten altijd als zelfstandig leesbaar
   `.md` met `START:` op regel 1. (LI035)
 
+### Bronplicht — elke bewering draagt haar bron (LI050)
+
+Bert kan aan een antwoord niet zien waarop het rust. Een advies dat op een samenvatting steunt
+leest identiek aan een advies dat op het rapport zelf steunt — en corrigeert zichzelf pas als de
+echte bron alsnog binnenkomt. Daarom:
+
+1. **Elke feitelijke bewering draagt haar bron in de zin zelf** — niet als voetnoot achteraf:
+   *"in het rapport §2A"*, *"uit jouw samenvatting"*, *"uit likara-db §Testdata-regel"*, *"gemeten
+   door CC"*. Is de bron niet in te vullen, dan staat het feit niet vast: dat is het signaal om te
+   meten of te vragen, niet om door te schrijven.
+2. **Een genoemd maar niet-ontvangen bestand wordt opgevraagd, niet omheen geredeneerd.** Een
+   CC-terugkoppeling in de chat is de melding dát er een rapport is — niet het rapport. Advies op
+   zo'n melding is voorlopig en zegt dat er expliciet bij.
+3. **Valideren gaat vóór aannemen; de repo is de referentie.** Niet hier herhaald — de norm staat
+   al bij de uitvoerkant (CC verifieert tegen de code, niet tegen een hypothese of het geheugen).
+   Deze regel trekt hem door naar claude.ai's eigen uitspraken: ook een advies wordt onderbouwd met
+   wat er in de repo staat, niet met wat er plausibel lijkt.
+
+**Twee hefbomen van Bert.** Beide woorden werken zonder discussie, uitleg of verdediging:
+
+- **"protocol"** — de beurt wordt overgedaan volgens deze interactieregels.
+- **"waarop rust dit?"** — het vorige antwoord wordt per bewering uitgesplitst naar bron.
+
+⚠ **Deze regel heeft geen technische bouwsteen** (zie KERNLES LI038): chatgedrag is niet machinaal
+af te dwingen. De borging zit in de vorm — een bron ín de zin valt op zodra hij ontbreekt — en in de
+twee hefbomen, die de controle bij Bert leggen. Zwakker dan een scan; het is wat hier mogelijk is.
+
+**Spanning met punt 4 ("kort en bondig"), bewust aanvaard:** een bron per bewering kost woorden. De
+regel compenseert zichzelf deels — een bewering zonder invulbare bron vervalt.
+
 ---
 
 ## CC-opdrachtenformaat (niet-onderhandelbaar)
@@ -599,6 +629,15 @@ Volgorde:
   zelfstandige overdracht-`.md`** (zelfde vorm als elke opdracht: stand vaststellen read-only,
   suites bevestigen, dan wachten). Elke opdracht is zó geschreven dat opnieuw beginnen bijna
   niets kost — dat is een eigenschap van het opdrachtformaat, geen toeval. (LI040)
+
+### Afsluiten is Berts besluit, nooit dat van Claude (LI050)
+
+- **Claude vraagt ALTIJD of we de sessie afsluiten; Claude besluit dit NOOIT autonoom.** Ook niet
+  bij een schone werktree, een groene suite of een afgerond spoor — dat zijn signalen, geen besluit.
+- Claude mag het moment wél **aandragen**, in termen van risico en staat (ongecommitte slices,
+  verstrengeling, te veel open sporen) — nooit in termen van de gesteldheid van de gebruiker.
+- Zegt Bert ja, dan geldt het volledige afsluitprotocol; een verkorte variant kiest Claude nooit
+  zelf.
 
 ---
 
