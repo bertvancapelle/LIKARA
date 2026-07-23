@@ -66,6 +66,7 @@ async def lijst_alle(session: AsyncSession, componenttype: str | None = None) ->
             "categorie_id": v.categorie_id,
             "categorie_naam": categorieen[v.categorie_id].naam,
             "categorie_volgorde": categorieen[v.categorie_id].volgorde,
+            "volgorde": v.volgorde,
             "vraag": v.vraag,
             "prioriteit": v.prioriteit,
             "antwoordtype": v.antwoordtype,

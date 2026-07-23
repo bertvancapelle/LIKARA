@@ -39,6 +39,8 @@ class ConfigVraagRead(BaseModel):
     categorie_id: uuid.UUID
     categorie_naam: str
     categorie_volgorde: int
+    # LI050 (W5): de sleep-volgorde van de vraag binnen haar categorie.
+    volgorde: int
     vraag: str
     prioriteit: ChecklistPrioriteit
     antwoordtype: AntwoordType
@@ -69,7 +71,9 @@ class CategorieCreate(BaseModel):
 
     componenttype: str
     naam: str
-    volgorde: int = 0
+    # LI050 (W5): geen invoer meer — None = achteraan (service kent toe); het veld blijft
+    # in het contract voor gerichte plaatsing door een toekomstige consument.
+    volgorde: int | None = None
 
     @field_validator("componenttype")
     @classmethod
@@ -133,6 +137,8 @@ class VraagUpdate(BaseModel):
 
     vraag: str | None = None
     categorie_id: uuid.UUID | None = None
+    # LI050 (W5): de sleep-bouwsteen bewaart de nieuwe volgorde via dit veld.
+    volgorde: int | None = None
     prioriteit: ChecklistPrioriteit | None = None
 
     @field_validator("vraag")

@@ -1022,6 +1022,9 @@ class ChecklistVraag(Base, TenantMixin):
     componenttype: Mapped[str] = mapped_column(String(60), nullable=False)
     code: Mapped[str] = mapped_column(String(10), nullable=False)
     categorie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # LI050 (W5): eigen volgorde binnen de categorie — de gebruiker sleept; de code is
+    # louter identiteit en draagt geen positie meer. Nieuwe vraag = achteraan (service).
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     vraag: Mapped[str] = mapped_column(Text, nullable=False)
     prioriteit: Mapped[ChecklistPrioriteit] = mapped_column(
         checklist_prioriteit_enum, nullable=False

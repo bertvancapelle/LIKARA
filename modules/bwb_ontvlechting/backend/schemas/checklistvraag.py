@@ -38,6 +38,8 @@ class ChecklistVraagRead(BaseModel):
     categorie_id: uuid.UUID
     categorie_naam: str
     categorie_volgorde: int
+    # LI050 (W5): de sleep-volgorde van de vraag binnen haar categorie.
+    volgorde: int
     vraag: str
     prioriteit: ChecklistPrioriteit
     antwoordtype: AntwoordType

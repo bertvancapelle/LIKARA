@@ -239,3 +239,29 @@ def test_blokkade_read_schemas_dragen_categorie_id():
 
     assert "categorie_id" in BlokkadeLijstItem.model_fields
     assert "categorie_id" in BlokkadeOverzichtItem.model_fields
+
+
+# ── 6. LI050 (W5): de volgorde verspringt niet door de schemastap ────────────────
+
+
+def test_seed_volgorde_is_de_code_orde_van_vandaag():
+    """De migratie vult `volgorde` op de numerieke code-orde; de seed op de positie in
+    de bron-data. Die twee moeten dezelfde orde opleveren — anders verspringt een verse
+    deploy t.o.v. een gemigreerde DB. Bewijs: per categorie is de bron-volgorde exact
+    de numerieke code-orde."""
+    from services.seed import CHECKLIST_VRAGEN, _STARTSETS_PER_TYPE
+
+    def _num(code: str):
+        kop, _, staart = code.partition(".")
+        return (int(kop), int(staart or 0))
+
+    sets = [("applicatie", CHECKLIST_VRAGEN)] + list(_STARTSETS_PER_TYPE)
+    for ctype, vragenset in sets:
+        per_cat: dict[str, list[str]] = {}
+        for v in vragenset:
+            per_cat.setdefault(v["categorie_naam"], []).append(v["code"])
+        for naam, codes in per_cat.items():
+            assert codes == sorted(codes, key=_num), (
+                f"{ctype}/{naam}: bron-orde wijkt af van de numerieke code-orde — "
+                "seed en migratie zouden verschillende volgordes opleveren"
+            )

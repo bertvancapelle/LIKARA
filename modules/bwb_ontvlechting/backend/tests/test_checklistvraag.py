@@ -18,7 +18,7 @@ _CAT_ID = uuid.uuid4()
 def _vraag(code, nr=1):
     return SimpleNamespace(
         id=uuid.uuid4(), code=code, componenttype="applicatie", categorie_id=_CAT_ID,
-        categorie_naam="Cat", categorie_volgorde=nr, vraag="?", prioriteit="hoog",
+        categorie_naam="Cat", categorie_volgorde=nr, volgorde=nr, vraag="?", prioriteit="hoog",
         antwoordtype="geen", opties=[],
     )
 
@@ -97,7 +97,7 @@ def test_route_geeft_vragen_voor_viewer(monkeypatch):
     assert [r["code"] for r in body] == ["1.1", "2.1"]
     assert set(body[0].keys()) == {
         "id", "code", "componenttype", "categorie_id", "categorie_naam", "categorie_volgorde",
-        "vraag", "prioriteit", "antwoordtype", "opties",
+        "volgorde", "vraag", "prioriteit", "antwoordtype", "opties",
     }
 
 

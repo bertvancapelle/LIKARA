@@ -91,9 +91,19 @@ describe('ChecklistscoreSectie', () => {
   // ── Onderdeel 2: client-side kolomsortering ────────────────────────────────
   const _codes = (w) => w.findAll('[data-testid^="cs-rij-"]').map((r) => r.attributes('data-testid'))
 
-  it('sorteert client-side op kolomklik (vraag asc → desc togglet); default = interne code', async () => {
+  it('de checklist staat in de BEHEERDE volgorde, niet de code-orde (LI050 W5)', async () => {
+    // Volgorde tegengesteld aan de code: de beheerder sleepte 1.2 vóór 1.1.
+    api.checklistvragen.lijst.mockResolvedValue([
+      { id: 1, code: '1.1', categorie_id: 'c1', categorie_naam: 'C', categorie_volgorde: 1, volgorde: 2, vraag: 'Vraag een', prioriteit: 'hoog' },
+      { id: 2, code: '1.2', categorie_id: 'c1', categorie_naam: 'C', categorie_volgorde: 1, volgorde: 1, vraag: 'Vraag twee', prioriteit: 'hoog' },
+    ])
     const w = await mountSectie()
-    expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2']) // default = interne code oplopend
+    expect(_codes(w)).toEqual(['cs-rij-1.2', 'cs-rij-1.1'])
+  })
+
+  it('sorteert client-side op kolomklik (vraag asc → desc togglet); default = beheerde volgorde', async () => {
+    const w = await mountSectie()
+    expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2']) // default = beheerde volgorde
     // LI050 (W4): er is geen Code-kolom meer — sorteren gaat op de vraag-kolom.
     expect(w.find('[data-testid="cs-sort-code"]').exists()).toBe(false)
     await w.find('[data-testid="cs-sort-vraag"]').trigger('click') // Vraag een/twee: asc

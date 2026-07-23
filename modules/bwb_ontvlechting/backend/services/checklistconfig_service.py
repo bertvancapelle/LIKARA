@@ -63,6 +63,7 @@ def _vraag_read(
         "categorie_id": vraag.categorie_id,
         "categorie_naam": categorie.naam,
         "categorie_volgorde": categorie.volgorde,
+        "volgorde": vraag.volgorde,
         "vraag": vraag.vraag,
         "prioriteit": vraag.prioriteit,
         "antwoordtype": vraag.antwoordtype,
@@ -276,11 +277,21 @@ async def maak_vraag(session: AsyncSession, tenant_id, data: VraagCreate) -> dic
         .scalars()
         .all()
     )
+    # LI050 (W5): een nieuwe vraag komt ACHTERAAN in haar categorie; de beheerder
+    # sleept hem daarna waar hij hoort.
+    hoogste_volgorde = (
+        await session.execute(
+            select(func.coalesce(func.max(ChecklistVraag.volgorde), 0)).where(
+                ChecklistVraag.categorie_id == data.categorie_id
+            )
+        )
+    ).scalar_one()
     vraag = ChecklistVraag(
         tenant_id=tid,
         componenttype=data.componenttype,
         code=volgende_code(bestaande),
         categorie_id=data.categorie_id,
+        volgorde=hoogste_volgorde + 1,
         vraag=data.vraag,
         prioriteit=data.prioriteit,
         antwoordtype=data.antwoordtype,
@@ -379,11 +390,21 @@ async def maak_categorie(session: AsyncSession, tenant_id, data: CategorieCreate
     schema-afgedwongen; de pre-flush IntegrityError wordt een leesbare 409."""
     tid = _tenant_uuid(tenant_id)
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
+    # LI050 (W5): geen volgorde opgegeven → achteraan binnen het type (daarna slepen).
+    volgorde = data.volgorde
+    if volgorde is None:
+        volgorde = (
+            await session.execute(
+                select(func.coalesce(func.max(ChecklistCategorie.volgorde), 0)).where(
+                    ChecklistCategorie.componenttype == data.componenttype
+                )
+            )
+        ).scalar_one() + 1
     cat = ChecklistCategorie(
         tenant_id=tid,
         componenttype=data.componenttype,
         naam=data.naam,
-        volgorde=data.volgorde,
+        volgorde=volgorde,
     )
     session.add(cat)
     try:

@@ -123,7 +123,7 @@ def _vraag():
 
     return SimpleNamespace(
         id=uuid.uuid4(), code="9.1", componenttype="applicatie", categorie_id=_CAT.id,
-        vraag="?", prioriteit=ChecklistPrioriteit.midden,
+        volgorde=1, vraag="?", prioriteit=ChecklistPrioriteit.midden,
         antwoordtype="geen", actief=True, betekenis=None,
     )
 

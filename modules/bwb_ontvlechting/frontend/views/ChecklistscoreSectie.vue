@@ -79,10 +79,9 @@ const aantalVragen = computed(() => vragen.value.length)
 const aantalGescoord = computed(() => Object.keys(scoreMap).length)
 
 // Client-side kolomsortering (geen API-wijziging): klik op een kolomkop togglet
-// asc/desc. Default = interne code oplopend (LI050 W4: de code is onzichtbaar maar
-// blijft de deterministische standaardvolgorde binnen een categorie). De markeer/scroll-
-// naar-vraag blijft werken want die target de rij-id, niet de positie.
-const sortKolom = ref('code') // 'code' | 'vraag' | 'score'
+// asc/desc. Default = de BEHEERDE volgorde (LI050 W5: de beheerder sleept; de code is
+// louter identiteit). De markeer/scroll-naar-vraag blijft werken (rij-id, niet positie).
+const sortKolom = ref('volgorde') // 'volgorde' | 'vraag' | 'score'
 const sortRichting = ref('asc') // 'asc' | 'desc'
 
 function sorteerOp(kolom) {
@@ -102,7 +101,7 @@ function ariaSort(kolom) {
 function _sortWaarde(v, kolom) {
   if (kolom === 'vraag') return v.vraag || ''
   if (kolom === 'score') return huidigeScore(v.code) || '' // ongescoord = '' (asc vooraan)
-  return v.code
+  return v.volgorde ?? 0 // LI050 (W5): de beheerde volgorde, niet de code
 }
 
 // CD022: alleen de vragen van de actieve categorie tonen (null = alle). De voortgang-

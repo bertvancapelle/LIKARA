@@ -179,15 +179,22 @@ async def seed_checklist_vragen(session, tenant_id) -> int:
         ).all()
     }
 
+    # LI050 (W5): volgorde = positie binnen de categorie, in de orde van de bron-data
+    # (= de orde die de gebruiker vandaag ziet). Per (type, categorie) doorgeteld.
+    _teller: dict[tuple[str, str], int] = {}
+
     def _vraag_rij(v: dict, ctype: str, betekenis) -> dict:
         # nr/naam blijven in de bron-data staan (leesbaar + volgorde-bron) maar reizen
         # niet mee de tabel in — de verwijzing is `categorie_id`.
+        sleutel = (ctype, v["categorie_naam"])
+        _teller[sleutel] = _teller.get(sleutel, 0) + 1
         return {
             "code": v["code"],
             "vraag": v["vraag"],
             "tenant_id": tenant_id,
             "componenttype": ctype,
-            "categorie_id": cat_id[(ctype, v["categorie_naam"])],
+            "categorie_id": cat_id[sleutel],
+            "volgorde": _teller[sleutel],
             "prioriteit": ChecklistPrioriteit(v["prioriteit"]),
             # ADR-023 Fase F (F-3): de baseline draagt de betekenis al → fresh deploys zijn
             # meteen gelijk aan de gemigreerde stand. Alle rijen dezelfde sleutels (pg_insert).

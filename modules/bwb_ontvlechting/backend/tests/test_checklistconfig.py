@@ -51,6 +51,7 @@ def _vraag(code, antwoordtype):
         code=code,
         componenttype="applicatie",
         categorie_id=_CAT.id,
+        volgorde=1,
         vraag="?",
         prioriteit=ChecklistPrioriteit.midden,
         antwoordtype=antwoordtype,

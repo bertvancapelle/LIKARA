@@ -17,6 +17,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api'
 import { useAuthStore } from '@/store/auth'
+import { useSleepLijst } from '@/composables/useSleepLijst'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 import LijstKop from '@/components/LijstKop.vue'
 
@@ -48,7 +49,7 @@ const geselecteerdeCategorieId = ref(null)
 const nieuweOptie = reactive({}) // vraag-id -> { optie_sleutel, label, volgorde }
 // W4: geen code-invoer meer — het systeem kent de code toe.
 const nieuweVraag = reactive({ vraag: '' })
-const nieuweCategorie = reactive({ naam: '', volgorde: 0 })
+const nieuweCategorie = reactive({ naam: '' })
 
 // Categorieën van het gekozen type, in hun volgorde.
 const typeCategorieen = computed(() =>
@@ -67,7 +68,8 @@ const zichtbareVragen = computed(() =>
     .filter(
       (v) => v.componenttype === typeKeuze.value && v.categorie_id === geselecteerdeCategorieId.value,
     )
-    .sort((a, b) => String(a.code).localeCompare(String(b.code), 'nl', { numeric: true })),
+    // LI050 (W5): de beheerde sleep-volgorde, niet de code.
+    .sort((a, b) => (a.volgorde ?? 0) - (b.volgorde ?? 0)),
 )
 
 // Uitstaande (gedeactiveerde) vragen per categorie — benoemd in de linkerkolom.
@@ -282,12 +284,12 @@ async function maakCategorie() {
   if (!nieuweCategorie.naam || !typeKeuze.value) return
   actieFout.value = null
   try {
+    // LI050 (W5): geen volgorde-invoer — de categorie komt achteraan; daarna slepen.
     const cat = await api.checklistconfig.maakCategorie({
       componenttype: typeKeuze.value,
       naam: nieuweCategorie.naam,
-      volgorde: Number.parseInt(nieuweCategorie.volgorde, 10) || 0,
     })
-    Object.assign(nieuweCategorie, { naam: '', volgorde: 0 })
+    nieuweCategorie.naam = ''
     toast.add({ severity: 'success', summary: 'Toegevoegd', detail: 'Categorie toegevoegd.', life: 3000 })
     await _herlaadCategorieen()
     geselecteerdeCategorieId.value = cat.id
@@ -296,17 +298,49 @@ async function maakCategorie() {
   }
 }
 
-async function zetVolgorde(cat, waarde) {
+// ── LI050 (W5): slepen — de ENIGE bediening voor volgorde (besluit Bert; geen
+// getalveld, geen pijltjes). Beide lijsten hangen aan dezelfde gedeelde bouwsteen.
+
+async function _herschikCategorieen(ids) {
   actieFout.value = null
   try {
-    await api.checklistconfig.wijzigCategorie(cat.id, {
-      volgorde: Number.parseInt(waarde, 10) || 0,
-    })
+    // Alleen de rijen wier plek wijzigt worden bewaard (1..n op de nieuwe posities).
+    const huidige = new Map(typeCategorieen.value.map((c) => [c.id, c.volgorde]))
+    for (const [i, id] of ids.entries()) {
+      if (huidige.get(id) !== i + 1) await api.checklistconfig.wijzigCategorie(id, { volgorde: i + 1 })
+    }
     await _herlaadCategorieen()
   } catch (e) {
     _toonFout(e)
   }
 }
+
+async function _herschikVragen(ids) {
+  actieFout.value = null
+  try {
+    const huidige = new Map(zichtbareVragen.value.map((v) => [v.id, v.volgorde]))
+    for (const [i, id] of ids.entries()) {
+      if (huidige.get(id) !== i + 1) {
+        const updated = await api.checklistconfig.werkVraagBij(id, { volgorde: i + 1 })
+        _vervangVraag(updated)
+      }
+    }
+  } catch (e) {
+    _toonFout(e)
+  }
+}
+
+const catSleep = useSleepLijst({
+  haalIds: () => typeCategorieen.value.map((c) => c.id),
+  herschik: _herschikCategorieen,
+  naSucces: () => toast.add({ severity: 'success', summary: 'Volgorde', detail: 'Volgorde bewaard.', life: 3000 }),
+})
+
+const vraagSleep = useSleepLijst({
+  haalIds: () => zichtbareVragen.value.map((v) => v.id),
+  herschik: _herschikVragen,
+  naSucces: () => toast.add({ severity: 'success', summary: 'Volgorde', detail: 'Volgorde bewaard.', life: 3000 }),
+})
 
 // Hernoem-buffer voor de geopende categorie (pas opslaan schrijft).
 const hernoemNaam = ref('')
@@ -387,17 +421,18 @@ laad()
       >
         <h2 class="font-semibold text-[length:var(--lk-text-sm)]">Categorieën</h2>
         <ul class="flex flex-col gap-[2px]">
-          <li v-for="cat in typeCategorieen" :key="cat.id" class="flex items-center gap-[var(--lk-space-xs)]">
-            <!-- Volgorde wijzigen hoort bij de lijst (beheerder). -->
-            <input
-              v-if="magBeheren"
-              :data-testid="`cfg-cat-volgorde-${cat.id}`"
-              :value="cat.volgorde"
-              type="number"
-              class="lk-veld w-14"
-              :aria-label="`Volgorde van ${cat.naam}`"
-              @change="zetVolgorde(cat, $event.target.value)"
-            />
+          <!-- LI050 (W5): volgorde verzet je door te SLEPEN — de enige bediening
+               (besluit Bert; het getalveld is bewust vervallen). Gedeelde bouwsteen. -->
+          <li
+            v-for="cat in typeCategorieen"
+            :key="cat.id"
+            :draggable="magBeheren ? 'true' : undefined"
+            :data-testid="`cfg-cat-rij-${cat.id}`"
+            :class="['flex items-center gap-[var(--lk-space-xs)]', catSleep.sleepId.value === cat.id ? 'opacity-50' : '', magBeheren ? 'cursor-grab' : '']"
+            @dragstart="magBeheren && catSleep.pak(cat.id)"
+            @dragover.prevent
+            @drop.prevent="magBeheren && catSleep.laatLos(cat.id)"
+          >
             <button
               type="button"
               :data-testid="`cfg-cat-${cat.id}`"
@@ -436,15 +471,7 @@ laad()
             />
           </label>
           <div class="flex items-end gap-[var(--lk-space-xs)]">
-            <label class="flex flex-col gap-[2px] text-[length:var(--lk-text-xs)]">
-              Volgorde
-              <input
-                v-model="nieuweCategorie.volgorde"
-                data-testid="cfg-nieuwe-categorie-volgorde"
-                type="number"
-                class="lk-veld w-20"
-              />
-            </label>
+            <!-- LI050 (W5): geen volgorde-invoer — de categorie komt achteraan; daarna slepen. -->
             <button
               type="submit"
               data-testid="cfg-nieuwe-categorie-knop"
@@ -505,7 +532,11 @@ laad()
               v-for="vraag in zichtbareVragen"
               :key="vraag.id"
               :data-testid="`cfg-vraag-${vraag.code}`"
-              :class="['flex flex-col gap-[var(--lk-space-sm)] border-b border-[var(--lk-color-border)] pb-[var(--lk-space-sm)]', vraag.actief ? '' : 'opacity-60']"
+              :draggable="magBeheren ? 'true' : undefined"
+              :class="['flex flex-col gap-[var(--lk-space-sm)] border-b border-[var(--lk-color-border)] pb-[var(--lk-space-sm)]', vraag.actief ? '' : 'opacity-60', vraagSleep.sleepId.value === vraag.id ? 'opacity-50' : '', magBeheren ? 'cursor-grab' : '']"
+              @dragstart="magBeheren && vraagSleep.pak(vraag.id)"
+              @dragover.prevent
+              @drop.prevent="magBeheren && vraagSleep.laatLos(vraag.id)"
             >
               <div class="flex items-start gap-[var(--lk-space-md)]">
                 <!-- LI050 (W4): geen vraagcode meer op het scherm — de tekst ís de vraag. -->

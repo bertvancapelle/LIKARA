@@ -47,19 +47,24 @@ const CATEGORIEEN = [
 const VRAGEN = [
   {
     id: 'v1', componenttype: 'applicatie', code: '9.1', categorie_id: 'c-ov', categorie_naam: 'Overig',
-    categorie_volgorde: 9,
+    categorie_volgorde: 9, volgorde: 1,
     vraag: 'V negen', prioriteit: 'midden', antwoordtype: 'geen', actief: true, betekenis: null, opties: [],
   },
   {
     id: 'v2', componenttype: 'applicatie', code: '2.1', categorie_id: 'c-ho', categorie_naam: 'Hosting',
-    categorie_volgorde: 2,
+    categorie_volgorde: 2, volgorde: 1,
     vraag: 'Hostingvraag', prioriteit: 'midden', antwoordtype: 'enkelvoudige_keuze', actief: true,
     betekenis: 'technische_plaatsing',
     opties: [{ id: 'o1', optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true, afgeleid_bron: 'HostingModel' }],
   },
   {
+    id: 'v4', componenttype: 'applicatie', code: '2.2', categorie_id: 'c-ho', categorie_naam: 'Hosting',
+    categorie_volgorde: 2, volgorde: 2,
+    vraag: 'Tweede hostingvraag', prioriteit: 'midden', antwoordtype: 'geen', actief: true, betekenis: null, opties: [],
+  },
+  {
     id: 'v3', componenttype: 'database', code: '1.3', categorie_id: 'c-ei', categorie_naam: 'Eigenaar',
-    categorie_volgorde: 1,
+    categorie_volgorde: 1, volgorde: 1,
     vraag: 'Eigenaarvraag', prioriteit: 'midden', antwoordtype: 'enkelvoudige_keuze', actief: true, betekenis: null,
     opties: [{ id: 'o2', optie_sleutel: 'bwb', label: 'BWB', volgorde: 0, actief: true, afgeleid_bron: null }],
   },
@@ -269,11 +274,13 @@ describe('ChecklistConfigBeheer — categoriebeheer (LI050)', () => {
       id: 'c-nieuw', componenttype: 'applicatie', naam: 'Nieuw', volgorde: 5, aantal_vragen: 0,
     })
     const w = await mountView()
+    // LI050 (W5): geen volgorde-invoerveld meer — de categorie komt achteraan.
+    expect(w.find('[data-testid="cfg-nieuwe-categorie-volgorde"]').exists()).toBe(false)
     await w.find('[data-testid="cfg-nieuwe-categorie-naam"]').setValue('Nieuw')
     await w.find('[data-testid="cfg-nieuwe-categorie"]').trigger('submit')
     await flushPromises()
     expect(api.checklistconfig.maakCategorie).toHaveBeenCalledWith({
-      componenttype: 'applicatie', naam: 'Nieuw', volgorde: 0,
+      componenttype: 'applicatie', naam: 'Nieuw',
     })
   })
 
@@ -286,13 +293,39 @@ describe('ChecklistConfigBeheer — categoriebeheer (LI050)', () => {
     expect(api.checklistconfig.wijzigCategorie).toHaveBeenCalledWith('c-ho', { naam: 'Hosting & infra' })
   })
 
-  it('wijzigt de volgorde vanuit de lijst', async () => {
+  it('sleept een categorie naar een nieuwe plek — alleen de gewijzigde rijen worden bewaard', async () => {
     api.checklistconfig.wijzigCategorie.mockResolvedValue({})
     const w = await mountView()
-    await w.find('[data-testid="cfg-cat-volgorde-c-ov"]').setValue('1')
-    await w.find('[data-testid="cfg-cat-volgorde-c-ov"]').trigger('change')
+    // LI050 (W5): het getalveld bestaat niet meer — slepen is de enige bediening.
+    expect(w.find('[data-testid="cfg-cat-volgorde-c-ov"]').exists()).toBe(false)
+    // Sleep Overig (volgorde 9) op Hosting (volgorde 2) → Overig wordt 1; Hosting blijft 2.
+    await w.find('[data-testid="cfg-cat-rij-c-ov"]').trigger('dragstart')
+    await w.find('[data-testid="cfg-cat-rij-c-ho"]').trigger('drop')
     await flushPromises()
     expect(api.checklistconfig.wijzigCategorie).toHaveBeenCalledWith('c-ov', { volgorde: 1 })
+    expect(api.checklistconfig.wijzigCategorie).not.toHaveBeenCalledWith('c-ho', { volgorde: 2 })
+  })
+
+  it('sleept een vraag binnen de categorie en bewaart de nieuwe volgorde', async () => {
+    api.checklistconfig.werkVraagBij.mockImplementation(async (id, body) => ({
+      ...VRAGEN.find((v) => v.id === id), ...body,
+    }))
+    const w = await mountView() // Hosting open: v2 (volgorde 1), v4 (volgorde 2)
+    await w.find('[data-testid="cfg-vraag-2.2"]').trigger('dragstart')
+    await w.find('[data-testid="cfg-vraag-2.1"]').trigger('drop')
+    await flushPromises()
+    expect(api.checklistconfig.werkVraagBij).toHaveBeenCalledWith('v4', { volgorde: 1 })
+    expect(api.checklistconfig.werkVraagBij).toHaveBeenCalledWith('v2', { volgorde: 2 })
+  })
+
+  it('de vragen staan in de BEHEERDE volgorde, ook als die van de code afwijkt (herladen)', async () => {
+    const gedraaid = structuredClone(VRAGEN)
+    gedraaid.find((v) => v.id === 'v2').volgorde = 2
+    gedraaid.find((v) => v.id === 'v4').volgorde = 1
+    api.checklistconfig.lijst.mockResolvedValue(gedraaid)
+    const w = await mountView()
+    const rijen = w.findAll('[data-testid^="cfg-vraag-2."]').map((r) => r.attributes('data-testid'))
+    expect(rijen).toEqual(['cfg-vraag-2.2', 'cfg-vraag-2.1']) // volgorde wint van code
   })
 
   it('verwijderen met vragen eronder toont de weigering mét telling (409)', async () => {
@@ -322,7 +355,7 @@ describe('ChecklistConfigBeheer — rol-gating (ADR-022 W2 / LI050)', () => {
     expect(w.find('[data-testid="cfg-nieuwe-categorie"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-cat-opslaan"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-cat-verwijderen"]').exists()).toBe(false)
-    expect(w.find('[data-testid="cfg-cat-volgorde-c-ho"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-cat-rij-c-ho"]').attributes('draggable')).toBeUndefined() // slepen = beheerder
     expect(w.find('[data-testid="cfg-vraag-actief-2.1"]').exists()).toBe(false)
     expect(w.text()).not.toContain('Deactiveren')
   })
