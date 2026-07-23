@@ -19,17 +19,17 @@ import ChecklistscoreSectie from '@modules/bwb_ontvlechting/frontend/views/Check
 
 const APP = 'app-1'
 const VRAGEN = [
-  { id: 1, code: '1.1', categorie_nr: 1, categorie_naam: 'C', vraag: 'Vraag een', prioriteit: 'hoog' },
-  { id: 2, code: '1.2', categorie_nr: 1, categorie_naam: 'C', vraag: 'Vraag twee', prioriteit: 'hoog' },
+  { id: 1, code: '1.1', categorie_id: 'c1', categorie_naam: 'C', categorie_volgorde: 1, vraag: 'Vraag een', prioriteit: 'hoog' },
+  { id: 2, code: '1.2', categorie_id: 'c1', categorie_naam: 'C', categorie_volgorde: 1, vraag: 'Vraag twee', prioriteit: 'hoog' },
 ]
 
-async function mountSectie({ rollen = ['medewerker'], categorieNr = null, componenttype, markeerCode, bewerkbaar } = {}) {
+async function mountSectie({ rollen = ['medewerker'], categorieId = null, componenttype, markeerCode, bewerkbaar } = {}) {
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = { sub: 's', tenant_id: 't', email: 'a@b.nl', roles: rollen }
   const wrapper = mount(ChecklistscoreSectie, {
     props: {
-      applicatieId: APP, categorieNr,
+      applicatieId: APP, categorieId,
       ...(componenttype !== undefined ? { componenttype } : {}),
       ...(markeerCode !== undefined ? { markeerCode } : {}),
       ...(bewerkbaar !== undefined ? { bewerkbaar } : {}),
@@ -91,19 +91,22 @@ describe('ChecklistscoreSectie', () => {
   // ── Onderdeel 2: client-side kolomsortering ────────────────────────────────
   const _codes = (w) => w.findAll('[data-testid^="cs-rij-"]').map((r) => r.attributes('data-testid'))
 
-  it('sorteert client-side op kolomklik (code asc → desc togglet de volgorde)', async () => {
+  it('sorteert client-side op kolomklik (vraag asc → desc togglet); default = interne code', async () => {
     const w = await mountSectie()
-    expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2']) // default = code oplopend
-    await w.find('[data-testid="cs-sort-code"]').trigger('click') // → aflopend
-    expect(_codes(w)).toEqual(['cs-rij-1.2', 'cs-rij-1.1'])
-    await w.find('[data-testid="cs-sort-code"]').trigger('click') // → weer oplopend
+    expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2']) // default = interne code oplopend
+    // LI050 (W4): er is geen Code-kolom meer — sorteren gaat op de vraag-kolom.
+    expect(w.find('[data-testid="cs-sort-code"]').exists()).toBe(false)
+    await w.find('[data-testid="cs-sort-vraag"]').trigger('click') // Vraag een/twee: asc
     expect(_codes(w)).toEqual(['cs-rij-1.1', 'cs-rij-1.2'])
+    await w.find('[data-testid="cs-sort-vraag"]').trigger('click') // → aflopend
+    expect(_codes(w)).toEqual(['cs-rij-1.2', 'cs-rij-1.1'])
   })
 
   it('markeer-naar-vraag vindt de juiste rij ook ná sortering (id-based, niet positie)', async () => {
     const w = await mountSectie({ markeerCode: '1.1' })
     await flushPromises()
-    await w.find('[data-testid="cs-sort-code"]').trigger('click') // volgorde omkeren
+    await w.find('[data-testid="cs-sort-vraag"]').trigger('click') // sorteren op vraag
+    await w.find('[data-testid="cs-sort-vraag"]').trigger('click') // volgorde omkeren
     await flushPromises()
     expect(w.find('[data-testid="cs-rij-1.1"]').classes()).toContain('bg-[var(--lk-color-accent)]')
   })
@@ -335,7 +338,7 @@ describe('ChecklistscoreSectie', () => {
 
   it('enkelvoudige keuze: opslaan stuurt {optie}, zonder score', async () => {
     api.checklistvragen.lijst.mockResolvedValue([{
-      id: 1, code: '2.1', categorie_nr: 2, categorie_naam: 'T', vraag: 'Hosting', prioriteit: 'hoog',
+      id: 1, code: '2.1', categorie_id: 'c2', categorie_naam: 'T', categorie_volgorde: 2, vraag: 'Hosting', prioriteit: 'hoog',
       antwoordtype: 'enkelvoudige_keuze',
       opties: [
         { optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true, afgeleid_bron: 'HostingModel' },
@@ -356,7 +359,7 @@ describe('ChecklistscoreSectie', () => {
 
   it('meerkeuze: twee opties aanvinken → opslaan stuurt {opties:[...]}', async () => {
     api.checklistvragen.lijst.mockResolvedValue([{
-      id: 1, code: '4.1', categorie_nr: 4, categorie_naam: 'D', vraag: 'Type', prioriteit: 'hoog',
+      id: 1, code: '4.1', categorie_id: 'c4', categorie_naam: 'D', categorie_volgorde: 4, vraag: 'Type', prioriteit: 'hoog',
       antwoordtype: 'meerkeuze',
       opties: [
         { optie_sleutel: 'a', label: 'A', volgorde: 0, actief: true, afgeleid_bron: null },
@@ -378,7 +381,7 @@ describe('ChecklistscoreSectie', () => {
 
   it('getal: waarde invullen → opslaan stuurt {getal:n}', async () => {
     api.checklistvragen.lijst.mockResolvedValue([{
-      id: 1, code: '12.4', categorie_nr: 12, categorie_naam: 'R', vraag: 'Prioriteit', prioriteit: 'hoog',
+      id: 1, code: '12.4', categorie_id: 'c12', categorie_naam: 'R', categorie_volgorde: 12, vraag: 'Prioriteit', prioriteit: 'hoog',
       antwoordtype: 'getal', opties: [],
     }])
     api.checklistscores.lijst.mockResolvedValue(_gescoord(1))
@@ -394,7 +397,7 @@ describe('ChecklistscoreSectie', () => {
 
   it('rol-gating: viewer ziet het antwoordveld disabled', async () => {
     api.checklistvragen.lijst.mockResolvedValue([{
-      id: 1, code: '2.1', categorie_nr: 2, categorie_naam: 'T', vraag: 'Hosting', prioriteit: 'hoog',
+      id: 1, code: '2.1', categorie_id: 'c2', categorie_naam: 'T', categorie_volgorde: 2, vraag: 'Hosting', prioriteit: 'hoog',
       antwoordtype: 'enkelvoudige_keuze',
       opties: [{ optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true, afgeleid_bron: 'HostingModel' }],
     }])
@@ -406,13 +409,13 @@ describe('ChecklistscoreSectie', () => {
   })
 
   // ── CD022: filtering op categorie + globale voortgang ──────────────────────
-  it('toont met categorieNr alleen de vragen van die categorie (voortgang blijft globaal)', async () => {
+  it('toont met categorieId alleen de vragen van die categorie (voortgang blijft globaal)', async () => {
     api.checklistvragen.lijst.mockResolvedValue([
-      { id: 1, code: '1.1', categorie_nr: 1, categorie_naam: 'Een', vraag: 'V een', prioriteit: 'hoog' },
-      { id: 2, code: '2.1', categorie_nr: 2, categorie_naam: 'Twee', vraag: 'V twee', prioriteit: 'hoog' },
+      { id: 1, code: '1.1', categorie_id: 'c1', categorie_naam: 'Een', categorie_volgorde: 1, vraag: 'V een', prioriteit: 'hoog' },
+      { id: 2, code: '2.1', categorie_id: 'c2', categorie_naam: 'Twee', categorie_volgorde: 2, vraag: 'V twee', prioriteit: 'hoog' },
     ])
     api.checklistscores.lijst.mockResolvedValue({ items: [], volgende_cursor: null })
-    const w = await mountSectie({ categorieNr: 1 })
+    const w = await mountSectie({ categorieId: 'c1' })
     expect(w.find('[data-testid="cs-rij-1.1"]').exists()).toBe(true)
     expect(w.find('[data-testid="cs-rij-2.1"]').exists()).toBe(false) // andere categorie verborgen
     // voortgang telt ALLE vragen (globaal), niet alleen de getoonde categorie
@@ -426,7 +429,7 @@ describe('ChecklistscoreSectie — ADR-027 read-only (bewerkbaar=false)', () => 
     expect(w.find('[data-testid="cs-gesloten"]').exists()).toBe(true)
     // score-select is disabled (geen invoer); de waarde blijft wél zichtbaar
     expect(w.find('[data-testid="cs-score-1.2"]').attributes('disabled')).toBeDefined()
-    expect(w.text()).toContain('1.2')
+    expect(w.text()).toContain('Vraag twee')
   })
 
   it('bij bewerkbaar=true is de invoer open en is er geen gesloten-melding', async () => {

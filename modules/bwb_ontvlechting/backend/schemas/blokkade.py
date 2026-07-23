@@ -46,7 +46,7 @@ class BlokkadeSorteerveld(str, Enum):
     """
 
     applicatie_naam = "applicatie_naam"
-    vraag_code = "vraag_code"
+    categorie_volgorde = "categorie_volgorde"
     status = "status"
     toelichting = "toelichting"
     verantwoordelijke_naam = "verantwoordelijke_naam"
@@ -127,6 +127,9 @@ class BlokkadeLijstItem(BlokkadeRead):
     checklistvraag_id: uuid.UUID
     vraag_code: str
     vraag: str
+    # LI050: de categorie van de bron-vraag — de doorklik naar het checklist-tabblad
+    # leidt de categorie hieruit af, niet meer uit de code-prefix.
+    categorie_id: uuid.UUID
     score: ChecklistScore | None
 
 
@@ -148,7 +151,12 @@ class BlokkadeOverzichtItem(BaseModel):
     applicatie_naam: str  # component-naam (intern veld; user-facing kop = "Component")
     componenttype: str
     componenttype_label: str
+    # LI050 (W4): `vraag_code` blijft in het contract als intern deeplink-anker; de
+    # gebruiker ziet de TEKST (`vraag`) en sorteert op de categorie-volgorde.
     vraag_code: str
+    vraag: str
+    categorie_id: uuid.UUID
+    categorie_volgorde: int
     status: BlokkadeStatus
     toelichting: str | None
     # ADR-037 — afgeleide verantwoordelijke van het onderliggende antwoord (leeslaag, read-only).

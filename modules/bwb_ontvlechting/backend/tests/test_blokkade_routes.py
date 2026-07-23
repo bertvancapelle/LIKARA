@@ -34,6 +34,7 @@ def _fake_blokkade():
         # Herkomst-verrijking (per-component lijst → BlokkadeLijstItem).
         checklistvraag_id=uuid.UUID(_VRAAG_ID),
         vraag_code="1.1",
+        categorie_id=uuid.uuid4(),
         vraag="Wat is de naam van de applicatie?",
         score="nee",
     )

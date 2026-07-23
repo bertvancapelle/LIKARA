@@ -561,6 +561,19 @@ export const api = {
   checklistconfig: {
     lijst: () => request('/checklistconfig'),
     betekenissen: () => request('/checklistconfig/betekenissen'),
+    // LI050 (ADR-022 W3) — categorie-beheer: de indeling als eigen entiteit.
+    categorieen: (componenttype) =>
+      request(
+        componenttype
+          ? `/checklistconfig/categorieen?componenttype=${encodeURIComponent(componenttype)}`
+          : '/checklistconfig/categorieen',
+      ),
+    maakCategorie: (data) =>
+      request('/checklistconfig/categorieen', { method: 'POST', body: JSON.stringify(data) }),
+    wijzigCategorie: (id, data) =>
+      request(`/checklistconfig/categorieen/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    verwijderCategorie: (id) =>
+      request(`/checklistconfig/categorieen/${id}`, { method: 'DELETE' }),
     impact: (componenttype) =>
       request(`/checklistconfig/impact?componenttype=${encodeURIComponent(componenttype)}`),
     maakVraag: (data) =>

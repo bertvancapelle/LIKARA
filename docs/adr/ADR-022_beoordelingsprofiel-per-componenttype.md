@@ -191,3 +191,75 @@ wijziging. UI: bewerk-affordances afwezig voor niet-beheerders, met de uitlegzin
 **Buiten dit besluit** (bekende gebreken rond deactiveren, blijven eigen vervolgpunten): de
 engine telt scores op gedeactiveerde vragen mee, en een blokkade op een gedeactiveerde vraag
 is via de UI niet af te sluiten (Checkpoint V050 §G2-1/G2-2).
+
+## Wijziging W3 — LI050: de checklist-categorie wordt een eigen entiteit
+
+| | |
+|---|---|
+| **Status** | Aanvaard — gebouwd |
+| **Datum** | 2026-07-23 |
+| **Beslissers** | Bert van Capelle |
+| **Grond** | meting-checklistcategorie-V050 (chat-rapport LI050) |
+
+**Context.** Een categorie bestond niet: elke vraag droeg zelf `categorie_nr` + `categorie_naam`
+(gedenormaliseerd). Hernoemen kostte tot 89 losse bewerkingen, "een categorie toevoegen" bestond
+niet als handeling, en twee vragen konden ongemerkt hetzelfde nummer met een andere naam dragen.
+Bovendien leidden twee schermen (blokkade-sectie en blokkadesoverzicht) de categorie af uit de
+**code-prefix** van de vraag ("2.7" → 2) — een doorklik die stil op de verkeerde categorie zou
+landen zodra volgorde en code uiteenlopen.
+
+**Besluit en gebouwde vorm.**
+- Eigen tenant-tabel **`checklist_categorie`** (RLS + FORCE, migratie `0074`): `componenttype`,
+  `naam`, `volgorde`; **`UNIQUE(tenant, componenttype, naam)`** — twee gelijknamige categorieën
+  binnen één type zijn schema-onmogelijk. Het nummer is **volgorde, geen betekenis**.
+- De vraag **verwijst** (`checklistvraag.categorie_id`, composiet-FK **RESTRICT**); de
+  gedenormaliseerde kolommen zijn vervallen. (De rol van de code is met W4 verder versmald —
+  zie hieronder.)
+- **Beheer** (toevoegen · hernoemen · volgorde · verwijderen) via `/checklistconfig/categorieen`,
+  onder dezelfde rechten-ingang als het vraagbeheer (`CHECKLISTVRAAG`, W2: beheerder-only;
+  verwijderen = `VERWIJDEREN`). Verwijderen met vragen eronder wordt geweigerd met **409
+  `CATEGORIE_HEEFT_VRAGEN` + telling** (het `GEBRUIK_HEEFT_VERFIJNING`-precedent); de RESTRICT-FK
+  is de schema-backstop. Bij een vraag **kies** je een bestaande categorie (zelfde componenttype).
+- **Doorklik via de vraag zelf**: de blokkade-reads dragen `categorie_id`; beide code-prefix-
+  afleidingen in de frontend zijn verwijderd. De checklist-tabbladen sleutelen op categorie-id
+  (stabiel bij hernummeren); het filter toont de **naam**.
+- Audit: `checklist_categorie` op de tenant-allowlist + NAAMBRON `("veld","naam")`.
+- Restant (eigen volgende snede): het contextpaneel op het componentdetail hangt nu minimaal aan
+  **volgorde 8** (was: nummer 8); de echte ontkoppeling is een betekenis-markering op de categorie.
+
+**Gevolgen.** Seed maakt categorieën eerst (afgeleid uit de baseline, volgorde = het historische
+nummer) en is idempotent bevestigd (16→16 categorieën, 98→98 vragen); migratie 0074 vult op een
+gevulde DB de verwijzing uit de oude kolommen (0 rijen op fresh deploy) — reseed blijft de norm.
+
+## Wijziging W4 — LI050: indeling per componenttype; de vraagcode van het scherm
+
+| | |
+|---|---|
+| **Status** | Aanvaard — gebouwd |
+| **Datum** | 2026-07-23 |
+| **Beslissers** | Bert van Capelle |
+| **Grond** | meting-vraagcode-V050 (chat-rapport LI050) |
+
+**Context.** De code ("1.1") is sinds W3 een bevroren restant: hij oogt als positie, is het niet,
+en komt vijf keer voor (uniek per componenttype). Gemeten: de code is de identiteit níét —
+antwoorden, knelpunten en audit hangen aan het vraag-UUID; de code is immutabel en staat ernaast.
+Het beheerscherm zette bovendien alle typen en categorieën onder elkaar.
+
+**Besluit en gebouwde vorm.**
+- **Indeling:** componenttype-keuze bovenaan; links de categorieën van dat type (naam, aantal
+  vragen, uitgezette vragen benoemd; één geselecteerd); rechts uitsluitend de vragen van de
+  geopende categorie. Het losse categoriefilter is vervallen — de kolom ís het filter. Acties bij
+  hun onderwerp: toevoegen + volgorde bij de lijst; hernoemen + verwijderen bij de geopende
+  categorie. Consultant/viewer zien exact dezelfde indeling zonder knoppen (W2-zin blijft).
+- **De code is van het scherm:** checklist-kolom + sortering, beheerscherm, knelpunt-herkomst en
+  knelpuntenoverzicht tonen hem niet meer. De herkomst toont de **vraagtekst**; het overzicht
+  sorteert op **categorie-volgorde** (`categorie_volgorde`-sorteerveld, joined); de checklist staat
+  in categorievolgorde met de interne code als deterministische volgorde binnen de categorie.
+  De code blijft ín het API-contract (`vraag_code`) als **intern markeer-anker** voor de deeplink.
+- **De code wordt toegekend, niet ingetypt** (`volgende_code`): grootste gehele getal in bestaande
+  codes ("12.4" → 12) + 1 → kale "13", "14", … — botst nooit met de demovulling, puur en getest.
+  Het invoerveld is weg; de 409 `CHECKLISTVRAAG_BESTAAT` is nog slechts een race-backstop en voor
+  een gebruiker onbereikbaar. Bevestigingen benoemen de vraag op zijn (afgekorte) **tekst**.
+
+**Nog open (eigen sneden):** de vorm van volgorde-verzetten (slepen — besluit Bert); de
+betekenis-markering die het contextpaneel van volgorde-8 losmaakt.

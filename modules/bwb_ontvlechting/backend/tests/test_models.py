@@ -61,18 +61,42 @@ def test_seed_codes_uniek_en_89():
     assert len(set(codes)) == 89
 
 
+def _seed_sessie(runs: int = 1):
+    """LI050 (ADR-022 W3): de seed doet per run drie executes — categorie-insert,
+    categorie-SELECT (id-map), vragen-insert. De SELECT krijgt hier de categorie-rijen
+    afgeleid uit de seed-data zelf (elke (componenttype, naam)-combinatie één id)."""
+    import uuid as _uuid
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from services.seed import CHECKLIST_VRAGEN, _STARTSETS_PER_TYPE
+
+    paren = {("applicatie", v["categorie_naam"]) for v in CHECKLIST_VRAGEN}
+    for sleutel, startset in _STARTSETS_PER_TYPE:
+        paren |= {(sleutel, v["categorie_naam"]) for v in startset}
+    catrijen = [
+        SimpleNamespace(componenttype=ct, naam=naam, id=_uuid.uuid4()) for ct, naam in paren
+    ]
+    catres = MagicMock()
+    catres.all.return_value = catrijen
+    session = AsyncMock()
+    session.execute.side_effect = [MagicMock(), catres, MagicMock()] * runs
+    return session
+
+
 def test_seed_geeft_89_terug():
     # ADR-022 W1: seed_checklist_vragen is tenant-scoped — tenant_id is verplicht.
     import uuid
 
     from services.seed import seed_checklist_vragen
 
-    session = AsyncMock()
+    session = _seed_sessie()
     aantal = asyncio.run(seed_checklist_vragen(session, uuid.uuid4()))
     # LI058/LI060 — 89 applicatie + 6 database + 3 startset-typen (server_compute /
     # integratievoorziening / landelijke_voorziening, elk 1 vraag).
     assert aantal == 98
-    session.execute.assert_awaited_once()
+    # LI050: drie executes (categorie-insert, categorie-select, vragen-insert), één commit.
+    assert session.execute.await_count == 3
     session.commit.assert_awaited_once()
 
 
@@ -84,7 +108,7 @@ def test_seed_idempotent():
     from services.seed import seed_checklist_vragen
 
     tid = uuid.uuid4()
-    session = AsyncMock()
+    session = _seed_sessie(runs=2)
     eerste = asyncio.run(seed_checklist_vragen(session, tid))
     tweede = asyncio.run(seed_checklist_vragen(session, tid))
     assert eerste == tweede == 98  # LI058/LI060 — 89 applicatie + 6 database + 3 startset-typen

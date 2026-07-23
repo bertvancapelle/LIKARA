@@ -21,6 +21,7 @@ from models.models import (
     ComponentConfigOptie,
     Blokkade,
     BlokkadeStatus,
+    ChecklistCategorie,
     ChecklistVraag,
     Checklistscore,
     Partij,
@@ -75,12 +76,16 @@ _MAX_LIMIT = 100
 _STANDAARD_OVERZICHT_SORT = "applicatie_naam"
 _STANDAARD_OVERZICHT_ORDER = "asc"
 
+# LI050 (W4): de vraagcode is van het scherm — de "Vraag"-kolom toont de tekst en
+# sorteert op de CATEGORIE-volgorde (gelabelde join-kolom; kolom.key == sorteersleutel).
+_CAT_VOLGORDE = ChecklistCategorie.volgorde.label("categorie_volgorde")
+
 # Allowlist-kolommen (ADR-017 B2) — single source naast de schema-enum
-# `BlokkadeSorteerveld`. `applicatie_naam`/`vraag_code` zijn gejoinde kolommen;
+# `BlokkadeSorteerveld`. `applicatie_naam`/`categorie_volgorde` zijn gejoinde kolommen;
 # de keyset-tiebreaker blijft `Blokkade.id`. `gewijzigd_op` mapt op `updated_at`.
 _OVERZICHT_KOLOMMEN = {
     "applicatie_naam": Component.naam,
-    "vraag_code": ChecklistVraag.code,
+    "categorie_volgorde": _CAT_VOLGORDE,
     "status": Blokkade.status,
     "toelichting": Blokkade.toelichting,
     "verantwoordelijke_naam": _VERANTW_NAAM,
@@ -91,7 +96,7 @@ _OVERZICHT_KOLOMMEN = {
 # Parsers die een cursor-waarde (tekst) terug naar het kolomtype brengen.
 _OVERZICHT_PARSERS = {
     "applicatie_naam": str,
-    "vraag_code": str,
+    "categorie_volgorde": int,
     "status": BlokkadeStatus,
     "toelichting": str,
     "verantwoordelijke_naam": str,
@@ -186,6 +191,9 @@ async def lijst(
             Checklistscore.score.label("score"),
             ChecklistVraag.code.label("vraag_code"),
             ChecklistVraag.vraag.label("vraag"),
+            # LI050: de categorie van de veroorzakende vraag — de doorklik leidt de
+            # categorie via de vraag zelf af, nooit meer uit de code-prefix.
+            ChecklistVraag.categorie_id.label("categorie_id"),
         )
         .join(Checklistscore, Checklistscore.id == Blokkade.checklistscore_id)
         .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
@@ -228,6 +236,7 @@ async def lijst(
             "checklistvraag_id": r.checklistvraag_id,
             "vraag_code": r.vraag_code,
             "vraag": r.vraag,
+            "categorie_id": r.categorie_id,
             "score": r.score,
         }
         for r in zichtbaar
@@ -289,6 +298,11 @@ async def lijst_overzicht(
             Component.componenttype.label("componenttype"),
             ComponentConfigOptie.label.label("componenttype_label"),
             ChecklistVraag.code.label("vraag_code"),
+            # LI050 (W4): de gebruiker ziet de TEKST; de code blijft intern (deeplink-anker).
+            ChecklistVraag.vraag.label("vraag"),
+            # LI050: doorklik-categorie via de vraag zelf (niet uit de code-prefix).
+            ChecklistVraag.categorie_id.label("categorie_id"),
+            _CAT_VOLGORDE,
             Blokkade.status.label("status"),
             Blokkade.toelichting.label("toelichting"),
             _VERANTW_NAAM,
@@ -301,6 +315,8 @@ async def lijst_overzicht(
         .join(Component, Component.id == Blokkade.component_id)
         .join(Checklistscore, Checklistscore.id == Blokkade.checklistscore_id)
         .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
+        # LI050: de categorie van de vraag (NOT NULL → inner join) voor de sorteer-volgorde.
+        .join(ChecklistCategorie, ChecklistCategorie.id == ChecklistVraag.categorie_id)
         # Platform-brede typecatalogus (geen RLS) voor het leesbare label; LEFT zodat een
         # (onverwacht) onbekend type de rij niet laat verdwijnen.
         .join(
@@ -341,6 +357,9 @@ async def lijst_overzicht(
             # Fallback naar de sleutel als de catalogus (onverwacht) geen label heeft.
             "componenttype_label": r.componenttype_label or r.componenttype,
             "vraag_code": r.vraag_code,
+            "vraag": r.vraag,
+            "categorie_id": r.categorie_id,
+            "categorie_volgorde": r.categorie_volgorde,
             "status": r.status,
             "toelichting": r.toelichting,
             "verantwoordelijke_naam": r.verantwoordelijke_naam,

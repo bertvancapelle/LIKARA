@@ -22,6 +22,7 @@ function _blok(id, status = 'open') {
     verantwoordelijke_naam: 'J. de Vries', verantwoordelijke_afdeling: 'Informatievoorziening',
     // Herkomst-verrijking (per-component lijst → BlokkadeLijstItem).
     checklistvraag_id: `v-${id}`, vraag_code: '2.7', vraag: 'Gedeelde infra?', score: 'deels',
+    categorie_id: 'cat-negen',
   }
 }
 
@@ -53,23 +54,26 @@ describe('BlokkadeSectie', () => {
     expect(w.find('[data-testid="bk-open-teller"]').text()).toContain('1 open')
   })
 
-  it('toont de herkomst-kolom met de veroorzakende vraag-code + gekleurde score', async () => {
+  it('toont de herkomst-kolom met de veroorzakende vraagTEKST (geen code) + gekleurde score', async () => {
     const w = await mountSectie()
     const knop = w.find('[data-testid="bk-herkomst-b1"]')
     expect(knop.exists()).toBe(true)
-    expect(knop.text()).toContain('2.7')
+    expect(knop.text()).toContain('Gedeelde infra?')
     // Onderdeel 3: de score via de gedeelde ScoreBadge (deels = oranje), tekst zichtbaar.
     const badge = w.find('[data-testid="score-badge-deels"]')
     expect(badge.exists()).toBe(true)
     expect(badge.classes()).toContain('text-[var(--lk-color-warning)]')
   })
 
-  it('emit naar-vraag met code + afgeleide categorie bij klik op de herkomst', async () => {
+  it('emit naar-vraag met de categorie VAN DE VRAAG — niet uit de code-prefix (LI050)', async () => {
     const w = await mountSectie()
     await w.find('[data-testid="bk-herkomst-b1"]').trigger('click')
     const ev = w.emitted('naar-vraag')
     expect(ev).toBeTruthy()
-    expect(ev[0][0]).toMatchObject({ code: '2.7', categorieNr: 2 })
+    // Stap-5-bewijs: de code zegt "2.*", maar de categorie komt uit de read — dus óók
+    // met code en volgorde uit de pas landt de doorklik op de juiste categorie.
+    expect(ev[0][0]).toMatchObject({ code: '2.7', categorieId: 'cat-negen' })
+    expect(ev[0][0].categorieId).not.toBe(2)
   })
 
   it('biedt GEEN toevoegen/verwijderen-affordance', async () => {

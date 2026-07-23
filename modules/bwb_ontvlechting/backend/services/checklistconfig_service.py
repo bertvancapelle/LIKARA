@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import (
     AntwoordType,
+    ChecklistCategorie,
     ChecklistVraag,
     ChecklistVraagOptie,
     Component,
@@ -34,6 +35,8 @@ from models.models import (
 from schemas.checklistconfig import (
     AntwoordTypeUpdate,
     BetekenisUpdate,
+    CategorieCreate,
+    CategorieUpdate,
     OptieCreate,
     OptieUpdate,
     VraagCreate,
@@ -49,13 +52,17 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
-def _vraag_read(vraag: ChecklistVraag, opties: list[ChecklistVraagOptie]) -> dict:
+def _vraag_read(
+    vraag: ChecklistVraag, opties: list[ChecklistVraagOptie], categorie: ChecklistCategorie
+) -> dict:
     return {
         "id": vraag.id,
         "componenttype": vraag.componenttype,
         "code": vraag.code,
-        "categorie_nr": vraag.categorie_nr,
-        "categorie_naam": vraag.categorie_naam,
+        # LI050 (W3): de categorie is een verwijzing; naam/volgorde reizen mee in de read.
+        "categorie_id": vraag.categorie_id,
+        "categorie_naam": categorie.naam,
+        "categorie_volgorde": categorie.volgorde,
         "vraag": vraag.vraag,
         "prioriteit": vraag.prioriteit,
         "antwoordtype": vraag.antwoordtype,
@@ -63,6 +70,18 @@ def _vraag_read(vraag: ChecklistVraag, opties: list[ChecklistVraagOptie]) -> dic
         "betekenis": vraag.betekenis,
         "opties": opties,
     }
+
+
+async def _haal_categorie(session: AsyncSession, categorie_id) -> ChecklistCategorie:
+    """Categorie op `id` binnen de tenant (RLS). Onbekend/ander-tenant ⇒ NietGevonden."""
+    cat = (
+        await session.execute(
+            select(ChecklistCategorie).where(ChecklistCategorie.id == categorie_id)
+        )
+    ).scalar_one_or_none()
+    if cat is None:
+        raise NietGevonden("checklist_categorie", categorie_id)
+    return cat
 
 
 async def lijst_config(session: AsyncSession) -> list[dict]:
@@ -92,7 +111,13 @@ async def lijst_config(session: AsyncSession) -> list[dict]:
     per_vraag: dict[uuid.UUID, list[ChecklistVraagOptie]] = {}
     for o in opties:
         per_vraag.setdefault(o.checklistvraag_id, []).append(o)
-    return [_vraag_read(v, per_vraag.get(v.id, [])) for v in vragen]
+    categorieen = {
+        c.id: c
+        for c in (await session.execute(select(ChecklistCategorie))).scalars().all()
+    }
+    return [
+        _vraag_read(v, per_vraag.get(v.id, []), categorieen[v.categorie_id]) for v in vragen
+    ]
 
 
 async def _haal_vraag(session: AsyncSession, checklistvraag_id) -> ChecklistVraag:
@@ -213,19 +238,49 @@ async def impact_telling(session: AsyncSession, componenttype: str) -> int:
 
 # ── ADR-022 W1: vraag-CRUD ────────────────────────────────────────────────────
 
+def volgende_code(bestaande: set[str]) -> str:
+    """LI050 (W4) — de eenvoudigste toekenningsregel die niet botst en de demovulling
+    ongemoeid laat: neem het grootste gehele getal dat in een bestaande code voorkomt
+    (het deel vóór de punt bij "12.4"-vormen, de hele code bij kale getallen) en tel
+    één op → een kale, unieke code ("13", "14", …). Puur en DB-vrij testbaar; de
+    UNIQUE-constraint blijft de backstop."""
+    hoogste = 0
+    for code in bestaande:
+        kop = code.split(".", 1)[0]
+        if kop.isdigit():
+            hoogste = max(hoogste, int(kop))
+    return str(hoogste + 1)
+
+
 async def maak_vraag(session: AsyncSession, tenant_id, data: VraagCreate) -> dict:
     """Voeg een tenant-vraag toe. `componenttype` gevalideerd tegen de catalogus;
     `UNIQUE(tenant_id, componenttype, code)`-schending ⇒ `CHECKLISTVRAAG_BESTAAT` (409).
     Herberekent vervolgens in-tenant de lifecycle van bestaande componenten van dat type."""
     tid = _tenant_uuid(tenant_id)
     await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
+    # LI050: de vraag KIEST een bestaande categorie van hetzelfde componenttype.
+    # OP-6-stijl: onbekend óf ander type ⇒ NietGevonden (geen onderscheid lekken).
+    categorie = await _haal_categorie(session, data.categorie_id)
+    if categorie.componenttype != data.componenttype:
+        raise NietGevonden("checklist_categorie", data.categorie_id)
 
+    # LI050 (W4): het systeem kent de code toe — geen invoerveld meer.
+    bestaande = set(
+        (
+            await session.execute(
+                select(ChecklistVraag.code).where(
+                    ChecklistVraag.componenttype == data.componenttype
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     vraag = ChecklistVraag(
         tenant_id=tid,
         componenttype=data.componenttype,
-        code=data.code,
-        categorie_nr=data.categorie_nr,
-        categorie_naam=data.categorie_naam,
+        code=volgende_code(bestaande),
+        categorie_id=data.categorie_id,
         vraag=data.vraag,
         prioriteit=data.prioriteit,
         antwoordtype=data.antwoordtype,
@@ -235,28 +290,146 @@ async def maak_vraag(session: AsyncSession, tenant_id, data: VraagCreate) -> dic
     try:
         await session.flush()
     except IntegrityError as exc:
+        # Backstop (race op de toegekende code) — voor een gebruiker onbereikbaar:
+        # er is geen code-invoer meer; alleen twee gelijktijdige toevoegingen raken dit.
         await session.rollback()
         raise RegistratieConflict(
             "CHECKLISTVRAAG_BESTAAT",
-            f"Er bestaat al een vraag met code '{data.code}' voor type '{data.componenttype}'.",
+            f"Er bestaat al een vraag met code '{vraag.code}' voor type '{data.componenttype}'.",
         ) from exc
 
     # Fan-out: een extra (actieve) vraag verhoogt aantal_vragen voor dit type.
     await herbereken_type(session, tid, data.componenttype)
     await session.commit()
     await session.refresh(vraag)
-    return _vraag_read(vraag, [])
+    return _vraag_read(vraag, [], categorie)
 
 
 async def werk_vraag_bij(session: AsyncSession, checklistvraag_id, data: VraagUpdate) -> dict:
-    """Bewerk niet-tellende velden (`vraag`/`categorie_nr`/`categorie_naam`/`prioriteit`).
+    """Bewerk niet-tellende velden (`vraag`/`categorie_id`/`prioriteit`).
     `componenttype`+`code` zijn immutable. Géén fan-out (aantal_vragen ongewijzigd)."""
     vraag = await _haal_vraag(session, checklistvraag_id)
-    for veld, waarde in data.model_dump(exclude_unset=True).items():
+    velden = data.model_dump(exclude_unset=True)
+    if "categorie_id" in velden:
+        # Herplaatsen mag, maar alleen naar een categorie van hetzelfde componenttype.
+        nieuwe = await _haal_categorie(session, velden["categorie_id"])
+        if nieuwe.componenttype != vraag.componenttype:
+            raise NietGevonden("checklist_categorie", velden["categorie_id"])
+    for veld, waarde in velden.items():
         setattr(vraag, veld, waarde)
     await session.commit()
     await session.refresh(vraag)
-    return _vraag_read(vraag, await _opties_van(session, vraag.id))
+    return _vraag_read(
+        vraag, await _opties_van(session, vraag.id), await _haal_categorie(session, vraag.categorie_id)
+    )
+
+
+# ── LI050 (ADR-022 W3): categorie-beheer — de indeling als eigen entiteit ─────────
+# Zelfde rechten-ingang als het vraagbeheer (Entiteit.CHECKLISTVRAAG, routes): de
+# categorie bepaalt de indeling van de vragenlijst voor de hele organisatie.
+
+
+def _categorie_read(cat: ChecklistCategorie, aantal_vragen: int) -> dict:
+    return {
+        "id": cat.id,
+        "componenttype": cat.componenttype,
+        "naam": cat.naam,
+        "volgorde": cat.volgorde,
+        "aantal_vragen": aantal_vragen,
+    }
+
+
+async def _aantal_vragen_in(session: AsyncSession, categorie_id) -> int:
+    return (
+        await session.execute(
+            select(func.count()).select_from(ChecklistVraag).where(
+                ChecklistVraag.categorie_id == categorie_id
+            )
+        )
+    ).scalar_one()
+
+
+async def lijst_categorieen(
+    session: AsyncSession, componenttype: str | None = None
+) -> list[dict]:
+    """Categorieën (tenant, RLS) + aantal vragen per categorie — gesorteerd op
+    componenttype, volgorde, naam. Read voor beheer én keuzelijsten."""
+    stmt = select(ChecklistCategorie).order_by(
+        ChecklistCategorie.componenttype, ChecklistCategorie.volgorde, ChecklistCategorie.naam
+    )
+    if componenttype:
+        stmt = stmt.where(ChecklistCategorie.componenttype == componenttype)
+    cats = list((await session.execute(stmt)).scalars().all())
+    tellingen = {
+        rij.categorie_id: rij.aantal
+        for rij in (
+            await session.execute(
+                select(
+                    ChecklistVraag.categorie_id.label("categorie_id"),
+                    func.count().label("aantal"),
+                ).group_by(ChecklistVraag.categorie_id)
+            )
+        ).all()
+    }
+    return [_categorie_read(c, tellingen.get(c.id, 0)) for c in cats]
+
+
+async def maak_categorie(session: AsyncSession, tenant_id, data: CategorieCreate) -> dict:
+    """Nieuwe categorie voor een componenttype. Naam uniek binnen (tenant, type) —
+    schema-afgedwongen; de pre-flush IntegrityError wordt een leesbare 409."""
+    tid = _tenant_uuid(tenant_id)
+    await catalog.valideer_sleutel(session, ComponentConfigDimensie.componenttype, data.componenttype)
+    cat = ChecklistCategorie(
+        tenant_id=tid,
+        componenttype=data.componenttype,
+        naam=data.naam,
+        volgorde=data.volgorde,
+    )
+    session.add(cat)
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise ConfiguratieConflict(
+            f"Er bestaat al een categorie '{data.naam}' voor dit componenttype."
+        ) from exc
+    await session.commit()
+    await session.refresh(cat)
+    return _categorie_read(cat, 0)
+
+
+async def wijzig_categorie(session: AsyncSession, categorie_id, data: CategorieUpdate) -> dict:
+    """Hernoemen en/of volgorde wijzigen — één handeling, niet per vraag (LI050)."""
+    cat = await _haal_categorie(session, categorie_id)
+    for veld, waarde in data.model_dump(exclude_unset=True).items():
+        setattr(cat, veld, waarde)
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise ConfiguratieConflict(
+            f"Er bestaat al een categorie '{data.naam}' voor dit componenttype."
+        ) from exc
+    await session.commit()
+    await session.refresh(cat)
+    return _categorie_read(cat, await _aantal_vragen_in(session, cat.id))
+
+
+async def verwijder_categorie(session: AsyncSession, categorie_id) -> None:
+    """Verwijderen wordt geweigerd zolang er vragen onder hangen (409 + telling,
+    het GEBRUIK_HEEFT_VERFIJNING-precedent); de RESTRICT-FK is de schema-backstop.
+    ORM-delete → geaudit (audit-dekking is ORM-dekking)."""
+    cat = await _haal_categorie(session, categorie_id)
+    aantal = await _aantal_vragen_in(session, cat.id)
+    if aantal:
+        meervoud = "vraag" if aantal == 1 else "vragen"
+        raise RegistratieConflict(
+            "CATEGORIE_HEEFT_VRAGEN",
+            f"Er hangen nog {aantal} {meervoud} onder deze categorie; verplaats of "
+            "verwijder die eerst — een indeling met vragen verdwijnt nooit stil.",
+        )
+    await session.delete(cat)
+    await session.commit()
 
 
 async def zet_actief(session: AsyncSession, tenant_id, checklistvraag_id, actief: bool) -> dict:
@@ -269,7 +442,9 @@ async def zet_actief(session: AsyncSession, tenant_id, checklistvraag_id, actief
         await herbereken_type(session, tid, vraag.componenttype)
     await session.commit()
     await session.refresh(vraag)
-    return _vraag_read(vraag, await _opties_van(session, vraag.id))
+    return _vraag_read(
+        vraag, await _opties_van(session, vraag.id), await _haal_categorie(session, vraag.categorie_id)
+    )
 
 
 # ── Antwoordconfiguratie (ADR-019) — nu tenant-facing (lk_app/RLS) ────────────
@@ -287,7 +462,9 @@ async def zet_antwoordtype(
     vraag.antwoordtype = data.antwoordtype
     await session.commit()
     await session.refresh(vraag)
-    return _vraag_read(vraag, await _opties_van(session, vraag.id))
+    return _vraag_read(
+        vraag, await _opties_van(session, vraag.id), await _haal_categorie(session, vraag.categorie_id)
+    )
 
 
 # ── ADR-023 Fase F (F-3): betekenis-toekenning ────────────────────────────────
@@ -317,7 +494,9 @@ async def zet_betekenis(
         ) from exc
     await session.commit()
     await session.refresh(vraag)
-    return _vraag_read(vraag, await _opties_van(session, vraag.id))
+    return _vraag_read(
+        vraag, await _opties_van(session, vraag.id), await _haal_categorie(session, vraag.categorie_id)
+    )
 
 
 async def voeg_optie_toe(

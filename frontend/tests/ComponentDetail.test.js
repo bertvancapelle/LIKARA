@@ -276,7 +276,7 @@ describe('ComponentDetail', () => {
     // checklist_dragend=false maar lifecycle_status gezet ⇒ was dragend, nu gesloten → read-only tonen.
     api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: false, lifecycle_status: 'in_inventarisatie' }))
     api.checklistvragen.lijst.mockResolvedValue([
-      { id: 1, code: '3.2', categorie_nr: 3, categorie_naam: 'Data', vraag: 'a', prioriteit: 'hoog' },
+      { id: 1, code: '3.2', categorie_id: 'c3', categorie_naam: 'Data', categorie_volgorde: 3, vraag: 'a', prioriteit: 'hoog' },
     ])
     const { w } = await mountDetail({ rollen: ['medewerker'] })
     expect(w.find('[data-testid="cs-voortgang"]').exists()).toBe(true)
@@ -355,7 +355,7 @@ describe('ComponentDetail', () => {
   it('markeert de vraag uit de deep-link-query (blokkadelijst-doorklik, ADR-024-vervolg)', async () => {
     api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: true }))
     api.checklistvragen.lijst.mockResolvedValue([
-      { id: 1, code: '3.2', categorie_nr: 3, categorie_naam: 'Data', vraag: 'a', prioriteit: 'hoog' },
+      { id: 1, code: '3.2', categorie_id: 'c3', categorie_naam: 'Data', categorie_volgorde: 3, vraag: 'a', prioriteit: 'hoog' },
     ])
     const { w } = await mountDetail({ query: '?markeer=3.2' })
     // route.query.markeer → markeerVraagCode → :markeer-code op de sectie (zelfde markeerpad).
@@ -375,12 +375,12 @@ describe('ComponentDetail', () => {
   it('herkomst-doorklik markeert de checklist-vraag-rij op hetzelfde component', async () => {
     api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: true }))
     api.checklistvragen.lijst.mockResolvedValue([
-      { id: 1, code: '2.7', categorie_nr: 2, categorie_naam: 'Techniek', vraag: 'Gedeelde infra?', prioriteit: 'hoog' },
+      { id: 1, code: '2.7', categorie_id: 'c2', categorie_naam: 'Techniek', categorie_volgorde: 2, vraag: 'Gedeelde infra?', prioriteit: 'hoog' },
     ])
     api.blokkades.lijst.mockResolvedValue({
       items: [{
         id: 'b1', status: 'in_behandeling', toelichting: null, eigenaar: null,
-        checklistvraag_id: 1, vraag_code: '2.7', vraag: 'Gedeelde infra?', score: 'deels',
+        checklistvraag_id: 1, vraag_code: '2.7', vraag: 'Gedeelde infra?', score: 'deels', categorie_id: 'c2',
       }],
       volgende_cursor: null,
     })

@@ -72,7 +72,7 @@ async def _admin_exec(sql: str, params: dict | None = None):
 @integratie
 def test_vraag_toevoegen_en_deactiveren_fan_out():
     from models.models import LifecycleStatus
-    from schemas.checklistconfig import VraagCreate
+    from schemas.checklistconfig import CategorieCreate, VraagCreate
     from services import checklistconfig_service as svc
     from services import component_service as comp_svc
     from services.errors import RegistratieConflict
@@ -89,30 +89,37 @@ def test_vraag_toevoegen_en_deactiveren_fan_out():
         n = await svc.impact_telling(s, "applicatie")
         assert n >= 1  # raakt N applicaties
 
+        # LI050: wegwerp-categorie eerst (de vraag verwijst).
+        cat = await svc.maak_categorie(
+            s, _TID, CategorieCreate(componenttype="applicatie", naam=f"W1-cat-{code}", volgorde=99)
+        )
         # Vraag toevoegen → fan-out: BRP heeft nu 89/90 → in_inventarisatie.
+        # LI050 (W4): de code wordt door het systeem toegekend — geen invoer.
         vraag = await svc.maak_vraag(
             s, _TID,
-            VraagCreate(componenttype="applicatie", code=code, vraag="W1 fan-out test",
-                        categorie_nr=99, categorie_naam="Test"),
+            VraagCreate(componenttype="applicatie", vraag="W1 fan-out test",
+                        categorie_id=cat["id"]),
         )
         lc1 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": brp})).scalar_one()
         assert lc1 == "in_inventarisatie"
 
-        # Duplicaat (zelfde componenttype+code) → CHECKLISTVRAAG_BESTAAT (409).
-        with pytest.raises(RegistratieConflict) as ei:
-            await svc.maak_vraag(
-                s, _TID,
-                VraagCreate(componenttype="applicatie", code=code, vraag="dup", categorie_nr=99, categorie_naam="Test"),
-            )
-        await s.rollback()
-        assert ei.value.code == "CHECKLISTVRAAG_BESTAAT"
+        # LI050 (W4): een tweede toevoeging BOTST NIET — het systeem kent een volgende,
+        # unieke code toe (het 409-pad is een race-backstop, voor de gebruiker onbereikbaar).
+        vraag2 = await svc.maak_vraag(
+            s, _TID,
+            VraagCreate(componenttype="applicatie", vraag="W1 fan-out test 2", categorie_id=cat["id"]),
+        )
+        assert vraag2["code"] != vraag["code"]
 
-        # Deactiveren → fan-out terug: inactieve vraag valt uit aantal_vragen → migratieklaar.
+        # Deactiveren → fan-out terug: inactieve vragen vallen uit aantal_vragen → migratieklaar.
+        await svc.zet_actief(s, _TID, vraag2["id"], False)
         await svc.zet_actief(s, _TID, vraag["id"], False)
         lc2 = (await s.execute(text("select lifecycle_status from component_profiel where id=:i"), {"i": brp})).scalar_one()
         assert lc2 == "migratieklaar"
-        return vraag["id"]
+        return [vraag["id"], vraag2["id"]], cat["id"]
 
-    vraag_id = asyncio.run(_sessie_run(_flow))
-    # Opruimen: de wegwerp-vraag hard verwijderen (fixture-rol lk_admin).
-    asyncio.run(_admin_exec("DELETE FROM checklistvraag WHERE id = :i", {"i": vraag_id}))
+    vraag_ids, cat_id = asyncio.run(_sessie_run(_flow))
+    # Opruimen: de wegwerp-vragen hard verwijderen (fixture-rol lk_admin), dan de categorie (RESTRICT).
+    for vid in vraag_ids:
+        asyncio.run(_admin_exec("DELETE FROM checklistvraag WHERE id = :i", {"i": vid}))
+    asyncio.run(_admin_exec("DELETE FROM checklist_categorie WHERE id = :i", {"i": cat_id}))

@@ -11,10 +11,14 @@ TENANT_A = "11111111-1111-1111-1111-111111111111"
 TENANT_B = "22222222-2222-2222-2222-222222222222"
 
 
+# LI050 (ADR-022 W3): de categorie is een verwijzing; de read draagt id + naam + volgorde.
+_CAT_ID = uuid.uuid4()
+
+
 def _vraag(code, nr=1):
     return SimpleNamespace(
-        id=uuid.uuid4(), code=code, componenttype="applicatie", categorie_nr=nr,
-        categorie_naam="Cat", vraag="?", prioriteit="hoog",
+        id=uuid.uuid4(), code=code, componenttype="applicatie", categorie_id=_CAT_ID,
+        categorie_naam="Cat", categorie_volgorde=nr, vraag="?", prioriteit="hoog",
         antwoordtype="geen", opties=[],
     )
 
@@ -65,9 +69,14 @@ def test_service_lijst_alle_zonder_tenantfilter():
     vres.scalars.return_value.all.return_value = vragen
     ores = MagicMock()
     ores.scalars.return_value.all.return_value = [optie]
+    # LI050: derde query — de categorie-entiteiten (naam/volgorde-resolutie).
+    cres = MagicMock()
+    cres.scalars.return_value.all.return_value = [
+        SimpleNamespace(id=_CAT_ID, componenttype="applicatie", naam="Cat", volgorde=1)
+    ]
     session = AsyncMock()
-    # twee queries: vragen, daarna opties (geen tenant_id in de signatuur)
-    session.execute.side_effect = [vres, ores]
+    # drie queries: vragen, opties, categorieën (geen tenant_id in de signatuur)
+    session.execute.side_effect = [vres, ores, cres]
 
     out = asyncio.run(lijst_alle(session))
     assert [r["code"] for r in out] == ["1.1", "1.2"]
@@ -87,8 +96,8 @@ def test_route_geeft_vragen_voor_viewer(monkeypatch):
     body = resp.json()
     assert [r["code"] for r in body] == ["1.1", "2.1"]
     assert set(body[0].keys()) == {
-        "id", "code", "componenttype", "categorie_nr", "categorie_naam", "vraag", "prioriteit",
-        "antwoordtype", "opties",
+        "id", "code", "componenttype", "categorie_id", "categorie_naam", "categorie_volgorde",
+        "vraag", "prioriteit", "antwoordtype", "opties",
     }
 
 

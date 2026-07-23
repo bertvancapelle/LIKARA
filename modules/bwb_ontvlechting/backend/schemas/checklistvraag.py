@@ -33,8 +33,11 @@ class ChecklistVraagRead(BaseModel):
     id: uuid.UUID
     code: str
     componenttype: str
-    categorie_nr: int
+    # LI050 (ADR-022 W3): de categorie is een verwijzing; naam + volgorde reizen mee
+    # (transient gezet in de service — het eigenaar_organisatie_naam-patroon).
+    categorie_id: uuid.UUID
     categorie_naam: str
+    categorie_volgorde: int
     vraag: str
     prioriteit: ChecklistPrioriteit
     antwoordtype: AntwoordType

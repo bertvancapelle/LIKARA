@@ -35,8 +35,10 @@ class ConfigVraagRead(BaseModel):
     id: uuid.UUID
     componenttype: str
     code: str
-    categorie_nr: int
+    # LI050 (W3): de categorie is een verwijzing; naam + volgorde reizen mee in de read.
+    categorie_id: uuid.UUID
     categorie_naam: str
+    categorie_volgorde: int
     vraag: str
     prioriteit: ChecklistPrioriteit
     antwoordtype: AntwoordType
@@ -46,17 +48,68 @@ class ConfigVraagRead(BaseModel):
     opties: list[ConfigOptieRead] = []
 
 
-class VraagCreate(BaseModel):
-    """ADR-022 W1 — nieuwe tenant-vraag. `componenttype`+`code` vormen samen de
-    identiteit (set-once); `componenttype` wordt tegen de catalogus gevalideerd."""
+class CategorieRead(BaseModel):
+    """LI050 (ADR-022 W3) — één checklist-categorie + het aantal vragen eronder
+    (voedt de beheer-UI én de verwijder-weigering voorspelbaar)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    componenttype: str
+    naam: str
+    volgorde: int
+    aantal_vragen: int
+
+
+class CategorieCreate(BaseModel):
+    """LI050 — nieuwe categorie. Naam uniek binnen (tenant, componenttype) —
+    schema-afgedwongen; `volgorde` is puur presentatievolgorde."""
 
     model_config = ConfigDict(extra="forbid")
 
     componenttype: str
-    code: str
+    naam: str
+    volgorde: int = 0
+
+    @field_validator("componenttype")
+    @classmethod
+    def _v_type(cls, v: str) -> str:
+        return _verplichte_tekst(v, "componenttype", 60)
+
+    @field_validator("naam")
+    @classmethod
+    def _v_naam(cls, v: str) -> str:
+        return _verplichte_tekst(v, "naam", 120)
+
+
+class CategorieUpdate(BaseModel):
+    """LI050 — hernoemen en/of volgorde wijzigen (partieel); `componenttype` is
+    immutable (een categorie verhuist niet van type)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    naam: str | None = None
+    volgorde: int | None = None
+
+    @field_validator("naam")
+    @classmethod
+    def _v_naam(cls, v: str | None) -> str | None:
+        return v if v is None else _verplichte_tekst(v, "naam", 120)
+
+
+class VraagCreate(BaseModel):
+    """ADR-022 W1 — nieuwe tenant-vraag. `componenttype`+`code` vormen samen de
+    identiteit (set-once); `componenttype` wordt tegen de catalogus gevalideerd.
+    LI050 (W3): de vraag KIEST een bestaande categorie (`categorie_id`, zelfde
+    componenttype); LI050 (W4): de code wordt door het systeem TOEGEKEND — geen
+    invoerveld meer (de code is intern: identiteits-anker voor de deeplink, geen
+    zichtbare positie)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    componenttype: str
     vraag: str
-    categorie_nr: int
-    categorie_naam: str
+    categorie_id: uuid.UUID
     prioriteit: ChecklistPrioriteit = ChecklistPrioriteit.midden
     antwoordtype: AntwoordType = AntwoordType.geen
 
@@ -65,42 +118,27 @@ class VraagCreate(BaseModel):
     def _v_type(cls, v: str) -> str:
         return _verplichte_tekst(v, "componenttype", 60)
 
-    @field_validator("code")
-    @classmethod
-    def _v_code(cls, v: str) -> str:
-        return _verplichte_tekst(v, "code", 10)
-
     @field_validator("vraag")
     @classmethod
     def _v_vraag(cls, v: str) -> str:
         return _verplichte_tekst(v, "vraag", 2000)
 
-    @field_validator("categorie_naam")
-    @classmethod
-    def _v_cat(cls, v: str) -> str:
-        return _verplichte_tekst(v, "categorie_naam", 120)
-
 
 class VraagUpdate(BaseModel):
     """ADR-022 W1 — bewerkbare (niet-tellende) velden; `componenttype`+`code` zijn
-    immutable (identiteit). Geen fan-out nodig."""
+    immutable (identiteit). Geen fan-out nodig. LI050: herplaatsen naar een andere
+    categorie mag via `categorie_id` (zelfde componenttype, servicelaag)."""
 
     model_config = ConfigDict(extra="forbid")
 
     vraag: str | None = None
-    categorie_nr: int | None = None
-    categorie_naam: str | None = None
+    categorie_id: uuid.UUID | None = None
     prioriteit: ChecklistPrioriteit | None = None
 
     @field_validator("vraag")
     @classmethod
     def _v_vraag(cls, v: str | None) -> str | None:
         return v if v is None else _verplichte_tekst(v, "vraag", 2000)
-
-    @field_validator("categorie_naam")
-    @classmethod
-    def _v_cat(cls, v: str | None) -> str | None:
-        return v if v is None else _verplichte_tekst(v, "categorie_naam", 120)
 
 
 class ActiefUpdate(BaseModel):

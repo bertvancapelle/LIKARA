@@ -79,7 +79,7 @@ async def _lc(s, component_id):
 @integratie
 def test_tweede_type_lifecycle_end_to_end():
     from models.models import LifecycleStatus
-    from schemas.checklistconfig import VraagCreate
+    from schemas.checklistconfig import CategorieCreate, VraagCreate
     from schemas.checklistscore import ChecklistscoreCreate
     from schemas.component import ComponentCreate
     from services import checklistconfig_service as cc
@@ -105,9 +105,14 @@ def test_tweede_type_lifecycle_end_to_end():
             d = await comp.start_beoordeling(s, _TID, c["id"])
             assert d["lifecycle_status"] == LifecycleStatus.in_inventarisatie
 
+            # LI050: eerst een wegwerp-categorie voor dit type (de vraag verwijst).
+            cat = await cc.maak_categorie(
+                s, _TID, CategorieCreate(componenttype=_TYPE, naam="SaaS", volgorde=1)
+            )
             # Vraag toevoegen (fan-out) → 0/1 gescoord → in_inventarisatie.
+            # LI050 (W4): code wordt toegekend.
             v1 = await cc.maak_vraag(
-                s, _TID, VraagCreate(componenttype=_TYPE, code="SD.1", vraag="vraag 1", categorie_nr=1, categorie_naam="SaaS")
+                s, _TID, VraagCreate(componenttype=_TYPE, vraag="vraag 1", categorie_id=cat["id"])
             )
             assert await _lc(s, c["id"]) == "in_inventarisatie"
 
@@ -119,7 +124,7 @@ def test_tweede_type_lifecycle_end_to_end():
 
             # Tweede vraag + score nee → blokkade → geblokkeerd.
             v2 = await cc.maak_vraag(
-                s, _TID, VraagCreate(componenttype=_TYPE, code="SD.2", vraag="vraag 2", categorie_nr=1, categorie_naam="SaaS")
+                s, _TID, VraagCreate(componenttype=_TYPE, vraag="vraag 2", categorie_id=cat["id"])
             )
             await score.maak_aan(
                 s, _TID, ChecklistscoreCreate(component_id=c["id"], checklistvraag_id=v2["id"], score="nee")
@@ -128,7 +133,8 @@ def test_tweede_type_lifecycle_end_to_end():
 
             # Scoring-read type-scoping (symmetrisch met de engine).
             saas = await cvs.lijst_alle(s, _TYPE)
-            assert {v["code"] for v in saas} == {"SD.1", "SD.2"}
+            # LI050 (W4): toegekende codes — deterministisch oplopend vanaf de lege set.
+            assert {v["code"] for v in saas} == {"1", "2"}
             assert all(v["componenttype"] == _TYPE for v in saas)
             app = await cvs.lijst_alle(s, "applicatie")
             assert not any(v["componenttype"] == _TYPE for v in app)
@@ -162,6 +168,8 @@ def test_tweede_type_lifecycle_end_to_end():
         finally:
             # Teardown: wegwerp-vragen weg + de vlag terug op false.
             await _admin_exec("DELETE FROM checklistvraag WHERE componenttype = :t", {"t": _TYPE})
+            # LI050: de wegwerp-categorie ná de vragen (RESTRICT-FK).
+            await _admin_exec("DELETE FROM checklist_categorie WHERE componenttype = :t", {"t": _TYPE})
             await _admin_exec(
                 "UPDATE componentconfig_optie SET checklist_dragend = false "
                 "WHERE dimensie = 'componenttype' AND optie_sleutel = :t",

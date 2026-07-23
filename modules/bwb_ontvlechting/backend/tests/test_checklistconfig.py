@@ -39,6 +39,10 @@ async def _async(waarde):
     return waarde
 
 
+# LI050: de categorie is een verwijzing; reads resolven naam/volgorde via _haal_categorie.
+_CAT = SimpleNamespace(id=uuid.uuid4(), componenttype="applicatie", naam="x", volgorde=1)
+
+
 def _vraag(code, antwoordtype):
     from models.models import ChecklistPrioriteit
 
@@ -46,8 +50,7 @@ def _vraag(code, antwoordtype):
         id=uuid.uuid4(),
         code=code,
         componenttype="applicatie",
-        categorie_nr=1,
-        categorie_naam="x",
+        categorie_id=_CAT.id,
         vraag="?",
         prioriteit=ChecklistPrioriteit.midden,
         antwoordtype=antwoordtype,
@@ -72,8 +75,8 @@ def test_zet_antwoordtype_vanuit_geen_mag():
 
     vraag = _vraag("9.1", AntwoordType.geen)
     session = AsyncMock()
-    # zet_antwoordtype: _haal_vraag + _opties_van = 2 execute-calls.
-    session.execute.side_effect = [_result(vraag), _scalars([])]
+    # zet_antwoordtype: _haal_vraag + _opties_van + _haal_categorie = 3 execute-calls (LI050).
+    session.execute.side_effect = [_result(vraag), _scalars([]), _result(_CAT)]
     out = asyncio.run(svc.zet_antwoordtype(session, _VRAAG_ID, AntwoordTypeUpdate(antwoordtype="getal")))
     assert vraag.antwoordtype == AntwoordType.getal
     assert out["antwoordtype"] == AntwoordType.getal
@@ -99,7 +102,7 @@ def test_zet_antwoordtype_zelfde_waarde_mag():
 
     vraag = _vraag("2.1", AntwoordType.enkelvoudige_keuze)
     session = AsyncMock()
-    session.execute.side_effect = [_result(vraag), _scalars([])]
+    session.execute.side_effect = [_result(vraag), _scalars([]), _result(_CAT)]
     out = asyncio.run(
         svc.zet_antwoordtype(session, _VRAAG_ID, AntwoordTypeUpdate(antwoordtype="enkelvoudige_keuze"))
     )

@@ -356,10 +356,16 @@ watch(onderdeelBeschikbaar, (beschikbaar) => {
 })
 
 // Categorie-sub-tabs: labels afgeleid uit de geladen vragen (geen seed-duplicatie).
+// LI050: de tab-sleutel is de categorie-ID (stabiel bij hernummeren/hernoemen).
 const categorieTabs = computed(() =>
-  (scoreSectie.value?.categorieen ?? []).map((c) => ({ key: String(c.nr), label: c.naam })),
+  (scoreSectie.value?.categorieen ?? []).map((c) => ({ key: String(c.id), label: c.naam })),
 )
-const actieveCategorieNr = computed(() => (activeCat.value != null ? Number(activeCat.value) : null))
+// Minimale port van het oude "nummer 8"-anker: de VOLGORDE van de actieve categorie.
+// De echte ontkoppeling (betekenis-markering op de categorie) is een volgende snede.
+const actieveCategorieVolgorde = computed(() => {
+  const c = (scoreSectie.value?.categorieen ?? []).find((k) => String(k.id) === activeCat.value)
+  return c?.volgorde ?? null
+})
 
 watch(categorieTabs, (tabs) => {
   if (tabs.length && !tabs.some((t) => t.key === activeCat.value)) activeCat.value = tabs[0].key
@@ -452,9 +458,10 @@ watch(bewerkOverlayOpen, (open) => { if (open) wisVeldMarkering() })
 
 // Herkomst-doorklik vanuit BlokkadeSectie: schakel naar Checklist + de categorie van de vraag.
 const markeerVraagCode = ref(null)
-function onNaarVraag({ code, categorieNr }) {
+function onNaarVraag({ code, categorieId }) {
   activeTop.value = 'checklist'
-  if (categorieNr != null) activeCat.value = String(categorieNr)
+  // LI050: de categorie komt van de vraag zelf (blokkade-read), niet uit de code-prefix.
+  if (categorieId != null) activeCat.value = String(categorieId)
   markeerVraagCode.value = code
 }
 
@@ -742,7 +749,7 @@ watch(() => props.id, async () => {
         >
           <!-- Read-only context-paneel bij categorie 8 (Contractuele positie). -->
           <aside
-            v-if="actieveCategorieNr === 8"
+            v-if="actieveCategorieVolgorde === 8"
             role="complementary"
             aria-label="Geregistreerde contracten bij dit component"
             data-testid="context-paneel-cat8"
@@ -780,7 +787,7 @@ watch(() => props.id, async () => {
             ref="scoreSectie"
             :applicatie-id="component.id"
             :componenttype="component.componenttype"
-            :categorie-nr="actieveCategorieNr"
+            :categorie-id="activeCat"
             :markeer-code="markeerVraagCode"
             :bewerkbaar="component.checklist_dragend === true"
             @gewijzigd="onScoreGewijzigd"

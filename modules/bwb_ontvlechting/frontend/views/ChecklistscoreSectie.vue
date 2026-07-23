@@ -37,9 +37,10 @@ const aardSuffix = (p) => (p?.aard ? label(PARTIJ_AARD, p.aard).toLowerCase() : 
 
 const props = defineProps({
   applicatieId: { type: String, required: true },
-  // CD022: filtert de getoonde vragen op één checklist-categorie (categorie_nr).
+  // CD022: filtert de getoonde vragen op één checklist-categorie.
   // null = alle vragen (zelfstandig gebruik / volledige lijst).
-  categorieNr: { type: Number, default: null },
+  // LI050: de categorie is een verwijzing — filteren op categorie_id (String), niet op nummer.
+  categorieId: { type: String, default: null },
   // ADR-022 Fase E: scoping van de vragenset op componenttype (symmetrisch met de
   // engine). null = alle actieve vragen.
   componenttype: { type: String, default: null },
@@ -78,7 +79,8 @@ const aantalVragen = computed(() => vragen.value.length)
 const aantalGescoord = computed(() => Object.keys(scoreMap).length)
 
 // Client-side kolomsortering (geen API-wijziging): klik op een kolomkop togglet
-// asc/desc. Default = code oplopend (= het pre-sorteer-gedrag). De markeer/scroll-
+// asc/desc. Default = interne code oplopend (LI050 W4: de code is onzichtbaar maar
+// blijft de deterministische standaardvolgorde binnen een categorie). De markeer/scroll-
 // naar-vraag blijft werken want die target de rij-id, niet de positie.
 const sortKolom = ref('code') // 'code' | 'vraag' | 'score'
 const sortRichting = ref('asc') // 'asc' | 'desc'
@@ -108,9 +110,9 @@ function _sortWaarde(v, kolom) {
 // tiebreak op code zodat gelijke waarden deterministisch blijven.
 const zichtbareVragen = computed(() => {
   const lijst =
-    props.categorieNr == null
+    props.categorieId == null
       ? vragen.value
-      : vragen.value.filter((v) => v.categorie_nr === props.categorieNr)
+      : vragen.value.filter((v) => v.categorie_id === props.categorieId)
   const richting = sortRichting.value === 'asc' ? 1 : -1
   return [...lijst].sort((a, b) => {
     const wa = String(_sortWaarde(a, sortKolom.value))
@@ -121,12 +123,18 @@ const zichtbareVragen = computed(() => {
   })
 })
 
-// Afgeleide categorie-lijst (nr + naam, oplopend) voor de tab-labels in de ouder —
+// Afgeleide categorie-lijst (id + naam + volgorde) voor de tab-labels in de ouder —
 // single source uit de geladen vragen, geen seed-namen in de frontend dupliceren.
 const categorieen = computed(() => {
-  const perNr = new Map()
-  for (const v of vragen.value) if (!perNr.has(v.categorie_nr)) perNr.set(v.categorie_nr, v.categorie_naam)
-  return [...perNr.entries()].sort((a, b) => a[0] - b[0]).map(([nr, naam]) => ({ nr, naam }))
+  // LI050: id + naam + volgorde uit de vraag-read (de categorie-entiteit levert ze);
+  // sorteren op volgorde (naam als tiebreak) — het nummer is volgorde, geen betekenis.
+  const perId = new Map()
+  for (const v of vragen.value) {
+    if (!perId.has(v.categorie_id)) {
+      perId.set(v.categorie_id, { id: v.categorie_id, naam: v.categorie_naam, volgorde: v.categorie_volgorde })
+    }
+  }
+  return [...perId.values()].sort((a, b) => a.volgorde - b.volgorde || a.naam.localeCompare(b.naam))
 })
 
 function _toastFout(e) {
@@ -384,11 +392,8 @@ laad()
     <table>
       <thead>
         <tr>
-          <th :aria-sort="ariaSort('code')">
-            <button type="button" data-testid="cs-sort-code" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('code')">
-              Code <span aria-hidden="true">{{ sortKolom === 'code' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
-            </button>
-          </th>
+          <!-- LI050 (W4): de vraagcode is van het scherm — de code blijft intern
+               (rij-sleutel, markeer-deeplink, standaardvolgorde binnen de categorie). -->
           <th :aria-sort="ariaSort('vraag')">
             <button type="button" data-testid="cs-sort-vraag" class="font-semibold inline-flex items-center gap-1 hover:underline" @click="sorteerOp('vraag')">
               Vraag <span aria-hidden="true">{{ sortKolom === 'vraag' ? (sortRichting === 'asc' ? '▲' : '▼') : '↕' }}</span>
@@ -413,7 +418,6 @@ laad()
             :data-testid="`cs-rij-${v.code}`"
             :class="gemarkeerd === v.code ? 'bg-[var(--lk-color-accent)]' : ''"
           >
-            <td>{{ v.code }}</td>
             <td>{{ v.vraag }}</td>
             <td>
               <select

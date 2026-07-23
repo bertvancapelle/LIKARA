@@ -24,6 +24,9 @@ from schemas.checklistconfig import (
     AntwoordTypeUpdate,
     BetekenisOptieRead,
     BetekenisUpdate,
+    CategorieCreate,
+    CategorieRead,
+    CategorieUpdate,
     ConfigOptieRead,
     ConfigVraagRead,
     OptieCreate,
@@ -39,6 +42,8 @@ router = APIRouter(prefix="/checklistconfig", tags=["bwb:checklistconfig"])
 _LEZEN = vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.LEZEN)
 _AANMAKEN = vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.AANMAKEN)
 _WIJZIGEN = vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.WIJZIGEN)
+# LI050: een lege categorie weggooien is een echte delete → VERWIJDEREN (beheerder).
+_VERWIJDEREN = vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.VERWIJDEREN)
 
 
 @router.get("", response_model=list[ConfigVraagRead])
@@ -69,6 +74,49 @@ async def lijst_betekenissen(
     """Actieve betekenissen uit de platform-brede catalogus (voor het keuzeveld).
     Statisch subpad — vóór `/vragen/{id}`."""
     return await svc.lijst_betekenissen(session)
+
+
+# ── LI050 (ADR-022 W3): categorie-beheer — zelfde rechten-ingang als het vraagbeheer ──
+
+
+@router.get("/categorieen", response_model=list[CategorieRead])
+async def lijst_categorieen(
+    componenttype: str | None = Query(None, max_length=60),
+    _user=Depends(_LEZEN),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Categorieën + aantal vragen per categorie; optioneel gescoped op componenttype."""
+    return await svc.lijst_categorieen(session, componenttype)
+
+
+@router.post("/categorieen", response_model=CategorieRead, status_code=201)
+async def maak_categorie(
+    body: CategorieCreate,
+    user: AuthenticatedUser = Depends(_AANMAKEN),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    return await svc.maak_categorie(session, user.tenant_id, body)
+
+
+@router.patch("/categorieen/{categorie_id}", response_model=CategorieRead)
+async def wijzig_categorie(
+    categorie_id: uuid.UUID,
+    body: CategorieUpdate,
+    _user=Depends(_WIJZIGEN),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Hernoemen/volgorde — één handeling voor de hele categorie (LI050)."""
+    return await svc.wijzig_categorie(session, categorie_id, body)
+
+
+@router.delete("/categorieen/{categorie_id}", status_code=204)
+async def verwijder_categorie(
+    categorie_id: uuid.UUID,
+    _user=Depends(_VERWIJDEREN),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """Weigert met 409 `CATEGORIE_HEEFT_VRAGEN` (+ telling) zolang er vragen onder hangen."""
+    await svc.verwijder_categorie(session, categorie_id)
 
 
 @router.post("/vragen", response_model=ConfigVraagRead, status_code=201)

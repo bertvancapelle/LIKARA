@@ -21,18 +21,15 @@ import ScoreBadge from './ScoreBadge.vue'
 const props = defineProps({ applicatieId: { type: String, required: true } })
 const emit = defineEmits(['gewijzigd', 'naar-vraag'])
 
-// Herkomst-doorklik: een vraag-code als "2.7" → checklist-categorie 2. De ouder
-// (ApplicatieDetail) schakelt naar het Checklist-tabblad + die categorie en
-// markeert de vraag. Read-only navigatie; geen schrijf-affordance.
-function categorieVan(code) {
-  const nr = Number.parseInt(String(code ?? '').split('.')[0], 10)
-  return Number.isInteger(nr) ? nr : null
-}
+// Herkomst-doorklik: de ouder (ComponentDetail) schakelt naar het Checklist-tabblad +
+// de categorie van de veroorzakende vraag en markeert de vraag. Read-only navigatie.
+// LI050: de categorie komt uit de blokkade-read (`categorie_id`, via de vraag zelf) —
+// NOOIT meer uit de code-prefix: die breekt stil zodra volgorde en code uiteenlopen.
 function naarVraag(rij) {
   if (!rij?.vraag_code) return
   emit('naar-vraag', {
     code: rij.vraag_code,
-    categorieNr: categorieVan(rij.vraag_code),
+    categorieId: rij.categorie_id ?? null,
     checklistvraagId: rij.checklistvraag_id,
   })
 }
@@ -204,11 +201,12 @@ laad({ reset: true })
             v-if="data.vraag_code"
             type="button"
             :data-testid="`bk-herkomst-${data.id}`"
-            :title="`${data.vraag || ''}${data.score ? ` — antwoord: ${label(SCORE, data.score)}` : ''}`"
+            :title="data.score ? `Antwoord: ${label(SCORE, data.score)}` : undefined"
             class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
             @click="naarVraag(data)"
           >
-            Vraag {{ data.vraag_code }}
+            <!-- LI050 (W4): de vraagTEKST zegt waar het knelpunt over gaat; een code niet. -->
+            {{ data.vraag }}
           </button>
           <span v-if="data.vraag_code && data.score"> (<ScoreBadge :score="data.score" />)</span>
           <span v-else class="text-[var(--lk-color-text-muted)]">—</span>

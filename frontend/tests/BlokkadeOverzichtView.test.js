@@ -26,6 +26,8 @@ const _item = (naam, id, { componenttype = 'applicatie', componenttype_label = '
   componenttype,
   componenttype_label,
   vraag_code: 'A1',
+  vraag: 'Vraag over A1?',
+  categorie_volgorde: 1,
   status: 'open',
   toelichting: null,
   verantwoordelijke_naam: null,
@@ -84,19 +86,24 @@ describe('BlokkadeOverzichtView — render', () => {
     })
   })
 
-  it('maakt het vraagnummer klikbaar → component-detail met checklist-deeplink + markeer', async () => {
+  it('maakt de vraag klikbaar → component-detail met checklist-deeplink + markeer', async () => {
     api.blokkades.overzicht.mockResolvedValue({
-      items: [{ ..._item('Zaaksysteem', 'b1'), vraag_code: '2.7' }],
+      items: [{ ..._item('Zaaksysteem', 'b1'), vraag_code: '2.7', vraag: 'Gedeelde infra?', categorie_id: 'cat-negen' }],
       volgende_cursor: null,
     })
     const w = await mountOverzicht()
     const link = w.find('[data-testid="blokkade-vraag-link"]')
     expect(link.exists()).toBe(true)
-    expect(link.text()).toContain('2.7')
+    // LI050 (W4): de kolom toont de vraagTEKST, niet de code.
+    expect(link.text()).toContain('Gedeelde infra?')
+    expect(link.text()).not.toContain('2.7')
     const href = link.attributes('href')
     expect(href).toContain('/componenten/app-b1')
     expect(href).toContain('tab=checklist')
-    expect(href).toContain('cat=2')          // categorie uit "2.7"
+    // LI050 stap-5-bewijs: de categorie komt uit de read (id), NIET uit de code-prefix —
+    // dus ook met code en volgorde uit de pas landt de deep-link goed.
+    expect(href).toContain('cat=cat-negen')
+    expect(href).not.toContain('cat=2&')
     expect(href).toContain('markeer=2.7')
   })
 

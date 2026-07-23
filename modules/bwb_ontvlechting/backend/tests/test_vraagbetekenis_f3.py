@@ -114,12 +114,16 @@ def _all(rijen):
     return r
 
 
+# LI050: de categorie is een verwijzing; de read resolvet naam/volgorde via _haal_categorie.
+_CAT = SimpleNamespace(id=uuid.uuid4(), componenttype="applicatie", naam="x", volgorde=1)
+
+
 def _vraag():
     from models.models import ChecklistPrioriteit
 
     return SimpleNamespace(
-        id=uuid.uuid4(), code="9.1", componenttype="applicatie", categorie_nr=1,
-        categorie_naam="x", vraag="?", prioriteit=ChecklistPrioriteit.midden,
+        id=uuid.uuid4(), code="9.1", componenttype="applicatie", categorie_id=_CAT.id,
+        vraag="?", prioriteit=ChecklistPrioriteit.midden,
         antwoordtype="geen", actief=True, betekenis=None,
     )
 
@@ -130,11 +134,13 @@ def test_zet_betekenis_geldig_zet_de_waarde():
 
     vraag = _vraag()
     session = AsyncMock()
-    # _haal_vraag → vraag; valideer_sleutel→actieve_sleutels → rij; _opties_van → [].
+    # _haal_vraag → vraag; valideer_sleutel→actieve_sleutels → rij; _opties_van → [];
+    # _haal_categorie → cat (LI050).
     session.execute.side_effect = [
         _result(vraag),
         _all([SimpleNamespace(optie_sleutel="technische_plaatsing")]),
         _scalars([]),
+        _result(_CAT),
     ]
     out = asyncio.run(svc.zet_betekenis(session, vraag.id, BetekenisUpdate(betekenis="technische_plaatsing")))
     assert vraag.betekenis == "technische_plaatsing"
@@ -163,8 +169,8 @@ def test_zet_betekenis_wis_valideert_niet():
     vraag = _vraag()
     vraag.betekenis = "technische_plaatsing"
     session = AsyncMock()
-    # wis (None): _haal_vraag → vraag; (geen validatie); _opties_van → [].
-    session.execute.side_effect = [_result(vraag), _scalars([])]
+    # wis (None): _haal_vraag → vraag; (geen validatie); _opties_van → []; _haal_categorie (LI050).
+    session.execute.side_effect = [_result(vraag), _scalars([]), _result(_CAT)]
     out = asyncio.run(svc.zet_betekenis(session, vraag.id, BetekenisUpdate(betekenis=None)))
     assert vraag.betekenis is None
     assert out["betekenis"] is None

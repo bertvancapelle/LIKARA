@@ -56,6 +56,9 @@ AUDIT_TENANT_ENTITEITEN: frozenset[str] = frozenset({
     # componenten worden als `component` geauditeerd.
     "element", "component", "component_profiel", "datatype",
     "gebruikersgroep", "relatie", "checklistscore", "blokkade", "checklistvraag",
+    # LI050 (ADR-022 W3) — de categorie als eigen tenant-entiteit: hernoemen/volgorde/
+    # verwijderen zijn organisatiebrede indelings-mutaties en horen in de trail.
+    "checklist_categorie",
     "checklistvraag_optie", "partij", "contract", "contract_dekking",
     "contract_kostenmodel",
     # ADR-030 — per-band contractdekking (audit-gat gedicht in LI035: mutaties op de

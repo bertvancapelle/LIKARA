@@ -13,7 +13,7 @@ historische antwoorden), oplopend op `volgorde`.
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import ChecklistVraag, ChecklistVraagOptie
+from models.models import ChecklistCategorie, ChecklistVraag, ChecklistVraagOptie
 
 
 async def lijst_alle(session: AsyncSession, componenttype: str | None = None) -> list[dict]:
@@ -52,13 +52,20 @@ async def lijst_alle(session: AsyncSession, componenttype: str | None = None) ->
     for o in opties:
         per_vraag.setdefault(o.checklistvraag_id, []).append(o)
 
+    # LI050 (ADR-022 W3): naam/volgorde uit de categorie-entiteit (één query, geen N+1).
+    categorieen = {
+        c.id: c
+        for c in (await session.execute(select(ChecklistCategorie))).scalars().all()
+    }
+
     return [
         {
             "id": v.id,
             "code": v.code,
             "componenttype": v.componenttype,
-            "categorie_nr": v.categorie_nr,
-            "categorie_naam": v.categorie_naam,
+            "categorie_id": v.categorie_id,
+            "categorie_naam": categorieen[v.categorie_id].naam,
+            "categorie_volgorde": categorieen[v.categorie_id].volgorde,
             "vraag": v.vraag,
             "prioriteit": v.prioriteit,
             "antwoordtype": v.antwoordtype,

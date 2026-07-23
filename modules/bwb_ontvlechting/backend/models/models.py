@@ -958,6 +958,33 @@ class Bedrijfsfunctie(Base, TenantMixin, TimestampMixin):
 # blijft historisch staan (labels resolvebaar); nieuwe structuurrelaties zijn ArchiMate-relaties.
 
 
+class ChecklistCategorie(Base, TenantMixin):
+    """ADR-022 W3 / LI050 — de checklist-categorie als eigen tenant-entiteit (RLS + FORCE).
+
+    Vóór LI050 bestond een categorie niet: elke vraag droeg zelf `categorie_nr` +
+    `categorie_naam` (gedenormaliseerd), waardoor hernoemen tot 89 losse bewerkingen
+    kostte en twee vragen ongemerkt hetzelfde nummer met een andere naam konden dragen.
+    Nu: één rij per categorie, per componenttype; de vraag verwijst (`categorie_id`).
+    - Identiteit = **naam** binnen `(tenant, componenttype)` (schema-afgedwongen);
+      `volgorde` is puur presentatievolgorde, geen betekenis en geen identiteit.
+    - `UNIQUE(tenant_id, id)` is het composiet-FK-target voor `checklistvraag`.
+    - Verwijderen met vragen eronder wordt geweigerd (service 409 + telling); de
+      RESTRICT-FK op de vraag is de schema-backstop."""
+
+    __tablename__ = "checklist_categorie"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "componenttype", "naam", name="uq_checklist_categorie_naam"
+        ),
+        UniqueConstraint("tenant_id", "id", name="uq_checklist_categorie_tenant_id"),
+    )
+
+    id: Mapped[uuid.UUID] = _pk()
+    componenttype: Mapped[str] = mapped_column(String(60), nullable=False)
+    naam: Mapped[str] = mapped_column(String(120), nullable=False)
+    volgorde: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class ChecklistVraag(Base, TenantMixin):
     """ADR-022 Wijziging W1 — **tenant-scoped** vragenset (RLS + FORCE), eigendom van
     de tenant. Surrogate UUID-PK (`id`), `componenttype`-discriminator (één vraag →
@@ -965,7 +992,11 @@ class ChecklistVraag(Base, TenantMixin):
     `UNIQUE(tenant_id, componenttype, code)`. `actief` (default true): "verwijderen" =
     soft-deactivatie — een inactieve vraag valt uit de actieve set én uit `aantal_vragen`,
     bestaande scores blijven historie. `UNIQUE(tenant_id, id)` is het composiet-FK-target
-    voor de kind-FK's (Knoop 1)."""
+    voor de kind-FK's (Knoop 1). LI050 (W3): de categorie is een verwijzing
+    (`categorie_id` → `checklist_categorie`, RESTRICT); de oude gedenormaliseerde
+    `categorie_nr`/`categorie_naam`-kolommen zijn vervallen. LI050 (W4): de code is
+    INTERN — systeem-toegekend bij aanmaken, nergens meer op het scherm; hij blijft
+    het stabiele markeer-anker (deeplink) en de standaardvolgorde binnen een categorie."""
 
     __tablename__ = "checklistvraag"
     __table_args__ = (
@@ -977,13 +1008,20 @@ class ChecklistVraag(Base, TenantMixin):
         UniqueConstraint(
             "tenant_id", "componenttype", "betekenis", name="uq_checklistvraag_betekenis"
         ),
+        # LI050: tenant-consistente verwijzing naar de categorie; RESTRICT = een categorie
+        # met vragen kan structureel niet verdwijnen (de service-409 is de nette melding).
+        ForeignKeyConstraint(
+            ["tenant_id", "categorie_id"],
+            ["checklist_categorie.tenant_id", "checklist_categorie.id"],
+            name="fk_checklistvraag_categorie",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _pk()
     componenttype: Mapped[str] = mapped_column(String(60), nullable=False)
     code: Mapped[str] = mapped_column(String(10), nullable=False)
-    categorie_nr: Mapped[int] = mapped_column(Integer, nullable=False)
-    categorie_naam: Mapped[str] = mapped_column(String(120), nullable=False)
+    categorie_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     vraag: Mapped[str] = mapped_column(Text, nullable=False)
     prioriteit: Mapped[ChecklistPrioriteit] = mapped_column(
         checklist_prioriteit_enum, nullable=False

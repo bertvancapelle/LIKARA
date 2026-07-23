@@ -138,6 +138,8 @@ NAAMBRON: dict[str, tuple] = {
     # LI048 besluit 1 — een checklistvraag herken je aan zijn VRAAGTEKST, niet aan zijn code.
     # De tekst wordt afgekort getoond; het begin is genoeg om hem te herkennen.
     "checklistvraag": ("veld", "vraag"),
+    # LI050 (ADR-022 W3) — de categorie draagt zelf haar naam.
+    "checklist_categorie": ("veld", "naam"),
     "checklistvraag_optie": ("veld", "tekst"),
     "datatype": ("veld", "omschrijving"),
     # ── Leent de naam van het component waar het bij hoort ──────────────────────────────

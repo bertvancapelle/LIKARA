@@ -86,7 +86,7 @@ async def _engine_aantal_applicatievragen(s):
 @integratie
 def test_scoringlijst_volgt_actieve_set():
     from models.models import ChecklistScore
-    from schemas.checklistconfig import VraagCreate
+    from schemas.checklistconfig import CategorieCreate, VraagCreate
     from schemas.checklistscore import ChecklistscoreCreate
     from schemas.component import ComponentCreate
     from services import checklistconfig_service as cc
@@ -99,15 +99,22 @@ def test_scoringlijst_volgt_actieve_set():
     async def _flow(s):
         app_id = None
         vraag_id = None
+        cat_id = None
         try:
             n0 = len(await _actieve_applicatievragen(s))
             assert n0 == await _engine_aantal_applicatievragen(s)  # lijst == engine-set
 
+            # LI050: de vraag KIEST een bestaande categorie — wegwerp-categorie eerst.
+            cat = await cc.maak_categorie(
+                s, _TID, CategorieCreate(componenttype="applicatie", naam=f"SL-cat-{sfx}", volgorde=99)
+            )
+            cat_id = cat["id"]
             # Actieve vraag → staat in de scoring-read.
+            # LI050 (W4): de code wordt door het systeem toegekend — geen invoer.
             vraag = await cc.maak_vraag(
                 s, _TID,
-                VraagCreate(componenttype="applicatie", code=code, vraag="scoring-actief test",
-                            categorie_nr=99, categorie_naam="Test"),
+                VraagCreate(componenttype="applicatie", vraag="scoring-actief test",
+                            categorie_id=cat_id),
             )
             vraag_id = vraag["id"]
             actief1 = await _actieve_applicatievragen(s)
@@ -142,5 +149,8 @@ def test_scoringlijst_volgt_actieve_set():
                 await s.commit()
             if vraag_id is not None:
                 await _admin_exec("DELETE FROM checklistvraag WHERE id = :i", {"i": vraag_id})
+            # LI050: de wegwerp-categorie ná de vraag (RESTRICT-FK).
+            if cat_id is not None:
+                await _admin_exec("DELETE FROM checklist_categorie WHERE id = :i", {"i": cat_id})
 
     asyncio.run(_sessie_run(_flow))

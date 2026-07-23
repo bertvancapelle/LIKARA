@@ -276,6 +276,16 @@ def _maak_vraagbeheer_app():
     ):
         return {"ok": True}
 
+    # LI050 (ADR-022 W3): categorie-beheer erft dezelfde ingang — aanmaken/hernoemen
+    # via A/W hierboven; een lege categorie weggooien via VERWIJDEREN.
+    @app.delete("/categorieen")
+    async def _verwijder_categorie(
+        user: AuthenticatedUser = Depends(
+            vereist_permissie(Entiteit.CHECKLISTVRAAG, Actie.VERWIJDEREN)
+        ),
+    ):
+        return {"ok": True}
+
     return app
 
 
@@ -285,6 +295,7 @@ def test_vraagbeheer_medewerker_geweigerd_op_mutaties(monkeypatch):
     c.cookies.set(settings.cookie_name, "tok")
     assert c.post("/vragen").status_code == 403          # aanmaken geweigerd
     assert c.post("/vragen/actief").status_code == 403   # uitzetten geweigerd
+    assert c.delete("/categorieen").status_code == 403   # categorie weggooien geweigerd (LI050)
     assert c.get("/vragen").status_code == 200           # lezen blijft
 
 
@@ -294,6 +305,7 @@ def test_vraagbeheer_beheerder_slaagt_viewer_leest(monkeypatch):
     c.cookies.set(settings.cookie_name, "tok")
     assert c.post("/vragen").status_code == 200
     assert c.post("/vragen/actief").status_code == 200
+    assert c.delete("/categorieen").status_code == 200  # categorie-beheer = beheerder (LI050)
 
     monkeypatch.setattr("app.middleware.auth.decode_token", lambda t: _payload(["viewer"]))
     c2 = TestClient(_maak_vraagbeheer_app())

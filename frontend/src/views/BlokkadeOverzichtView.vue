@@ -38,7 +38,7 @@ const sortRichting = ref('asc')
 const primeSortOrder = computed(() => (sortRichting.value === 'asc' ? 1 : -1))
 
 // Lijststaat behouden bij terugnavigeren/F5 (lk-state-patroon; zie useLijstStaat).
-const SORTEERBARE_VELDEN = ['applicatie_naam', 'vraag_code', 'status', 'toelichting', 'verantwoordelijke_naam', 'opgelost_op', 'gewijzigd_op']
+const SORTEERBARE_VELDEN = ['applicatie_naam', 'categorie_volgorde', 'status', 'toelichting', 'verantwoordelijke_naam', 'opgelost_op', 'gewijzigd_op']
 const { herstel: herstelLijstStaat } = useLijstStaat(
   'blokkades',
   { statusFilter, sortVeld, sortRichting },
@@ -90,13 +90,6 @@ function onFilterWijziging() {
   laad({ reset: true })
 }
 
-// ADR-024-vervolg: categorie-nr uit de vraag-code (bv. "2.7" → 2) voor de deep-link naar
-// het juiste checklist-categorie-tabblad; analoog aan BlokkadeSectie.categorieVan.
-function categorieVan(code) {
-  const nr = Number.parseInt(String(code ?? '').split('.')[0], 10)
-  return Number.isInteger(nr) ? nr : undefined
-}
-
 // ADR-024-vervolg: type-onafhankelijke doorklik. Applicatie → de rijke applicatie-detail
 // (met checklist-tab/categorie); elk ander checklist-dragend type → het generieke
 // component-detail (tabloos). `markeer` markeert de veroorzakende checklistvraag.
@@ -104,10 +97,12 @@ function detailDoel(data, { markeer = false } = {}) {
   const isApplicatie = data.componenttype === 'applicatie'
   // LI046 — via de gedeelde ingang; de aanleiding (markeer/tab/cat) vertaalt naar exact
   // dezelfde query als voorheen (LI059 Slice 4: de checklist-deep-link werkt op ComponentDetail).
+  // LI050: de categorie komt uit de blokkade-read (`categorie_id`, via de vraag zelf) —
+  // nooit meer uit de code-prefix (die breekt stil zodra volgorde en code uiteenlopen).
   const aanleiding = markeer
     ? {
         markeer: data.vraag_code,
-        ...(isApplicatie ? { tab: 'checklist', cat: categorieVan(data.vraag_code) } : {}),
+        ...(isApplicatie && data.categorie_id ? { tab: 'checklist', cat: data.categorie_id } : {}),
       }
     : null
   return detailRoute('component', data.component_id, aanleiding)
@@ -185,14 +180,16 @@ onMounted(() => {
           </span>
         </template>
       </Column>
-      <Column field="vraag_code" header="Vraag" sortable>
+      <!-- LI050 (W4): de kolom toont de vraagTEKST; sorteren gaat op de categorie-volgorde
+           (de code is intern: hij blijft het markeer-anker in de deeplink). -->
+      <Column field="vraag" header="Vraag" sort-field="categorie_volgorde" sortable>
         <template #body="{ data }">
           <router-link
             :to="detailDoel(data, { markeer: true })"
             data-testid="blokkade-vraag-link"
             class="text-[var(--lk-color-primary)] font-medium hover:underline focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
           >
-            {{ data.vraag_code }}
+            {{ data.vraag }}
           </router-link>
         </template>
       </Column>

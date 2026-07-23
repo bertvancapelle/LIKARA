@@ -102,8 +102,8 @@ beforeEach(() => {
   // Werkelijkheids-nabootsing 2: het echte component is checklist-dragend MET vragen —
   // de categorie-tabs vullen zich async en triggeren de URL-terugschrijf-keten.
   api.checklistvragen.lijst.mockResolvedValue([
-    { id: 1, code: '1.1', categorie_nr: 1, categorie_naam: 'Algemeen', vraag: 'a', prioriteit: 'hoog' },
-    { id: 2, code: '2.1', categorie_nr: 2, categorie_naam: 'Hosting', vraag: 'b', prioriteit: 'hoog' },
+    { id: 1, code: '1.1', categorie_id: 'c1', categorie_naam: 'Algemeen', categorie_volgorde: 1, vraag: 'a', prioriteit: 'hoog' },
+    { id: 2, code: '2.1', categorie_id: 'c2', categorie_naam: 'Hosting', categorie_volgorde: 2, vraag: 'b', prioriteit: 'hoog' },
   ])
   api.componenten.structuur.mockResolvedValue({ draait_op: [], gebruikt_door: [] })
   api.componenten.contracten.mockResolvedValue([])
@@ -215,12 +215,12 @@ describe('LI046 — gebruikersflow: kaart → lijn → doorklik → landing (com
 
   // Stap 3.3 — "toeval is geen borging": de blokkade-doorklik-vorm (tab+cat+markeer) én het
   // veld-anker bewezen veilig op een component MÉT vragen (de wipe-race-conditie actief).
-  it('?tab=checklist&cat=1&markeer=1.1 overleeft de landing op een component met vragen', async () => {
+  it('?tab=checklist&cat=<id>&markeer=1.1 overleeft de landing op een component met vragen', async () => {
     const { w, router } = await mountFlow()
-    await router.push({ name: 'component-detail', params: { id: 'a1' }, query: { tab: 'checklist', cat: '1', markeer: '1.1' } })
+    await router.push({ name: 'component-detail', params: { id: 'a1' }, query: { tab: 'checklist', cat: 'c1', markeer: '1.1' } })
     await flushPromises()
     await flushPromises()
-    expect(router.currentRoute.value.query).toEqual({ tab: 'checklist', cat: '1', markeer: '1.1' })
+    expect(router.currentRoute.value.query).toEqual({ tab: 'checklist', cat: 'c1', markeer: '1.1' })
     const detail = w.findComponent(ComponentDetail)
     expect(detail.find('#detailtabs-panel-checklist').isVisible()).toBe(true)
   })

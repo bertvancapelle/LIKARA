@@ -3,9 +3,10 @@
 89 vaste checklist-vragen verdeeld over 12 categorieën. Idempotent via
 INSERT ... ON CONFLICT (code) DO NOTHING.
 """
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
-from models.models import ChecklistPrioriteit, ChecklistVraag
+from models.models import ChecklistCategorie, ChecklistPrioriteit, ChecklistVraag
 
 CHECKLIST_VRAGEN = [
     {"code": "1.1", "categorie_nr": 1, "categorie_naam": "Applicatie-identiteit en eigenaarschap", "vraag": "Wat is de naam van de applicatie?", "prioriteit": "hoog"},
@@ -142,29 +143,63 @@ async def seed_checklist_vragen(session, tenant_id) -> int:
     gekopieerd (`tenant_id` gezet, uniciteit `(tenant_id, componenttype, code)`).
     Draait onder de `lk_app`-RLS-context van de tenant (INSERT-`WITH CHECK` eist
     `tenant_id = app.tenant_id`). De surrogate-PK `id` wordt door de DB gegenereerd."""
-    rows = [
-        {
-            **v,
+    # LI050 (ADR-022 W3) — categorieën eerst: eigen entiteit, afgeleid uit de baseline-data
+    # (distinct (componenttype, naam); volgorde = het historische categorie_nr). Idempotent
+    # op de naam-uniciteit; de vraag verwijst daarna via `categorie_id`.
+    alle_sets = [("applicatie", CHECKLIST_VRAGEN)] + [
+        (sleutel, startset) for sleutel, startset in _STARTSETS_PER_TYPE
+    ]
+    cat_rows: dict[tuple[str, str], dict] = {}
+    for ctype, vragenset in alle_sets:
+        for v in vragenset:
+            cat_rows.setdefault(
+                (ctype, v["categorie_naam"]),
+                {
+                    "tenant_id": tenant_id,
+                    "componenttype": ctype,
+                    "naam": v["categorie_naam"],
+                    "volgorde": v["categorie_nr"],
+                },
+            )
+    await session.execute(
+        pg_insert(ChecklistCategorie)
+        .values(list(cat_rows.values()))
+        .on_conflict_do_nothing(index_elements=["tenant_id", "componenttype", "naam"])
+    )
+    cat_id = {
+        (r.componenttype, r.naam): r.id
+        for r in (
+            await session.execute(
+                select(
+                    ChecklistCategorie.componenttype,
+                    ChecklistCategorie.naam,
+                    ChecklistCategorie.id,
+                )
+            )
+        ).all()
+    }
+
+    def _vraag_rij(v: dict, ctype: str, betekenis) -> dict:
+        # nr/naam blijven in de bron-data staan (leesbaar + volgorde-bron) maar reizen
+        # niet mee de tabel in — de verwijzing is `categorie_id`.
+        return {
+            "code": v["code"],
+            "vraag": v["vraag"],
             "tenant_id": tenant_id,
-            "componenttype": "applicatie",
+            "componenttype": ctype,
+            "categorie_id": cat_id[(ctype, v["categorie_naam"])],
             "prioriteit": ChecklistPrioriteit(v["prioriteit"]),
             # ADR-023 Fase F (F-3): de baseline draagt de betekenis al → fresh deploys zijn
             # meteen gelijk aan de gemigreerde stand. Alle rijen dezelfde sleutels (pg_insert).
-            "betekenis": v.get("betekenis"),
+            "betekenis": betekenis,
         }
-        for v in CHECKLIST_VRAGEN
-    ]
+
+    rows = [_vraag_rij(v, "applicatie", v.get("betekenis")) for v in CHECKLIST_VRAGEN]
     # LI058/LI060 — startsets per niet-applicatie beoordeelbaar type (database + de drie LI060-typen),
     # zelfde patroon (betekenis=None; antwoordtype via server_default `geen`). Aparte conflict-scope:
     # (tenant, componenttype, code) is per type uniek.
     type_rows = [
-        {
-            **v,
-            "tenant_id": tenant_id,
-            "componenttype": sleutel,
-            "prioriteit": ChecklistPrioriteit(v["prioriteit"]),
-            "betekenis": None,
-        }
+        _vraag_rij(v, sleutel, None)
         for sleutel, startset in _STARTSETS_PER_TYPE
         for v in startset
     ]

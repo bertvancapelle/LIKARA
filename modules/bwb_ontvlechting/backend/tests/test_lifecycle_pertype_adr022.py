@@ -76,8 +76,13 @@ async def _admin_exec(sql: str, params: dict | None = None, *, fetch: bool = Fal
 # (als lk_admin) zet expliciet de dev-tenant zodat de RLS-gescopete telling als lk_app
 # binnen die tenant de rij ziet.
 _INSERT_VRAAG = (
-    "INSERT INTO checklistvraag (tenant_id, componenttype, code, categorie_nr, categorie_naam, vraag, prioriteit) "
-    "VALUES (:tenant_id, 'database', :code, 1, 'Fase B test', 'Fase B test', 'hoog') RETURNING id"
+    # LI050: de vraag verwijst naar de bestaande database-categorie van de tenant
+    # (subselect; de categorie komt uit de seed/migratie en is geen test-fixture).
+    "INSERT INTO checklistvraag (tenant_id, componenttype, code, categorie_id, vraag, prioriteit) "
+    "VALUES (:tenant_id, 'database', :code, "
+    "(SELECT id FROM checklist_categorie WHERE tenant_id = :tenant_id "
+    " AND componenttype = 'database' LIMIT 1), "
+    "'Fase B test', 'hoog') RETURNING id"
 )
 
 

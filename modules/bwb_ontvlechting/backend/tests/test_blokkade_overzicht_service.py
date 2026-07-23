@@ -60,13 +60,14 @@ def test_allowlist_enum_kolommen_parsers_synchroon():
 
 def test_overzicht_levert_vraag_doorklik_verwijzing():
     """ADR-024-vervolg: de databron draagt `component_id` + `componenttype` (+ leesbaar
-    label via LEFT JOIN op de catalogus) + `vraag_code`, zodat de tenant-brede blokkadelijst
+    label via LEFT JOIN op de catalogus) + `vraag` (tekst, LI050 W4), zodat de tenant-brede blokkadelijst
     type-afhankelijk naar het juiste detailscherm + de checklistvraag kan doorklikken.
     Read-only navigatie-verwijzing; geen mutatie."""
     sess, _, _ = _run()
     sql = _sql(sess)
     assert "AS component_id" in sql
-    assert "AS vraag_code" in sql
+    assert "AS vraag_code" in sql  # intern deeplink-anker blijft in het contract
+    assert "AS categorie_volgorde" in sql  # LI050 (W4): sorteer-volgorde via de categorie
     assert "AS componenttype" in sql              # type-sleutel (applicatie vs. overig)
     assert "AS componenttype_label" in sql        # leesbaar type-label
     assert "componentconfig_optie" in sql         # LEFT JOIN op de platform-typecatalogus
@@ -145,6 +146,9 @@ def _rij(naam, verantwoordelijke_naam=None, verantwoordelijke_afdeling=None, ver
         componenttype="applicatie",
         componenttype_label="Applicatie",
         vraag_code="A1",
+        vraag="Vraag A1?",
+        categorie_id=uuid.uuid4(),
+        categorie_volgorde=1,
         status="open",
         toelichting=None,
         verantwoordelijke_naam=verantwoordelijke_naam,
@@ -161,7 +165,7 @@ def test_vorm_en_vervolgcursor():
     assert len(items) == 25
     assert set(items[0]) == {
         "id", "component_id", "applicatie_naam", "componenttype", "componenttype_label",
-        "vraag_code", "status", "toelichting", "verantwoordelijke_naam",
+        "vraag_code", "vraag", "categorie_id", "categorie_volgorde", "status", "toelichting", "verantwoordelijke_naam",
         "verantwoordelijke_afdeling", "verantwoordelijke_organisatie", "opgelost_op", "gewijzigd_op",
     }
     assert cursor is not None  # vervolgcursor want er was meer

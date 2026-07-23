@@ -161,6 +161,7 @@ def _row(**kw):
         checklistvraag_id=uuid.uuid4(),
         score="nee",
         vraag_code="1.1",
+        categorie_id=uuid.uuid4(),
         vraag="Wat is de naam van de applicatie?",
     )
     base.update(kw)
