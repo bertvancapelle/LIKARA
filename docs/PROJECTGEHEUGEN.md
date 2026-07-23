@@ -5,30 +5,74 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V050 · 2026-07-23
-- **Commit:** `d90629e` (opschoonplan) + de LI049-afsluitcommit. **~20 commits** deze sessie, elk per
-  opdracht apart geland. Kernstukken: `a225a63`+`6ccdd53` kopverwijzingen-scan · `ae3f9ca` verhuizing 1
-  (werkprotocol) · `94c5625` verhuizing 2 (P8-leesvolgorde) · `201092d`/`558f39d`/`87ab572`
-  tests-consolidatie · `3c7268a` verhuizing 3 (§Bronscans) · `d90629e` opschoonplan zeven skills.
-- **Tests:** backend **1221 passed / 2 skipped** (één run vanaf repo-root, incl. de nieuwe
-  kopverwijzingen-scan) · frontend **102 files / 1374 passed** · `vite build` ✅ · `test:css-build` ✅
-  (**14 scans**, elk met zelftest) · 0 kritieken.
-- **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). **Nul migraties** deze
-  sessie: LI049 was skill-consolidatie en borging — applicatiegedrag ongewijzigd.
-- **RLS:** 38× ENABLE ROW LEVEL SECURITY in de offline upgrade-SQL (TST-V050-telling); 0 afwijkingen.
-- **TST-rapport:** `docs/TST-V050-Validatierapport.md` (0 kritieken; geaccepteerd: git-❌ tijdens de
-  afsluitrun zelf en het vooruitgeschreven V050-nummer).
-- **Werktree:** schoon na de LI049-afsluitcommit.
-- **⚠ KOERS: er moet komende week een productieversie klaarstaan.** LI050 is daarom een
-  **productie-gereedheidsspoor** (read-only inventarisatie eerst); de skill-opschoning van de zeven
-  resterende skills is **uitgesteld, niet vervallen** — plan: `docs/Opschoonplan-zeven-skills.md`.
-- **⚠ Vier vóór-productie-punten staan canoniek in OPVOLGPUNTEN §"Nieuw uit LI049"** (P50-1 t/m
-  P50-4): checklistvraag-deactivering (poort + gevolg), namenkaart zonder paginering,
-  `organisatiegebruik.applicatie_id` (laatste goedkope moment), keuzelijsten beheerbaar vs. vast.
-- De zes browsercheck-draaiboeken uit LI048 staan nog open (structuur is machinaal gedekt;
-  uitlijning/tooltips/toetsenbordvolgorde niet).
+- **Build:** V051 · 2026-07-23
+- **Commit:** `e6c4cec` (rechtenanalyse) + de LI050-afsluitcommit. **9 commits** deze sessie, elk
+  per opdracht apart geland: `9d6adfc` werkprotocol bronplicht+afsluitregel · `2dc5592` checkpoint
+  productie-gereedheid · `181fa75` vraagbeheer beheerder-only (ADR-022 W2) · `4a452d8` categorie
+  als entiteit + indeling + code systeem-toegekend (W3/W4) · `ca6b063` engine: uitgezette vraag
+  telt niet mee · `ac3b92f` vraag-volgorde + sleep-bouwsteen (W5) · `e304955` ADR-056
+  vraagevolutie · `6ab1960` vraagbeheer-UX + optie-sleep-fix + wachters · `e6c4cec`
+  rechtenanalyse.
+- **Tests:** backend **1236 passed / 2 skipped** (repo-root, incl. kopverwijzingen-scan) ·
+  frontend **104 files / 1404 passed** · `vite build` ✅ · `test:css-build` ✅ (14 scans) ·
+  0 kritieken.
+- **Migratie-head:** `0075_li050_vraag_volgorde` (1 head, 0 branches). **Twee migraties** deze
+  sessie: `0074` checklist_categorie (eigen tenant-entiteit, RLS) · `0075` vraag-volgorde —
+  beide toegepast én reseed-consistent (0 verspringingen op 98 vragen).
+- **RLS:** 38× ENABLE ROW LEVEL SECURITY in de offline upgrade-SQL (TST-V051-telling).
+- **TST-rapport:** `docs/TST-V051-Validatierapport.md` (0 kritieken; geaccepteerd: de
+  kopstijl-afwijking die binnen de cyclus is gevonden én hersteld — zie L7).
+- **Werktree:** schoon na de LI050-afsluitcommit.
+- **⚠ KOERS blijft: productieversie.** Scherpste punt (checkpoint §2E → OPVOLGPUNTEN N50-2):
+  **31 `changeme_dev`-vindplaatsen + 9 testaccounts + code-defaults die stil doorvallen — niets
+  houdt dit tegen.** P50-1 is AFGEROND (poort beheerder-only + engine-gat gedicht); P50-2/P50-3
+  open; P50-4 gemeten, besluit open. Nieuw: N50-1 t/m N50-7 (OPVOLGPUNTEN §"Nieuw uit LI050").
+- **⚠ ADR-056 (vraagevolutie) is beslist, niet gebouwd** — 16 besluiten; sliceverdeling is de
+  eerste stap van het bouwspoor.
+- De zes browsercheck-draaiboeken uit LI048 staan nog open; skill-opschoning blijft uitgesteld
+  (`docs/Opschoonplan-zeven-skills.md`).
 
-## Deze sessie (LI049 — de skills weer één waarheid, met een wachter erbij) — AFGEROND
+## Deze sessie (LI050 — het vraagbeheer van de beheerder, en vragen mogen evolueren) — AFGEROND
+
+**Eén draad door alle opdrachten:** de checklist-vragenset werd van een seed-gegeven een
+beheerbaar tenant-instrument — wie erover gaat (beheerder-only), hoe hij is ingedeeld (categorie
+als entiteit, sleep-volgorde), wat de consultant ervan merkt (uitgezette vraag telt niet mee),
+en hoe hij mag evolueren (ADR-056). Elke bouwstap op gemeten grond (vijf read-only
+checkpoints/metingen), elk besluit van Bert.
+
+**Wat er is gebouwd:**
+- **ADR-022 W2-W5** (`181fa75`/`4a452d8`/`ac3b92f`): vraagbeheer beheerder-only (lezen breed);
+  `checklist_categorie` als eigen tenant-entiteit (composiet-FK RESTRICT, migratie 0074, weigering
+  mét telling bij verwijderen); vraagcode van het scherm (systeem-toegekend, `volgende_code`);
+  sleep-volgorde voor categorieën, vragen én antwoordopties via ÉÉN bouwsteen (`useSleepLijst`,
+  migratie 0075) — getalvelden weg (besluit: slepen is de enige bediening).
+- **Engine-regel** (`ca6b063`): "een uitgezette vraag bestaat voor de beoordeling niet" —
+  gedeelde afleiding `services/actieve_vraag.py` (5 consumenten, bronscan); dichtte de
+  checkpoint-gaten G2-1/G2-2 (migratieklaar-terwijl-checklist-leeg; onafsluitbare open punten).
+- **Vraagbeheer-UX** (`6ab1960`): één regel per vraag (kop van een omrand `lk-inhoudskader`-blok,
+  één tegelijk open), onderbouwing achter één klik, veldenrijen breken af, verwijderen in eigen
+  zone, selectie met eigen kanaal (accent + linkermarkering; hover neutraal), hernoemen als
+  handeling. **Optie-sleep-fix**: `<tr>`-rijen droegen HTML5-drag niet (audit-bewijs: 12
+  categorie-updates, 0 optie-updates) → lijstvorm.
+- **ADR-056 vraagevolutie** (`e304955`, beslist niet gebouwd): formulering bevroren bij het
+  antwoord; beheerder kiest verduidelijking vs. wijziging (nooit afgeleid; ook opties/labels);
+  verouderd = neutraal + wegwerkbaar per formulering; telt mee in Open punten (niet-blokkerend);
+  invariant: nooit blok "dit moet nog", nooit de score legen; verworpen: vraagversies, audit als
+  leeslaag; 16 besluiten incl. mockup-ronde (één opslaan-moment, geen voorselectie,
+  antwoordtype-slot, optie-heractiveren).
+- **Werkprotocol** (`9d6adfc`): bronplicht per bewering + afsluiten is Berts besluit.
+- **Drie nieuwe wachters met bijt-bewijs**: tabel-element-verbod op drag-gedrag ·
+  werkvlakgrens-scan (geen card-in-card + kader-klassen behouden hun rand) · precies-één-selectie.
+- **Vier skill-lessen** (na read-only validatie): welke-laag-bewijst-deze-toets (tests) ·
+  lees-de-definitie-niet-de-naam (frontend §werkvlak-rand) · selectie/aanwijzen/aanstip-kanalen
+  (frontend §Signaal-kanalen) · audit-trail-als-meetinstrument (werkprotocol §Browsercheck).
+
+**Werkwijze die zich bewees:** meten vóór bouwen (audit-trail als bewijs dat een browserhandeling
+de opslag nooit bereikte); stapelen alleen op expliciet besluit mét vangnet-stash; restdata-
+opruiming + herbereken vóór een suite-uitslag telt (2×); de code wint van het rapport (de
+"card = omrand werkvlak"-claim uit het eigen gate-rapport gecorrigeerd door meting).
+
+## Sessie LI049 (de skills weer één waarheid, met een wachter erbij) — AFGEROND
 
 **Eén draad door alle opdrachten:** negen skills waren op sessievolgorde gegroeid in plaats van op
 onderwerp, en verwijzingen ertussen waren onbewaakte beloften. LI049 bracht de twee drukst gelezen
@@ -181,24 +225,16 @@ inline in een lus stond en geen enkele toets hem oefende.
 - **LI042** — gate 4 brok 1 (datalaag, `heeft_gebruikersgroep` + 5e stand `werkvoorraad`), skill-vastlegging.
 - **LI041/LI040** — gate 2 koppelen + gate 3 vier standen + rollengrens ADR-050 · ADR-045/046.
 
-## Prioriteiten volgende sessie (LI050 = productie-gereedheidsspoor — zie NEXT_SESSION.md)
+## Prioriteiten volgende sessie (LI051 — zie NEXT_SESSION.md)
 
-**Er moet komende week een productieversie klaarstaan.** De skill-opschoning is uitgesteld
-(plan: `docs/Opschoonplan-zeven-skills.md`); de vier vóór-productie-punten staan canoniek in
-`docs/OPVOLGPUNTEN.md` §"Nieuw uit LI049".
-
-1. **Read-only inventarisatie productie-gereedheid** — de bestaande vóór-productie-lijst + P50-1
-   t/m P50-4 langs drie vragen: karakter veranderd? / nu gratis, later duur? / kan na livegang?
-   Rapport, geen bouw.
-2. **P50-1 Checklistvraag-deactivering meten** — de poort (welke permissie; consultant of
-   platformbeheer?) én het gevolg (gegeven antwoorden; telt de gedeactiveerde norm-vraag nog mee
-   in "Dit moet nog"?). Hoge urgentie, vóór livegang.
-3. **P50-2 Namenkaart zonder paginering meten** — waar, welke limiet (100, stil lege naam), welke
-   schermen; dan pas de fix-vorm.
-4. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit op het laatste goedkope
-   moment (schema-rakend → gate).
-5. **P50-4 Keuzelijsten-inventarisatie** — beheerbaar (catalogus) vs. code-/seedvast; de
-   protocol-lijst als aanleiding, ADR-026 als verwant patroon.
+1. **ADR-056 bouwen — sliceverdeling eerst** (vraagevolutie: bevroren formulering, één
+   opslaan-moment, verouderd-melding, optie-heractiveren, antwoordtype-slot; schema-rakend →
+   gates; subknopen in het ADR).
+2. **P50-2 Namenkaart zonder paginering** — meting klaar (checkpoint §2B); fix-vorm kiezen.
+3. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit, laatste goedkope moment.
+4. **Productie-hardening N50-2 (OP-14/OP-28)** — dev-secrets/testaccounts/code-defaults: niets
+   houdt ze tegen; hard vóór livegang.
+5. **Consultant-drempels (N50-5) + P50-4-besluit** (welke keuzelijsten beheerbaar horen).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.

@@ -426,6 +426,23 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   matchen tokens uit fragmenten (gesplitste `]`), behalve voor handgeschreven
   main.css-klassen (die kan Tailwind nooit zelf genereren). (LI035)
 
+## Welke laag bewijst deze toets — browser-gedrag vs. handler-keten (LI050)
+
+Het optie-slepen werkte in geen enkele browser terwijl 1394 tests groen stonden. De sleep-tests
+riepen de Vue-handlers rechtstreeks aan (`trigger('dragstart')`/`trigger('drop')`) — dat bewijst de
+JS-keten (pak → laatLos → herschik → PATCH), maar niets over de browser-mechaniek eronder: de rijen
+waren `<tr>`-elementen, en een tabelrij draagt HTML5-drag niet betrouwbaar. De toets bleef dus groen
+voor élke consument die het slepen technisch niet kón dragen.
+
+Regel: benoem bij elke toets wélke laag hij bewijst. Browser-gedrag dat jsdom/happy-dom niet
+naspeelt (drag & drop, native events, focus/scroll) borg je op de **renderlaag** — welke
+elementvorm draagt het gedrag — met een bronscan; en waar die laag niet zinvol toetsbaar is, is de
+**browsercheck het sluitpunt en dat staat expliciet in het gate-rapport** (stilzwijgend is het geen
+sluitpunt). Wachter (met bijt-bewijs): `sleepLijst.test.js` — drag-gedrag
+(`:draggable`/`@dragstart`/`@drop`) staat nooit op een tabel-element
+(`tr/td/th/thead/tbody/table/option`), over álle .vue-bestanden. Achteraf meten of een handeling de
+opslag bereikte: de audit-trail (likara-werkprotocol §Browsercheck vóór commit).
+
 ## Engine-borging — import-afwezigheid en de omgekeerde woord-scan
 
 - **Engine-onaangeroerd = dubbele regressie-borging** (machine-geborgd, niet beweerd): (a) **offline

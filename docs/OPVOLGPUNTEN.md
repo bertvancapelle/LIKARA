@@ -27,7 +27,13 @@ livegang meten. Twee read-only meetvragen:
   gedeactiveerde vraag die een organisatienorm eist nog mee in "Dit moet nog"? Risico: een open
   punt dat niemand kan dichten omdat de vraag weg is — precies de stille inconsistentie die het
   open-punten-overzicht moest voorkomen.
-Status: **open — meten vóór livegang.**
+Status: **AFGEROND (LI050).** Correctie op de verwachting: vraagbeheer is bewust een
+**tenant**-bevoegdheid, geen platformbeheer (`rbac.py`, ADR-022 W1 — checkpoint §5.1); de poort is
+in LI050 aangescherpt tot **beheerder-only** (ADR-022 W2, `181fa75`). Het gevolg-gat is gedicht:
+"een uitgezette vraag bestaat voor de beoordeling niet" — één gedeelde afleiding
+`services/actieve_vraag.py` voor tellen én tonen (engine, open punten, dashboard, blokkades,
+landschapskaart; `ca6b063`, met bijt-bewijs en end-to-end-test). Antwoorden blijven bestaan en
+worden weer zichtbaar bij heractiveren.
 
 **P50-2. Namenkaart zonder paginering (bestond al; karakter veranderd).**
 `KoppelingSectie.vue` (`_zorgCompNamen`) haalt maximaal 100 componenten op en toont bij
@@ -52,9 +58,49 @@ Daarna de functionele vraag: **welke lijsten hóren beheerbaar te zijn en welke 
 (Een gesloten set waar betekenis van afhangt — ArchiMate-elementen — mag vast; een
 koppelingsprotocol verschilt per landschap en is dan juist beperkend.) Verwant: **ADR-026**
 beschrijft dezelfde kwaal voor de ArchiMate-typering per componenttype — mogelijk hetzelfde
-patroon op meerdere plekken. Status: **open.**
+patroon op meerdere plekken. Status: **meting AFGEROND (LI050, checkpoint §2D: 31 keuzelijsten,
+protocol-lijst drievoudig code-vast, 0 beheerbare bronnen zonder scherm) — de functionele keuze
+welke lijsten beheerbaar hóren is een open besluit van Bert.**
 
-### Overig uit LI049 (sessiebalans)
+### Nieuw uit LI050 (2026-07-23) — checkpoint-kandidaten, correcties en vervolgpunten
+
+> **Context:** `docs/Checkpoint-productie-gereedheid-V050.md` (meting) en de LI050-sneden.
+> G2-1/G2-2 uit dat checkpoint (engine + "Dit valt op" × gedeactiveerde vragen) zijn in LI050
+> gedicht (`ca6b063`, zie P50-1 hierboven). Wat blijft:
+
+**N50-1. ADR-056 bouwen — vraagevolutie (beslist, niet gebouwd).** De formulering bevroren bij het
+antwoord; verduidelijking vs. echte wijziging (één opslaan-moment per vraag, besluit 13; geen
+voorselectie, besluit 16); verouderd = neutraal + wegwerkbaar per formulering; optie-heractiveren
+(besluit 15 — bestaat vandaag niet in schema/route); antwoordtype-slot mét reden (besluit 14).
+Open subknopen in het ADR (invoerings-vulling 267 antwoorden, opslag-vorm, stille notitie,
+meerkeuze-zonder-envelope). Schema-rakend → eigen gates. Status: **open — eerst sliceverdeling.**
+
+**N50-2. Dev-secrets houden niets tegen (scherpste punt checkpoint §2E; = OP-14/OP-28).**
+31 `changeme_dev`-vindplaatsen, 9 testaccounts in de realm, en drie **code-defaults** die in
+productie stil `changeme_dev` invullen als de env ontbreekt (`config.py:20/22/69`);
+`validate_startup_config` checkt alleen aanwézigheid, geen waarde. Niets scheidt dev- van
+productie-realm. Status: **open — hard vóór livegang.**
+
+**N50-3. Tenant-registry is leeg terwijl er tenant-data bestaat (checkpoint §G2-3).** Platform-
+brede backfills enumereren de registry en raken dan 0 tenants (stil overslaan). Provisioning-
+afspraak/inrichtingsregel vóór de eerste echte tenant; geen migratie. Status: **open.**
+
+**N50-4. Limit-100-stiltefamilie (checkpoint §G2-4/5).** `ChecklistscoreSectie` laadt scores met
+`limit: 100` (>100 vragen per type → antwoorden tonen stil als niet-gescoord — het vraagbeheer
+laat vragen toevoegen); gebruikersbeheer en het leveranciersfilter idem. Begrensd zolang de
+aantallen klein blijven. Status: **open — noteren bij P50-2-fixvorm (zelfde familie).**
+
+**N50-5. Consultant-drempels bij het antwoorden (meting LI050).** Bevinding/Verantwoordelijke/
+Actie zitten achter "eerst scoren" én een uitklappijltje; het Antwoord-veld ontbreekt bij 71 van
+de 98 vragen (antwoordtype 'geen') — bestaand gedrag, maar wél waarom Bert de velden miste.
+Status: **open — UX-weging.**
+
+**N50-6. Contextpaneel hangt aan categorie-volgorde 8** (`ComponentDetail.vue:752`) — sinds W5
+versleept de beheerder die volgorde; betekenis-markering op de categorie is de echte vorm.
+Status: **open.**
+
+**N50-7. Auditlog toont `categorie_id` als kale id** in wijzigingsregels (sinds W3/0074) —
+leesbaarheid van het logboek. Status: **open — klein.**
 
 - **Dode verwijzing `schemas/applicatie.py`** in likara-backend (r151 + r342) — bestand
   opgeheven bij LI059; de helpers leven vermoedelijk in `schemas/_validators.py` (eerst
@@ -383,7 +429,13 @@ L7. **De css-build-poort draait pas bij de closeout, niet vóór een commit.** D
    een veldnorm-schending landen in `78ffd5e` (de gate-3 oordeel-select) en pas uren later
    zichtbaar worden — een gat in de commit-discipline, geen codebug. Overweeg de poort naar
    de per-commit-groencheck te halen: een regel die pas aan het eind bijt, laat schuld
-   ontstaan. (De schending zelf is gedicht in `6d1b3fc`.) Status: **open**.
+   ontstaan. (De schending zelf is gedicht in `6d1b3fc`.) Status: **open — met vers bewijs
+   (LI050):** het gebeurde opnieuw — een kopstijl-afwijking (h2 met eigen maat/gewicht) landde
+   in `6ab1960` omdat de UX-gates alleen vitest + vite build draaiden, en werd pas bij de
+   TST-cyclus gevangen (hersteld in de V051-afsluitcommit). Bewust NIET als skill-regel
+   vastgelegd (proceskeuze die elke gate verzwaart — besluit Bert): kies hier tussen
+   `test:css-build` in de gate-verificatieset van frontend-sneden, een pre-push-hook, of
+   laten zoals het is.
 
 0a. **Eén taal voor afwezigheid — sentinel-inventarisatie (LI040 §1.3).** `migratiepad.
    onbekend` is opgeruimd (migratie 0067); de rest is read-only geïnventariseerd en
@@ -1850,9 +1902,12 @@ Besluit Bert: in een volgende sessie oppakken. Doel nog te bepalen (demo/test vs
 Raakt: **OP-14** (secrets-hardening — overal `changeme_dev` vervangen door echte secrets); een
 **productie-compose-variant** + reverse proxy/HTTPS (alleen 80/443 open); **Keycloak
 production-mode** (`KC_HOSTNAME`, redirect-URI's/CORS op het echte domein i.p.v. localhost);
-**offsite backups** (de pg_dump-keten bestaat al en is sinds CD055 Keycloak-vrij). Bij een
+**offsite backups** (de pg_dump-keten bestaat al en is sinds CD055 Keycloak-vrij). ~~Bij een
 **productie**-doel zijn **ADR-006** (audit-trail) en **#16** (user-/tenantmanagement)
-voorwaarden. EU-jurisdictie-VPS conform de platform-uitgangspunten.
+voorwaarden.~~ **Correctie (LI050, checkpoint §5.4): beide zijn gebouwd** (`backend/app/core/
+audit.py`; `GebruikersbeheerView.vue`) — de resterende productie-voorwaarden zijn de
+secrets-hardening (N50-2/OP-14) en de compose/Keycloak/HTTPS-inrichting hierboven.
+EU-jurisdictie-VPS conform de platform-uitgangspunten.
 
 ### OP-22 — Backup-scope / secops: Keycloak-secrets in de DB-dump — AFGEROND (geverifieerd CD055)
 

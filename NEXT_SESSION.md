@@ -1,119 +1,99 @@
-# NEXT_SESSION.md — LIKARA V050
+# NEXT_SESSION.md — LIKARA V051
 
 **Gegenereerd**: 2026-07-23
-**Vorige build**: V049 → **V050**
+**Vorige build**: V050 → **V051**
 **Branch**: master
-**Laatste commits (LI049)**: `a225a63`+`6ccdd53` kopverwijzingen-scan · `ae3f9ca` verhuizing 1
-(werkprotocol-sessiekoppen) · `94c5625` verhuizing 2 (P8-leesvolgorde) · `201092d`/`558f39d`/
-`87ab572` tests-consolidatie · `3c7268a` verhuizing 3 (§Bronscans) · `ff754eb` P8a-telling ·
-`049c4c9` LI036-kaartregel · `cc93de3` mjs-verwijzing · `5c4879a` UX-first-Kernprincipe ·
-`d90629e` opschoonplan
+**Laatste commits (LI050)**: `9d6adfc` werkprotocol bronplicht+afsluitregel · `2dc5592` checkpoint
+productie-gereedheid · `181fa75` vraagbeheer beheerder-only (ADR-022 W2) · `4a452d8` categorie als
+entiteit + indeling + code systeem-toegekend (W3/W4, migratie 0074) · `ca6b063` engine: uitgezette
+vraag telt niet mee (actieve_vraag) · `ac3b92f` vraag-volgorde + sleep-bouwsteen (W5, migratie
+0075) · `e304955` ADR-056 vraagevolutie + checkpoint-grond · `6ab1960` vraagbeheer-UX
+(leesbaar/bedienbaar + optie-sleep-fix + wachters) · `e6c4cec` rechtenanalyse-rapport
 
-> **Sessie LI049 — de skills zijn weer één waarheid, en er staat voortaan een wachter bij.**
+> **Sessie LI050 — het vraagbeheer is van de beheerder, leesbaar, en bedienbaar met slepen; en
+> ADR-056 legt vast hoe vragen mogen evolueren.**
 >
-> Wat er ná LI049 anders is:
-> - **Elke `skill §kop`-verwijzing wordt machinaal bewaakt** (kopverwijzingen-scan, in de
->   backend-suite; ving zich al drie keer op nieuw werk). Vijf beperkingen + werking staan in de
->   scan zelf gedocumenteerd.
-> - **`werkprotocol` en `tests` zijn volledig op onderwerp geordend** (0 chronologische koppen);
->   de bronscan-eisen staan canoniek in `likara-tests §Bronscans`; dubbelingen zijn per geval
->   naar één bron gebracht met bewaakte verwijzingen.
-> - **De resterende opschoning (7 skills, 82 koppen, 37%) is gemeten en gepland** —
->   `docs/Opschoonplan-zeven-skills.md` — maar **uitgesteld** (zie hieronder).
+> Wat er ná LI050 anders is:
+> - **Vraagbeheer is beheerder-only** (lezen blijft breed) en de **categorie is een eigen
+>   tenant-entiteit** met composiet-FK; de **vraagcode is van het scherm** (systeem-toegekend);
+>   vragen en categorieën hebben een **sleep-volgorde** (migraties 0074+0075).
+> - **De engine negeert uitgezette vragen** ("een uitgezette vraag bestaat voor de beoordeling
+>   niet") via één gedeelde afleiding `services/actieve_vraag.py` — dit dichtte de
+>   checkpoint-gaten G2-1/G2-2 (scores op gedeactiveerde vragen telden mee; dode routes in
+>   "Dit valt op").
+> - **Het beheerscherm is leesbaar**: één regel per vraag (kop van een omrand blok,
+>   `lk-inhoudskader`), onderbouwing achter één klik, één vraag tegelijk open, selectie met een
+>   eigen kanaal; **optie-slepen gerepareerd** (tabelrijen droegen HTML5-drag niet — audit-bewijs).
+> - **Drie nieuwe wachters met bijt-bewijs**: sleep-bronscan + tabel-element-verbod ·
+>   werkvlakgrens-scan (geen card-in-card) · precies-één-selectie.
+> - **ADR-056 (vraagevolutie) is beslist, niet gebouwd** — 16 besluiten incl. mockup-ronde.
 
 ---
 
-## LI050 = productie-gereedheidsspoor
+## Top-5 prioriteiten LI051
 
-**Er moet komende week een productieversie van LIKARA klaarstaan.** Daardoor kantelt de
-planning: geen skill-opschoning, maar productie-gereedheid.
-
-### Eerste stap: read-only inventarisatie — wat moet er écht vóór productie in
-
-De bestaande "vóór productie"-lijst is opgesteld toen "geen actieve gebruikers, alleen
-testdata" nog gold. Die aanname vervalt. Per bestaand vóór-productie-punt vaststellen:
-
-- is het **van karakter veranderd** nu er echte gebruikers en echte data komen (wat in
-  ontwikkelmodus een curiositeit was, kan in productie een risico zijn);
-- is het **nu nog gratis** en later duur (schemastappen zijn kosteloos zolang er geen
-  productiedata is; daarna zijn het datamigraties);
-- of is het **na livegang net zo goed te doen**.
-
-Pas op die geverifieerde grond bouwen — niet ervoor. De vier scherpste kandidaten staan
-canoniek in `docs/OPVOLGPUNTEN.md` §"Nieuw uit LI049" (P50-1 t/m P50-4): de
-checklistvraag-deactivering (poort + gevolg), de namenkaart zonder paginering, de
-`organisatiegebruik.applicatie_id`-schemastap (laatste goedkope moment), en de
-keuzelijsten-inventarisatie (beheerbaar vs. code-vast; verwant ADR-026).
-
-### De skill-opschoning is UITGESTELD, niet vervallen
-
-De volledige route ligt vast in **`docs/Opschoonplan-zeven-skills.md`**: de gemeten kaart
-(7 skills, 82 chronologische koppen, 37% van alle skill-tekst), het bewezen vier-stappen-recept,
-de vijf-blokken-indeling met pauzepunten, en de hygiëneborging in drie verankeringen. Het is
-vindbaarheids-hygiëne, geen fout-herstel — het blokkeert geen bouwwerk en uitstellen kost niets
-behalve tijd.
-
-Wanneer hij wél draait: **eerste stap is het borgingsbesluit + de kop-vorm-scan** (verankering
-3), anders keert de kwaal vrij terug. ⚠ De kop-vorm-scan kan **niet** vooruit gebouwd worden
-als rem: hij staat meteen rood op de 82 bestaande koppen. Volgorde blijft: eerst opschonen, dan
-borgen.
-
----
-
-## Top-5 prioriteiten LI050
-
-1. **Read-only inventarisatie productie-gereedheid** — de bestaande vóór-productie-lijst +
-   P50-1 t/m P50-4 langs de drie vragen (karakter veranderd / nu gratis / kan later). Rapport,
-   geen bouw.
-2. **P50-1 Checklistvraag-deactivering meten** — poort (permissie) én gevolg (antwoorden +
-   "Dit moet nog") — vóór livegang.
-3. **P50-2 Namenkaart-limiet meten** — waar, welke limiet, welke schermen; dan pas de fix-vorm.
-4. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit op het laatste goedkope
-   moment (gate).
-5. **P50-4 Keuzelijsten-inventarisatie** — beheerbaar vs. vast; protocol-lijst als aanleiding,
-   ADR-026 als verwant patroon.
+1. **ADR-056 bouwen — sliceverdeling eerst.** De formulering bevroren bij het antwoord,
+   verduidelijking vs. echte wijziging (één opslaan-moment per vraag, geen voorselectie),
+   verouderd = neutraal + wegwerkbaar, optie-heractiveren, antwoordtype-slot mét reden.
+   Open subknopen staan in het ADR (o.a. invoerings-vulling van de 267 antwoorden, de
+   beheerder-UI voor tekstbewerking). Schema-rakend → gates.
+2. **P50-2 Namenkaart zonder paginering** — gemeten (checkpoint §2B: 1 echte treffer + 2
+   verwante); nu de fix-vorm kiezen (niet de limiet ophogen).
+3. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit op het laatste goedkope
+   moment (gate); checkpoint §2C somt de 7 verwante "applicatie"-namen op.
+4. **Productie-hardening (OP-14/OP-28, scherpste punt van het checkpoint):** 31
+   `changeme_dev`-vindplaatsen + 9 testaccounts + drie code-defaults die in productie stil
+   doorvallen — **niets houdt dit tegen** (`validate_startup_config` checkt alleen aanwezigheid).
+   Let op: de voorwaarden-zin bij OP-28 is gecorrigeerd (ADR-006 en gebruikersbeheer zijn al
+   gebouwd).
+5. **Consultant-drempels + P50-4-besluit.** De twee drempels (Bevinding/Verantwoordelijke/Actie
+   achter "eerst scoren" + uitklap; Antwoord-veld ontbreekt bij 71/98 vragen zonder antwoordtype)
+   — benoemd vervolgpunt uit de meting; en het functionele besluit welke keuzelijsten beheerbaar
+   horen (meting klaar, checkpoint §2D: 31 lijsten, protocol drievoudig code-vast).
 
 ---
 
 ## Openstaande beslissingen
 
-- **P50-3**: de kolom-hernoeming is schema-rakend — eigen gate, eigen besluit.
-- **Import-lijn Tiel**: persoonsnamen in de bron (overnemen / functie / leeg) — geparkeerd.
-- **Opschoonplan deel 2**: kop-vorm wél of niet machinaal borgen — beslist pas wanneer de
-  opschoning start.
-- **Demostand uittredende deelnemer**: startstap (read-only checkpoint op de dev-seed-knip)
-  kan onafhankelijk van het productiespoor worden ingepland.
+- **ADR-056 subknopen** (bij de bouw): invoerings-vulling, opslag-vorm in detail, plek stille
+  notitie, meerkeuze-zonder-envelope.
+- **P50-3**: kolom-hernoeming — eigen gate, eigen besluit.
+- **P50-4**: welke keuzelijsten hóren beheerbaar (meting klaar; functionele keuze).
+- **G2-3 tenant-registry**: provisioning-afspraak vóór de eerste echte tenant (registry is leeg
+  terwijl er tenant-data bestaat — platform-brede backfills raken 0 tenants).
+- **L7 css-poort**: de css-build-controle draait pas bij de afsluiting — deze sessie mét bewijs
+  (kopstijl-afwijking landde in `6ab1960`, pas bij de TST gevangen). Proceskeuze Bert.
+- **Contextpaneel** hangt nog aan categorie-volgorde 8 (`ComponentDetail.vue:752`) — sinds W5
+  kan de beheerder die volgorde verslepen; betekenis-markering op de categorie is de echte vorm.
+- **Import-lijn Tiel** (persoonsnamen) — geparkeerd. **Opschoonplan 7 skills** — uitgesteld
+  (route in `docs/Opschoonplan-zeven-skills.md`). **Demostand uittredende deelnemer** — kan
+  onafhankelijk ingepland.
 
 ---
 
 ## Bekende risico's en aandachtspunten
 
-- **Suites groen:** backend **1221 passed / 2 skipped** (incl. kopverwijzingen-scan) · frontend
-  **102 files / 1374 passed** · vite build OK · css-build 14× OK (alle zelftests bijten) ·
-  alembic **1 head** (`0073`), 0 branches · TST-V050: **0 kritieken**.
-- **Migraties in LI049: 0** — de hele sessie was skill-/borging-werk; applicatiegedrag
-  ongewijzigd.
-- **De scan bewaakt verwijzingen, niet kop-vorm of dubbelingen** — de chronologie-kwaal in de 7
-  resterende skills blijft onbewaakt tot het opschoonplan draait (bewust, zie hierboven).
-- **Kop-naam-collisions** in backend/frontend/ux maken sommige `§`-verwijzingen ambigu
-  (OPVOLGPUNTEN); geen actieve verwijzing raakt er nu een.
-- **Tellingen in gate-rapporten zijn momentopnamen** — hermeten binnen de context blijft de
-  regel (werkprotocol §Meet tenant-data).
+- **Suites groen (TST-V051, 0 kritieken):** backend **1236 passed / 2 skipped** (incl.
+  kopverwijzingen-scan) · frontend **1404 passed / 104 files** · vite build OK · css-build
+  14 scans OK · alembic **1 head** (`0075`), 0 branches, 38× RLS.
+- **Migraties deze sessie: 2** (0074 checklist_categorie · 0075 vraag-volgorde) — beide
+  toegepast én reseed-consistent bewezen (0 verspringingen).
+- **Auditlog toont `categorie_id` als kale id** in wijzigingsregels (sinds W3) — leesbaarheid.
+- **Restdata-les:** een actieve testvraag van een browsercheck maakt lifecycle-tests rood;
+  opruimen + herbereken vóór de suite-uitslag telt (2× gebeurd deze sessie).
+- De **dev-server-herstart met cache-leging**: `rm` staat in de deny-lijst — `npm run dev --
+  --force` is de werkende weg (of `find … -delete`, zie werkprotocol).
 
 ---
 
-## Geleerde patronen deze sessie
+## Geleerde patronen deze sessie (verankerd in de skills)
 
-Verankerd in de skills/scan zelf (het sessiewerk wás skill-onderhoud); de scherpste:
-
-- **Een verwijzing zonder bewaking is een belofte zonder houder** — de scan maakte 54–56
-  verwijzingen hard en ving drie echte breuken vóór ze landden.
-- **Verbatim verhuizen is bewijsbaar**: multiset-gelijkheid ("eruit = erin") maakt "geen letter
-  anders" een assert i.p.v. een belofte (verhuizing 2, tests-stap 1).
-- **De code wint van het rapport — ook van het eigen rapport**: drie keer gecorrigeerd
-  (LI044-vet-anker "niet dood" · checkpoint-regelnummer over een regeleinde · "derde/derde"
-  bleek met git-archeologie twee wáre tellingen).
-- **Waar zoekt de gebruiker de regel** is de beslisregel die élke dubbeling-keuze deze sessie
-  besliste — canoniek daar, elders één bewaakte verwijzing.
-- **Een voltooide to-do die als open leest is een onwaarheid** (de ADR-040-onderhoudszin;
-  de "(a) nog open"-notitie) — bij langslopen herstellen, niet laten staan.
+- **Welke laag bewijst deze toets** (likara-tests): handler-tests bewijzen de JS-keten, niet de
+  browser-mechaniek — 1394 groen terwijl het optie-slepen nergens werkte; borg op de renderlaag
+  (tabel-element-verbod) en benoem de browsercheck expliciet als sluitpunt.
+- **Lees de definitie, niet de naam** (likara-frontend §werkvlak-rand): `card` draagt geen rand —
+  wachter `werkvlakGrens.scan.test.js` (geen card-in-card).
+- **Selectie · aanwijzen · aanstip zijn drie kanalen** (likara-frontend §Signaal-kanalen): twee
+  bijna gelijke tinten op één kanaal maken selectie onleesbaar.
+- **De audit-trail is het meetinstrument** voor "bereikte de browserhandeling de opslag"
+  (likara-werkprotocol §Browsercheck): 12 categorie-updates, 0 optie-updates = bewijs in één blik.

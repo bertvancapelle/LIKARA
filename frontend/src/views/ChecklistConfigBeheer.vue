@@ -475,7 +475,8 @@ laad()
         aria-label="Categorieën"
         class="card border border-[var(--lk-color-border-sterk)] w-72 shrink-0 flex flex-col gap-[var(--lk-space-xs)]"
       >
-        <h2 class="font-semibold text-[length:var(--lk-text-sm)]">Categorieën</h2>
+        <!-- Kopstijl uit de basislaag (css-build-scan): geen eigen maat/gewicht per scherm. -->
+        <h2>Categorieën</h2>
         <ul class="flex flex-col gap-[2px]">
           <!-- LI050 (W5): volgorde verzet je door te SLEPEN — de enige bediening
                (besluit Bert; het getalveld is bewust vervallen). Gedeelde bouwsteen. -->

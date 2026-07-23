@@ -424,6 +424,14 @@ door een harde refresh. Les LI046: een dagenlang draaiende Vite-server serveerde
 de browser toonde oud gedrag terwijl de suite terecht groen was — de bevinding leek een codebug
 en was er (deels) geen. Zonder stap 0 is een browserbevinding niet interpreteerbaar.
 
+**De audit-trail is het meetinstrument voor "heeft de browserhandeling de opslag bereikt" (LI050).**
+Raad het niet uit de eindstand — die kan óók door aanmaken of reseed verklaard zijn (de
+optie-volgordes 1..3 waren puur de aanmaakstand, geen sleep-bewijs). Lees als lk_app met
+tenant-context de `audit_log` op entiteit_type + tijdvenster: het optie-sleep-lek was in één blik
+bewezen — 12 categorie-volgorde-updates en 0 optie-updates in dezelfde browsersessie, dus de
+handeling bereikte de API nooit. Werkt voor élke gemuteerde entiteit: de capture-hook (ADR-006)
+logt ze allemaal, met `{veld: {oud, nieuw}}` en tijdstip.
+
 **Een bestandsoperatie doet niet wat hij leest — toon eerst, verifieer daarna (LI046/LI047).**
 Vier instrumenten, dezelfde faalfamilie:
 - een **glob die breder matcht dan hij oogt**: `?` en `*` zijn in `-name` wildcards, dus

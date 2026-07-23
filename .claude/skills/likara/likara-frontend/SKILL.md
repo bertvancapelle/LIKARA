@@ -306,6 +306,19 @@ is de sluipweg die anders niemand opmerkt) plus de bovengrens; `check-css-build.
 (`werkvlak-sterke-rand`) toetst dat de bouwsteen de sterke token daadwerkelijk draagt in de
 gebouwde CSS.
 
+**Lees de definitie, niet de naam — `card` is géén omrand werkvlak (LI050).** De gebruiker zag geen
+blok per vraag, alleen tussenruimte: het vraagblok had de kaart-klasse gekregen als "het bestaande
+patroon voor een omrand werkvlak" — maar `card` draagt in main.css **geen rand**, alleen surface +
+5%-schaduw (en een eigen onder-marge, die bovenop een lijst-gap een dubbele tussenruimte geeft).
+Genest in een andere kaart is dat wit-op-wit (1,00:1): onzichtbaar. Wie een klasse als patroon
+aanvoert, leest éérst de definitie — de naam belooft soms meer dan de definitie levert. De juiste
+vormen in de lijntaal hierboven: buitenste vlak → sterke rand; blok **bínnen** een werkvlak →
+`lk-inhoudskader` (échte 1px `--lk-color-border`). Wachter (met bijt-bewijs):
+`frontend/tests/werkvlakGrens.scan.test.js` — geen `card` binnen een `card`, over álle
+.vue-templates (token-grens: `var(--lk-radius-card)` geeft géén vals alarm), én de kader-klassen
+(`lk-inhoudskader`, `lk-tabvlak`) behouden hun rand in main.css. Eerlijk bereik: een top-level
+`card` op de paginatint valt er bewust buiten (bestaand breed patroon, eigen weging).
+
 ⚠ **`.card` draagt géén rand** (alleen `--lk-shadow-sm`) en beweegt dus niet mee — zie
 OPVOLGPUNTEN. Lijstschermen en de kaart hebben op dit moment helemaal geen omrand werkvlak.
 
@@ -1650,6 +1663,15 @@ ongeluk "fixt". Waar het zit (`LandschapskaartView.vue`):
   kaart-invulling van de kanaal-scheidingsregel hierboven; de legenda beweegt mee (§Uitklapbare
   legenda). "Welk kanaal bezet ik?" hoort als checkvraag vóór elke vorm-keuze (likara-werkprotocol
   §Adversariële checkvraag · UI-/vorm-toepassing).
+- **Lijst-schermen kennen dezelfde kanaal-scheiding: selectie · aanwijzen · aanstip (LI050).** Op
+  Berts scherm lazen drie categorieën als geselecteerd terwijl er één open stond — selectie-accent
+  (`--lk-color-accent` #E8F0FB) en hover (`--lk-color-primary-50` #E6F1FB) waren onzichtbaar
+  verschillend blauw, dus élke aangewezen rij las als selectie. Twee bijna gelijke tinten op één
+  kanaal maken selectie onleesbaar. Vaste toewijzing: **selectie** = accent-VULLING + 4px
+  linkermarkering in primary; **aanwijzen** (hover) = het neutrale grijze tabelrij-kanaal
+  (`--lk-color-bg-hover`); **aanstip** ("kijk hier", tijdelijk) = oranje `lk-aangestipt`. Zelfde
+  checkvraag als bij de kaart: welk kanaal bezet ik, en is hij vrij op dít scherm? Borging:
+  precies-één-selectie-test (aria-current + accent-telling, ChecklistConfigBeheer.test.js).
 - **Lege uitkomst ≠ fout — de aanbodStaat-vorm (BedrijfsfunctieLijst, inleesdialoog).** Eén
   enum-ref (`'laden'|'fout'|'leeg'|'ok'`), op precies één plek per pad gezet; de template
   vertakt er exclusief op. 'Fout' (aanroep faalde → rood) en 'leeg' (aanroep slaagde, niets →
