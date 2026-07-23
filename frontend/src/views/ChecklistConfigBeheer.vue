@@ -11,6 +11,12 @@
  * (identiteit-anker voor de deeplink) en wordt bij aanmaken door het systeem
  * toegekend (W4).
  *
+ * Leesbaarheid (LI050-ergonomie): rechts staat één REGEL per vraag — tekst +
+ * actieve staat; dicht is de rusttoestand. De onderbouwing (antwoordtype,
+ * betekenis, antwoordopties) verschijnt pas na openklappen. Slepen werkt op de
+ * ingeklapte regels; een geopende vraag is bewust niet sleepbaar (HTML5-drag op
+ * een voorouder kaapt anders het selecteren/typen in de velden eronder).
+ *
  * Rechten (W2): iedereen leest; alleen de beheerder ziet bewerk-affordances.
  */
 import { computed, reactive, ref, watch } from 'vue'
@@ -46,10 +52,17 @@ const actieFout = ref(null)
 const typeKeuze = ref('')
 const geselecteerdeCategorieId = ref(null)
 
-const nieuweOptie = reactive({}) // vraag-id -> { optie_sleutel, label, volgorde }
+const nieuweOptie = reactive({}) // vraag-id -> { optie_sleutel, label } — volgorde: achteraan, daarna slepen
 // W4: geen code-invoer meer — het systeem kent de code toe.
 const nieuweVraag = reactive({ vraag: '' })
 const nieuweCategorie = reactive({ naam: '' })
+
+// LI050-ergonomie: dicht is de rusttoestand, en ÉÉN vraag tegelijk open — openen
+// sluit de vorige, zodat er nooit twijfel is welke velden bij welke vraag horen.
+const openVraagId = ref(null)
+function toggleVraag(vraag) {
+  openVraagId.value = openVraagId.value === vraag.id ? null : vraag.id
+}
 
 // Categorieën van het gekozen type, in hun volgorde.
 const typeCategorieen = computed(() =>
@@ -237,13 +250,14 @@ async function voegToe(vraag) {
   if (!buf?.optie_sleutel || !buf?.label) return
   actieFout.value = null
   try {
+    // LI050-ergonomie: geen getalveld — een nieuwe optie komt achteraan; daarna slepen.
     const optie = await api.checklistconfig.voegOptieToe(vraag.id, {
       optie_sleutel: buf.optie_sleutel,
       label: buf.label,
-      volgorde: Number.parseInt(buf.volgorde, 10) || 0,
+      volgorde: Math.max(0, ...vraag.opties.map((o) => o.volgorde || 0)) + 1,
     })
     vraag.opties.push(optie)
-    nieuweOptie[vraag.id] = { optie_sleutel: '', label: '', volgorde: 0 }
+    nieuweOptie[vraag.id] = { optie_sleutel: '', label: '' }
   } catch (e) {
     _toonFout(e)
   }
@@ -252,10 +266,8 @@ async function voegToe(vraag) {
 async function bewaarOptie(vraag, optie) {
   actieFout.value = null
   try {
-    const updated = await api.checklistconfig.wijzigOptie(optie.id, {
-      label: optie.label,
-      volgorde: Number.parseInt(optie.volgorde, 10) || 0,
-    })
+    // Alleen het label — de volgorde is van de sleep-bouwsteen (LI050-ergonomie).
+    const updated = await api.checklistconfig.wijzigOptie(optie.id, { label: optie.label })
     _vervangOptie(vraag, updated)
     toast.add({ severity: 'success', summary: 'Opgeslagen', detail: `Optie ${updated.optie_sleutel}.`, life: 3000 })
   } catch (e) {
@@ -274,7 +286,7 @@ async function deactiveer(vraag, optie) {
 }
 
 function buffer(id) {
-  if (!nieuweOptie[id]) nieuweOptie[id] = { optie_sleutel: '', label: '', volgorde: 0 }
+  if (!nieuweOptie[id]) nieuweOptie[id] = { optie_sleutel: '', label: '' }
   return nieuweOptie[id]
 }
 
@@ -342,11 +354,52 @@ const vraagSleep = useSleepLijst({
   naSucces: () => toast.add({ severity: 'success', summary: 'Volgorde', detail: 'Volgorde bewaard.', life: 3000 }),
 })
 
-// Hernoem-buffer voor de geopende categorie (pas opslaan schrijft).
+// LI050-ergonomie: de antwoordopties zijn de DERDE consument van de bouwsteen —
+// elke opties-lijst (per vraag) een eigen instantie, zonder de bouwsteen te verbuigen.
+// Afgeleide sets slepen niet (structuur vast); dat gate de template, zoals rol-gating.
+async function _herschikOpties(vraagId, ids) {
+  actieFout.value = null
+  const vraag = vragen.value.find((v) => v.id === vraagId)
+  if (!vraag) return
+  try {
+    const huidige = new Map(vraag.opties.map((o) => [o.id, o.volgorde]))
+    for (const [i, id] of ids.entries()) {
+      if (huidige.get(id) !== i + 1) {
+        const updated = await api.checklistconfig.wijzigOptie(id, { volgorde: i + 1 })
+        _vervangOptie(vraag, updated)
+      }
+    }
+    vraag.opties.sort((a, b) => (a.volgorde ?? 0) - (b.volgorde ?? 0))
+  } catch (e) {
+    _toonFout(e)
+  }
+}
+
+const _optieSleepPerVraag = new Map()
+function optieSleep(vraag) {
+  if (!_optieSleepPerVraag.has(vraag.id)) {
+    _optieSleepPerVraag.set(vraag.id, useSleepLijst({
+      haalIds: () => (vragen.value.find((v) => v.id === vraag.id)?.opties || []).map((o) => o.id),
+      herschik: (ids) => _herschikOpties(vraag.id, ids),
+      naSucces: () => toast.add({ severity: 'success', summary: 'Volgorde', detail: 'Volgorde bewaard.', life: 3000 }),
+    }))
+  }
+  return _optieSleepPerVraag.get(vraag.id)
+}
+
+// Hernoemen is een HANDELING (LI050): de knop opent het veld, opslaan of annuleren
+// sluit het weer — geen permanent invoerveld dat als bewerkstand leest.
 const hernoemNaam = ref('')
+const hernoemActief = ref(false)
 watch(geopendeCategorie, (cat) => {
   hernoemNaam.value = cat?.naam ?? ''
+  hernoemActief.value = false // categorie-wissel sluit een openstaande hernoem-handeling
 })
+
+function startHernoem() {
+  hernoemNaam.value = geopendeCategorie.value?.naam ?? ''
+  hernoemActief.value = true
+}
 
 async function hernoemCategorie() {
   const cat = geopendeCategorie.value
@@ -355,6 +408,7 @@ async function hernoemCategorie() {
   try {
     await api.checklistconfig.wijzigCategorie(cat.id, { naam: hernoemNaam.value })
     toast.add({ severity: 'success', summary: 'Opgeslagen', detail: `Categorie ${hernoemNaam.value}.`, life: 3000 })
+    hernoemActief.value = false
     // Hernoemen raakt de categorie-naam op élke vraag-read → beide herladen.
     await laad()
   } catch (e) {
@@ -414,10 +468,12 @@ laad()
 
     <div class="flex gap-[var(--lk-space-md)] items-start">
       <!-- ── Linkerkolom: de categorieën van het gekozen type ─────────────────── -->
+      <!-- LI048-regel: de BUITENrand van een werkvlak is de sterkste lijn op het scherm;
+           alles daarbinnen is lichter. Beide buitenvlakken dragen daarom de sterke rand. -->
       <aside
         data-testid="cfg-categorie-kolom"
         aria-label="Categorieën"
-        class="card w-72 shrink-0 flex flex-col gap-[var(--lk-space-xs)]"
+        class="card border border-[var(--lk-color-border-sterk)] w-72 shrink-0 flex flex-col gap-[var(--lk-space-xs)]"
       >
         <h2 class="font-semibold text-[length:var(--lk-text-sm)]">Categorieën</h2>
         <ul class="flex flex-col gap-[2px]">
@@ -433,15 +489,21 @@ laad()
             @dragover.prevent
             @drop.prevent="magBeheren && catSleep.laatLos(cat.id)"
           >
+            <!-- Selectie = een EIGEN kanaal (LI050): gevulde accent-achtergrond + 4px
+                 linkermarkering in primary — geen omtrek-rand (de randen dragen op dit
+                 scherm al betekenis: zwaar = werkvlak, licht = kader). Aanwijzen gebruikt
+                 het bestaande neutrale hover-grijs van tabelrijen (main.css) — duidelijk
+                 lichter dan de selectie; de oude hover was hetzelfde blauw als de selectie
+                 en dáárdoor lazen meerdere rijen als geselecteerd. -->
             <button
               type="button"
               :data-testid="`cfg-cat-${cat.id}`"
               :aria-current="cat.id === geselecteerdeCategorieId ? 'true' : undefined"
               :class="[
-                'flex-1 text-left rounded-[var(--lk-radius-input)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]',
+                'flex-1 text-left rounded-[var(--lk-radius-input)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] border-l-4',
                 cat.id === geselecteerdeCategorieId
-                  ? 'bg-[var(--lk-color-accent)] font-semibold'
-                  : 'hover:bg-[var(--lk-color-primary-50)]',
+                  ? 'border-[var(--lk-color-primary)] bg-[var(--lk-color-accent)] font-semibold'
+                  : 'border-transparent hover:bg-[var(--lk-color-bg-hover,#f3f4f6)]',
               ]"
               @click="geselecteerdeCategorieId = cat.id"
             >
@@ -485,36 +547,78 @@ laad()
 
       <!-- ── Rechterkolom: de geopende categorie + haar vragen ────────────────── -->
       <div class="flex-1 min-w-0 flex flex-col gap-[var(--lk-space-md)]">
-        <div v-if="geopendeCategorie" class="card flex flex-col gap-[var(--lk-space-sm)]">
-          <!-- Hernoemen + verwijderen horen bij de geopende categorie (beheerder). -->
-          <div class="flex items-center gap-[var(--lk-space-sm)]">
+        <div v-if="geopendeCategorie" class="card border border-[var(--lk-color-border-sterk)] flex flex-col gap-[var(--lk-space-sm)]">
+          <!-- De koppeling met links is expliciet (LI050): de naam staat hier als KOP —
+               "je kijkt naar de vragen van déze categorie" — niet in een permanent
+               invoerveld (dat las als bewerkveld). Hernoemen is een HANDELING. -->
+          <div class="flex flex-wrap items-start gap-[var(--lk-space-sm)]">
+            <div class="min-w-0 flex-1">
+              <p class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">Vragen van categorie</p>
+              <h2 data-testid="cfg-cat-open-titel" class="mb-0">{{ geopendeCategorie.naam }}</h2>
+              <p data-testid="cfg-cat-open-aantal" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
+                {{ geopendeCategorie.aantal_vragen }} {{ geopendeCategorie.aantal_vragen === 1 ? 'vraag' : 'vragen' }}<template v-if="aantalUit(geopendeCategorie.id)"> · {{ aantalUit(geopendeCategorie.id) }} uitgezet</template>
+              </p>
+            </div>
             <template v-if="magBeheren">
+              <button
+                type="button"
+                data-testid="cfg-cat-hernoem"
+                class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                @click="startHernoem"
+              >
+                Hernoemen
+              </button>
+              <!-- Destructief in een EIGEN, gescheiden zone (DetailKop #destructief-patroon:
+                   rand + afstand) — nooit naast waar de beheerder werkt. -->
+              <div
+                data-testid="cfg-cat-destructief"
+                class="ml-auto border-l border-[var(--lk-color-border)] pl-[var(--lk-space-md)]"
+              >
+                <button
+                  type="button"
+                  data-testid="cfg-cat-verwijderen"
+                  class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-danger)] text-white px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]"
+                  @click="verwijderCategorie"
+                >
+                  Verwijderen
+                </button>
+              </div>
+            </template>
+          </div>
+
+          <!-- De hernoem-handeling: pas ná de knop verschijnt het veld; annuleren sluit. -->
+          <form
+            v-if="magBeheren && hernoemActief"
+            data-testid="cfg-cat-hernoem-form"
+            class="flex flex-wrap items-end gap-[var(--lk-space-sm)]"
+            @submit.prevent="hernoemCategorie"
+          >
+            <label class="flex flex-col gap-[2px] text-[length:var(--lk-text-xs)]">
+              Nieuwe naam
               <input
                 v-model="hernoemNaam"
                 data-testid="cfg-cat-open-naam"
                 type="text"
-                class="lk-veld flex-1 min-w-0 font-semibold"
-                :aria-label="`Naam van categorie ${geopendeCategorie.naam}`"
+                class="lk-veld min-w-[14rem]"
+                :aria-label="`Nieuwe naam voor categorie ${geopendeCategorie.naam}`"
               />
-              <button
-                type="button"
-                data-testid="cfg-cat-opslaan"
-                class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
-                @click="hernoemCategorie"
-              >
-                Opslaan
-              </button>
-              <button
-                type="button"
-                data-testid="cfg-cat-verwijderen"
-                class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-danger)] text-white px-[var(--lk-space-sm)] py-[var(--lk-space-xs)]"
-                @click="verwijderCategorie"
-              >
-                Verwijderen
-              </button>
-            </template>
-            <h2 v-else data-testid="cfg-cat-open-titel" class="font-semibold">{{ geopendeCategorie.naam }}</h2>
-          </div>
+            </label>
+            <button
+              type="submit"
+              data-testid="cfg-cat-opslaan"
+              class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-primary)] text-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)] hover:bg-[#2D6DB5]"
+            >
+              Opslaan
+            </button>
+            <button
+              type="button"
+              data-testid="cfg-cat-annuleren"
+              class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+              @click="hernoemActief = false"
+            >
+              Annuleren
+            </button>
+          </form>
 
           <!-- Lege categorie: geen leegte maar een regel mét de route (likara-ux §4). -->
           <p
@@ -527,69 +631,103 @@ laad()
             <template v-else> De beheerder van uw organisatie kan er een toevoegen.</template>
           </p>
 
-          <ul class="flex flex-col gap-[var(--lk-space-md)]">
+          <ul class="flex flex-col gap-[var(--lk-space-sm)]">
+            <!-- LI050-ergonomie: élke vraag is een OMRAND blok — het bestaande
+                 lk-inhoudskader-patroon (het kader BINNEN een werkvlak: échte 1px-rand,
+                 lichter dan de sterke buitenrand van de categoriekaart — LI048-regel).
+                 `card` droeg hier geen rand (alleen 5%-schaduw, wit-op-wit) én een eigen
+                 marge bovenop de lijst-gap; de tussenruimte komt nu alleen uit de gap.
+                 Compact: verticale padding sm — één regel tekst vraagt geen 24px lucht. -->
             <li
               v-for="vraag in zichtbareVragen"
               :key="vraag.id"
               :data-testid="`cfg-vraag-${vraag.code}`"
-              :draggable="magBeheren ? 'true' : undefined"
-              :class="['flex flex-col gap-[var(--lk-space-sm)] border-b border-[var(--lk-color-border)] pb-[var(--lk-space-sm)]', vraag.actief ? '' : 'opacity-60', vraagSleep.sleepId.value === vraag.id ? 'opacity-50' : '', magBeheren ? 'cursor-grab' : '']"
-              @dragstart="magBeheren && vraagSleep.pak(vraag.id)"
+              :draggable="magBeheren && openVraagId !== vraag.id ? 'true' : undefined"
+              :class="['lk-inhoudskader py-[var(--lk-space-sm)] flex flex-col gap-[var(--lk-space-sm)]', vraag.actief ? '' : 'opacity-60', vraagSleep.sleepId.value === vraag.id ? 'opacity-50' : '', magBeheren && openVraagId !== vraag.id ? 'cursor-grab' : '']"
+              @dragstart="magBeheren && openVraagId !== vraag.id && vraagSleep.pak(vraag.id)"
               @dragover.prevent
               @drop.prevent="magBeheren && vraagSleep.laatLos(vraag.id)"
             >
-              <div class="flex items-start gap-[var(--lk-space-md)]">
+              <!-- De vraagtekst is de KOP van het blok; de staat en het uitklapteken staan
+                   er direct naast — niet tegen de verre rechterrand. -->
+              <div class="flex items-start gap-[var(--lk-space-sm)]">
                 <!-- LI050 (W4): geen vraagcode meer op het scherm — de tekst ís de vraag. -->
-                <span class="flex-1">{{ vraag.vraag }}</span>
+                <h3 class="min-w-0 text-[length:var(--lk-text-lg)] font-semibold">{{ vraag.vraag }}</h3>
                 <span
                   :data-testid="`cfg-vraag-status-${vraag.code}`"
-                  :class="['text-[length:var(--lk-text-xs)]', vraag.actief ? 'text-[var(--lk-color-success)]' : 'text-[var(--lk-color-danger)]']"
+                  :class="['shrink-0 text-[length:var(--lk-text-xs)]', vraag.actief ? 'text-[var(--lk-color-success)]' : 'text-[var(--lk-color-danger)]']"
                 >{{ vraag.actief ? 'actief' : 'uitgezet' }}</span>
                 <button
-                  v-if="magBeheren"
                   type="button"
-                  :data-testid="`cfg-vraag-actief-${vraag.code}`"
-                  class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
-                  @click="zetActief(vraag)"
+                  :data-testid="`cfg-vraag-toggle-${vraag.code}`"
+                  :aria-expanded="openVraagId === vraag.id"
+                  :aria-controls="`cfg-vraag-detail-${vraag.code}`"
+                  :aria-label="`Details van vraag ${kort(vraag.vraag, 40)}`"
+                  class="shrink-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                  @click="toggleVraag(vraag)"
                 >
-                  {{ vraag.actief ? 'Deactiveren' : 'Activeren' }}
+                  {{ openVraagId === vraag.id ? '▾' : '▸' }}
                 </button>
-                <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-                  Antwoordtype
-                  <select
-                    v-if="magBeheren"
-                    :data-testid="`cfg-type-${vraag.code}`"
-                    :value="vraag.antwoordtype"
-                    class="lk-veld"
-                    @change="zetType(vraag, $event.target.value)"
-                  >
-                    <option v-for="t in ANTWOORDTYPES" :key="t" :value="t">{{ TYPE_LABEL[t] }}</option>
-                  </select>
-                  <span v-else :data-testid="`cfg-type-tekst-${vraag.code}`">{{ TYPE_LABEL[vraag.antwoordtype] }}</span>
-                </label>
-                <VeldUitleg veld="antwoordtype" opties="antwoordtype" :testid="`uitleg-antwoordtype-${vraag.code}`" />
-                <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
-                  Betekenis
-                  <select
-                    v-if="magBeheren"
-                    :data-testid="`cfg-betekenis-${vraag.code}`"
-                    :value="vraag.betekenis || ''"
-                    class="lk-veld"
-                    @change="zetBetekenis(vraag, $event.target.value)"
-                  >
-                    <option value="">— geen —</option>
-                    <option v-for="b in betekenisOpties" :key="b.optie_sleutel" :value="b.optie_sleutel">{{ b.label }}</option>
-                  </select>
-                  <span v-else :data-testid="`cfg-betekenis-tekst-${vraag.code}`">{{ betekenisOpties.find((b) => b.optie_sleutel === vraag.betekenis)?.label || '— geen —' }}</span>
-                </label>
-                <VeldUitleg veld="betekenis" :testid="`uitleg-betekenis-${vraag.code}`" />
               </div>
-              <p v-if="magBeheren && vraag.antwoordtype !== 'geen'" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
-                Een reeds geconfigureerde vraag kan niet van antwoordtype wisselen (de server weigert dat).
-              </p>
 
-              <!-- Opties-editor (alleen keuze-types) -->
-              <div v-if="heeftOpties(vraag)" class="flex flex-col gap-[var(--lk-space-xs)]">
+              <!-- Open: wat bij de vraag hoort — antwoordtype, betekenis, opties.
+                   De veldenrij BREEKT AF (flex-wrap): niets valt buiten beeld. -->
+              <div
+                v-if="openVraagId === vraag.id"
+                :id="`cfg-vraag-detail-${vraag.code}`"
+                :data-testid="`cfg-vraag-detail-${vraag.code}`"
+                class="flex flex-col gap-[var(--lk-space-sm)]"
+              >
+                <div class="flex flex-wrap items-center gap-[var(--lk-space-md)]">
+                  <button
+                    v-if="magBeheren"
+                    type="button"
+                    :data-testid="`cfg-vraag-actief-${vraag.code}`"
+                    class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                    @click="zetActief(vraag)"
+                  >
+                    {{ vraag.actief ? 'Deactiveren' : 'Activeren' }}
+                  </button>
+                  <span class="inline-flex items-center gap-[var(--lk-space-xs)]">
+                    <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+                      Antwoordtype
+                      <select
+                        v-if="magBeheren"
+                        :data-testid="`cfg-type-${vraag.code}`"
+                        :value="vraag.antwoordtype"
+                        class="lk-veld"
+                        @change="zetType(vraag, $event.target.value)"
+                      >
+                        <option v-for="t in ANTWOORDTYPES" :key="t" :value="t">{{ TYPE_LABEL[t] }}</option>
+                      </select>
+                      <span v-else :data-testid="`cfg-type-tekst-${vraag.code}`">{{ TYPE_LABEL[vraag.antwoordtype] }}</span>
+                    </label>
+                    <VeldUitleg veld="antwoordtype" opties="antwoordtype" :testid="`uitleg-antwoordtype-${vraag.code}`" />
+                  </span>
+                  <span class="inline-flex items-center gap-[var(--lk-space-xs)]">
+                    <label class="flex items-center gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]">
+                      Betekenis
+                      <select
+                        v-if="magBeheren"
+                        :data-testid="`cfg-betekenis-${vraag.code}`"
+                        :value="vraag.betekenis || ''"
+                        class="lk-veld"
+                        @change="zetBetekenis(vraag, $event.target.value)"
+                      >
+                        <option value="">— geen —</option>
+                        <option v-for="b in betekenisOpties" :key="b.optie_sleutel" :value="b.optie_sleutel">{{ b.label }}</option>
+                      </select>
+                      <span v-else :data-testid="`cfg-betekenis-tekst-${vraag.code}`">{{ betekenisOpties.find((b) => b.optie_sleutel === vraag.betekenis)?.label || '— geen —' }}</span>
+                    </label>
+                    <VeldUitleg veld="betekenis" :testid="`uitleg-betekenis-${vraag.code}`" />
+                  </span>
+                </div>
+                <p v-if="magBeheren && vraag.antwoordtype !== 'geen'" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
+                  Een reeds geconfigureerde vraag kan niet van antwoordtype wisselen (de server weigert dat).
+                </p>
+
+                <!-- Opties-editor (alleen keuze-types) -->
+                <div v-if="heeftOpties(vraag)" class="flex flex-col gap-[var(--lk-space-xs)]">
                 <div
                   v-if="isAfgeleideSet(vraag)"
                   :data-testid="`cfg-afgeleid-${vraag.code}`"
@@ -598,73 +736,63 @@ laad()
                   Afgeleide optieset — structuur is vast; alleen labels zijn aanpasbaar.
                 </div>
 
-                <table>
-                  <thead>
-                    <tr><th>Sleutel</th><th>Label</th><th>Volgorde</th><th>Status</th><th></th></tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="optie in vraag.opties"
-                      :key="optie.id"
-                      :data-testid="`cfg-optie-${vraag.code}-${optie.optie_sleutel}`"
-                      :class="optie.actief ? '' : 'opacity-50'"
+                <!-- LI050: de opties in dezelfde LIJSTVORM als de categorieën en de vragen —
+                     geen tabelrijen: een <tr> draagt het browser-slepen niet betrouwbaar
+                     (bewezen met het audit-spoor; de bronscan verbiedt drag op tabel-
+                     elementen). Geen Volgorde-getalkolom: slepen is de enige bediening. -->
+                <ul
+                  class="flex flex-col gap-[var(--lk-space-xs)]"
+                  :aria-label="`Antwoordopties van vraag ${kort(vraag.vraag, 40)}`"
+                >
+                  <li
+                    v-for="optie in vraag.opties"
+                    :key="optie.id"
+                    :data-testid="`cfg-optie-${vraag.code}-${optie.optie_sleutel}`"
+                    :draggable="magBeheren && !isAfgeleideSet(vraag) ? 'true' : undefined"
+                    :class="['flex flex-wrap items-center gap-[var(--lk-space-sm)]', optie.actief ? '' : 'opacity-50', optieSleep(vraag).sleepId.value === optie.id ? 'opacity-50' : '', magBeheren && !isAfgeleideSet(vraag) ? 'cursor-grab' : '']"
+                    @dragstart.stop="magBeheren && !isAfgeleideSet(vraag) && optieSleep(vraag).pak(optie.id)"
+                    @dragover.prevent
+                    @drop.prevent.stop="magBeheren && !isAfgeleideSet(vraag) && optieSleep(vraag).laatLos(optie.id)"
+                  >
+                    <span class="font-mono w-32 shrink-0 text-[length:var(--lk-text-sm)]">{{ optie.optie_sleutel }}</span>
+                    <input
+                      v-if="magBeheren"
+                      :data-testid="`cfg-optie-label-${optie.id}`"
+                      v-model="optie.label"
+                      type="text"
+                      class="lk-veld flex-1 min-w-[10rem]"
+                    />
+                    <span v-else class="flex-1 min-w-0">{{ optie.label }}</span>
+                    <span v-if="optie.afgeleid_bron" :data-testid="`cfg-bron-${optie.id}`" class="shrink-0 text-[length:var(--lk-text-xs)]">afgeleid · {{ optie.afgeleid_bron }}</span>
+                    <span v-else-if="!optie.actief" class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)]">gedeactiveerd</span>
+                    <span v-else class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-success)]">actief</span>
+                    <button
+                      v-if="magBeheren"
+                      type="button"
+                      :data-testid="`cfg-optie-opslaan-${optie.id}`"
+                      class="shrink-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                      @click="bewaarOptie(vraag, optie)"
                     >
-                      <td class="font-mono">{{ optie.optie_sleutel }}</td>
-                      <td>
-                        <input
-                          v-if="magBeheren"
-                          :data-testid="`cfg-optie-label-${optie.id}`"
-                          v-model="optie.label"
-                          type="text"
-                          class="lk-veld"
-                        />
-                        <span v-else>{{ optie.label }}</span>
-                      </td>
-                      <td>
-                        <input
-                          v-if="magBeheren"
-                          :data-testid="`cfg-optie-volgorde-${optie.id}`"
-                          v-model="optie.volgorde"
-                          type="number"
-                          :disabled="!!optie.afgeleid_bron"
-                          class="lk-veld w-20"
-                        />
-                        <span v-else>{{ optie.volgorde }}</span>
-                      </td>
-                      <td>
-                        <span v-if="optie.afgeleid_bron" :data-testid="`cfg-bron-${optie.id}`" class="text-[length:var(--lk-text-xs)]">afgeleid · {{ optie.afgeleid_bron }}</span>
-                        <span v-else-if="!optie.actief" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)]">gedeactiveerd</span>
-                        <span v-else class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-success)]">actief</span>
-                      </td>
-                      <td class="flex gap-[var(--lk-space-xs)]">
-                        <button
-                          v-if="magBeheren"
-                          type="button"
-                          :data-testid="`cfg-optie-opslaan-${optie.id}`"
-                          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
-                          @click="bewaarOptie(vraag, optie)"
-                        >
-                          Opslaan
-                        </button>
-                        <button
-                          v-if="magBeheren && !optie.afgeleid_bron && optie.actief"
-                          type="button"
-                          :data-testid="`cfg-optie-deactiveren-${optie.id}`"
-                          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
-                          @click="deactiveer(vraag, optie)"
-                        >
-                          Deactiveren
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                      Opslaan
+                    </button>
+                    <button
+                      v-if="magBeheren && !optie.afgeleid_bron && optie.actief"
+                      type="button"
+                      :data-testid="`cfg-optie-deactiveren-${optie.id}`"
+                      class="shrink-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                      @click="deactiveer(vraag, optie)"
+                    >
+                      Deactiveren
+                    </button>
+                  </li>
+                </ul>
 
-                <!-- Optie toevoegen (niet bij afgeleide sets; beheerder-only) -->
+                <!-- Optie toevoegen (niet bij afgeleide sets; beheerder-only).
+                     Geen getalveld: de optie komt achteraan, daarna slepen. -->
                 <form
                   v-if="magBeheren && !isAfgeleideSet(vraag)"
                   :data-testid="`cfg-toevoegen-${vraag.code}`"
-                  class="flex items-end gap-[var(--lk-space-sm)] mt-[var(--lk-space-xs)]"
+                  class="flex flex-wrap items-end gap-[var(--lk-space-sm)] mt-[var(--lk-space-xs)]"
                   @submit.prevent="voegToe(vraag)"
                 >
                   <input
@@ -681,12 +809,6 @@ laad()
                     placeholder="label"
                     class="lk-veld"
                   />
-                  <input
-                    :data-testid="`cfg-nieuw-volgorde-${vraag.code}`"
-                    v-model="buffer(vraag.id).volgorde"
-                    type="number"
-                    class="lk-veld w-20"
-                  />
                   <button
                     type="submit"
                     :data-testid="`cfg-toevoegen-knop-${vraag.code}`"
@@ -695,6 +817,7 @@ laad()
                     Optie toevoegen
                   </button>
                 </form>
+                </div>
               </div>
             </li>
           </ul>
@@ -703,7 +826,7 @@ laad()
           <form
             v-if="magBeheren"
             data-testid="cfg-nieuwe-vraag"
-            class="flex items-end gap-[var(--lk-space-sm)]"
+            class="flex flex-wrap items-end gap-[var(--lk-space-sm)]"
             @submit.prevent="maakVraag"
           >
             <label class="flex flex-col gap-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] flex-1 min-w-[16rem]">

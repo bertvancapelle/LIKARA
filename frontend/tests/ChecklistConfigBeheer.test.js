@@ -66,7 +66,10 @@ const VRAGEN = [
     id: 'v3', componenttype: 'database', code: '1.3', categorie_id: 'c-ei', categorie_naam: 'Eigenaar',
     categorie_volgorde: 1, volgorde: 1,
     vraag: 'Eigenaarvraag', prioriteit: 'midden', antwoordtype: 'enkelvoudige_keuze', actief: true, betekenis: null,
-    opties: [{ id: 'o2', optie_sleutel: 'bwb', label: 'BWB', volgorde: 0, actief: true, afgeleid_bron: null }],
+    opties: [
+      { id: 'o2', optie_sleutel: 'bwb', label: 'BWB', volgorde: 1, actief: true, afgeleid_bron: null },
+      { id: 'o3', optie_sleutel: 'tiel', label: 'Tiel', volgorde: 2, actief: true, afgeleid_bron: null },
+    ],
   },
 ]
 
@@ -90,6 +93,11 @@ async function mountView(rollen = ['beheerder']) {
   })
   await flushPromises()
   return wrapper
+}
+
+// LI050-ergonomie: dicht is de rusttoestand — de onderbouwing zit achter het pijltje.
+async function openVraag(w, code) {
+  await w.find(`[data-testid="cfg-vraag-toggle-${code}"]`).trigger('click')
 }
 
 function zetMocks() {
@@ -164,6 +172,7 @@ describe('ChecklistConfigBeheer — vraagbeheer', () => {
     api.checklistconfig.zetAntwoordtype.mockResolvedValue({ ...VRAGEN[0], antwoordtype: 'getal' })
     const w = await mountView()
     await w.find('[data-testid="cfg-cat-c-ov"]').trigger('click')
+    await openVraag(w, '9.1')
     await w.find('[data-testid="cfg-type-9.1"]').setValue('getal')
     await flushPromises()
     expect(api.checklistconfig.zetAntwoordtype).toHaveBeenCalledWith('v1', 'getal')
@@ -177,24 +186,29 @@ describe('ChecklistConfigBeheer — vraagbeheer', () => {
     const w = await mountView()
     await w.find('[data-testid="cfg-type-keuze"]').setValue('database')
     await flushPromises()
+    await openVraag(w, '1.3')
     await w.find('[data-testid="cfg-type-1.3"]').setValue('meerkeuze')
     await flushPromises()
     expect(w.find('[data-testid="cfg-actie-fout"]').text()).toContain('niet van antwoordtype wisselen')
   })
 
-  it('voegt een optie toe aan een vrije set (op vraag-id)', async () => {
+  it('voegt een optie toe aan een vrije set (op vraag-id) — achteraan, zonder getalveld', async () => {
     api.checklistconfig.voegOptieToe.mockResolvedValue({
-      id: 'o9', optie_sleutel: 'tiel', label: 'Tiel', volgorde: 1, actief: true, afgeleid_bron: null,
+      id: 'o9', optie_sleutel: 'cloud', label: 'Cloud', volgorde: 3, actief: true, afgeleid_bron: null,
     })
     const w = await mountView()
     await w.find('[data-testid="cfg-type-keuze"]').setValue('database')
     await flushPromises()
-    await w.find('[data-testid="cfg-nieuw-sleutel-1.3"]').setValue('tiel')
-    await w.find('[data-testid="cfg-nieuw-label-1.3"]').setValue('Tiel')
+    await openVraag(w, '1.3')
+    // LI050-ergonomie: geen getalveld in het toevoegformulier.
+    expect(w.find('[data-testid="cfg-nieuw-volgorde-1.3"]').exists()).toBe(false)
+    await w.find('[data-testid="cfg-nieuw-sleutel-1.3"]').setValue('cloud')
+    await w.find('[data-testid="cfg-nieuw-label-1.3"]').setValue('Cloud')
     await w.find('[data-testid="cfg-toevoegen-1.3"]').trigger('submit')
     await flushPromises()
+    // De nieuwe optie komt ACHTERAAN (max bestaande volgorde + 1); daarna slepen.
     expect(api.checklistconfig.voegOptieToe).toHaveBeenCalledWith('v3', {
-      optie_sleutel: 'tiel', label: 'Tiel', volgorde: 0,
+      optie_sleutel: 'cloud', label: 'Cloud', volgorde: 3,
     })
   })
 
@@ -205,17 +219,20 @@ describe('ChecklistConfigBeheer — vraagbeheer', () => {
     const w = await mountView()
     await w.find('[data-testid="cfg-type-keuze"]').setValue('database')
     await flushPromises()
+    await openVraag(w, '1.3')
     await w.find('[data-testid="cfg-optie-deactiveren-o2"]').trigger('click')
     await flushPromises()
     expect(api.checklistconfig.deactiveerOptie).toHaveBeenCalledWith('o2')
   })
 
-  it('afgeleide set: badge, label-only, geen toevoegen/deactiveren/volgorde', async () => {
-    const w = await mountView() // Hosting (2.1, afgeleide set) staat default open
+  it('afgeleide set: badge, label-only, geen toevoegen/deactiveren — en niet sleepbaar', async () => {
+    const w = await mountView() // Hostingcategorie staat default open
+    await openVraag(w, '2.1') // afgeleide set
     expect(w.find('[data-testid="cfg-afgeleid-2.1"]').exists()).toBe(true)
     expect(w.find('[data-testid="cfg-toevoegen-2.1"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-optie-deactiveren-o1"]').exists()).toBe(false)
-    expect(w.find('[data-testid="cfg-optie-volgorde-o1"]').attributes('disabled')).toBeDefined()
+    // Structuur vast: de optierij van een afgeleide set sleept niet.
+    expect(w.find('[data-testid="cfg-optie-2.1-saas"]').attributes('draggable')).toBeUndefined()
   })
 
   it('voegt een vraag toe ZONDER code: alleen tekst; het systeem kent de code toe (W4)', async () => {
@@ -242,6 +259,7 @@ describe('ChecklistConfigBeheer — vraagbeheer', () => {
     const confirmSpy = vi.fn(() => true); window.confirm = confirmSpy
     api.checklistconfig.zetActief.mockResolvedValue({ ...VRAGEN[1], actief: false })
     const w = await mountView()
+    await openVraag(w, '2.1')
     await w.find('[data-testid="cfg-vraag-actief-2.1"]').trigger('click')
     await flushPromises()
     expect(api.checklistconfig.zetActief).toHaveBeenCalledWith('v2', false)
@@ -253,6 +271,7 @@ describe('ChecklistConfigBeheer — vraagbeheer', () => {
   it('(de)activeren wordt geannuleerd als de aankondiging wordt afgewezen', async () => {
     window.confirm = vi.fn(() => false)
     const w = await mountView()
+    await openVraag(w, '2.1')
     await w.find('[data-testid="cfg-vraag-actief-2.1"]').trigger('click')
     await flushPromises()
     expect(api.checklistconfig.zetActief).not.toHaveBeenCalled()
@@ -262,6 +281,7 @@ describe('ChecklistConfigBeheer — vraagbeheer', () => {
     api.checklistconfig.zetBetekenis.mockResolvedValue({ ...VRAGEN[0], betekenis: 'technische_plaatsing' })
     const w = await mountView()
     await w.find('[data-testid="cfg-cat-c-ov"]').trigger('click')
+    await openVraag(w, '9.1')
     await w.find('[data-testid="cfg-betekenis-9.1"]').setValue('technische_plaatsing')
     await flushPromises()
     expect(api.checklistconfig.zetBetekenis).toHaveBeenCalledWith('v1', 'technische_plaatsing')
@@ -284,13 +304,54 @@ describe('ChecklistConfigBeheer — categoriebeheer (LI050)', () => {
     })
   })
 
-  it('hernoemt de geopende categorie in één handeling', async () => {
+  it('hernoemen is een handeling: knop opent het veld, opslaan schrijft en sluit', async () => {
     api.checklistconfig.wijzigCategorie.mockResolvedValue({})
     const w = await mountView()
+    // Rusttoestand: geen invoerveld — de naam staat als kop (zie de kop-test).
+    expect(w.find('[data-testid="cfg-cat-open-naam"]').exists()).toBe(false)
+    await w.find('[data-testid="cfg-cat-hernoem"]').trigger('click')
     await w.find('[data-testid="cfg-cat-open-naam"]').setValue('Hosting & infra')
-    await w.find('[data-testid="cfg-cat-opslaan"]').trigger('click')
+    await w.find('[data-testid="cfg-cat-hernoem-form"]').trigger('submit')
     await flushPromises()
     expect(api.checklistconfig.wijzigCategorie).toHaveBeenCalledWith('c-ho', { naam: 'Hosting & infra' })
+    expect(w.find('[data-testid="cfg-cat-hernoem-form"]').exists()).toBe(false) // handeling sluit
+  })
+
+  it('annuleren sluit de hernoem-handeling zonder te schrijven', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="cfg-cat-hernoem"]').trigger('click')
+    await w.find('[data-testid="cfg-cat-annuleren"]').trigger('click')
+    expect(w.find('[data-testid="cfg-cat-hernoem-form"]').exists()).toBe(false)
+    expect(api.checklistconfig.wijzigCategorie).not.toHaveBeenCalled()
+  })
+
+  it('de categorienaam rechts is een KOP met aanduiding en aantal — geen invoerveld', async () => {
+    const w = await mountView()
+    const kop = w.find('[data-testid="cfg-cat-open-titel"]')
+    expect(kop.element.tagName).toBe('H2')
+    expect(kop.text()).toBe('Hosting')
+    expect(w.text()).toContain('Vragen van categorie')
+    expect(w.find('[data-testid="cfg-cat-open-aantal"]').text()).toContain('vraag')
+    expect(w.find('[data-testid="cfg-cat-open-naam"]').exists()).toBe(false)
+  })
+
+  it('er leest precies ÉÉN categorie als geselecteerd — ook na wisselen en na slepen', async () => {
+    api.checklistconfig.wijzigCategorie.mockResolvedValue({})
+    const w = await mountView()
+    const geselecteerd = () => w.findAll('[aria-current="true"]')
+    expect(geselecteerd()).toHaveLength(1)
+    // Wisselen: de selectie verhuist, er zijn er nooit twee.
+    await w.find('[data-testid="cfg-cat-c-ov"]').trigger('click')
+    expect(geselecteerd()).toHaveLength(1)
+    expect(w.find('[data-testid="cfg-cat-c-ov"]').attributes('aria-current')).toBe('true')
+    // Slepen: ook daarna precies één.
+    await w.find('[data-testid="cfg-cat-rij-c-ov"]').trigger('dragstart')
+    await w.find('[data-testid="cfg-cat-rij-c-ho"]').trigger('drop')
+    await flushPromises()
+    expect(geselecteerd()).toHaveLength(1)
+    // En het visuele kanaal volgt mee: exact één knop draagt de accent-vulling.
+    const metAccent = w.findAll('[data-testid^="cfg-cat-c"]').filter((b) => (b.attributes('class') || '').includes('--lk-color-accent'))
+    expect(metAccent).toHaveLength(1)
   })
 
   it('sleept een categorie naar een nieuwe plek — alleen de gewijzigde rijen worden bewaard', async () => {
@@ -328,6 +389,14 @@ describe('ChecklistConfigBeheer — categoriebeheer (LI050)', () => {
     expect(rijen).toEqual(['cfg-vraag-2.2', 'cfg-vraag-2.1']) // volgorde wint van code
   })
 
+  it('de verwijderknop van de categorie staat in een EIGEN gescheiden zone, niet naast het naamveld', async () => {
+    const w = await mountView()
+    // DetailKop #destructief-patroon: de knop leeft in de afgezonderde zone.
+    const zone = w.find('[data-testid="cfg-cat-destructief"]')
+    expect(zone.exists()).toBe(true)
+    expect(zone.find('[data-testid="cfg-cat-verwijderen"]').exists()).toBe(true)
+  })
+
   it('verwijderen met vragen eronder toont de weigering mét telling (409)', async () => {
     window.confirm = vi.fn(() => true)
     const err = new Error('Er hangen nog 7 vragen onder deze categorie; verplaats of verwijder die eerst — een indeling met vragen verdwijnt nooit stil.')
@@ -341,6 +410,69 @@ describe('ChecklistConfigBeheer — categoriebeheer (LI050)', () => {
   })
 })
 
+describe('ChecklistConfigBeheer — leesbaarheid: dicht is de rusttoestand (LI050-ergonomie)', () => {
+  it('ingeklapt toont een vraag alleen zijn tekst en actieve staat; de onderbouwing pas na openklappen', async () => {
+    const w = await mountView()
+    // Rusttoestand: tekst + staat zichtbaar…
+    expect(w.text()).toContain('Hostingvraag')
+    expect(w.find('[data-testid="cfg-vraag-status-2.1"]').text()).toBe('actief')
+    // …maar géén onderbouwing: geen antwoordtype, betekenis, opties of activeer-knop.
+    expect(w.find('[data-testid="cfg-vraag-detail-2.1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-type-2.1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-betekenis-2.1"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-optie-2.1-saas"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-vraag-actief-2.1"]').exists()).toBe(false)
+    // Openklappen → alles erbij hoort verschijnt.
+    await openVraag(w, '2.1')
+    expect(w.find('[data-testid="cfg-vraag-detail-2.1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cfg-type-2.1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cfg-betekenis-2.1"]').exists()).toBe(true)
+    expect(w.find('[data-testid="cfg-optie-2.1-saas"]').exists()).toBe(true)
+    // Dichtklappen → terug naar de rusttoestand.
+    await openVraag(w, '2.1')
+    expect(w.find('[data-testid="cfg-vraag-detail-2.1"]').exists()).toBe(false)
+  })
+
+  it('er staat maar één vraag tegelijk open — openklappen sluit de vorige', async () => {
+    const w = await mountView()
+    await openVraag(w, '2.1')
+    expect(w.find('[data-testid="cfg-vraag-detail-2.1"]').exists()).toBe(true)
+    await openVraag(w, '2.2')
+    expect(w.find('[data-testid="cfg-vraag-detail-2.2"]').exists()).toBe(true)
+    // De vorige is vanzelf dicht — nooit twijfel welke velden bij welke vraag horen.
+    expect(w.find('[data-testid="cfg-vraag-detail-2.1"]').exists()).toBe(false)
+  })
+
+  it('slepen werkt op de INGEKLAPTE regels; een geopende vraag sleept niet mee', async () => {
+    const w = await mountView()
+    // Ingeklapt: sleepbaar (de bestaande vraag-sleeptest bewijst het gedrag zelf).
+    expect(w.find('[data-testid="cfg-vraag-2.1"]').attributes('draggable')).toBe('true')
+    // Open: bewust niet sleepbaar — HTML5-drag op de rij kaapt anders het
+    // selecteren/typen in de velden van de uitklap.
+    await openVraag(w, '2.1')
+    expect(w.find('[data-testid="cfg-vraag-2.1"]').attributes('draggable')).toBeUndefined()
+    expect(w.find('[data-testid="cfg-vraag-2.2"]').attributes('draggable')).toBe('true')
+  })
+
+  it('sleept een antwoordoptie — de derde consument van de gedeelde bouwsteen; getalveld weg', async () => {
+    api.checklistconfig.wijzigOptie.mockImplementation(async (id, body) => ({
+      ...VRAGEN.find((v) => v.id === 'v3').opties.find((o) => o.id === id), ...body,
+    }))
+    const w = await mountView()
+    await w.find('[data-testid="cfg-type-keuze"]').setValue('database')
+    await flushPromises()
+    await openVraag(w, '1.3')
+    // Het getalveld is weg — slepen is de enige bediening (besluit Bert, W5).
+    expect(w.find('[data-testid="cfg-optie-volgorde-o2"]').exists()).toBe(false)
+    // Sleep Tiel (volgorde 2) op BWB (volgorde 1) → Tiel 1, BWB 2; per rij bewaard.
+    await w.find('[data-testid="cfg-optie-1.3-tiel"]').trigger('dragstart')
+    await w.find('[data-testid="cfg-optie-1.3-bwb"]').trigger('drop')
+    await flushPromises()
+    expect(api.checklistconfig.wijzigOptie).toHaveBeenCalledWith('o3', { volgorde: 1 })
+    expect(api.checklistconfig.wijzigOptie).toHaveBeenCalledWith('o2', { volgorde: 2 })
+  })
+})
+
 describe('ChecklistConfigBeheer — rol-gating (ADR-022 W2 / LI050)', () => {
   it('niet-beheerder: zelfde indeling, géén bewerk-affordances, wél de uitlegzin', async () => {
     const w = await mountView(['medewerker'])
@@ -349,11 +481,14 @@ describe('ChecklistConfigBeheer — rol-gating (ADR-022 W2 / LI050)', () => {
     expect(w.find('[data-testid="cfg-type-keuze"]').exists()).toBe(true)
     expect(w.find('[data-testid="cfg-categorie-kolom"]').text()).toContain('Hosting')
     expect(w.text()).toContain('Hostingvraag')
+    // Openklappen mag ook zonder beheerrecht — lezen blijft breed (W2).
+    await openVraag(w, '2.1')
     expect(w.find('[data-testid="cfg-type-tekst-2.1"]').text()).toBe('Enkelvoudige keuze')
     // Geen enkele bewerk-affordance.
     expect(w.find('[data-testid="cfg-nieuwe-vraag"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-nieuwe-categorie"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-cat-opslaan"]').exists()).toBe(false)
+    expect(w.find('[data-testid="cfg-cat-hernoem"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-cat-verwijderen"]').exists()).toBe(false)
     expect(w.find('[data-testid="cfg-cat-rij-c-ho"]').attributes('draggable')).toBeUndefined() // slepen = beheerder
     expect(w.find('[data-testid="cfg-vraag-actief-2.1"]').exists()).toBe(false)
@@ -372,6 +507,7 @@ describe('ChecklistConfigBeheer — rol-gating (ADR-022 W2 / LI050)', () => {
     expect(w.text()).not.toContain('De vragenlijst wordt bepaald door de beheerder van uw organisatie.')
     expect(w.find('[data-testid="cfg-nieuwe-vraag"]').exists()).toBe(true)
     expect(w.find('[data-testid="cfg-nieuwe-categorie"]').exists()).toBe(true)
+    await openVraag(w, '2.1')
     expect(w.find('[data-testid="cfg-vraag-actief-2.1"]').exists()).toBe(true)
   })
 })

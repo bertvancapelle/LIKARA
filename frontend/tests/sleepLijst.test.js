@@ -85,15 +85,45 @@ describe('sleepLijst — bronscan (KERNLES LI038: één bouwsteen, geen nabouw)'
     expect(nep.includes('@drop') && !nep.includes('useSleepLijst')).toBe(true)
   })
 
-  it('beide lijsten in het beheerscherm hangen aantoonbaar aan de bouwsteen', () => {
+  // LI050 — de laag waar het écht misging: de optie-sleep bereikte de opslag nooit omdat
+  // de rijen <tr>-elementen waren (audit-bewijs: 12 categorie-updates, 0 optie-updates).
+  // De handler-tests bleven groen — die roepen de Vue-handlers direct aan en zien de
+  // browser-mechaniek niet. Deze scan faalt zodra een consument zijn items rendert op een
+  // vorm die het slepen niet draagt: drag-gedrag op tabel-elementen (of <option>).
+  const DRAAGT_NIET = /<(tr|td|th|thead|tbody|table|option)\b[^>]*(:draggable|@dragstart|@drop)/g
+
+  it('sleep-gedrag staat nooit op een tabel-element — een <tr> draagt het browser-slepen niet', () => {
+    const bestanden = WORTELS.flatMap(vueBestanden)
+    expect(bestanden.length).toBeGreaterThan(50)
+    const overtreders = []
+    for (const b of bestanden) {
+      const bron = fs.readFileSync(b, 'utf8')
+      if (bron.match(DRAAGT_NIET)) overtreders.push(b)
+    }
+    expect(overtreders, `drag op een element dat het niet draagt: ${overtreders.join(', ')}`).toEqual([])
+  })
+
+  it('zelftest: de tabel-element-scan bijt op een nagebootste <tr draggable>', () => {
+    const nep = '<tr\n  :key="optie.id"\n  :draggable="mag ? \'true\' : undefined"\n>'
+    expect(nep.match(DRAAGT_NIET)).not.toBeNull()
+    // En laat een gewone lijstrij met rust.
+    const goed = '<li :draggable="mag ? \'true\' : undefined" @dragstart="pak(id)">'
+    expect(goed.match(DRAAGT_NIET)).toBeNull()
+  })
+
+  it('alle drie de lijsten in het beheerscherm hangen aantoonbaar aan de bouwsteen', () => {
     const bron = fs.readFileSync(
       path.resolve(__dirname, '../src/views/ChecklistConfigBeheer.vue'), 'utf8',
     )
     expect(bron).toContain("import { useSleepLijst } from '@/composables/useSleepLijst'")
-    // Twee consumenten: categorieën én vragen — elk hun eigen instantie.
-    expect(bron.match(/useSleepLijst\(\{/g)?.length).toBe(2)
+    // Drie consumenten: categorieën, vragen én antwoordopties (LI050-ergonomie) —
+    // elk hun eigen instantie. (De bestandsbrede @drop-scan hierboven dekt alleen het
+    // import-niveau; deze telling vangt een nabouw BINNEN een bestand dat al importeert.)
+    expect(bron.match(/useSleepLijst\(\{/g)?.length).toBe(3)
     // Het getalveld is bewust weg (besluit Bert): slepen is de enige bediening.
     expect(bron).not.toContain('cfg-cat-volgorde-')
     expect(bron).not.toContain('cfg-nieuwe-categorie-volgorde')
+    expect(bron).not.toContain('cfg-optie-volgorde-')
+    expect(bron).not.toContain('cfg-nieuw-volgorde-')
   })
 })
