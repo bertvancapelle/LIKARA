@@ -2,7 +2,7 @@
 name: likara-db
 description: Database-patronen voor LIKARA (PostgreSQL 16, RLS, Alembic). Beschrijft de werkelijke V001-staat.
 stack: PostgreSQL 16, SQLAlchemy asyncio, Alembic
-bijgewerkt: V015
+bijgewerkt: V050
 ---
 
 # LIKARA Database Skill

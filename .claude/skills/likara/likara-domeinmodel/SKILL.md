@@ -9,7 +9,7 @@ description: >
   ankerpunten, en harde architectuurregels. De HOE (implementatiepatronen) staat
   in likara-db en likara-backend; dit bestand beschrijft het WAT.
 stack: PostgreSQL 16, SQLAlchemy asyncio, FastAPI — ADR-021/023/024/025/026/043
-bijgewerkt: V043
+bijgewerkt: V050
 ---
 
 # LIKARA Domeinmodel — Kaart

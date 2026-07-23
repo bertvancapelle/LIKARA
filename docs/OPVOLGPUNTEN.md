@@ -7,6 +7,84 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI049 (2026-07-23) — productie-gereedheid: karakter-veranderde en nieuwe punten
+
+> **Context:** er moet komende week een productieversie klaarstaan. De aanname "geen actieve
+> gebruikers, alleen testdata" vervalt; de punten hieronder zijn daardoor van karakter veranderd
+> of nú nog gratis. LI050 begint met een read-only inventarisatie hiervan (NEXT_SESSION).
+
+**P50-1. Checklistvraag-deactivering: poort én gevolg (meetpunt — hoge urgentie).**
+In de module Checklistvragen zit per vraag een knop "Deactiveren" met bevestiging *"Vraag 1.1
+deactiveren. Dit raakt 17 componenten van type Applicatie."* Dit is een **platform-brede**
+mutatie (bepaalt wát LIKARA vraagt), geen consultant-antwoord op één component. In
+ontwikkelmodus een ontwerpvraag; **met productie een rechtenrisico met echte gevolgen** — vóór
+livegang meten. Twee read-only meetvragen:
+- **De poort** — welke permissie zit op de module Checklistvragen en op de deactiveer-actie; is
+  het scherm bereikbaar voor een consultant of alleen voor platformbeheer (verwacht:
+  platformbeheer, zoals componenttypen en catalogi)?
+- **Het gevolg** (functioneel zwaarder) — wat gebeurt er bij deactivering met de reeds gegeven
+  antwoorden op de geraakte componenten (verdwijnen / verborgen / zichtbaar), én telt een
+  gedeactiveerde vraag die een organisatienorm eist nog mee in "Dit moet nog"? Risico: een open
+  punt dat niemand kan dichten omdat de vraag weg is — precies de stille inconsistentie die het
+  open-punten-overzicht moest voorkomen.
+Status: **open — meten vóór livegang.**
+
+**P50-2. Namenkaart zonder paginering (bestond al; karakter veranderd).**
+`KoppelingSectie.vue` (`_zorgCompNamen`) haalt maximaal 100 componenten op en toont bij
+overschrijding **stil een lege naam** — geen foutmelding; de consultant concludeert dat de
+koppeling naar een naamloos component wijst. Met een echt landschap (>100 componenten) bijt dit
+vrijwel zeker. **Meet eerst** waar tegenpartij-namen worden opgehaald, met welke limiet, en op
+welke schermen (koppelingen-tabblad, kaart, picker) — één plek of een patroon? Niet het limiet
+ophogen (dan verschuift de grens alleen). Status: **open — vóór livegang.**
+
+**P50-3. Kolom `organisatiegebruik.applicatie_id` (schemastap + migratie — laatste goedkope
+moment).** De kolom draagt het id van élk componenttype (ADR-041 maakte de grove laag
+component-breed; de naam bleef). **Nu nog gratis** zolang er alleen testdata is; met
+productiedata wordt het een echte datamigratie. Eigen besluit van Bert (schema-rakend, gate).
+Status: **open — besluit vóór livegang.**
+
+**P50-4. Keuzelijsten: beheerbaar of vast? (nieuw meetpunt).**
+Waarneming: het **protocol** bij een koppeling lijkt niet aanpasbaar via Platformbeheer of als
+beheerder. LIKARA kent twee soorten keuzelijsten: **catalogi** (database, beheerbaar via het
+beheerscherm) en **code-/seedvast** (alleen wijzigbaar met codewijziging + deploy). Read-only
+inventarisatie: welke lijsten zijn beheerbaar, welke vast, en waar valt de protocol-lijst in?
+Daarna de functionele vraag: **welke lijsten hóren beheerbaar te zijn en welke bewust dicht?**
+(Een gesloten set waar betekenis van afhangt — ArchiMate-elementen — mag vast; een
+koppelingsprotocol verschilt per landschap en is dan juist beperkend.) Verwant: **ADR-026**
+beschrijft dezelfde kwaal voor de ArchiMate-typering per componenttype — mogelijk hetzelfde
+patroon op meerdere plekken. Status: **open.**
+
+### Overig uit LI049 (sessiebalans)
+
+- **Dode verwijzing `schemas/applicatie.py`** in likara-backend (r151 + r342) — bestand
+  opgeheven bij LI059; de helpers leven vermoedelijk in `schemas/_validators.py` (eerst
+  verifiëren, dan wijzen). Klein reparatiegeval; hoort bij het backend-blok van het
+  (uitgestelde) opschoonplan. Status: **open.**
+- **Kop-naam-collisions binnen skills** — backend "V016-patronen" ×2 (r370/r486) · frontend
+  "LI034 —" ×2 (r1420/r1436) en "LI046-patronen" ×2 (r1777/r1824) · ux "LI023 —" ×2 (r478/r521)
+  en "LI046 —" ×2 (r1021/r1053). Maken `§`-verwijzingen ambigu (de scan onderscheidt twee
+  gelijknamige koppen niet). Op te lossen binnen het betreffende skill-blok van het opschoonplan.
+  Status: **open — meegenomen in `docs/Opschoonplan-zeven-skills.md`.**
+- **Demostand "verband met één uittredende deelnemer" (bouwpunt).** Tweede seed-variant naast de
+  volledige demo-seed: reset → alleen de vier organisaties als partijen met hun afdelingen,
+  verder **leeg** landschap (geen componenten, geen koppelingen). Intern/extern (besluit Bert,
+  definitief): **BvoWB + Culemborg + West Betuwe = intern** (het samenwerkingsverband zoals het
+  overblijft; BvoWB is de gedeelde uitvoeringsorganisatie), **Tiel = extern** want Tiel treedt
+  uit — bekeken vanuit de stoel van het verband, zodat de kaart de ontvlechtingsvraag toont: wat
+  hangt aan Tiel, wat daarvan is gedeeld met de blijvers, wat moet ontward worden. Doel:
+  demo/test om met de hand applicatie-componenten (type = applicatie) op te voeren; de volledige
+  demo-seed moet in dezelfde omgeving terug te zetten blijven (twee reset-commando's naast
+  elkaar). **Productie richt Bert handmatig in — géén export/brug test→productie bouwen.**
+  Startstap = **read-only checkpoint**: hoe maakt de bestaande dev-seed de vier organisaties nu
+  al aan, waar zit de knip om ná de organisaties te stoppen, én toetsen dat de
+  intern/extern-vlag **per organisatie** los te zetten is (drie organisaties zelfde aard,
+  verschillende vlag). Status: **open.**
+- **Import-lijn Tiel-spreadsheet (geparkeerd).** 181 applicaties bruikbaar; koppelingen niet
+  zelfstandig — 42 tegenpartijen ontbreken (landelijke + gedeelde voorzieningen). Volgorde:
+  vertaaltabel → applicaties → tegenpartijen → koppelingen. **Open besluit:** wat te doen met de
+  persoonsnamen in de bron (Naam FAB 142 regels, Beheerder licenties 117 regels) — overnemen,
+  vervangen door functie, of leeglaten. Status: **geparkeerd.**
+
 ### Nieuw uit LI048 (2026-07-21) — één werkvlak, drie schermsoorten zónder
 
 0a. **De sterkere buitenrand raakt één scherm; de rest heeft helemaal geen omrand werkvlak.**

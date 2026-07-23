@@ -2,7 +2,7 @@
 name: likara-tests
 description: Test-patronen voor LIKARA (pytest unit-tests + TST-validatiecyclus). Beschrijft de werkelijke V001-staat.
 stack: pytest, asyncio, unittest.mock, SQLAlchemy models, vitest, @vue/test-utils
-bijgewerkt: V042
+bijgewerkt: V050
 ---
 
 # LIKARA Tests Skill

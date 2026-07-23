@@ -2,7 +2,7 @@
 name: likara-backend
 description: Backend-patronen voor LIKARA (FastAPI + SQLAlchemy + Alembic). Beschrijft de werkelijke V001-staat.
 stack: Python 3.12, FastAPI, Pydantic v2, SQLAlchemy asyncio, Alembic, PostgreSQL 16
-bijgewerkt: V040
+bijgewerkt: V050
 ---
 
 # LIKARA Backend Skill

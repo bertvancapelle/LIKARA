@@ -5,30 +5,59 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V049 · 2026-07-21
-- **Commit:** `44ef3f8` (skills-patronen) · **26 commits** deze sessie, elk per opdracht apart geland
-  en gesplitst in code / skills / docs. Kernstukken: `a3a37cb`+`0745d2e` lijstkop (4→14 schermen) ·
-  `e778e09` auditlog bruikbaar (zoeken/benoemen/vertalen/filteren) · `f6710bd` objecthistorie compleet ·
-  `baa87f0` wegwijzers als teken · `67df651` lijntaal · `ecfd708` amber-onderscheid.
-- **Tests:** backend **1136 passed, 2 skipped** (module) + **80 passed** (platform) ·
-  frontend **102 files / 1374 passed** · `vite build` ✅ · `test:css-build` ✅ (**14 scans**, elk met
-  zelftest) · 0 kritieken.
+- **Build:** V050 · 2026-07-23
+- **Commit:** `d90629e` (opschoonplan) + de LI049-afsluitcommit. **~20 commits** deze sessie, elk per
+  opdracht apart geland. Kernstukken: `a225a63`+`6ccdd53` kopverwijzingen-scan · `ae3f9ca` verhuizing 1
+  (werkprotocol) · `94c5625` verhuizing 2 (P8-leesvolgorde) · `201092d`/`558f39d`/`87ab572`
+  tests-consolidatie · `3c7268a` verhuizing 3 (§Bronscans) · `d90629e` opschoonplan zeven skills.
+- **Tests:** backend **1221 passed / 2 skipped** (één run vanaf repo-root, incl. de nieuwe
+  kopverwijzingen-scan) · frontend **102 files / 1374 passed** · `vite build` ✅ · `test:css-build` ✅
+  (**14 scans**, elk met zelftest) · 0 kritieken.
 - **Migratie-head:** `0073_adr052_klaarverkl_snapshot` (1 head, 0 branches). **Nul migraties** deze
-  sessie: LI048 was UX- en leesbaarheidswerk plus twee auditlog-filterreparaties — het schema bewoog
-  niet mee, en dat was in alle gevallen het juiste teken.
-- **RLS:** 34 tenant-scoped tabellen, alle met policy én FORCE; 0 zonder.
-- **TST-rapport:** `docs/TST-V049-Validatierapport.md` (0 kritieken, 2 geaccepteerde afwijkingen:
-  zes ongelopen browsercheck-draaiboeken en één flaky toets in `ComponentLijst.test.js`).
-- **Werktree:** **schoon**.
-- **⚠ Zes browsercheck-draaiboeken staan open.** De suites dekken de structuur; uitlijning, tooltips
-  en toetsenbordvolgorde zijn niet machinaal vast te stellen. Eén draaiboek (objecthistorie) vraagt de
-  beoordelaar het geval **zelf aan te maken** — het demolandschap bevat geen partij met een los
-  toegekende rol.
-- **⚠ De scherpste openstaande vraag is niet technisch.** De Geschiedenis-knop bestond al op alle zeven
-  detailschermen en Bert liep tóch drie keer vast in het auditlog. Sinds deze sessie draagt die knop
-  géén woord meer. Vindbaarheid, niet functionaliteit — zie NEXT_SESSION punt 1.
+  sessie: LI049 was skill-consolidatie en borging — applicatiegedrag ongewijzigd.
+- **RLS:** 38× ENABLE ROW LEVEL SECURITY in de offline upgrade-SQL (TST-V050-telling); 0 afwijkingen.
+- **TST-rapport:** `docs/TST-V050-Validatierapport.md` (0 kritieken; geaccepteerd: git-❌ tijdens de
+  afsluitrun zelf en het vooruitgeschreven V050-nummer).
+- **Werktree:** schoon na de LI049-afsluitcommit.
+- **⚠ KOERS: er moet komende week een productieversie klaarstaan.** LI050 is daarom een
+  **productie-gereedheidsspoor** (read-only inventarisatie eerst); de skill-opschoning van de zeven
+  resterende skills is **uitgesteld, niet vervallen** — plan: `docs/Opschoonplan-zeven-skills.md`.
+- **⚠ Vier vóór-productie-punten staan canoniek in OPVOLGPUNTEN §"Nieuw uit LI049"** (P50-1 t/m
+  P50-4): checklistvraag-deactivering (poort + gevolg), namenkaart zonder paginering,
+  `organisatiegebruik.applicatie_id` (laatste goedkope moment), keuzelijsten beheerbaar vs. vast.
+- De zes browsercheck-draaiboeken uit LI048 staan nog open (structuur is machinaal gedekt;
+  uitlijning/tooltips/toetsenbordvolgorde niet).
 
-## Deze sessie (LI048 — het scherm zegt wat het doet) — AFGEROND
+## Deze sessie (LI049 — de skills weer één waarheid, met een wachter erbij) — AFGEROND
+
+**Eén draad door alle opdrachten:** negen skills waren op sessievolgorde gegroeid in plaats van op
+onderwerp, en verwijzingen ertussen waren onbewaakte beloften. LI049 bracht de twee drukst gelezen
+skills op onderwerp en zette er een machinale wachter naast.
+
+**Wat er is gebouwd:**
+- **De kopverwijzingen-scan** (`backend/tests/test_kopverwijzingen_scan.py`) — bewaakt repo-breed
+  (691 bestanden) dat elke `skill §kop`-verwijzing op een bestaand anker landt (koppen én
+  vet-lead-ins); 5 gedocumenteerde beperkingen, zelftest die bijt. **Bewees zich 3× op nieuw werk**
+  nog binnen de sessie.
+- **Drie verhuizingen**: werkprotocol-sessiekoppen → onderwerpskoppen (5 koppen opgeheven, verbatim);
+  P8-subreeks in likara-ux op leesvolgorde (byte-verbatim, multiset-geborgd); bronscan-eisen canoniek
+  in `likara-tests §Bronscans` met de frontend-casussen als toepassing.
+- **Tests-consolidatie in drie rondes**: 15 chronologische koppen → onderwerp (273=273 regels
+  verbatim), dubbelingen naar één bron, allowlist-synctests samengevoegd (Berts besluit).
+- **Parkeeritems geland**: gate-meting + OPVOLGPUNTEN-staging → werkprotocol; psql-recept →
+  LOKAAL-TESTEN; rm/find-drievoud bewust gelaten (keuze i).
+- **Vier eigen-besluit-gevallen** elk met read-only checkpoint vooraf: P8a-telling (git-archeologie:
+  twee wáre tellingen), LI036-kaartregel (samengevoegd naar ux), mjs-driftkopie (→ bewaakte
+  verwijzing), UX-first-binnenkopdubbeling (opgeruimd, drie momenten behouden).
+- **Negen checkpoint-/metingsrapporten** + de gemeten kaart van het restwerk:
+  `docs/Opschoonplan-zeven-skills.md` (7 skills, 82 chronologische koppen, 37% van de skill-tekst;
+  recept, vijf blokken, hygiëneborging in drie verankeringen).
+
+**Werkwijze die zich bewees:** verbatim = multiset-bewijs; de code wint van het rapport (drie eigen
+rapportfouten expliciet gecorrigeerd); "waar zoekt de gebruiker de regel" besliste élke
+dubbeling-keuze; herformuleren bleef overal Berts expliciete besluit.
+
+## Sessie LI048 (het scherm zegt wat het doet) — AFGEROND
 
 **Eén draad door alle opdrachten:** een scherm dat een antwoord geeft dat formeel klopt en de
 consultant niets vertelt. Vier keer in verschillende gedaanten, telkens met een groene suite ernaast.
@@ -53,7 +82,7 @@ afgebroken en daardoor onvindbaar met `grep` (drie keer voorgekomen, drie keer h
 faalmodus als de null-byte-besmetting van LI047), en een bijt-bewijs dat groen bleef omdat de keuze
 inline in een lus stond en geen enkele toets hem oefende.
 
-## Deze sessie (LI047 — alles wat dit component nog nodig heeft, op één plek) — AFGEROND
+## Sessie LI047 (alles wat dit component nog nodig heeft, op één plek) — AFGEROND
 
 **Kern: de consultant ziet per component wat er nog nodig is met een weg erheen; wat hij bewust heeft beantwoord telt als beantwoord; en registreren kan nu bij élk componenttype.**
 
@@ -152,19 +181,24 @@ inline in een lus stond en geen enkele toets hem oefende.
 - **LI042** — gate 4 brok 1 (datalaag, `heeft_gebruikersgroep` + 5e stand `werkvoorraad`), skill-vastlegging.
 - **LI041/LI040** — gate 2 koppelen + gate 3 vier standen + rollengrens ADR-050 · ADR-045/046.
 
-## Prioriteiten volgende sessie (LI048 — zie NEXT_SESSION.md)
-0. **Consolideer het werkprotocol vóór je er iets bij zet** — 595 regels, vier nieuwe koppen onder
-   §Gate-discipline na LI047. Een protocol dat niemand meer leest geeft schijnzekerheid; elke discipline
-   die erop leunt, leunt dan op niets. **Wie er patronen bij wil zetten, consolideert eerst.**
-1. **Archiefwet-feit bouwen (ADR-053)** — eigen enum-kolom + migratie, niet default-verplicht (raakt schema → gate).
-2. **Laatste MVP-laag functie-as (ADR-046 stuk 3 → 5 → 4)** — uitstap-stand/zwaarte/tranche.
-3. **ADR-register bijwerken naar de gebouwde realiteit** — ADR-052/054 verdienen een statusregel die
-   klopt met wat LI047 heeft opgeleverd.
-4. **Terugweg-fijnslijpen** — wat hoort in `lk-state` (org-scope/filter/weergave/zoom-pan); view-verwijderen + selectie-bijwerken (ontwerpbesluit).
-5. **Dev-seed: het gate-3-verhaal (L4-restant)** — koppelingen/"hier draait niets"/noodoplossing; een
-   partij die eigenaar én gebruiker is met meerdere beheerrollen; een knooppaar met relaties van meerdere
-   hoedanigheden (cross-ring overlap komt 0× voor in de dev-data). *Het schone geval (S1) en het
-   fileshare-geval (LI047) staan er inmiddels wél.*
+## Prioriteiten volgende sessie (LI050 = productie-gereedheidsspoor — zie NEXT_SESSION.md)
+
+**Er moet komende week een productieversie klaarstaan.** De skill-opschoning is uitgesteld
+(plan: `docs/Opschoonplan-zeven-skills.md`); de vier vóór-productie-punten staan canoniek in
+`docs/OPVOLGPUNTEN.md` §"Nieuw uit LI049".
+
+1. **Read-only inventarisatie productie-gereedheid** — de bestaande vóór-productie-lijst + P50-1
+   t/m P50-4 langs drie vragen: karakter veranderd? / nu gratis, later duur? / kan na livegang?
+   Rapport, geen bouw.
+2. **P50-1 Checklistvraag-deactivering meten** — de poort (welke permissie; consultant of
+   platformbeheer?) én het gevolg (gegeven antwoorden; telt de gedeactiveerde norm-vraag nog mee
+   in "Dit moet nog"?). Hoge urgentie, vóór livegang.
+3. **P50-2 Namenkaart zonder paginering meten** — waar, welke limiet (100, stil lege naam), welke
+   schermen; dan pas de fix-vorm.
+4. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit op het laatste goedkope
+   moment (schema-rakend → gate).
+5. **P50-4 Keuzelijsten-inventarisatie** — beheerbaar (catalogus) vs. code-/seedvast; de
+   protocol-lijst als aanleiding, ADR-026 als verwant patroon.
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.

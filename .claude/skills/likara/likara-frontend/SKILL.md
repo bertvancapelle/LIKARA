@@ -2,7 +2,7 @@
 name: likara-frontend
 description: Frontend-patronen voor LIKARA (Vue 3, PrimeVue Unstyled, Tailwind v4). Beschrijft de werkelijke V003-staat (login + app-shell + module-views).
 stack: Vue 3, Vite, PrimeVue Unstyled, Tailwind CSS v4, Pinia, vue-router, vitest
-bijgewerkt: V043
+bijgewerkt: V050
 ---
 
 # LIKARA Frontend Skill

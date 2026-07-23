@@ -1,7 +1,7 @@
 ---
 name: likara-werkprotocol
 description: Werkprotocol voor PNA-interacties (claude.ai) en CC-uitvoering. Niet-onderhandelbaar. Lees bij elke sessiestart.
-bijgewerkt: V042
+bijgewerkt: V050
 ---
 
 # LIKARA Werkprotocol
