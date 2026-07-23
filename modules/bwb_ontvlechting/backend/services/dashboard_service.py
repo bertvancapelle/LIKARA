@@ -14,6 +14,7 @@ import uuid
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services import actieve_vraag
 from models.models import (
     ACTIEVE_BLOKKADE_STATUSSEN,
     Blokkade,
@@ -104,6 +105,8 @@ async def haal_dashboard(session: AsyncSession, tenant_id) -> dict:
             .where(
                 Blokkade.tenant_id == tid,
                 Blokkade.status.in_(ACTIEVE_BLOKKADE_STATUSSEN),
+                # LI050: knelpunten van uitgezette vragen tellen niet mee (gedeelde afleiding).
+                actieve_vraag.blokkade_telt_mee(Blokkade.checklistscore_id),
             )
         )
     ).scalar_one()

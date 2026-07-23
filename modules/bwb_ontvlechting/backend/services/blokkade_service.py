@@ -27,6 +27,7 @@ from models.models import (
     Partij,
 )
 from schemas.blokkade import BlokkadeUpdate
+from services import actieve_vraag
 from services import lifecycle_service
 from services import partij_service
 from services.errors import NietGevonden, OngeldigeStatusovergang
@@ -197,7 +198,10 @@ async def lijst(
         )
         .join(Checklistscore, Checklistscore.id == Blokkade.checklistscore_id)
         .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
-        .where(Blokkade.tenant_id == tid)
+        # LI050: een knelpunt van een uitgezette vraag verschijnt niet als open werk
+        # (niet gewist — het keert terug zodra de vraag weer aan gaat). Gedeelde afleiding.
+        .where(Blokkade.tenant_id == tid,
+               actieve_vraag.blokkade_telt_mee(Blokkade.checklistscore_id))
     )
     stmt = _join_verantwoordelijke(stmt, tid)
     if component_id is not None:
@@ -327,7 +331,9 @@ async def lijst_overzicht(
             ),
             isouter=True,
         )
-        .where(Blokkade.tenant_id == tid)
+        # LI050: idem als de per-component lijst — zelfde gedeelde afleiding.
+        .where(Blokkade.tenant_id == tid,
+               actieve_vraag.blokkade_telt_mee(Blokkade.checklistscore_id))
     )
     stmt = _join_verantwoordelijke(stmt, tid)
     stmt = _pas_statusfilter_toe(stmt, status_filter)

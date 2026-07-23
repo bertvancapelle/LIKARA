@@ -35,6 +35,7 @@ from schemas.landschapskaart import (
     LandschapskaartResponse,
     LandschapsNode,
 )
+from services import actieve_vraag
 from services import bedrijfsfunctie_service
 from services import componentconfig_catalog as comp_catalog
 from services import functievervulling_service
@@ -44,7 +45,7 @@ from services import relatiekenmerk_catalog as rk_catalog
 # Lichtgewicht read-only handles op engine-tabellen — bewust GEEN ORM-import (de import-
 # afwezigheidstest verbiedt `ComponentProfiel`/`Blokkade`). Alleen de gelezen kolommen.
 _profiel = table("component_profiel", column("id"), column("tenant_id"), column("lifecycle_status"))
-_blokkade = table("blokkade", column("component_id"), column("tenant_id"), column("status"))
+_blokkade = table("blokkade", column("component_id"), column("tenant_id"), column("status"), column("checklistscore_id"))
 
 _RK_BEHEERROL = RelatieKenmerkDimensie.beheerrol
 # Rollen waaruit we een "leverancier" afleiden voor de node-verrijking.
@@ -149,7 +150,10 @@ async def haal_grafdata_op(
                 select(_blokkade.c.component_id, func.count().label("aantal"))
                 # `status` is een PG-enum; via de lichtgewicht (untyped) kolom expliciet naar tekst
                 # casten zodat de vergelijking met de string-literal een geldige operator heeft.
+                # LI050: knelpunten van uitgezette vragen tellen niet mee — anders zegt de
+                # kaart-badge "1 open" waar de status net terecht groen werd (gedeelde afleiding).
                 .where(_blokkade.c.tenant_id == tid, cast(_blokkade.c.status, String) != "opgelost",
+                       actieve_vraag.blokkade_telt_mee(_blokkade.c.checklistscore_id),
                        _sc(_blokkade.c.component_id))
                 .group_by(_blokkade.c.component_id)
             )

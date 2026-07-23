@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import Checklistscore, Component, ComponentKlaarverklaring, KlaarverklaringStatus
+from services import actieve_vraag
 from services import actor_resolutie
 from services import component_norm_service as norm
 from services import registratiegaten_service
@@ -101,6 +102,9 @@ async def _checklist_nee_deels(session: AsyncSession, tid: uuid.UUID, component_
                     Checklistscore.tenant_id == tid,
                     Checklistscore.component_id == component_id,
                     Checklistscore.score.in_(("nee", "deels")),
+                    # LI050: een uitgezette vraag bestaat voor de beoordeling niet — anders
+                    # toont dit blok een punt dat de consultant niet kan wegwerken.
+                    actieve_vraag.score_telt_mee(Checklistscore.checklistvraag_id),
                 )
             )
         ).scalar_one()

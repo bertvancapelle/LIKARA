@@ -17,6 +17,7 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from services import actieve_vraag
 from models.models import (
     ACTIEVE_BLOKKADE_STATUSSEN,
     Blokkade,
@@ -118,6 +119,8 @@ async def herbereken_lifecycle(
             )
         )
     ).scalar_one()
+    # LI050: een uitgezette vraag bestaat voor de beoordeling niet — het antwoord blijft
+    # bestaan maar telt niet mee (gedeelde afleiding: services/actieve_vraag.py).
     aantal_gescoord = (
         await session.execute(
             select(func.count())
@@ -125,6 +128,7 @@ async def herbereken_lifecycle(
             .where(
                 Checklistscore.tenant_id == tid,
                 Checklistscore.component_id == component_id,
+                actieve_vraag.score_telt_mee(Checklistscore.checklistvraag_id),
             )
         )
     ).scalar_one()
@@ -136,6 +140,9 @@ async def herbereken_lifecycle(
                 Blokkade.tenant_id == tid,
                 Blokkade.component_id == component_id,
                 Blokkade.status.in_(ACTIEVE_BLOKKADE_STATUSSEN),
+                # LI050: een knelpunt van een uitgezette vraag blokkeert niet (niet gewist,
+                # niet opgelost — het telt niet mee zolang de vraag uit staat).
+                actieve_vraag.blokkade_telt_mee(Blokkade.checklistscore_id),
             )
         )
     ).scalar_one()
