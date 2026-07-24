@@ -7,6 +7,30 @@ Bron: sessie 2–3 (P1–P5, OP-9 t/m OP-12). Status per punt expliciet vermeld.
 
 ## OPEN
 
+### Nieuw uit LI051 (2026-07-24) — zoekterm-opschoning: vervolgpunten
+
+> **Context:** LI051 landde de zoekterm-opschoning (categorie-regel), invoer-weerbaarheid,
+> accent-ongevoelig zoeken + startcontrole en de gedeelde tekstregel (zoeken/vastleggen/import).
+> Drie vervolgpunten en één herbevestigde deploy-voorwaarde.
+
+**L51-1. Snelheid van accent-ongevoelig zoeken bij grote aantallen.** `unaccent(naam) ILIKE …`
+kan de gewone naam-index niet rechtstreeks gebruiken; bij duizenden componenten wordt dat traag.
+Oplossing: een **index op de accentloze naam** (bv. een trigram-index op `unaccent(naam)`), te
+**meten op realistische aantallen vóór productie** — niet nu blind bouwen. Status: **open, vóór
+livegang meten.**
+
+**L51-2. Engelse/technische veldmeldingen elders in LIKARA.** De invoer-weerbaarheid gaf de
+tekstvelden Nederlandse, begrijpelijke meldingen; elders in het platform staan nog Engelse/technische
+validatiemeldingen. Een **eigen ronde** om die gelijk te trekken. Status: **open, eigen slice.**
+
+**L51-3. Deploy-voorwaarde herbevestigd — dev-wachtwoorden houden niets tegen.** De vier
+productie-gereedheidspunten (N50-2 = OP-14/OP-28 hieronder) blijven staan; het **scherpste** is dat
+`changeme_dev`-defaults en testaccounts in productie stil doorvallen (`validate_startup_config` checkt
+alleen aanwezigheid, niet of het een dev-default is). Dit is een **harde deploy-voorwaarde** vóór de
+eerste echte tenant. Status: **open — hard vóór livegang** (zie N50-2).
+
+---
+
 ### Nieuw uit LI049 (2026-07-23) — productie-gereedheid: karakter-veranderde en nieuwe punten
 
 > **Context:** er moet komende week een productieversie klaarstaan. De aanname "geen actieve

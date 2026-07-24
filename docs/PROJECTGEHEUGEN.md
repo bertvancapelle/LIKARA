@@ -5,34 +5,64 @@
 > (`gen_sessiestart.py` globt `docs/*.md`). Spiegel hierna de claude.ai-memory.
 
 ## Bouwstand
-- **Build:** V051 · 2026-07-23
-- **Commit:** `e6c4cec` (rechtenanalyse) + de LI050-afsluitcommit. **9 commits** deze sessie, elk
-  per opdracht apart geland: `9d6adfc` werkprotocol bronplicht+afsluitregel · `2dc5592` checkpoint
-  productie-gereedheid · `181fa75` vraagbeheer beheerder-only (ADR-022 W2) · `4a452d8` categorie
-  als entiteit + indeling + code systeem-toegekend (W3/W4) · `ca6b063` engine: uitgezette vraag
-  telt niet mee · `ac3b92f` vraag-volgorde + sleep-bouwsteen (W5) · `e304955` ADR-056
-  vraagevolutie · `6ab1960` vraagbeheer-UX + optie-sleep-fix + wachters · `e6c4cec`
-  rechtenanalyse.
-- **Tests:** backend **1236 passed / 2 skipped** (repo-root, incl. kopverwijzingen-scan) ·
-  frontend **104 files / 1404 passed** · `vite build` ✅ · `test:css-build` ✅ (14 scans) ·
+- **Build:** V052 · 2026-07-24
+- **Commit:** `319b606` (zoekterm opschonen — categorie-regel + import) + de LI051-afsluitcommit.
+  Kern-commits LI051: `6007c2f` invoer-weerbaarheid + accent-ongevoelig zoeken · `319b606`
+  zoekterm-opschoning (onzichtbare tekens weg, spatie blijft spatie); daarvóór in LI051 o.a.
+  ADR-056 snede 1 (vraag bevroren) + de LI051-ADR-056-aanscherping.
+- **Tests:** backend **1297 passed / 2 skipped** (repo-root, incl. kopverwijzingen-scan) ·
+  frontend **107 files / 1460 passed** · `vite build` ✅ · `test:css-build` ✅ (14 scans) ·
   0 kritieken.
-- **Migratie-head:** `0075_li050_vraag_volgorde` (1 head, 0 branches). **Twee migraties** deze
-  sessie: `0074` checklist_categorie (eigen tenant-entiteit, RLS) · `0075` vraag-volgorde —
-  beide toegepast én reseed-consistent (0 verspringingen op 98 vragen).
-- **RLS:** 38× ENABLE ROW LEVEL SECURITY in de offline upgrade-SQL (TST-V051-telling).
-- **TST-rapport:** `docs/TST-V051-Validatierapport.md` (0 kritieken; geaccepteerd: de
-  kopstijl-afwijking die binnen de cyclus is gevonden én hersteld — zie L7).
-- **Werktree:** schoon na de LI050-afsluitcommit.
-- **⚠ KOERS blijft: productieversie.** Scherpste punt (checkpoint §2E → OPVOLGPUNTEN N50-2):
-  **31 `changeme_dev`-vindplaatsen + 9 testaccounts + code-defaults die stil doorvallen — niets
-  houdt dit tegen.** P50-1 is AFGEROND (poort beheerder-only + engine-gat gedicht); P50-2/P50-3
-  open; P50-4 gemeten, besluit open. Nieuw: N50-1 t/m N50-7 (OPVOLGPUNTEN §"Nieuw uit LI050").
-- **⚠ ADR-056 (vraagevolutie) is beslist, niet gebouwd** — 16 besluiten; sliceverdeling is de
-  eerste stap van het bouwspoor.
-- De zes browsercheck-draaiboeken uit LI048 staan nog open; skill-opschoning blijft uitgesteld
-  (`docs/Opschoonplan-zeven-skills.md`).
+- **Migratie-head:** `0077_li051_unaccent` (1 head, 0 branches). **Migraties in LI051:**
+  `0076_adr056_vraag_bevroren` (bevroren formulering + stille notitie + nulpunt-backfill) ·
+  `0077_li051_unaccent` (installeert de `unaccent`-extensie voor accent-ongevoelig zoeken).
+- **RLS:** 38× ENABLE ROW LEVEL SECURITY in de offline upgrade-SQL (TST-V052-telling).
+- **TST-rapport:** `docs/TST-V052-Validatierapport.md` (0 kritieken; 4/4 assen geslaagd).
+- **Werktree:** afsluitcommit LI051 loopt (NEXT_SESSION/OPVOLGPUNTEN/PROJECTGEHEUGEN + skill-lessen
+  + TST-V052 + de gen_build-output).
+- **⚠ KOERS blijft: productieversie.** Scherpste punt (OPVOLGPUNTEN N50-2 / L51-3):
+  **`changeme_dev`-defaults + testaccounts vallen in productie stil door — niets houdt dit tegen**
+  (`validate_startup_config` checkt alleen aanwezigheid). Harde deploy-voorwaarde vóór de eerste
+  echte tenant.
+- **ADR-056 (vraagevolutie): snede 1 GEBOUWD** (formulering bevroren, sein, opnieuw antwoorden,
+  vraag-geschiedenis, tabbladgetal telt beide, stille notitie, nulpunt). **Nog open (eerste
+  LI052-besluit, vóór nieuw werk):** snede 2 (opties onder dezelfde regel/sein + optie-moment +
+  heractiveren + antwoordtype-slot-frontend; schemastap), snede 3 (verouderd-teller per vraag/
+  categorie; schemaloos), en de vier resterende subknopen. Gemeten reststand: NEXT_SESSION.md.
+- Skill-opschoning blijft uitgesteld (`docs/Opschoonplan-zeven-skills.md`).
 
-## Deze sessie (LI050 — het vraagbeheer van de beheerder, en vragen mogen evolueren) — AFGEROND
+## Deze sessie (LI051 — wat een gebruiker intypt komt terug zoals bedoeld, en vragen mogen evolueren) — AFGEROND
+
+**Eén draad:** de tekst die een gebruiker intypt of plakt wordt betrouwbaar behandeld — bij zoeken,
+bij vastleggen en bij het importeren — en de checklist-vraag mag evolueren zonder een uitspraak toe
+te schrijven aan wie haar niet zag.
+
+**Wat er is gebouwd:**
+- **Invoer-weerbaarheid + accent-ongevoelig zoeken** (`6007c2f`): nul-/stuurtekens geweigerd bij het
+  vastleggen (gedeelde plek, NFC); zoeken negeert accenten over alle tien zoekpaden via één gedeelde
+  bron; de app **weigert op te starten** als de `unaccent`-DB-functie ontbreekt (migratie 0077 +
+  startcontrole `app/core/zoekfunctie.py`).
+- **Zoekterm-opschoning — de categorie-regel** (`319b606`): onzichtbare tekens (NBSP, brede spaties,
+  zero-width, BOM, stuurtekens) worden per **Unicode-categorie** afgehandeld (Zs→spatie zodat de
+  woordgrens blijft, Cf/Cc weg, samenvouwen+trimmen) — niet als lijst codes. Eén gedeelde regel
+  (`schemas/tekstschoning`) voor zoeken, vastleggen én de GEMMA-import (bij de parser-uitvoer,
+  `services/ameff` — dichtte een idempotentie-bug: aanmaken schoonde op, bijwerken niet). Melding
+  "onzichtbare tekens weggehaald" op alle acht zoekvelden, alleen als er iets verdween.
+- **ADR-056 snede 1** (eerder in LI051): formulering bevroren bij het antwoord (migratie 0076), één
+  neutraal sein per vraag, opnieuw antwoorden dooft het sein, vraag-geschiedenis als leesingang voor
+  de consultant, tabbladgetal telt beide soorten werk, stille notitie bij verduidelijking, nulpunt bij
+  invoering. ADR-056 zelf aangescherpt (18 besluiten).
+
+**Borging (de scherpste les):** een groene toets op een te smalle voorbeeldenreeks bewijst niets —
+de opschoning kende eerst alleen de leerboek-stuurtekens en de suite bleef groen terwijl NBSP/
+zero-width door de hele keten liepen. Nu: een categorie-toets over het hele Unicode-bereik, en een
+gedeelde voorbeeldenreeks die voor- én achterkant draaien. **Vier skill-lessen** vastgelegd
+(likara-tests/ux/resilience/backend).
+
+**Reststand ADR-056 (gemeten):** snede 2 + 3 + vier subknopen open — eerste LI052-besluit is deze
+geheel afronden vóór nieuw werk (NEXT_SESSION.md).
+
+## Sessie LI050 (het vraagbeheer van de beheerder, en vragen mogen evolueren) — AFGEROND
 
 **Eén draad door alle opdrachten:** de checklist-vragenset werd van een seed-gegeven een
 beheerbaar tenant-instrument — wie erover gaat (beheerder-only), hoe hij is ingedeeld (categorie
@@ -225,16 +255,18 @@ inline in een lus stond en geen enkele toets hem oefende.
 - **LI042** — gate 4 brok 1 (datalaag, `heeft_gebruikersgroep` + 5e stand `werkvoorraad`), skill-vastlegging.
 - **LI041/LI040** — gate 2 koppelen + gate 3 vier standen + rollengrens ADR-050 · ADR-045/046.
 
-## Prioriteiten volgende sessie (LI051 — zie NEXT_SESSION.md)
+## Prioriteiten volgende sessie (LI052 — zie NEXT_SESSION.md)
 
-1. **ADR-056 bouwen — sliceverdeling eerst** (vraagevolutie: bevroren formulering, één
-   opslaan-moment, verouderd-melding, optie-heractiveren, antwoordtype-slot; schema-rakend →
-   gates; subknopen in het ADR).
+1. **EERSTE BESLUIT: ADR-056 geheel afronden vóór nieuw werk** — snede 2 (opties onder dezelfde
+   regel/sein + optie-moment + heractiveren + antwoordtype-slot-frontend; schemastap), snede 3
+   (verouderd-teller per vraag/categorie; schemaloos), en de vier resterende subknopen (twee
+   consultant-drempels, gedeactiveerde-vraag-antwoordgedrag, contextpaneel aan volgorde 8).
 2. **P50-2 Namenkaart zonder paginering** — meting klaar (checkpoint §2B); fix-vorm kiezen.
 3. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit, laatste goedkope moment.
-4. **Productie-hardening N50-2 (OP-14/OP-28)** — dev-secrets/testaccounts/code-defaults: niets
-   houdt ze tegen; hard vóór livegang.
-5. **Consultant-drempels (N50-5) + P50-4-besluit** (welke keuzelijsten beheerbaar horen).
+4. **Productie-hardening N50-2 / L51-3 (OP-14/OP-28)** — dev-secrets/testaccounts/code-defaults:
+   niets houdt ze tegen; harde deploy-voorwaarde vóór livegang.
+5. **Vervolgpunten LI051:** L51-1 index accentloos zoeken (meten vóór productie) · L51-2 Engelse
+   veldmeldingen (eigen ronde).
 
 ## Resterend uit de rebrand (geen code)
 - **DC013** — GitHub-repo/remote hernoemen; lokale map opruimen. Berts GitHub-actie.

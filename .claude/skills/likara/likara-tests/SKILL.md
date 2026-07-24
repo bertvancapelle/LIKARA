@@ -383,6 +383,27 @@ empirisch geverifieerd tegen de draaiende stack (zie `docs/LOKAAL-TESTEN.md`).
   "welke vorm maak ik navolgbaar?" — en kijk eerst of het geval zelf op te lossen valt.
   (Frontend-casussen — de `GapDetailView`-tegels en `LIJSTKOP_OPENSTAAND`: likara-frontend
   §LI040-patronen.)
+- **Een groene toets bewijst niets als de voorbeeld-invoer uit een te smalle verzameling komt.**
+  Wat de gebruiker overkwam: hij plakte een naam uit Word in een zoekveld, kreeg een lege lijst
+  terwijl het component er wél was — en de toetsen stonden groen. De zoekterm-opschoning kende
+  alleen de leerboek-stuurtekens (C0/C1), en élk testvoorbeeld kwam uit diezelfde smalle set, dus
+  een vaste spatie, een zero-width teken en de bytemarkering (precies wat bij plakken uit Word/Excel
+  meekomt) liepen ongemoeid door de hele keten. Twee regels dichten dit: (1) de **voorbeeldenreeks
+  komt uit wat de praktijk oplevert**, niet uit de leerboek-gevallen; (2) een regel die per
+  Unicode-**categorie** geldt (`Zs`/`Cf`/`Cc`) wordt bewezen door een **categorie-toets over het
+  hele bereik**, niet door een lijst codes — zo glipt een teken dat niemand opschreef er niet
+  doorheen. Dit is de andere kant van "een structurele eigenschap, geen lijst" hierboven: dáár de
+  SCAN-regel, hier de test-INVOER. Wachters die dit borgen:
+  `test_regel_dekt_elke_categorie_niet_een_lijst_codes` (test_tekstschoning_li051.py) + de
+  categorie-sweep in `zoekterm.test.js`. (LI051)
+- **Twee implementaties in verschillende talen blijven gelijk via één gedeelde voorbeeldenreeks.**
+  De opschoonregel leeft aan de voorkant (JS) én de achterkant (Python); ze mogen niet uiteen
+  groeien. Vorm: één JSON-oracle (`frontend/tests/fixtures/zoekterm_gelijkheid.json`) die BEIDE
+  suites asserten — de backend-test leest de frontend-fixture cross-tree — zodat een afwijking aan
+  één kant díe suite omgooit. Dit is de leestaal-overstijgende variant van "elke gedeelde leesregel
+  krijgt een bronscan-test die een tweede implementatie laat falen" (hieronder); het achterliggende
+  principe — de regel woont op één plek waar de tekst binnenkomt — staat in likara-backend
+  §Gedeelde tekstregel. (LI051)
 - **Het BEREIK van een scan is even belangrijk als zijn regels, en versmalt stiller (LI048).**
   Leid het bereik af uit wat de scan hoort te dekken (de gezaghebbende bron), nooit uit
   bestandsnamen — een naamconventie is geen criterium maar een toevalligheid. Drie eisen naast

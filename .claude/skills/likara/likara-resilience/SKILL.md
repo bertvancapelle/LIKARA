@@ -44,6 +44,16 @@ def validate_startup_config():
 
 Aangeroepen in de `lifespan` — de app start niet met onvolledige config.
 
+**Niet alleen config — ook een verplichte DB-functie (LI051).** Dezelfde fail-fast-lijn geldt voor
+elke voorwaarde die de app nodig heeft om te wérken, niet alleen voor ontbrekende Settings. Het
+accent-ongevoelig zoeken leunt op de PostgreSQL-functie `unaccent` (uit een contrib-extensie die een
+migratie installeert). Ontbreekt die — bv. een handmatig aangemaakte database — dan zou élk zoekveld
+pas bij de eerste zoekopdracht knappen. Dat weigeren we: `valideer_zoekfunctie` (`app/core/zoekfunctie.py`)
+draait `SELECT unaccent('x')` in de `lifespan`, ná `validate_startup_config`, en stopt bij falen met
+een **leesbare beheerdersmelding** (wat ontbreekt + hoe je het installeert) i.p.v. een kale fout laat
+op de rit. De vorm is dezelfde als de config-check en de dev-secret-check: een omgeving meldt bij de
+start wat er mist, op het vroegst mogelijke moment.
+
 ## SlowAPI rate-limiting
 
 Vier niveaus, gedefinieerd in `middleware/rate_limit.py` op basis van config:

@@ -507,11 +507,11 @@ Pas dan: klaar.
 
 | Veld | Waarde |
 |------|--------|
-| Build | V051 |
+| Build | V052 |
 | Datum | July 2026 |
-| Commit | e6c4cec |
-| Tests | backend 1236 passed / 2 skipped · frontend 104 files / 1404 passed · vite build OK · css-build 14 scans OK · kopverwijzingen-scan groen |
-| TST-rapport | TST-V051-Validatierapport.md |
+| Commit | 319b606 |
+| Tests | backend 1297 passed / 2 skipped · frontend 107 files / 1460 passed · vite build OK · css-build 14 scans OK · kopverwijzingen-scan groen · alembic 1 head (0077_li051_unaccent) 0 branches · RLS 38 |
+| TST-rapport | TST-V052-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 <!-- BOUWSTATUS_END -->

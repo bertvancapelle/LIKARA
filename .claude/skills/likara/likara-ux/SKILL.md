@@ -461,6 +461,16 @@ zegt de vorm zelf welke knop iets doet en welke je verplaatst. Wordt later "voor
 alles een teken, dan is dat onderscheid weg — en dat is verlies, geen opschoning. Vandaar een toets
 die omvalt zodra een handeling een teken krijgt (`ComponentDetail.test.js`, "DE REGEL").
 
+**De derde tekensoort: het handvat.** De regel hierboven ("alleen wegwijzers dragen een teken") geldt
+voor knoppen — maar een **sleepgreep** is geen knop: geen wegwijzer en geen handeling-in-woorden,
+maar een greep die uitnodigt tot direct verplaatsen. Dáárvoor ís het greep-teken de affordance, geen
+versiering — het handvat draagt dus wél een teken, en dat botst niet met de regel: de knip loopt
+tussen *een handeling die je met een woord aankondigt* en *een greep die je vastpakt*. Zo zijn er drie
+soorten: de wegwijzer (teken, brengt je ergens heen), de handeling (woord, verandert iets), en het
+handvat (greep-teken, verplaatst iets ter plekke). Bekrachtigd bij de sleep-volgorde (LI050/LI051,
+ADR-022 W5). De toets "DE REGEL" (`ComponentDetail.test.js`) bewaakt de knoppen; de sleepgreep wordt
+elders geborgd (`sleepLijst.test.js`) — een handvat maakt "DE REGEL" dus niet vals-rood.
+
 **Praktische ondergrens:** gebruik alleen tekens die de gebruiker al kent (kaart, klok-met-terugpijl).
 Bestaat er geen bekend teken voor een begrip — "heropenen" — dan verzin je een symbool dat hij moet
 leren, terwijl het woord er al stond.

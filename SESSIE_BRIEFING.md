@@ -1,6 +1,6 @@
-# SESSIE_BRIEFING.md — LIKARA V051
+# SESSIE_BRIEFING.md — LIKARA V052
 
-**Gegenereerd**: 2026-07-23
+**Gegenereerd**: 2026-07-24
 
 ---
 
@@ -10,11 +10,11 @@
 
 | Veld | Waarde |
 |------|--------|
-| Build | V051 |
+| Build | V052 |
 | Datum | July 2026 |
-| Commit | e6c4cec |
-| Tests | backend 1236 passed / 2 skipped · frontend 104 files / 1404 passed · vite build OK · css-build 14 scans OK · kopverwijzingen-scan groen |
-| TST-rapport | TST-V051-Validatierapport.md |
+| Commit | 319b606 |
+| Tests | backend 1297 passed / 2 skipped · frontend 107 files / 1460 passed · vite build OK · css-build 14 scans OK · kopverwijzingen-scan groen · alembic 1 head (0077_li051_unaccent) 0 branches · RLS 38 |
+| TST-rapport | TST-V052-Validatierapport.md |
 | Kritieke bevindingen | 0 |
 
 ---
@@ -22,11 +22,11 @@
 ## Recente commits
 
 ```
-e6c4cec [docs] LI050 analyse rechtenverdeling × reikwijdte — read-only meting R0-R3; grond onder vraagbeheer beheerder-only (ADR-022 W2, geland in 181fa75) — ADR-012/022
-6ab1960 [checklist] LI050 vraagbeheer leesbaar én bedienbaar — één regel per vraag met de vraag als kop van een omrand blok, onderbouwing achter één klik (één tegelijk open); optie-slepen gerepareerd (lijstvorm i.p.v. tabelrijen) — ADR-022
-e304955 [docs] ADR-056 vragen evolueren — formulering bevroren bij het antwoord; beheerder kiest verduidelijking vs. wijziging, verouderd = neutraal + wegwerkbaar, niets blokkeert — incl. checkpoint-grond en mockup-besluiten 13-16 — LI050
-ac3b92f [checklist] LI050 vragen krijgen eigen volgorde + slepen als enige bediening — gedeelde bouwsteen useSleepLijst (categorieën + vragen), getalveld vervalt — ADR-022 W5
-ca6b063 [engine] LI050 uitgezette vraag telt niet mee in de beoordeling — antwoord en knelpunt blijven bestaan; één gedeelde afleiding (actieve_vraag) voor tellen én tonen
+319b606 [zoeken] LI051 — zoekterm opschonen: onzichtbare tekens weg, spatie blijft spatie
+6007c2f [invoer] LI051 — invoer-weerbaarheid + accent-ongevoelig zoeken
+00f2f18 [checklist] ADR-056 snede 1 — vragen evolueren: de formulering wordt bevroren bij het antwoord (b4; vandaag is het nulpunt, b18) en "verouderd" is de vergelijking, geen opgeslagen vlag; de beheerder past de vraagtekst aan in het scherm en zegt bij één opslaan-venster wat het is — verduidelijking of echte wijziging — met vooraf "dit raakt N antwoorden" (b2/12/13/16); de consultant krijgt één rustig sein (b7), geeft zijn antwoord opnieuw (b8) terwijl het oude blijft meetellen en niets blokkeert (b11), ziet het werk in het tabbladgetal dat beide soorten telt (b10) en leest de oude formulering in de vraag-geschiedenis (b17); de stille notitie dooft bij aanraken (b6); zichtbare sleepgreep in de gedeelde sleep-bouwsteen met "handvat" als derde tekensoort (besluit Bert, LI051); de twee inline opslaan-knoppen sluiten na de handeling — migratie 0076 — ADR-056
+dcfd7f4 [docs] ADR-056 aangescherpt LI051 — één sein per vraag (ook leeg keuzeveld), opnieuw antwoorden ís de bevestiging (klopt-nog-knop verworpen; oude antwoord telt mee tot herantwoord), tabbladgetal telt beide soorten werk (geen poort), vraag-geschiedenis consultant-leesbaar (b17), nulpunt bij invoering (b18), notitie-doving (b6); gevolgen 3→5; incl. checkpoint-grond bouwkant-V051 — ADR-056
+4dd7eea [docs] LI050 afsluiting — V051: vraagbeheer-spoor compleet (ADR-022 W2-W5 + engine + UX + ADR-056 beslist), TST-V051 0 kritieken, vier skill-lessen, backlog bijgewerkt
 ```
 
 ---
@@ -67,11 +67,14 @@ vraag telt niet mee (actieve_vraag) · `ac3b92f` vraag-volgorde + sleep-bouwstee
 
 ## Top-5 prioriteiten LI051
 
-1. **ADR-056 bouwen — sliceverdeling eerst.** De formulering bevroren bij het antwoord,
-   verduidelijking vs. echte wijziging (één opslaan-moment per vraag, geen voorselectie),
-   verouderd = neutraal + wegwerkbaar, optie-heractiveren, antwoordtype-slot mét reden.
-   Open subknopen staan in het ADR (o.a. invoerings-vulling van de 267 antwoorden, de
-   beheerder-UI voor tekstbewerking). Schema-rakend → gates.
+1. **EERSTE BESLUIT LI052 — ADR-056 wordt geheel afgerond vóór er nieuw werk bij komt.**
+   Snede 1 (formulering bevroren, sein, opnieuw antwoorden, geschiedenis, tabbladgetal,
+   stille notitie, nulpunt) is **gebouwd** in LI051. Af te maken, in deze volgorde:
+   **snede 2** (opties onder dezelfde regel/sein + optie-moment + heractiveren +
+   antwoordtype-slot-frontend; schemastap), **snede 3** (verouderd-teller per vraag/
+   categorie; schemaloos), én de **vier resterende subknopen** (de twee consultant-drempels,
+   het gedeactiveerde-vraag-antwoordgedrag, en het contextpaneel aan categorie-volgorde acht).
+   Zie de gemeten reststand hieronder. Pas daarná nieuw werk (P50-2/3, hardening, …).
 2. **P50-2 Namenkaart zonder paginering** — gemeten (checkpoint §2B: 1 echte treffer + 2
    verwante); nu de fix-vorm kiezen (niet de limiet ophogen).
 3. **P50-3 `organisatiegebruik.applicatie_id`** — Berts schemabesluit op het laatste goedkope
@@ -88,6 +91,59 @@ vraag telt niet mee (actieve_vraag) · `ac3b92f` vraag-volgorde + sleep-bouwstee
 
 ---
 
+## ADR-056 — reststand (gemeten V051, read-only tegen de code)
+
+De 18 besluiten, geteld tegen de code (niet uit het hoofd):
+
+**Gebouwd in LI051 (snede 1) — 13 van de 18:**
+1 vraagtekst wijzigt mét antwoorden (`checklistconfig_service.werk_vraag_bij:327`) · 2 verduidelijking/
+echte-wijziging, verplicht, geen default (`WijzigingsAard`-enum + venster `ChecklistConfigBeheer.vue:1001`) ·
+4 formulering bevroren bij het antwoord (`checklistscore.vraag_bevroren`; sein = vergelijking
+`_zet_vraag_gewijzigd:77`, geen kolom) · 6 stille notitie + doving (`vraag_verduidelijkt_op`,
+`checklistscore_service:451`) · 7 één neutraal sein per vraag (`ChecklistscoreSectie.vue:485`) · 8 opnieuw
+antwoorden dooft het sein, toelichting blijft (`werk_bij:452`) · 9+17 oude formulering in de
+vraag-geschiedenis, leesbaar voor de consultant (`objecthistorie.py:53` + `ObjectHistoriePaneel`) · 10
+tabbladgetal telt beide, geen poort (`tabblad_aantal:252`, `OpenPuntenSectie` blok "dit valt op") · 11
+blokkeert niets (lifecycle/score onaangeraakt, geborgd) · 16 geen voorselectie (radios leeg) · 18 nulpunt:
+backfill bij invoering (migratie 0076). *(laatste_wijzigingsaard: 98× NULL = nulpunt bevestigd.)*
+
+**Nog te bouwen — het hart:**
+- **Snede 2 — middelgroot + schemastap.** Besluit 3: optie toevoegen/hernoemen door dezelfde keuze/sein
+  (`voeg_optie_toe:586`/`wijzig_optie:621` kennen die niet) · besluit 5: een optie krijgt een moment van
+  ontstaan (géén `created_at` op `ChecklistVraagOptie`, `models.py:1055` — dít is de schemastap) · besluit
+  15: uitgezette optie **heractiveren** (`OptieUpdate` kent alleen label+volgorde; wel `deactiveer_optie`,
+  géén reactiveer-service/route) · besluit 14: antwoordtype-veld **dicht mét reden** — de serverregel bestaat
+  al (`zet_antwoordtype:541`), alleen de frontend-presentatie ontbreekt (nu nog de grijze regel
+  `ChecklistConfigBeheer.vue:854`) · besluit 13 afronden: opties **bundelen** in het ene opslaan-moment
+  (lopen nu via aparte endpoints). De machinerie van snede 1 (keuze → fan-out over `vraag_bevroren`) draagt
+  dit; nieuw is dat het optie-pad erdoorheen gaat + de optie-drager (besluit 5) + heractiveren (besluit 15).
+- **Snede 3 — klein, schemaloos.** Besluit 12: teller "N verouderde antwoorden" per vraag én per categorie
+  in het beheerscherm, uit **dezelfde** afleiding als de voorspelling vooraf. De per-component verouderd-
+  telling bestaat al (`component_open_punten_service._vraag_gewijzigd:124`); wat ontbreekt is de per-vraag/
+  per-categorie som op de beheerplek. Geen schemastap.
+
+**Nog te bouwen — buiten het hart: de vier resterende subknopen (allemaal in LI052, ná 2+3):**
+1. **De twee consultant-drempels — het mechanisme bestaat al; open is een BESLUIT, geen bouw.**
+   Bevinding/Verantwoordelijke/Actie zitten achter "eerst scoren" + uitklap (`ChecklistscoreSectie.vue:530-552`),
+   en **71 van de 98** actieve vragen hebben antwoordtype `geen` → geen keuzelijst (gemeten: 71 geen · 18
+   enkelvoudig · 8 meerkeuze · 1 getal). Vraag: is de eerst-scoren-drempel gewenst, en horen die 71 vragen
+   een antwoordveld?
+2. **Het gedeactiveerde-vraag-antwoordgedrag.** De engine negeert een uitgezette vraag voor de beoordeling
+   (LI050, `actieve_vraag.py`), maar hoe bestaande antwoorden op zo'n vraag zich gedragen — leesbaar blijven,
+   uit de scorelijst verdwijnen — is nog een open subknoop.
+3. **Het contextpaneel aan categorie-volgorde acht** (`ComponentDetail.vue:754`, `ContractSectie.vue:236`) —
+   zie ook onder Openstaande beslissingen; urgenter sinds de beheerder de volgorde kan verslepen.
+
+*"Vijf teksten worden onwaar":* #5 (tabblad-toelichting) is met besluit 10 geland; #4 (grijze regel) en #2
+(optie-docstring soft-deactiveren) lopen mee met snede 2 (besluit 14/15); #1 (VraagUpdate-docstring) en #3
+(ADR-022-passage) zijn docs-opruiming.
+
+**Sluiten 2+3 het ADR? (stap 2):** Ja — snede 2 (besluiten 3, 5, 13-afronding, 14-frontend, 15) + snede 3
+(besluit 12) bouwen de laatste van de **18 besluiten**. De vier subknopen hierboven vallen bewust buiten die
+18, maar horen (besluit Bert) in dezelfde LI052-afronding vóór er nieuw werk bij komt.
+
+---
+
 ## Openstaande beslissingen
 
 - **ADR-056 subknopen** (bij de bouw): invoerings-vulling, opslag-vorm in detail, plek stille
@@ -98,8 +154,11 @@ vraag telt niet mee (actieve_vraag) · `ac3b92f` vraag-volgorde + sleep-bouwstee
   terwijl er tenant-data bestaat — platform-brede backfills raken 0 tenants).
 - **L7 css-poort**: de css-build-controle draait pas bij de afsluiting — deze sessie mét bewijs
   (kopstijl-afwijking landde in `6ab1960`, pas bij de TST gevangen). Proceskeuze Bert.
-- **Contextpaneel** hangt nog aan categorie-volgorde 8 (`ComponentDetail.vue:752`) — sinds W5
-  kan de beheerder die volgorde verslepen; betekenis-markering op de categorie is de echte vorm.
+- **Contextpaneel hangt hard aan categorie-volgorde 8** (`ComponentDetail.vue:754-788`
+  `v-if="actieveCategorieVolgorde === 8"`; ook `ContractSectie.vue:236`). **Urgenter sinds LI051:**
+  de beheerder kan de categorie-volgorde nu verslepen (ADR-022 W5) — versleept hij, dan verschijnt
+  "Geregistreerde contracten" bij de verkeerde categorie of verdwijnt het. Betekenis-markering op de
+  categorie (niet het volgnummer) is de echte vorm. Niet-ADR-056, wél op de reststand-lijst.
 - **Import-lijn Tiel** (persoonsnamen) — geparkeerd. **Opschoonplan 7 skills** — uitgesteld
   (route in `docs/Opschoonplan-zeven-skills.md`). **Demostand uittredende deelnemer** — kan
   onafhankelijk ingepland.
@@ -140,5 +199,5 @@ vraag telt niet mee (actieve_vraag) · `ac3b92f` vraag-volgorde + sleep-bouwstee
 
 1. Lees deze briefing volledig
 2. Lees CLAUDE.md (sessiestart-protocol)
-3. Bevestig: "Sessie-briefing geladen — LIKARA V051"
+3. Bevestig: "Sessie-briefing geladen — LIKARA V052"
 4. Wacht op START: [naam] van Bert

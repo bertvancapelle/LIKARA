@@ -130,6 +130,32 @@ async def seed_checklist_vragen(session) -> int:
 Gebruik `len(...)` als returnwaarde — `result.rowcount` zou bij een tweede
 (idempotente) run 0 teruggeven.
 
+## Gedeelde tekstregel — normaliseer bij de bron
+
+Wat er misging: een consultant sloeg een component op als *Zaak⟨vaste spatie⟩systeem* en kon het
+daarna niet meer vinden met een gewone spatie — het stond er wél, maar was onvindbaar. En de
+GEMMA-import zag bij een tweede inlees een functie ten onrechte als "bijgewerkt": het **aanmaken**
+schoonde de tekst op via het schema, het **bijwerken** wees de ruwe brontekst rechtstreeks toe — twee
+wegen naar de opslag, en de vergelijking zette de al opgeschoonde opslag naast de ruwe bron.
+
+De regel: **wanneer meer dan één plek dezelfde tekst bewerkt, woont de opschoonregel op één plek waar
+de tekst binnenkomt** — niet bij elke consument apart. Dan delen aanmaken, bijwerken, vergelijken,
+zoeken en importeren vanzelf dezelfde tekst; er is geen tweede definitie die kan achterlopen. Concreet
+(LI051): de categorie-regel leeft in `schemas/tekstschoning` (Zs-spaties → gewone spatie, Cf-opmaak
+weg, Cc-stuurtekens weg-bij-zoeken/geweigerd-bij-invoer, dan samenvouwen + trimmen), en wordt gebruikt
+door `services/zoektekst.schoon_zoekterm` (zoeken), `schemas/_validators` (vastleggen) én — de fix die
+de GEMMA-bug dichtte — `services/ameff` bij de **parser-uitvoer**, zodat de import haar tekst één keer
+opschoont vóór create/update/vergelijk. Een naam met een vaste spatie wordt zo een gewone spatie
+(woordgrens blijft, vindbaar), en een her-inlees geeft weer nul wijzigingen.
+
+Twee vangrails houden de regel op één plek:
+- **Aan de bron opschonen, niet bij elke consument** — een directe attribuut-toewijzing die het schema
+  omzeilt (het GEMMA-update-pad) is precies hoe een tweede, achterlopende definitie ontstaat. Schoon
+  de tekst op waar hij binnenkomt (de parser), dan draagt élk pad de opgeschoonde vorm.
+- **Voor- en achterkant aantoonbaar gelijk** — leeft dezelfde regel in twee talen (JS-voorkant +
+  Python-achterkant), dan bewijst één gedeelde voorbeeldenreeks dat ze niet uiteen groeien (de
+  gedeelde-fixture-vorm + de bronscan die een tweede kopie laat vallen: likara-tests §Bronscans).
+
 ## Stubs en openstaande ADRs (V001)
 
 | Onderdeel | Status |
