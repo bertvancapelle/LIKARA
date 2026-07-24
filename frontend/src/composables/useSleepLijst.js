@@ -25,7 +25,38 @@
  *   <li draggable="true" @dragstart="sleep.pak(item.id)"
  *       @dragover.prevent @drop.prevent="sleep.laatLos(item.id)">
  */
-import { ref } from 'vue'
+import { h, ref } from 'vue'
+
+import Icoon from '@/components/Icoon.vue'
+
+/**
+ * SleepGreep — de zichtbare handgreep van de sleep-bouwsteen (ADR-056/LI051, besluit
+ * Bert): slepen was alleen te ontdekken door met de muis over een rij te gaan; nu
+ * draagt élke versleepbare rij een greep die in rust zichtbaar is — gedempt, links.
+ *
+ * Hoort bij de bouwsteen, niet bij een lijst: elke consument van `useSleepLijst`
+ * plaatst hem op zijn versleepbare rijen (de bronscan in `sleepLijst.test.js` dwingt
+ * dat af — een sleep-lijst zonder greep faalt de suite). De CONSUMENT gate't op wie
+ * mag slepen, met dezelfde conditie als `draggable` — een greep die niets doet is
+ * een belofte die het scherm niet waarmaakt.
+ *
+ * `mee` = kleurt mee met een geselecteerde rij (de selectie blijft één geheel).
+ */
+export const SleepGreep = {
+  name: 'SleepGreep',
+  props: { mee: { type: Boolean, default: false } },
+  render() {
+    return h(
+      'span',
+      {
+        class: ['lk-sleep-greep', this.mee ? 'lk-sleep-greep-mee' : ''],
+        'aria-hidden': 'true',
+        'data-testid': 'sleep-greep',
+      },
+      [h(Icoon, { naam: 'greep' })],
+    )
+  },
+}
 
 export function useSleepLijst({ haalIds, herschik, naSucces }) {
   const sleepId = ref(null)

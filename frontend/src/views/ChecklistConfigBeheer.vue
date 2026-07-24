@@ -20,10 +20,11 @@
  * Rechten (W2): iedereen leest; alleen de beheerder ziet bewerk-affordances.
  */
 import { computed, reactive, ref, watch } from 'vue'
+import Dialog from 'primevue/dialog'
 import { useToast } from 'primevue/usetoast'
 import { api } from '@/api'
 import { useAuthStore } from '@/store/auth'
-import { useSleepLijst } from '@/composables/useSleepLijst'
+import { SleepGreep, useSleepLijst } from '@/composables/useSleepLijst'
 import VeldUitleg from '@modules/bwb_ontvlechting/frontend/views/VeldUitleg.vue'
 import LijstKop from '@/components/LijstKop.vue'
 
@@ -61,7 +62,64 @@ const nieuweCategorie = reactive({ naam: '' })
 // sluit de vorige, zodat er nooit twijfel is welke velden bij welke vraag horen.
 const openVraagId = ref(null)
 function toggleVraag(vraag) {
-  openVraagId.value = openVraagId.value === vraag.id ? null : vraag.id
+  const opent = openVraagId.value !== vraag.id
+  openVraagId.value = opent ? vraag.id : null
+  // ADR-056 — verse tekst-buffer bij openen: bewerken muteert de vraag niet tot het
+  // opslaan-venster bevestigd is.
+  if (opent) vraagBewerk[vraag.id] = vraag.vraag
+}
+
+// ── ADR-056 besluit 13/16 — de vraagtekst bewerken met één opslaan-venster ──────
+// De beheerder typt in een buffer; "Vraagtekst opslaan" opent het venster dat de
+// wijziging benoemt, "dit raakt N antwoorden" voorspelt (besluit 12, uit dezelfde
+// telling als het beeld erná) en de keuze verduidelijking/wijziging stelt — één
+// keer, ZONDER voorselectie (besluit 16: een vinkje is een uitspraak).
+const vraagBewerk = reactive({}) // vraag.id -> tekst-buffer
+const opslaanVenster = ref(null) // { vraagId, oud, nieuw, aard: '', aantal: null|-1|N }
+const vensterBezig = ref(false)
+
+function tekstGewijzigd(vraag) {
+  const buf = (vraagBewerk[vraag.id] ?? vraag.vraag).trim()
+  return !!buf && buf !== vraag.vraag
+}
+
+async function openOpslaanVenster(vraag) {
+  const nieuw = (vraagBewerk[vraag.id] ?? '').trim()
+  if (!nieuw || nieuw === vraag.vraag) return
+  actieFout.value = null
+  opslaanVenster.value = { vraagId: vraag.id, oud: vraag.vraag, nieuw, aard: '', aantal: null }
+  try {
+    const { aantal_antwoorden } = await api.checklistconfig.impactAntwoorden(vraag.id)
+    if (opslaanVenster.value?.vraagId === vraag.id) opslaanVenster.value.aantal = aantal_antwoorden
+  } catch {
+    // Best-effort voorspelling: het venster zegt dan eerlijk dat de telling ontbreekt.
+    if (opslaanVenster.value?.vraagId === vraag.id) opslaanVenster.value.aantal = -1
+  }
+}
+
+async function bevestigVraagtekst() {
+  const v = opslaanVenster.value
+  if (!v || !v.aard || vensterBezig.value) return
+  vensterBezig.value = true
+  try {
+    const updated = await api.checklistconfig.werkVraagBij(v.vraagId, {
+      vraag: v.nieuw,
+      wijzigingsaard: v.aard,
+    })
+    _vervangVraag(updated)
+    vraagBewerk[v.vraagId] = updated.vraag
+    opslaanVenster.value = null
+    toast.add({ severity: 'success', summary: 'Opgeslagen', detail: 'Vraagtekst opgeslagen.', life: 3000 })
+  } catch (e) {
+    _toonFout(e)
+  } finally {
+    vensterBezig.value = false
+  }
+}
+
+// Meervoudsvorm voor de voorspelling ("1 antwoord" / "N antwoorden").
+function antwoordTelling(aantal) {
+  return aantal === 1 ? '1 antwoord' : `${aantal} antwoorden`
 }
 
 // Categorieën van het gekozen type, in hun volgorde.
@@ -133,6 +191,24 @@ function _vervangVraag(updated) {
 function _vervangOptie(vraag, optie) {
   const i = vraag.opties.findIndex((o) => o.id === optie.id)
   if (i >= 0) vraag.opties[i] = optie
+  // De server-respons ís de opgeslagen staat — de dirty-referentie beweegt mee.
+  optieLabelOpgeslagen[optie.id] = optie.label
+}
+
+// Correctie snede 1 (besluit Bert, meting-opslaanknop) — zelfde vorm als de vraagtekst:
+// de optie-Opslaan is uit zolang het label gelijk is aan de laatst opgeslagen staat, en
+// uit tijdens de vlucht (een tweede klik levert nooit een tweede verzoek). Het label wordt
+// via v-model direct op de rij bewerkt; de laatst opgeslagen waarde leeft daarom in een
+// eigen referentie, gevuld bij laden en bij elke server-respons.
+const optieLabelOpgeslagen = reactive({}) // optie.id -> laatst opgeslagen label
+const optieBezig = reactive({}) // optie.id -> bool (vluchtslot)
+
+function _registreerOptieLabels(lijst) {
+  for (const v of lijst) for (const o of v.opties || []) optieLabelOpgeslagen[o.id] = o.label
+}
+
+function optieGewijzigd(optie) {
+  return (optie.label ?? '') !== (optieLabelOpgeslagen[optie.id] ?? '')
 }
 
 // "Raakt N componenten"-aankondiging vóór een tellende actie. Faalt de telling,
@@ -157,6 +233,7 @@ async function laad() {
       api.checklistconfig.categorieen(),
     ])
     vragen.value = lijst
+    _registreerOptieLabels(lijst) // dirty-referentie: wat er nu staat ís opgeslagen
     componenttypeOpties.value = opties?.componenttype || []
     betekenisOpties.value = betekenissen || []
     categorieen.value = cats || []
@@ -257,6 +334,7 @@ async function voegToe(vraag) {
       volgorde: Math.max(0, ...vraag.opties.map((o) => o.volgorde || 0)) + 1,
     })
     vraag.opties.push(optie)
+    optieLabelOpgeslagen[optie.id] = optie.label // vers aangemaakt = opgeslagen staat
     nieuweOptie[vraag.id] = { optie_sleutel: '', label: '' }
   } catch (e) {
     _toonFout(e)
@@ -264,7 +342,11 @@ async function voegToe(vraag) {
 }
 
 async function bewaarOptie(vraag, optie) {
+  // Vluchtslot + niets-te-doen-slot (de knop is dan óók uitgeschakeld; deze guard is
+  // de vangrail voor elk pad dat de knop omzeilt).
+  if (optieBezig[optie.id] || !optieGewijzigd(optie)) return
   actieFout.value = null
+  optieBezig[optie.id] = true
   try {
     // Alleen het label — de volgorde is van de sleep-bouwsteen (LI050-ergonomie).
     const updated = await api.checklistconfig.wijzigOptie(optie.id, { label: optie.label })
@@ -272,6 +354,8 @@ async function bewaarOptie(vraag, optie) {
     toast.add({ severity: 'success', summary: 'Opgeslagen', detail: `Optie ${updated.optie_sleutel}.`, life: 3000 })
   } catch (e) {
     _toonFout(e)
+  } finally {
+    optieBezig[optie.id] = false
   }
 }
 
@@ -490,6 +574,10 @@ laad()
             @dragover.prevent
             @drop.prevent="magBeheren && catSleep.laatLos(cat.id)"
           >
+            <!-- ADR-056/LI051 — de greep maakt het slepen zichtbaar in rust; alleen voor
+                 wie mag slepen (zelfde conditie als `draggable`), en op de geselecteerde
+                 rij kleurt hij mee zodat de selectie één geheel blijft. -->
+            <SleepGreep v-if="magBeheren" :mee="cat.id === geselecteerdeCategorieId" />
             <!-- Selectie = een EIGEN kanaal (LI050): gevulde accent-achtergrond + 4px
                  linkermarkering in primary — geen omtrek-rand (de randen dragen op dit
                  scherm al betekenis: zwaar = werkvlak, licht = kader). Aanwijzen gebruikt
@@ -632,6 +720,17 @@ laad()
             <template v-else> De beheerder van uw organisatie kan er een toevoegen.</template>
           </p>
 
+          <!-- ADR-056/LI051 — waaróm de volgorde ertoe doet, boven de lijst: dit is wat
+               de consultant te zien krijgt; de greep zegt hóé je haar wijzigt. -->
+          <p
+            v-if="magBeheren && zichtbareVragen.length"
+            data-testid="cfg-volgorde-uitleg"
+            class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
+          >
+            Dit is de volgorde waarin de consultant de vragen te zien krijgt — pak een rij
+            bij de greep en versleep haar om de volgorde te wijzigen.
+          </p>
+
           <ul class="flex flex-col gap-[var(--lk-space-sm)]">
             <!-- LI050-ergonomie: élke vraag is een OMRAND blok — het bestaande
                  lk-inhoudskader-patroon (het kader BINNEN een werkvlak: échte 1px-rand,
@@ -652,6 +751,8 @@ laad()
               <!-- De vraagtekst is de KOP van het blok; de staat en het uitklapteken staan
                    er direct naast — niet tegen de verre rechterrand. -->
               <div class="flex items-start gap-[var(--lk-space-sm)]">
+                <!-- ADR-056/LI051 — de greep, alleen op een sleepbare rij (dicht + beheerder). -->
+                <SleepGreep v-if="magBeheren && openVraagId !== vraag.id" />
                 <!-- LI050 (W4): geen vraagcode meer op het scherm — de tekst ís de vraag. -->
                 <h3 class="min-w-0 text-[length:var(--lk-text-lg)] font-semibold">{{ vraag.vraag }}</h3>
                 <span
@@ -679,6 +780,33 @@ laad()
                 :data-testid="`cfg-vraag-detail-${vraag.code}`"
                 class="flex flex-col gap-[var(--lk-space-sm)]"
               >
+                <!-- ADR-056 besluit 1/13 — de vraagtekst is bewerkbaar in het scherm; het
+                     opslaan loopt via het éne venster dat de wijziging benoemt en de
+                     keuze verduidelijking/wijziging stelt. -->
+                <form
+                  v-if="magBeheren"
+                  :data-testid="`cfg-vraagtekst-form-${vraag.code}`"
+                  class="flex flex-wrap items-end gap-[var(--lk-space-sm)]"
+                  @submit.prevent="openOpslaanVenster(vraag)"
+                >
+                  <label class="flex flex-col gap-[2px] text-[length:var(--lk-text-xs)] flex-1 min-w-[16rem]">
+                    Vraagtekst
+                    <input
+                      v-model="vraagBewerk[vraag.id]"
+                      :data-testid="`cfg-vraagtekst-${vraag.code}`"
+                      type="text"
+                      class="lk-veld"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    :data-testid="`cfg-vraagtekst-opslaan-${vraag.code}`"
+                    :disabled="!tekstGewijzigd(vraag)"
+                    class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-primary)] text-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)] hover:bg-[#2D6DB5] disabled:opacity-50"
+                  >
+                    Vraagtekst opslaan
+                  </button>
+                </form>
                 <div class="flex flex-wrap items-center gap-[var(--lk-space-md)]">
                   <button
                     v-if="magBeheren"
@@ -755,6 +883,9 @@ laad()
                     @dragover.prevent
                     @drop.prevent.stop="magBeheren && !isAfgeleideSet(vraag) && optieSleep(vraag).laatLos(optie.id)"
                   >
+                    <!-- ADR-056/LI051 — greep alleen waar écht gesleept kan worden
+                         (niet bij een afgeleide set: structuur vast). -->
+                    <SleepGreep v-if="magBeheren && !isAfgeleideSet(vraag)" />
                     <span class="font-mono w-32 shrink-0 text-[length:var(--lk-text-sm)]">{{ optie.optie_sleutel }}</span>
                     <input
                       v-if="magBeheren"
@@ -767,11 +898,14 @@ laad()
                     <span v-if="optie.afgeleid_bron" :data-testid="`cfg-bron-${optie.id}`" class="shrink-0 text-[length:var(--lk-text-xs)]">afgeleid · {{ optie.afgeleid_bron }}</span>
                     <span v-else-if="!optie.actief" class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-danger)]">gedeactiveerd</span>
                     <span v-else class="shrink-0 text-[length:var(--lk-text-xs)] text-[var(--lk-color-success)]">actief</span>
+                    <!-- Correctie snede 1 — zelfde vorm als "Vraagtekst opslaan": uit tijdens
+                         de vlucht én uit zolang het label gelijk is aan de opgeslagen staat. -->
                     <button
                       v-if="magBeheren"
                       type="button"
                       :data-testid="`cfg-optie-opslaan-${optie.id}`"
-                      class="shrink-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+                      :disabled="optieBezig[optie.id] || !optieGewijzigd(optie)"
+                      class="shrink-0 rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                       @click="bewaarOptie(vraag, optie)"
                     >
                       Opslaan
@@ -859,5 +993,86 @@ laad()
         </p>
       </div>
     </div>
+
+    <!-- ADR-056 besluit 13/16 — HET opslaan-venster: benoemt wat er wijzigt, voorspelt
+         hoeveel antwoorden eronder liggen (besluit 12) en stelt de keuze één keer,
+         ZONDER voorselectie. Beide opties benoemen hun gevolg in gewone taal; er wordt
+         niets gewist en niets geblokkeerd. -->
+    <Dialog
+      :visible="!!opslaanVenster"
+      modal
+      :closable="false"
+      :draggable="false"
+      header="Wat is deze wijziging?"
+      data-testid="cfg-opslaan-venster"
+      @update:visible="opslaanVenster = null"
+    >
+      <div v-if="opslaanVenster" class="flex flex-col gap-[var(--lk-space-sm)] max-w-prose">
+        <p data-testid="cfg-venster-opsomming" class="text-[length:var(--lk-text-sm)]">
+          De vraagtekst wijzigt van<br />
+          <span class="text-[var(--lk-color-text-muted)]">“{{ opslaanVenster.oud }}”</span><br />
+          naar<br />
+          <span class="font-medium">“{{ opslaanVenster.nieuw }}”</span>
+        </p>
+        <p data-testid="cfg-venster-aantal" class="text-[length:var(--lk-text-sm)]">
+          <template v-if="opslaanVenster.aantal === null">Het aantal geraakte antwoorden wordt geteld…</template>
+          <template v-else-if="opslaanVenster.aantal === -1">Het aantal geraakte antwoorden kon niet worden opgehaald.</template>
+          <template v-else>Dit raakt {{ antwoordTelling(opslaanVenster.aantal) }}.</template>
+        </p>
+
+        <label class="flex items-start gap-[var(--lk-space-xs)]">
+          <input
+            v-model="opslaanVenster.aard"
+            type="radio"
+            value="verduidelijking"
+            data-testid="cfg-aard-verduidelijking"
+            class="mt-1"
+          />
+          <span class="text-[length:var(--lk-text-sm)]">
+            <span class="font-medium">Verduidelijking</span> — de betekenis blijft gelijk.
+            Wie al antwoordde hoeft niets te doen; bij het antwoord komt een stille notitie
+            dat de formulering is bijgewerkt.
+          </span>
+        </label>
+        <label class="flex items-start gap-[var(--lk-space-xs)]">
+          <input
+            v-model="opslaanVenster.aard"
+            type="radio"
+            value="wijziging"
+            data-testid="cfg-aard-wijziging"
+            class="mt-1"
+          />
+          <span class="text-[length:var(--lk-text-sm)]">
+            <span class="font-medium">Dit verandert de vraag</span> — bestaande antwoorden gaan
+            als verouderd lezen en komen terug op de werklijst van wie antwoordde; zij geven
+            hun antwoord opnieuw.
+          </span>
+        </label>
+
+        <p data-testid="cfg-venster-geruststelling" class="text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]">
+          Er wordt niets gewist en niets geblokkeerd: bestaande antwoorden blijven staan en
+          tellen mee tot ze opnieuw gegeven zijn.
+        </p>
+      </div>
+      <template #footer>
+        <button
+          type="button"
+          data-testid="cfg-venster-annuleren"
+          class="rounded-[var(--lk-radius-input)] border border-[var(--lk-color-border)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] bg-white"
+          @click="opslaanVenster = null"
+        >
+          Annuleren
+        </button>
+        <button
+          type="button"
+          data-testid="cfg-venster-opslaan"
+          :disabled="!opslaanVenster?.aard || vensterBezig"
+          class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-primary)] text-white px-[var(--lk-space-md)] py-[var(--lk-space-xs)] hover:bg-[#2D6DB5] disabled:opacity-50"
+          @click="bevestigVraagtekst"
+        >
+          Opslaan
+        </button>
+      </template>
+    </Dialog>
   </section>
 </template>

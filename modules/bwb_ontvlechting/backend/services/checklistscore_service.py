@@ -74,29 +74,51 @@ def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
 
+def _zet_vraag_gewijzigd(obj: Checklistscore, huidige_tekst: str | None) -> None:
+    """ADR-056 besluit 4 — "verouderd" is een VERGELIJKING, geen opgeslagen markering:
+    de bevroren formulering wijkt af van de huidige vraagtekst. Transient read-veld;
+    een onbekende vraag (hoort niet voor te komen) leest als niet-gewijzigd."""
+    obj.vraag_gewijzigd = (
+        huidige_tekst is not None and obj.vraag_bevroren != huidige_tekst
+    )
+
+
 async def _verrijk(session: AsyncSession, tid: uuid.UUID, obj: Checklistscore) -> Checklistscore:
     """ADR-037 — zet de afgeleide read-velden (`verantwoordelijke_naam`/`-afdeling`) op de rij.
     Read-only join op de partij (leeslaag); raakt de engine niet. Transient attrs — niet gemapt,
-    niet persistent — die `ChecklistscoreRead` (from_attributes) uitleest."""
+    niet persistent — die `ChecklistscoreRead` (from_attributes) uitleest.
+    ADR-056: idem voor `vraag_gewijzigd` (vergelijking bevroren ↔ huidige vraagtekst)."""
     info = (
         await partij_service.resolve_verantwoordelijken(session, tid, [obj.verantwoordelijke_id])
     ).get(obj.verantwoordelijke_id)
     obj.verantwoordelijke_naam = info["naam"] if info else None
     obj.verantwoordelijke_afdeling = info["afdeling"] if info else None
     obj.verantwoordelijke_organisatie = info["organisatie"] if info else None
+    _zet_vraag_gewijzigd(obj, await _huidige_vraagtekst(session, obj.checklistvraag_id))
     return obj
 
 
 async def _verrijk_lijst(session: AsyncSession, tid: uuid.UUID, items: list[Checklistscore]) -> None:
-    """Batch-variant van `_verrijk` (één partij-query voor de hele pagina)."""
+    """Batch-variant van `_verrijk` (één partij-query + één vraag-query voor de pagina)."""
     info_map = await partij_service.resolve_verantwoordelijken(
         session, tid, [o.verantwoordelijke_id for o in items]
     )
+    tekst_map = {
+        vraag_id: tekst
+        for vraag_id, tekst in (
+            await session.execute(
+                select(ChecklistVraag.id, ChecklistVraag.vraag).where(
+                    ChecklistVraag.id.in_({o.checklistvraag_id for o in items})
+                )
+            )
+        ).all()
+    } if items else {}
     for o in items:
         info = info_map.get(o.verantwoordelijke_id)
         o.verantwoordelijke_naam = info["naam"] if info else None
         o.verantwoordelijke_afdeling = info["afdeling"] if info else None
         o.verantwoordelijke_organisatie = info["organisatie"] if info else None
+        _zet_vraag_gewijzigd(o, tekst_map.get(o.checklistvraag_id))
 
 
 def enum_opties() -> dict[str, list[str]]:
@@ -141,22 +163,36 @@ async def _verzeker_checklist_open_voor(session: AsyncSession, tid: uuid.UUID, c
 
 async def _valideer_checklistvraag_id(
     session: AsyncSession, checklistvraag_id, componenttype: str
-) -> None:
+) -> str:
     """Type-bewuste vraagvalidatie (ADR-022 Fase B): een score mag alleen verwijzen
     naar een `checklistvraag` waarvan `componenttype` gelijk is aan dat van het
     betrokken component. Onbekende vraag óf type-mismatch ⇒ `NietGevonden` (404) —
     de vraag is geen geldige checklistvraag voor dít component (geen aparte/nieuwe
-    foutcode; OP-6-stijl: geen onderscheid 'bestaat niet' vs 'ander type')."""
-    bestaat = (
+    foutcode; OP-6-stijl: geen onderscheid 'bestaat niet' vs 'ander type').
+
+    Geeft de huidige VRAAGTEKST terug (ADR-056 besluit 4): het aanmaak-pad bevriest
+    die bij het antwoord — wat er gevraagd werd toen het gegeven werd."""
+    tekst = (
         await session.execute(
-            select(ChecklistVraag.id).where(
+            select(ChecklistVraag.vraag).where(
                 ChecklistVraag.id == checklistvraag_id,
                 ChecklistVraag.componenttype == componenttype,
             )
         )
     ).scalar_one_or_none()
-    if bestaat is None:
+    if tekst is None:
         raise NietGevonden("checklistvraag", checklistvraag_id)
+    return tekst
+
+
+async def _huidige_vraagtekst(session: AsyncSession, checklistvraag_id) -> str | None:
+    """De huidige formulering van de vraag (RLS-scoped) — voor het herbevriezen bij
+    opnieuw antwoorden (ADR-056 besluit 8)."""
+    return (
+        await session.execute(
+            select(ChecklistVraag.vraag).where(ChecklistVraag.id == checklistvraag_id)
+        )
+    ).scalar_one_or_none()
 
 
 def _is_blokkerend(score) -> bool:
@@ -352,7 +388,7 @@ async def maak_aan(
     # de type-bewuste vraagvalidatie (Fase B): de vraag moet bij dat type horen.
     componenttype = await _componenttype_van_profiel(session, tid, data.component_id)
     await _verzeker_checklist_open(session, componenttype)
-    await _valideer_checklistvraag_id(session, data.checklistvraag_id, componenttype)
+    vraagtekst = await _valideer_checklistvraag_id(session, data.checklistvraag_id, componenttype)
 
     # Uniciteit up-front (tenant, component, checklistvraag) → 409.
     bestaat = (
@@ -373,7 +409,8 @@ async def maak_aan(
     if data.verantwoordelijke_id is not None:
         await partij_service.valideer_verantwoordelijke(session, tid, data.verantwoordelijke_id)
 
-    obj = Checklistscore(tenant_id=tid, **data.model_dump())
+    # ADR-056 besluit 4 — bevries wat er gevraagd werd toen dit antwoord gegeven werd.
+    obj = Checklistscore(tenant_id=tid, vraag_bevroren=vraagtekst, **data.model_dump())
     session.add(obj)
     try:
         await session.flush()  # id toekennen + unieke index als backstop
@@ -405,6 +442,17 @@ async def werk_bij(
     oude_score = obj.score  # vóór de update — bepaalt de transitie
     for veld, waarde in data.model_dump(exclude_unset=True).items():
         setattr(obj, veld, waarde)
+    # ADR-056 — élke bewerking van het antwoord is "aanraken" en dooft de stille
+    # notitie (besluit 6: het antwoord is van het team). Draagt de bewerking de
+    # AFHANDELING (`score`), dan is dat "opnieuw antwoorden" (besluit 8): de
+    # formulering wordt op de huidige tekst herbevroren en het verouderd-sein dooft
+    # (de vergelijking wordt weer gelijk). Een bewerking zónder score laat de
+    # bevroren tekst staan — alleen opnieuw antwoorden dooft het sein.
+    obj.vraag_verduidelijkt_op = None
+    if "score" in data.model_fields_set:
+        tekst = await _huidige_vraagtekst(session, obj.checklistvraag_id)
+        if tekst is not None:
+            obj.vraag_bevroren = tekst
     await session.flush()
 
     await _synchroniseer_blokkade(session, tid, obj, oude_score)

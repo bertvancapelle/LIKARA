@@ -144,6 +144,14 @@ class ChecklistscoreRead(BaseModel):
     verantwoordelijke_organisatie: str | None = None
     actie: str | None
     antwoord_waarde: dict | None
+    # ADR-056 — vraagevolutie-leesvelden. `vraag_gewijzigd` is een afgeleide
+    # VERGELIJKING (bevroren ↔ huidige vraagtekst, door de service gezet): de vraag
+    # is als echte wijziging aangepast ná dit antwoord → het antwoord leest als
+    # verouderd (neutraal; blokkeert niets, de score blijft meetellen).
+    # `vraag_verduidelijkt_op` is de stille notitie van een verduidelijking; None
+    # zodra iemand mét antwoord-recht het antwoord aanraakt (besluit 6).
+    vraag_gewijzigd: bool = False
+    vraag_verduidelijkt_op: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

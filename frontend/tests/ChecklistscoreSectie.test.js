@@ -10,6 +10,8 @@ vi.mock('@/api', () => ({
     checklistvragen: { lijst: vi.fn() },
     checklistscores: { lijst: vi.fn(), maak: vi.fn(), werkBij: vi.fn(), opties: vi.fn() },
     partijen: { lijst: vi.fn() },
+    // ADR-056 besluit 17 — de geschiedenis-ingang op de vraag (ObjectHistoriePaneel).
+    objecthistorie: { lijst: vi.fn() },
   },
 }))
 
@@ -451,5 +453,122 @@ describe('ChecklistscoreSectie — ADR-027 read-only (bewerkbaar=false)', () => 
   it('viewer (zonder bewerk-rol) ziet géén gesloten-melding (geen ruis)', async () => {
     const w = await mountSectie({ rollen: ['viewer'], bewerkbaar: false })
     expect(w.find('[data-testid="cs-gesloten"]').exists()).toBe(false)
+  })
+})
+
+describe('ChecklistscoreSectie — ADR-056 vraagevolutie (sein, opnieuw antwoorden, notitie)', () => {
+  // Het antwoord op vraag 1.2 is verouderd: de vraag is als echte wijziging aangepast.
+  function zetVerouderd({ verduidelijktOp = null, gewijzigd = true, antwoordWaarde = null } = {}) {
+    api.checklistscores.lijst.mockResolvedValue({
+      items: [{
+        id: 's1', component_id: APP, checklistvraag_id: 2, score: 'ja',
+        bevinding: 'Zelf geschreven toelichting.', antwoord_waarde: antwoordWaarde,
+        vraag_gewijzigd: gewijzigd, vraag_verduidelijkt_op: verduidelijktOp,
+      }],
+      volgende_cursor: null,
+    })
+  }
+
+  it('een verouderd antwoord draagt het sein in de neutrale toon en opent de afhandeling LEEG', async () => {
+    zetVerouderd()
+    const w = await mountSectie()
+    const sein = w.find('[data-testid="cs-verouderd-1.2"]')
+    expect(sein.exists()).toBe(true)
+    // Besluit 7 — de bestaande "een ander veranderde iets"-toon: neutraal, nooit amber.
+    expect(sein.classes()).toContain('lk-afwijking-verschoven')
+    expect(sein.classes()).not.toContain('lk-afwijking-bewust')
+    expect(sein.text()).toContain('beantwoord de vraag opnieuw')
+    // Besluit 8 — de afhandeling opent leeg; het oude antwoord blijft in de data bestaan.
+    expect(w.find('[data-testid="cs-score-1.2"]').element.value).toBe('')
+    expect(w.find('[data-testid="cs-score-1.2"]').text()).toContain('— beantwoord opnieuw —')
+  })
+
+  it('opnieuw antwoorden (óók dezelfde keuze) dooft het sein; de toelichting blijft staan', async () => {
+    zetVerouderd()
+    api.checklistscores.werkBij.mockResolvedValue({
+      id: 's1', component_id: APP, checklistvraag_id: 2, score: 'ja',
+      bevinding: 'Zelf geschreven toelichting.', vraag_gewijzigd: false,
+    })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-score-1.2"]').setValue('ja')
+    await flushPromises()
+    // Opnieuw antwoorden ís de bevestiging: een gewone score-PATCH, geen aparte knop.
+    expect(api.checklistscores.werkBij).toHaveBeenCalledWith('s1', { score: 'ja' })
+    expect(w.find('[data-testid="cs-verouderd-1.2"]').exists()).toBe(false)
+    // De toelichting is bewaard (die heeft de consultant zelf geschreven).
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    expect(w.find('[data-testid="cs-bevinding-1.2"]').element.value).toBe('Zelf geschreven toelichting.')
+  })
+
+  it('bij een verouderd antwoord opent óók de keuze leeg; de toelichting blijft voorgevuld', async () => {
+    // Vraag 1.2 krijgt een keuzelijst en het oude antwoord droeg een keuze.
+    api.checklistvragen.lijst.mockResolvedValue([
+      VRAGEN[0],
+      { ...VRAGEN[1], antwoordtype: 'enkelvoudige_keuze',
+        opties: [{ optie_sleutel: 'saas', label: 'SaaS', volgorde: 0, actief: true }] },
+    ])
+    zetVerouderd({ antwoordWaarde: { optie: 'saas' } })
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    // Keuze leeg (besluit 8: alle onderdelen openen leeg) …
+    expect(w.find('[data-testid="cs-antwoord-1.2"]').element.value).toBe('')
+    // … maar de toelichting staat er nog.
+    expect(w.find('[data-testid="cs-bevinding-1.2"]').element.value).toBe('Zelf geschreven toelichting.')
+  })
+
+  it('een verduidelijking toont de stille notitie (gedempt, géén sein)', async () => {
+    zetVerouderd({ gewijzigd: false, verduidelijktOp: '2026-07-24T09:00:00Z' })
+    const w = await mountSectie()
+    expect(w.find('[data-testid="cs-verouderd-1.2"]').exists()).toBe(false)
+    const notitie = w.find('[data-testid="cs-verduidelijkt-1.2"]')
+    expect(notitie.exists()).toBe(true)
+    expect(notitie.text()).toContain('de betekenis is gelijk gebleven')
+    // Gedempt — geen sein-klasse, geen waarschuwing: de consultant wordt niet gestoord.
+    expect(notitie.classes()).not.toContain('lk-afwijking-verschoven')
+  })
+
+  it('élke vraag draagt de geschiedenis-ingang naar de vraag (besluit 17)', async () => {
+    const w = await mountSectie()
+    // De bestaande ObjectHistoriePaneel-knop (aria-label "Geschiedenis"), per vraag-rij.
+    const knoppen = w.findAll('[aria-label="Geschiedenis"]')
+    expect(knoppen.length).toBe(VRAGEN.length)
+  })
+})
+
+describe('ChecklistscoreSectie — opslaan-knop uit als er niets te doen is (correctie snede 1)', () => {
+  it('de knop is uit zonder wijziging en gaat aan zodra de gebruiker iets aanpast', async () => {
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    // Vers geopend: de buffer is gelijk aan de opgeslagen staat → niets te doen → uit.
+    expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="cs-bevinding-1.2"]').setValue('Nieuwe onderbouwing.')
+    expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').attributes('disabled')).toBeUndefined()
+    // Terugtypen naar de opgeslagen staat → weer niets te doen → weer uit.
+    await w.find('[data-testid="cs-bevinding-1.2"]').setValue('')
+    expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('BIJT: een tweede klik tijdens of direct ná het opslaan levert géén tweede verzoek', async () => {
+    // Sinds ADR-056 telt élk verzoek als "aanraken" (dooft de stille notitie) — een
+    // dubbelklik mag dus nooit een tweede PATCH sturen.
+    let laatLanden
+    api.checklistscores.werkBij.mockImplementation(
+      () => new Promise((res) => { laatLanden = res }),
+    )
+    const w = await mountSectie()
+    await w.find('[data-testid="cs-toggle-1.2"]').trigger('click')
+    await w.find('[data-testid="cs-bevinding-1.2"]').setValue('Nieuwe onderbouwing.')
+    await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
+    // In de vlucht: knop uit én een tweede klik (via welk pad ook) doet niets.
+    expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
+    expect(api.checklistscores.werkBij).toHaveBeenCalledTimes(1)
+    // Geslaagd: de respons ís de nieuwe opgeslagen staat → niets meer te doen → uit.
+    laatLanden({ id: 's1', score: 'ja', bevinding: 'Nieuwe onderbouwing.', actie: '', verantwoordelijke_id: null })
+    await flushPromises()
+    expect(w.find('[data-testid="cs-velden-status-1.2"]').text()).toContain('opgeslagen')
+    expect(w.find('[data-testid="cs-velden-opslaan-1.2"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="cs-velden-opslaan-1.2"]').trigger('click')
+    expect(api.checklistscores.werkBij).toHaveBeenCalledTimes(1)
   })
 })

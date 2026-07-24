@@ -1045,6 +1045,11 @@ class ChecklistVraag(Base, TenantMixin):
     # gevalideerd tegen de catalogus (stabiele sleutel, geen harde FK). Voedt de engine
     # NIET (geen lifecycle/score/blokkade) — louter classificatie.
     betekenis: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # ADR-056 besluit 2 — de beheerder zegt zelf wat een tekstwijziging is
+    # (verduidelijking | wijziging). Echte kolom (DC016-precedent): zo landt de keuze
+    # in de audit-diff van dezelfde wijziging, mét moment en eigenaar. Wordt door de
+    # service gezet bij élke tekstwijziging; None = de tekst is nooit gewijzigd.
+    laatste_wijzigingsaard: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class ChecklistVraagOptie(Base, TenantMixin):
@@ -1124,6 +1129,18 @@ class Checklistscore(Base, TenantMixin, TimestampMixin):
     # {"optie": "<sleutel>"} / {"opties": ["<sleutel>", …]} / {"getal": <int>}.
     # Voedt de engine NOOIT — alleen `score` stuurt lifecycle/blokkade.
     antwoord_waarde: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # ADR-056 besluit 4 — de formulering wordt bevroren bij het antwoord: wat er
+    # gevraagd werd toen het gegeven werd. "Verouderd" is een VERGELIJKING
+    # (vraag_bevroren != checklistvraag.vraag), geen tweede administratie: bij een
+    # verduidelijking schuift deze tekst mee, bij een echte wijziging blijft hij staan.
+    # Gezet door de service (aanmaken + opnieuw antwoorden); voedt de engine NOOIT.
+    vraag_bevroren: Mapped[str] = mapped_column(Text, nullable=False)
+    # ADR-056 besluit 6 — de stille notitie bij een verduidelijking; dooft (None)
+    # zodra iemand mét antwoord-recht het antwoord aanraakt (het antwoord is van het
+    # team). Puur presentatie-drager; voedt de engine NOOIT.
+    vraag_verduidelijkt_op: Mapped[datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
 
 
 class Blokkade(Base, TenantMixin, TimestampMixin):

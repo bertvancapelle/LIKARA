@@ -76,6 +76,11 @@ export const AUDIT_ENTITEIT = {
   // ADR-043 — bedrijfsfunctie-as + ingelezen referentiemodel.
   bedrijfsfunctie: 'Bedrijfsfunctie',
   referentiemodel: 'Referentiemodel',
+  // ADR-056 — de vraag-geschiedenis wordt een leeslaag voor de consultant (besluit 17):
+  // gecureerde labels i.p.v. humanize-terugval.
+  checklistvraag: 'Checklistvraag',
+  checklistvraag_optie: 'Antwoordoptie',
+  checklist_categorie: 'Checklistcategorie',
 }
 
 // LI019 — leesbare labels voor systeem-actoren (actor_sub met "system:"-prefix). Bewust NIET
@@ -152,6 +157,10 @@ export const VELD_LABELS = {
   afdeling_id: 'Afdeling',
   mantelcontract_id: 'Mantelcontract',
   leverancier_id: 'Leverancier',
+  // ADR-056 — de vraag-geschiedenis toont de oude en nieuwe formulering leesbaar
+  // (besluit 17); de aard is de keuze van de beheerder (besluit 2).
+  vraag: 'Vraagtekst',
+  laatste_wijzigingsaard: 'Aard van de wijziging',
 }
 
 // Het Nederlandse veldlabel voor een veldnaam — de ÉNE bron (VELD_LABELS), met humanize-fallback

@@ -49,6 +49,17 @@ const TEKENS = {
       'M12 7v5l3.5 2',                     // de wijzers
     ],
   },
+  // De sleepgreep: twee kolommen van drie punten — het universele "hier kun je pakken"-teken
+  // (ADR-056/LI051: de greep is in rust zichtbaar, niet pas op hover). Dit is GEEN wegwijzer
+  // en geen handeling: een handvat heeft geen klikdoel — je pakt hem, je klikt hem niet. De
+  // wegwijzer/handeling-grens (likara-ux §P9) blijft onverkort gelden voor knoppen.
+  greep: {
+    titel: 'Versleepbaar',
+    paden: [
+      'M9.5 6h.01', 'M9.5 12h.01', 'M9.5 18h.01',
+      'M14.5 6h.01', 'M14.5 12h.01', 'M14.5 18h.01',
+    ],
+  },
 }
 
 export { TEKENS }

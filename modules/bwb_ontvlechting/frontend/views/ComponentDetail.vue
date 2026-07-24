@@ -75,7 +75,11 @@ const verwijderImpact = ref(null)
 // vaststelling en telde een ontbrekende verantwoordelijke dubbel) en klikte nergens heen.
 // Twee tellers die verschillende getallen roepen over hetzelfde component is een tweede waarheid.
 const openPunten = ref(null)
-const moetNog = computed(() => openPunten.value?.moet_nog?.aantal ?? 0)
+// ADR-056 besluit 10 (LI051) — het tabbladgetal telt BEIDE soorten werk: wat nooit
+// is vastgesteld ("dit moet nog") én wat opnieuw beantwoord moet worden (verouderde
+// antwoorden). De server levert het als `tabblad_aantal` uit DEZELFDE afleiding als
+// de blokken — één bron, geen tweede telling. Geen poort: klaar verklaren kan gewoon.
+const tabAantal = computed(() => openPunten.value?.tabblad_aantal ?? 0)
 
 async function openVerwijderDialog() {
   verwijderImpact.value = null
@@ -257,10 +261,10 @@ const onderdeelLabels = computed(() => ({
   overzicht: 'Overzicht',
   // LI048 besluit 3 — het getal staat er ALTIJD, ook bij nul. Dit herziet bewust de LI047-regel
   // "een teller zwijgt bij nul": "geen getal" leest niet als nul maar als "dit telt niets", en
-  // dat verschil is onzichtbaar — dus klikt de gebruiker alsnog. Het getal komt uit `moetNog`,
-  // dus uit HET ene laadpunt; de groepstab en dit sub-tabblad tonen dezelfde waarheid op twee
-  // diepten, nooit twee berekeningen.
-  'open-punten': `Open punten (${moetNog.value})`,
+  // dat verschil is onzichtbaar — dus klikt de gebruiker alsnog. Het getal komt uit `tabAantal`
+  // (ADR-056: beide soorten werk), dus uit HET ene laadpunt; de groepstab en dit sub-tabblad
+  // tonen dezelfde waarheid op twee diepten, nooit twee berekeningen.
+  'open-punten': `Open punten (${tabAantal.value})`,
   checklist: 'Checklist',
   // ADR-043 gate 4 (G2) — "waarvoor gebruiken we het" is een hoofdvraag over het component.
   bedrijfsfunctie: 'Bedrijfsfunctie',
@@ -310,7 +314,7 @@ const topTabs = computed(() =>
     .filter((g) => onderdelenVan(g.key).length > 0)
     .map((g) => ({
       key: g.key,
-      label: g.key === 'beoordeling' ? `${g.label} (${moetNog.value})` : g.label,
+      label: g.key === 'beoordeling' ? `${g.label} (${tabAantal.value})` : g.label,
     })),
 )
 

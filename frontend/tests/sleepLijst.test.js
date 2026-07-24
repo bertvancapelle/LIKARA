@@ -115,7 +115,8 @@ describe('sleepLijst — bronscan (KERNLES LI038: één bouwsteen, geen nabouw)'
     const bron = fs.readFileSync(
       path.resolve(__dirname, '../src/views/ChecklistConfigBeheer.vue'), 'utf8',
     )
-    expect(bron).toContain("import { useSleepLijst } from '@/composables/useSleepLijst'")
+    // ADR-056/LI051: de greep (SleepGreep) komt uit dezelfde bouwsteen-module.
+    expect(bron).toContain("import { SleepGreep, useSleepLijst } from '@/composables/useSleepLijst'")
     // Drie consumenten: categorieën, vragen én antwoordopties (LI050-ergonomie) —
     // elk hun eigen instantie. (De bestandsbrede @drop-scan hierboven dekt alleen het
     // import-niveau; deze telling vangt een nabouw BINNEN een bestand dat al importeert.)
@@ -125,5 +126,29 @@ describe('sleepLijst — bronscan (KERNLES LI038: één bouwsteen, geen nabouw)'
     expect(bron).not.toContain('cfg-nieuwe-categorie-volgorde')
     expect(bron).not.toContain('cfg-optie-volgorde-')
     expect(bron).not.toContain('cfg-nieuw-volgorde-')
+  })
+
+  // ── ADR-056/LI051 — de greep is van de bouwsteen, niet van een lijst ──────────────
+  // Slepen was alleen te ontdekken door met de muis over een rij te gaan. Elke
+  // sleep-lijst-consument draagt daarom de zichtbare SleepGreep; deze scan maakt dat
+  // structureel (KERNLES LI038: de regel leeft in een scan, niet in tekst) — een
+  // volgende consument zonder greep valt om in de suite.
+
+  it('élk bestand dat useSleepLijst gebruikt, draagt de zichtbare SleepGreep', () => {
+    const bestanden = WORTELS.flatMap(vueBestanden)
+    expect(bestanden.length).toBeGreaterThan(50)
+    const overtreders = []
+    for (const b of bestanden) {
+      const bron = fs.readFileSync(b, 'utf8')
+      if (bron.includes('useSleepLijst') && !bron.includes('<SleepGreep')) overtreders.push(b)
+    }
+    expect(overtreders, `sleep-lijst zonder zichtbare greep: ${overtreders.join(', ')}`).toEqual([])
+  })
+
+  it('zelftest: de greep-scan bijt op een nagebootste consument zonder greep', () => {
+    const nep = "import { useSleepLijst } from '@/composables/useSleepLijst'\n<li @drop.prevent=\"sleep.laatLos(id)\">"
+    expect(nep.includes('useSleepLijst') && !nep.includes('<SleepGreep')).toBe(true)
+    const goed = `${nep}\n<SleepGreep v-if="mag" />`
+    expect(goed.includes('useSleepLijst') && !goed.includes('<SleepGreep')).toBe(false)
   })
 })

@@ -14,6 +14,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import ChecklistCategorie, ChecklistVraag, ChecklistVraagOptie
+from services.errors import NietGevonden
+
+
+async def haal_op(session: AsyncSession, tenant_id, checklistvraag_id) -> ChecklistVraag:
+    """Tenant-resolutie van één vraag — de objecthistorie-toegangscheck (ADR-056
+    besluit 17: wie de vragenlijst mag lezen, mag de geschiedenis van een vraag
+    lezen). RLS scopet (`tenant_id` reist mee voor de uniforme signatuur); onbekend
+    of buiten de tenant ⇒ `NietGevonden` (404, no-leak). Óók inactieve vragen zijn
+    resolvebaar: een antwoord op een uitgezette vraag blijft historie."""
+    vraag = (
+        await session.execute(
+            select(ChecklistVraag).where(ChecklistVraag.id == checklistvraag_id)
+        )
+    ).scalar_one_or_none()
+    if vraag is None:
+        raise NietGevonden("checklistvraag", checklistvraag_id)
+    return vraag
 
 
 async def lijst_alle(session: AsyncSession, componenttype: str | None = None) -> list[dict]:

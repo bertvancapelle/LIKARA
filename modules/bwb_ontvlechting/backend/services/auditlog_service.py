@@ -236,6 +236,12 @@ SUB_ENTITEITEN: dict[str, object] = {
     "work_package": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
     "deliverable": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
     "gap": (_GEEN_SUB, "lidmaatschap loopt via koppelingen, die vandaag geen regels opleveren"),
+    # ADR-056 besluit 17 — de geschiedenis van een vraag draagt óók haar antwoordopties
+    # (toegevoegd/uitgezet; de create-/delete-diff draagt `checklistvraag_id`). De
+    # ANTWOORDEN (checklistscore) staan er bewust NIET in: die horen bij de geschiedenis
+    # van het component, en honderden score-regels zouden de formulering-geschiedenis —
+    # waarvoor deze ingang bestaat — verdrinken.
+    "checklistvraag": [("checklistvraag_optie", "checklistvraag_id")],
 }
 
 

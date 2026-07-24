@@ -471,11 +471,19 @@ describe('ComponentDetail', () => {
   })
 
   // ── LI047 snede 2 — de ingang in de kop ────────────────────────────────────────────────────
-  const _openPunten = (moetNog = []) => ({
+  // ADR-056 besluit 10: de server levert `tabblad_aantal` (moet_nog + verouderde antwoorden)
+  // uit dezelfde afleiding als de blokken; de fixture spiegelt dat contract.
+  const _openPunten = (moetNog = [], vraagGewijzigd = 0) => ({
     component_id: ID,
     moet_nog: { aantal: moetNog.length, punten: moetNog.map((f) => ({ feit: f, route: null })) },
     netjes: { aantal: 0, punten: [] },
-    valt_op: { aantal: 0, punten: [] },
+    valt_op: {
+      aantal: vraagGewijzigd ? 1 : 0,
+      punten: vraagGewijzigd
+        ? [{ soort: 'vraag_gewijzigd', aantal: vraagGewijzigd, route: { soort: 'tab', tab: 'checklist' } }]
+        : [],
+    },
+    tabblad_aantal: moetNog.length + vraagGewijzigd,
     klaarverklaring: null,
   })
 
@@ -494,6 +502,22 @@ describe('ComponentDetail', () => {
     await flushPromises()
     expect(w.find('[data-testid="subtabs-tab-open-punten"]').text()).toBe('Open punten (3)')
     expect(w.findAll('[data-testid="op-lijst-moet_nog"] > li')).toHaveLength(3)
+  })
+
+  it('ADR-056 besluit 10: het tabbladgetal telt BEIDE soorten werk — moet-nog én verouderd', async () => {
+    // De consultant stelt bij dat getal één vraag: moet ik hier nog iets? Een vraag die nooit
+    // beantwoord is en een vraag die opnieuw beantwoord moet worden zijn hetzelfde soort werk.
+    // Het verouderd-punt blijft binnen het overzicht in "Dit valt op" (herkomst zichtbaar).
+    api.componenten.haal.mockResolvedValue(_component({ checklist_dragend: true }))
+    api.componentNormen.openPunten.mockResolvedValue(_openPunten(['biv', 'contract'], 3))
+    const { w } = await mountDetail()
+    expect(w.find('[data-testid="detailtabs-tab-beoordeling"]').text()).toBe('Beoordeling (5)')
+    await w.find('[data-testid="detailtabs-tab-beoordeling"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="subtabs-tab-open-punten"]').text()).toBe('Open punten (5)')
+    // Blok 1 draagt de twee norm-feiten; het verouderd-werk staat in de stand "Dit valt op".
+    expect(w.findAll('[data-testid="op-lijst-moet_nog"] > li')).toHaveLength(2)
+    expect(w.find('[data-testid="op-filter-valt_op"]').text()).toBe('Dit valt op (1)')
   })
 
   it('LI048 besluit 3: bij nul dragen beide diepten wél een getal', async () => {

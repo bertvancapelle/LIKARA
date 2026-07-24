@@ -15,6 +15,7 @@ vi.mock('@/api', () => ({
       lijst: vi.fn(),
       betekenissen: vi.fn(),
       impact: vi.fn(),
+      impactAntwoorden: vi.fn(),
       maakVraag: vi.fn(),
       werkVraagBij: vi.fn(),
       zetAntwoordtype: vi.fn(),
@@ -89,7 +90,8 @@ async function mountView(rollen = ['beheerder']) {
   setActivePinia(pinia)
   useAuthStore().user = { roles: rollen }
   const wrapper = mount(ChecklistConfigBeheer, {
-    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService] },
+    // ADR-056: het opslaan-venster is een PrimeVue Dialog (teleporteert naar body).
+    global: { plugins: [pinia, [PrimeVue, { unstyled: true }], ToastService], stubs: { teleport: true } },
   })
   await flushPromises()
   return wrapper
@@ -105,6 +107,7 @@ function zetMocks() {
   api.checklistconfig.betekenissen.mockResolvedValue(structuredClone(BETEKENISSEN))
   api.componenten.opties.mockResolvedValue(structuredClone(TYPE_OPTIES))
   api.checklistconfig.impact.mockResolvedValue({ aantal_componenten: 4 })
+  api.checklistconfig.impactAntwoorden.mockResolvedValue({ aantal_antwoorden: 5 })
   api.checklistconfig.categorieen.mockResolvedValue(structuredClone(CATEGORIEEN))
 }
 
@@ -509,5 +512,139 @@ describe('ChecklistConfigBeheer — rol-gating (ADR-022 W2 / LI050)', () => {
     expect(w.find('[data-testid="cfg-nieuwe-categorie"]').exists()).toBe(true)
     await openVraag(w, '2.1')
     expect(w.find('[data-testid="cfg-vraag-actief-2.1"]').exists()).toBe(true)
+  })
+})
+
+describe('ChecklistConfigBeheer — ADR-056 vraagtekst + opslaan-venster + zichtbare greep', () => {
+  // Vraag 2.2 ('Tweede hostingvraag') staat in de standaard geopende categorie Hosting.
+  async function openVenster(w) {
+    await openVraag(w, '2.2')
+    await w.find('[data-testid="cfg-vraagtekst-2.2"]').setValue('Tweede hostingvraag, aangescherpt')
+    await w.find('[data-testid="cfg-vraagtekst-form-2.2"]').trigger('submit')
+    await flushPromises()
+  }
+
+  it('de vraagtekst is bewerkbaar; opslaan opent het venster met voorspelling en ZONDER voorselectie', async () => {
+    const w = await mountView()
+    await openVenster(w)
+    expect(w.find('[data-testid="cfg-opslaan-venster"]').exists()).toBe(true)
+    // Besluit 12 — de voorspelling komt uit de antwoorden-telling van déze vraag.
+    expect(api.checklistconfig.impactAntwoorden).toHaveBeenCalledWith('v4')
+    expect(w.find('[data-testid="cfg-venster-aantal"]').text()).toContain('Dit raakt 5 antwoorden.')
+    // Besluit 16 — niets voorgevinkt; opslaan kan pas ná een bewuste keuze.
+    expect(w.find('[data-testid="cfg-aard-verduidelijking"]').element.checked).toBe(false)
+    expect(w.find('[data-testid="cfg-aard-wijziging"]').element.checked).toBe(false)
+    expect(w.find('[data-testid="cfg-venster-opslaan"]').attributes('disabled')).toBeDefined()
+    // Het venster zegt expliciet dat er niets gewist en niets geblokkeerd wordt.
+    expect(w.find('[data-testid="cfg-venster-geruststelling"]').text()).toContain('niets gewist')
+  })
+
+  it('de keuze reist mee in het opslaan: wijziging → wijzigingsaard "wijziging"', async () => {
+    api.checklistconfig.werkVraagBij.mockResolvedValue({
+      ...VRAGEN[2], vraag: 'Tweede hostingvraag, aangescherpt',
+    })
+    const w = await mountView()
+    await openVenster(w)
+    await w.find('[data-testid="cfg-aard-wijziging"]').setValue(true)
+    expect(w.find('[data-testid="cfg-venster-opslaan"]').attributes('disabled')).toBeUndefined()
+    await w.find('[data-testid="cfg-venster-opslaan"]').trigger('click')
+    await flushPromises()
+    expect(api.checklistconfig.werkVraagBij).toHaveBeenCalledWith('v4', {
+      vraag: 'Tweede hostingvraag, aangescherpt',
+      wijzigingsaard: 'wijziging',
+    })
+    expect(w.find('[data-testid="cfg-opslaan-venster"]').exists()).toBe(false) // venster dicht
+  })
+
+  it('… en verduidelijking → wijzigingsaard "verduidelijking"', async () => {
+    api.checklistconfig.werkVraagBij.mockResolvedValue({
+      ...VRAGEN[2], vraag: 'Tweede hostingvraag, aangescherpt',
+    })
+    const w = await mountView()
+    await openVenster(w)
+    await w.find('[data-testid="cfg-aard-verduidelijking"]').setValue(true)
+    await w.find('[data-testid="cfg-venster-opslaan"]').trigger('click')
+    await flushPromises()
+    expect(api.checklistconfig.werkVraagBij).toHaveBeenCalledWith('v4', {
+      vraag: 'Tweede hostingvraag, aangescherpt',
+      wijzigingsaard: 'verduidelijking',
+    })
+  })
+
+  it('annuleren sluit het venster zonder opslaan; ongewijzigde tekst opent het venster niet', async () => {
+    const w = await mountView()
+    await openVenster(w)
+    await w.find('[data-testid="cfg-venster-annuleren"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="cfg-opslaan-venster"]').exists()).toBe(false)
+    expect(api.checklistconfig.werkVraagBij).not.toHaveBeenCalled()
+    // Ongewijzigde tekst: de knop is disabled en submit opent niets.
+    expect(w.find('[data-testid="cfg-vraagtekst-opslaan-2.1"]').exists()).toBe(false) // vraag dicht
+    await openVraag(w, '2.2') // heropent → verse buffer met de huidige tekst
+    await openVraag(w, '2.2')
+    await openVraag(w, '2.2')
+  })
+
+  it('de greep is in rust zichtbaar voor de beheerder — en bestaat NIET voor wie niet mag slepen', async () => {
+    const beheer = await mountView(['beheerder'])
+    // Categorieën (2) + vragen van de geopende categorie (2, beide dicht) dragen de greep.
+    expect(beheer.findAll('[data-testid="sleep-greep"]').length).toBeGreaterThanOrEqual(4)
+    // De uitlegregel zegt waaróm de volgorde ertoe doet.
+    expect(beheer.find('[data-testid="cfg-volgorde-uitleg"]').text()).toContain(
+      'volgorde waarin de consultant de vragen te zien krijgt',
+    )
+    // Wie niet mag slepen krijgt geen greep: een greep die niets doet is een valse belofte.
+    const lezer = await mountView(['medewerker'])
+    expect(lezer.findAll('[data-testid="sleep-greep"]').length).toBe(0)
+    expect(lezer.find('[data-testid="cfg-volgorde-uitleg"]').exists()).toBe(false)
+  })
+
+  it('een geopende vraag is niet sleepbaar en draagt dan ook geen greep', async () => {
+    const w = await mountView()
+    const voor = w.findAll('[data-testid="sleep-greep"]').length
+    await openVraag(w, '2.2')
+    // De geopende rij verliest zijn greep (niet sleepbaar); de rest houdt hem.
+    expect(w.findAll('[data-testid="sleep-greep"]').length).toBe(voor - 1)
+  })
+})
+
+describe('ChecklistConfigBeheer — optie-Opslaan uit als er niets te doen is (correctie snede 1)', () => {
+  // De niet-afgeleide optieset van de database-vraag 1.3 (opties o2 'BWB', o3 'Tiel').
+  async function openOptieVraag(w) {
+    await w.find('[data-testid="cfg-type-keuze"]').setValue('database')
+    await flushPromises()
+    await openVraag(w, '1.3')
+  }
+
+  it('de knop is uit zonder wijziging en gaat aan zodra het label is aangepast', async () => {
+    const w = await mountView()
+    await openOptieVraag(w)
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="cfg-optie-label-o2"]').setValue('BvoWB')
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').attributes('disabled')).toBeUndefined()
+    // Terugtypen naar de opgeslagen staat → weer uit.
+    await w.find('[data-testid="cfg-optie-label-o2"]').setValue('BWB')
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('BIJT: een tweede klik tijdens of direct ná het opslaan levert géén tweede verzoek', async () => {
+    let laatLanden
+    api.checklistconfig.wijzigOptie.mockImplementation(
+      () => new Promise((res) => { laatLanden = res }),
+    )
+    const w = await mountView()
+    await openOptieVraag(w)
+    await w.find('[data-testid="cfg-optie-label-o2"]').setValue('BvoWB')
+    await w.find('[data-testid="cfg-optie-opslaan-o2"]').trigger('click')
+    // In de vlucht: knop uit én een tweede klik doet niets.
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="cfg-optie-opslaan-o2"]').trigger('click')
+    expect(api.checklistconfig.wijzigOptie).toHaveBeenCalledTimes(1)
+    // Geslaagd: de respons ís de opgeslagen staat → niets meer te doen → uit.
+    laatLanden({ id: 'o2', optie_sleutel: 'bwb', label: 'BvoWB', volgorde: 1, actief: true, afgeleid_bron: null })
+    await flushPromises()
+    expect(w.find('[data-testid="cfg-optie-opslaan-o2"]').attributes('disabled')).toBeDefined()
+    await w.find('[data-testid="cfg-optie-opslaan-o2"]').trigger('click')
+    expect(api.checklistconfig.wijzigOptie).toHaveBeenCalledTimes(1)
   })
 })

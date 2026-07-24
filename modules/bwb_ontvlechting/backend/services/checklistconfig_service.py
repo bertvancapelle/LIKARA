@@ -17,6 +17,7 @@ ADR-022 W1 nieuw: vraag-CRUD (toevoegen/bewerken/(de)activeren). Een mutatie die
 atomair** de lifecycle van alle componenten van dat type (`herbereken_type`).
 """
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -27,6 +28,7 @@ from models.models import (
     ChecklistCategorie,
     ChecklistVraag,
     ChecklistVraagOptie,
+    Checklistscore,
     Component,
     ComponentConfigDimensie,
     ComponentProfiel,
@@ -41,11 +43,17 @@ from schemas.checklistconfig import (
     OptieUpdate,
     VraagCreate,
     VraagUpdate,
+    WijzigingsAard,
 )
 from services import componentconfig_catalog as catalog
 from services import lifecycle_service
 from services import vraagbetekenis_catalog
-from services.errors import ConfiguratieConflict, NietGevonden, RegistratieConflict
+from services.errors import (
+    ConfiguratieConflict,
+    NietGevonden,
+    OngeldigeRegistratie,
+    RegistratieConflict,
+)
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -317,10 +325,30 @@ async def maak_vraag(session: AsyncSession, tenant_id, data: VraagCreate) -> dic
 
 
 async def werk_vraag_bij(session: AsyncSession, checklistvraag_id, data: VraagUpdate) -> dict:
-    """Bewerk niet-tellende velden (`vraag`/`categorie_id`/`prioriteit`).
-    `componenttype`+`code` zijn immutable. Géén fan-out (aantal_vragen ongewijzigd)."""
+    """Bewerk een vraag. `componenttype`+`code` zijn immutable; `aantal_vragen`
+    wijzigt hier nooit (geen lifecycle-fan-out — de engine blijft onaangeroerd).
+
+    ADR-056: wijzigt de VRAAGTEKST, dan is `wijzigingsaard` verplicht (besluit 2 —
+    LIKARA leidt het nooit uit de tekst af). Een **verduidelijking** schuift de
+    bevroren formulering bij álle antwoorden op deze vraag mee en zet de stille
+    notitie (besluit 6) — ORM-matig, zodat de audit het vangt. Een **wijziging**
+    raakt de antwoorden niet aan: "verouderd" is de vergelijking met de blijvende
+    bevroren tekst (besluit 4). Beide raken `score`/lifecycle/blokkade NOOIT."""
     vraag = await _haal_vraag(session, checklistvraag_id)
     velden = data.model_dump(exclude_unset=True)
+    aard = velden.pop("wijzigingsaard", None)
+    tekst_wijzigt = "vraag" in velden and velden["vraag"] != vraag.vraag
+    if tekst_wijzigt and aard is None:
+        raise OngeldigeRegistratie(
+            "WIJZIGINGSAARD_VEREIST",
+            "Zeg bij een tekstwijziging wat zij is: een verduidelijking of een echte "
+            "wijziging van de vraag.",
+        )
+    if aard is not None and not tekst_wijzigt:
+        raise OngeldigeRegistratie(
+            "GEEN_TEKSTWIJZIGING",
+            "Er is geen tekstwijziging om te duiden; laat de wijzigingsaard weg.",
+        )
     if "categorie_id" in velden:
         # Herplaatsen mag, maar alleen naar een categorie van hetzelfde componenttype.
         nieuwe = await _haal_categorie(session, velden["categorie_id"])
@@ -328,11 +356,46 @@ async def werk_vraag_bij(session: AsyncSession, checklistvraag_id, data: VraagUp
             raise NietGevonden("checklist_categorie", velden["categorie_id"])
     for veld, waarde in velden.items():
         setattr(vraag, veld, waarde)
+    if tekst_wijzigt:
+        # Besluit 2 — de keuze als echte kolom: landt in de audit-diff van déze
+        # wijziging (moment + eigenaar), ook als de aard gelijk is aan de vorige.
+        vraag.laatste_wijzigingsaard = aard.value if isinstance(aard, WijzigingsAard) else aard
+        if aard in (WijzigingsAard.verduidelijking, WijzigingsAard.verduidelijking.value):
+            # Besluit 4/6 — de betekenis veranderde niet: de bevroren tekst schuift
+            # mee en het antwoord draagt de stille notitie. ORM-loop (audit-dekking
+            # is ORM-dekking); raakt uitsluitend deze twee registratieve kolommen.
+            nu = datetime.now(timezone.utc)
+            scores = (
+                await session.execute(
+                    select(Checklistscore).where(
+                        Checklistscore.tenant_id == vraag.tenant_id,
+                        Checklistscore.checklistvraag_id == vraag.id,
+                    )
+                )
+            ).scalars()
+            for score in scores:
+                score.vraag_bevroren = vraag.vraag
+                score.vraag_verduidelijkt_op = nu
     await session.commit()
     await session.refresh(vraag)
     return _vraag_read(
         vraag, await _opties_van(session, vraag.id), await _haal_categorie(session, vraag.categorie_id)
     )
+
+
+async def antwoord_telling(session: AsyncSession, checklistvraag_id) -> int:
+    """ADR-056 besluit 12 — "dit raakt N antwoorden": het aantal gegeven antwoorden
+    op déze vraag (in-tenant, RLS). Eén telling voor de voorspelling vóór het opslaan
+    én (snede 3) het beeld erná — nooit twee afleidingen. Vraag onbekend ⇒ 404."""
+    vraag = await _haal_vraag(session, checklistvraag_id)
+    return (
+        await session.execute(
+            select(func.count()).select_from(Checklistscore).where(
+                Checklistscore.tenant_id == vraag.tenant_id,
+                Checklistscore.checklistvraag_id == vraag.id,
+            )
+        )
+    ).scalar_one()
 
 
 # ── LI050 (ADR-022 W3): categorie-beheer — de indeling als eigen entiteit ─────────

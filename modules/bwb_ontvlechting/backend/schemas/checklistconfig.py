@@ -6,11 +6,20 @@ tenant-facing `ChecklistVraagRead` (2B): de beheerder adresseert opties op `id` 
 moet de read-only-status van afgeleide sets kunnen tonen.
 """
 import uuid
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from models.models import AntwoordType, ChecklistPrioriteit
 from schemas._validators import _optionele_tekst, _verplichte_tekst
+
+
+class WijzigingsAard(str, Enum):
+    """ADR-056 besluit 2 — de beheerder zegt zelf wat een tekstwijziging is.
+    LIKARA leidt dit nooit uit de tekst af (geen diff-heuristiek)."""
+
+    verduidelijking = "verduidelijking"
+    wijziging = "wijziging"
 
 
 class ConfigOptieRead(BaseModel):
@@ -129,13 +138,21 @@ class VraagCreate(BaseModel):
 
 
 class VraagUpdate(BaseModel):
-    """ADR-022 W1 — bewerkbare (niet-tellende) velden; `componenttype`+`code` zijn
-    immutable (identiteit). Geen fan-out nodig. LI050: herplaatsen naar een andere
-    categorie mag via `categorie_id` (zelfde componenttype, servicelaag)."""
+    """ADR-022 W1 — bewerkbare velden; `componenttype`+`code` zijn immutable
+    (identiteit). LI050: herplaatsen naar een andere categorie mag via `categorie_id`
+    (zelfde componenttype, servicelaag).
+
+    ADR-056: een wijziging van de VRAAGTEKST heeft gevolgen — de beheerder duidt haar
+    via `wijzigingsaard` (verplicht bij een tekstwijziging, servicelaag): een
+    `verduidelijking` schuift de bevroren formulering bij de antwoorden mee (mét
+    stille notitie); een `wijziging` laat bestaande antwoorden als verouderd lezen.
+    Categorie/volgorde/prioriteit blijven aard-loos (geen betekenis-verschuiving)."""
 
     model_config = ConfigDict(extra="forbid")
 
     vraag: str | None = None
+    # ADR-056 besluit 2 — verplicht zodra `vraag` daadwerkelijk wijzigt (servicelaag).
+    wijzigingsaard: WijzigingsAard | None = None
     categorie_id: uuid.UUID | None = None
     # LI050 (W5): de sleep-bouwsteen bewaart de nieuwe volgorde via dit veld.
     volgorde: int | None = None
@@ -159,6 +176,14 @@ class VraagImpact(BaseModel):
     """Read-only "raakt N componenten"-telling voor een componenttype (in-tenant)."""
 
     aantal_componenten: int
+
+
+class VraagAntwoordImpact(BaseModel):
+    """ADR-056 besluit 12 — read-only "dit raakt N antwoorden"-telling voor één vraag.
+    De voorspelling vóór het opslaan; dezelfde service-telling voedt straks (snede 3)
+    het beeld erná — nooit twee afleidingen."""
+
+    aantal_antwoorden: int
 
 
 class AntwoordTypeUpdate(BaseModel):

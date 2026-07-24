@@ -27,7 +27,13 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.models import Checklistscore, Component, ComponentKlaarverklaring, KlaarverklaringStatus
+from models.models import (
+    ChecklistVraag,
+    Checklistscore,
+    Component,
+    ComponentKlaarverklaring,
+    KlaarverklaringStatus,
+)
 from services import actieve_vraag
 from services import actor_resolutie
 from services import component_norm_service as norm
@@ -63,6 +69,9 @@ _APPLICATIE_TYPE = "applicatie"
 # Blok 3 draagt wat géén ontbrekend feit is (besluit 3).
 PUNT_CHECKLIST = "checklist_nee_deels"
 PUNT_ISOLATIE = "staat_los"
+# ADR-056 besluit 10 — antwoorden waarvan de vraag als echte wijziging is aangepast:
+# opnieuw beantwoorden is werk, maar er is niets fout (niet-blokkerend blok).
+PUNT_VRAAG_GEWIJZIGD = "vraag_gewijzigd"
 
 MOET_NOG = "moet_nog"
 NETJES = "netjes"
@@ -105,6 +114,29 @@ async def _checklist_nee_deels(session: AsyncSession, tid: uuid.UUID, component_
                     # LI050: een uitgezette vraag bestaat voor de beoordeling niet — anders
                     # toont dit blok een punt dat de consultant niet kan wegwerken.
                     actieve_vraag.score_telt_mee(Checklistscore.checklistvraag_id),
+                )
+            )
+        ).scalar_one()
+        or 0
+    )
+
+
+async def _vraag_gewijzigd(session: AsyncSession, tid: uuid.UUID, component_id) -> int:
+    """ADR-056 besluit 4/10 — het aantal antwoorden van dit component waarvan de vraag
+    ná het antwoord als ECHTE wijziging is aangepast: de bevroren formulering wijkt af
+    van de huidige (de vergelijking ís het sein; geen opgeslagen markering). Alleen
+    actieve vragen — een uitgezette vraag bestaat voor de beoordeling niet (LI050).
+    Puur tellen; raakt score/lifecycle niet."""
+    return int(
+        (
+            await session.execute(
+                select(func.count(Checklistscore.id))
+                .join(ChecklistVraag, ChecklistVraag.id == Checklistscore.checklistvraag_id)
+                .where(
+                    Checklistscore.tenant_id == tid,
+                    Checklistscore.component_id == component_id,
+                    ChecklistVraag.actief.is_(True),
+                    Checklistscore.vraag_bevroren != ChecklistVraag.vraag,
                 )
             )
         ).scalar_one()
@@ -177,6 +209,14 @@ async def open_punten(session: AsyncSession, tenant_id, component_id) -> dict | 
             {"soort": PUNT_CHECKLIST, "aantal": aantal_nee_deels,
              "route": {"soort": "tab", "tab": "checklist"}}
         )
+    # ADR-056 besluit 10 — verouderde antwoorden: gebundeld, niet-blokkerend, met de
+    # route naar de checklist waar het opnieuw antwoorden gebeurt.
+    aantal_vraag_gewijzigd = await _vraag_gewijzigd(session, tid, component_id)
+    if aantal_vraag_gewijzigd:
+        valt_op.append(
+            {"soort": PUNT_VRAAG_GEWIJZIGD, "aantal": aantal_vraag_gewijzigd,
+             "route": {"soort": "tab", "tab": "checklist"}}
+        )
 
     # Besluit 10 — een bewuste vaststelling dempt óók dit punt. Zonder die demping zegt blok 1
     # "vastgesteld (bewust geen koppelingen)" terwijl blok 3 op hetzelfde scherm "staat los in het
@@ -205,6 +245,11 @@ async def open_punten(session: AsyncSession, tenant_id, component_id) -> dict | 
         MOET_NOG: _blok(moet_nog),
         NETJES: _blok(netjes),
         VALT_OP: _blok(valt_op),
+        # ADR-056 besluit 10 (LI051) — het getal op het tabblad telt BEIDE soorten
+        # werk: wat nooit is vastgesteld (blok 1) én wat opnieuw beantwoord moet
+        # worden (verouderde antwoorden). Zelfde afleiding als de blokken hierboven —
+        # één bron, geen tweede telling. Geen poort: klaar verklaren kan gewoon.
+        "tabblad_aantal": len(moet_nog) + aantal_vraag_gewijzigd,
         # Besluit 18 — zonder klaarverklaring is het één neutrale lijst: geen bevroren
         # momentopname, dus geen bewust/verschoven-onderscheid om te tonen.
         "klaarverklaring": kv,

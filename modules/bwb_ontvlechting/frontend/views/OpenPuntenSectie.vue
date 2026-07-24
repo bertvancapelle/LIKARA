@@ -58,6 +58,12 @@ const verschovenLabels = computed(() => _labels(kv.value?.verschoven))
 const VALT_OP_TEKST = {
   checklist_nee_deels: (n) => `${n} checklistantwoord${n === 1 ? '' : 'en'} op "nee" of "deels"`,
   staat_los: () => 'Dit component staat los in het landschap — er is geen koppeling vastgelegd',
+  // ADR-056 besluit 10 — verouderde antwoorden: neutraal (er is niets fout; de vraag
+  // eronder is veranderd), gebundeld met het aantal, mét de handeling in de zin.
+  vraag_gewijzigd: (n) =>
+    n === 1
+      ? 'Bij 1 antwoord is de vraag aangepast — beantwoord die vraag opnieuw'
+      : `Bij ${n} antwoorden is de vraag aangepast — beantwoord die vragen opnieuw`,
 }
 
 // Besluit 4 — wát er niets open is, per blok. Eén rustige regel, geen lege staat met een uitroep.

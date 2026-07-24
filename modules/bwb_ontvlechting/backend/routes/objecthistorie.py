@@ -23,7 +23,7 @@ from app.middleware.authz import OnvoldoendeRechten
 from app.middleware.tenant import get_tenant_session
 from schemas.auditlog import AuditLogPagina
 from services import auditlog_service as svc
-from services import component_service, contract_service, partij_service
+from services import checklistvraag_service, component_service, contract_service, partij_service
 from services import deliverable_service, gap_service, plateau_service, work_package_service
 
 router = APIRouter(prefix="/objecthistorie", tags=["bwb:objecthistorie"])
@@ -45,6 +45,12 @@ _TYPES = {
     "work_package": (Entiteit.WORK_PACKAGE, work_package_service.haal_op, "entiteit"),
     "deliverable": (Entiteit.DELIVERABLE, deliverable_service.haal_op, "entiteit"),
     "gap": (Entiteit.GAP, gap_service.haal_op, "entiteit"),
+    # ADR-056 besluit 17 — de wijzigingsgeschiedenis van een checklistvraag (de oude
+    # formulering). Geen eigen detailscherm, wél een eigen leesingang vanaf het
+    # antwoord: wie de vragenlijst mag lezen (CHECKLISTVRAAG.LEZEN = élke tenant-rol)
+    # mag de geschiedenis van een vraag lezen. Het tenant-logboek (AUDITLOG) blijft
+    # hiermee dicht — dit is een vraag-gebonden filter, geen logboek-opening.
+    "checklistvraag": (Entiteit.CHECKLISTVRAAG, checklistvraag_service.haal_op, "entiteit"),
 }
 
 

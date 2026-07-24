@@ -43,12 +43,15 @@ describe('Icoon', () => {
     expect(svg.attributes('focusable')).toBe('false')
   })
 
-  it('DE REGEL: alleen wegwijzers krijgen een teken, handelingen niet', () => {
+  it('DE REGEL: alleen wegwijzers (en handvatten) krijgen een teken, handelingen niet', () => {
     // De grens ligt niet bij de lengte van het woord maar bij wat er gebeurt als je verkeerd
     // klikt. Een wegwijzer brengt je ergens heen (één klik terug); een handeling verandert iets.
     // Verschijnt hier ooit 'verwijderen' of 'bewerken', dan is die grens ongemerkt verschoven —
     // en dat mag alleen met een expliciet besluit, niet als bijvangst van "consistentie".
-    expect(Object.keys(TEKENS).sort()).toEqual(['geschiedenis', 'kaart'])
+    // ADR-056/LI051 (expliciet besluit Bert): 'greep' is de derde soort — een HANDVAT.
+    // Geen klikdoel, dus de verkeerd-klikken-maat is er niet op van toepassing; P9 blijft
+    // onverkort gelden voor knoppen.
+    expect(Object.keys(TEKENS).sort()).toEqual(['geschiedenis', 'greep', 'kaart'])
     for (const handeling of ['bewerken', 'verwijderen', 'heropenen', 'klaarverklaren', 'start']) {
       expect(TEKENS).not.toHaveProperty(handeling)
     }

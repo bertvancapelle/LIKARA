@@ -23,7 +23,11 @@ import { useToast } from '@/primevue'
 import { useAuthStore } from '@/store/auth'
 import { api } from '@/api'
 import { PARTIJ_AARD, SCORE, SIGNAAL_LABEL, label, partijIdentiteit, scoreKleur } from '../labels'
+// ADR-056 besluit 7 — het verouderd-sein erft de bestaande "een ander veranderde iets"-toon
+// (neutraal, ↔) uit de éne presentatiebron; hier komt géén tweede toon-definitie bij.
+import { AFWIJKING_CODERING } from '../afwijkingCodering'
 import IdentiteitLabel from './IdentiteitLabel.vue'
+import ObjectHistoriePaneel from './ObjectHistoriePaneel.vue'
 import VeldUitleg from './VeldUitleg.vue'
 import ZoekSelect from './ZoekSelect.vue'
 
@@ -157,7 +161,26 @@ function _zetScore(code, r) {
     verantwoordelijke_naam: r.verantwoordelijke_naam ?? '',
     verantwoordelijke_afdeling: r.verantwoordelijke_afdeling ?? '',
     verantwoordelijke_organisatie: r.verantwoordelijke_organisatie ?? '',
+    // ADR-056 — het sein (de vraag is als echte wijziging aangepast ná dit antwoord)
+    // en de stille notitie (verduidelijking); beide door de backend afgeleid/gedragen.
+    vraag_gewijzigd: r.vraag_gewijzigd ?? false,
+    vraag_verduidelijkt_op: r.vraag_verduidelijkt_op ?? null,
   }
+}
+
+// ── ADR-056 — vraagevolutie aan de antwoordkant ─────────────────────────────
+
+// Het antwoord is verouderd: de vraag eronder is veranderd (er is niets fout gegaan).
+function isVerouderd(code) {
+  return !!scoreMap[code]?.vraag_gewijzigd
+}
+
+// De stille notitie van een verduidelijking — alleen tonen zolang het antwoord niet
+// óók verouderd is (één sein per vraag; het sein wint van de notitie).
+function notitieDatum(code) {
+  const iso = scoreMap[code]?.vraag_verduidelijkt_op
+  if (!iso || isVerouderd(code)) return null
+  return new Date(iso).toLocaleDateString('nl-NL', { dateStyle: 'medium' })
 }
 
 // ADR-022 Fase A: scores dragen `checklistvraag_id` (UUID), niet meer `vraag_code`.
@@ -206,6 +229,10 @@ async function laad() {
 }
 
 function huidigeScore(code) {
+  // ADR-056 besluit 8 — bij een verouderd antwoord opent de afhandeling LEEG: de
+  // consultant geeft zijn antwoord opnieuw, óók als hij dezelfde keuze maakt. Het
+  // oude antwoord blijft in de data bestaan en telt mee tot dat gebeurt.
+  if (isVerouderd(code)) return ''
   return scoreMap[code]?.score ?? ''
 }
 
@@ -297,6 +324,10 @@ function toggleDetail(code) {
   if (open) {
     const s = scoreMap[code]
     const aw = s?.antwoord_waarde || {}
+    // ADR-056 besluit 8 — bij een verouderd antwoord openen de KEUZE-onderdelen leeg
+    // (de consultant kiest opnieuw); zijn TOELICHTING (bevinding/actie) blijft staan —
+    // die heeft hij zelf geschreven.
+    const verouderd = isVerouderd(code)
     // Verse buffer uit de huidige waarden — bewerken muteert scoreMap niet.
     bewerk[code] = {
       bevinding: s?.bevinding ?? '',
@@ -307,9 +338,9 @@ function toggleDetail(code) {
       verantwoordelijke_weergave: partijIdentiteit(
         s?.verantwoordelijke_naam, s?.verantwoordelijke_afdeling, s?.verantwoordelijke_organisatie,
       ),
-      antwoord_optie: aw.optie ?? '',
-      antwoord_opties: Array.isArray(aw.opties) ? [...aw.opties] : [],
-      antwoord_getal: aw.getal ?? '',
+      antwoord_optie: verouderd ? '' : (aw.optie ?? ''),
+      antwoord_opties: verouderd || !Array.isArray(aw.opties) ? [] : [...aw.opties],
+      antwoord_getal: verouderd ? '' : (aw.getal ?? ''),
     }
     delete veldFout[code]
     delete veldStatus[code]
@@ -317,9 +348,33 @@ function toggleDetail(code) {
   uitgeklapt[code] = open
 }
 
+// Correctie snede 1 (besluit Bert, meting-opslaanknop) — de bestaande vraagtekst-vorm:
+// de knop is uit zolang er niets te doen is. "Iets te doen" = de buffer wijkt af van de
+// laatst opgeslagen staat; direct ná een geslaagde opslag is dat dus niet zo. Weegt hier
+// extra: een tweede verzoek telt sinds ADR-056 als "aanraken" en zou een stille notitie
+// doven die de consultant nooit las.
+function veldenGewijzigd(code) {
+  const s = scoreMap[code]
+  const b = bewerk[code]
+  if (!s?.id || !b) return false
+  const metAntwoord = antwoordType(code) !== 'geen'
+  const envelope = metAntwoord ? JSON.stringify(_antwoordEnvelope(code)) : null
+  const opgeslagen = metAntwoord ? JSON.stringify(s.antwoord_waarde ?? null) : null
+  return (
+    (b.bevinding ?? '') !== (s.bevinding ?? '') ||
+    (b.actie ?? '') !== (s.actie ?? '') ||
+    (b.verantwoordelijke_id ?? null) !== (s.verantwoordelijke_id ?? null) ||
+    envelope !== opgeslagen
+  )
+}
+
 async function opslaanVelden(code) {
   const s = scoreMap[code]
   if (!mag.value || !s?.id) return // alleen-lezen of nog niet gescoord → niets te PATCHen
+  // Slot tijdens de vlucht + niets-te-doen-slot: een tweede klik (of een klik zonder
+  // wijziging) levert nooit een tweede verzoek. De knop is dan óók uitgeschakeld; deze
+  // guard is de vangrail voor elk pad dat de knop omzeilt.
+  if (veldStatus[code] === 'bezig' || !veldenGewijzigd(code)) return
   veldStatus[code] = 'bezig'
   delete veldFout[code]
   try {
@@ -417,7 +472,39 @@ laad()
             :data-testid="`cs-rij-${v.code}`"
             :class="gemarkeerd === v.code ? 'bg-[var(--lk-color-accent)]' : ''"
           >
-            <td>{{ v.vraag }}</td>
+            <td>
+              <div class="flex items-start gap-[var(--lk-space-xs)]">
+                <span class="min-w-0">{{ v.vraag }}</span>
+                <!-- ADR-056 besluit 17 — de geschiedenis van de vraag (de oude formulering)
+                     vanaf het antwoord, via de bestaande geschiedenis-ingang. -->
+                <ObjectHistoriePaneel entiteit-type="checklistvraag" :entiteit-id="v.id" />
+              </div>
+              <!-- ADR-056 besluit 7 — één sein per vraag, in de bestaande neutrale
+                   "een ander veranderde iets"-toon (geen waarschuwingskleur, geen verwijt):
+                   de vraag eronder is veranderd; opnieuw antwoorden dooft het sein. -->
+              <p
+                v-if="isVerouderd(v.code)"
+                :data-testid="`cs-verouderd-${v.code}`"
+                :class="[AFWIJKING_CODERING.verschoven.klasse, 'mt-[var(--lk-space-xs)] flex items-start gap-[var(--lk-space-xs)] px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)]']"
+              >
+                <span aria-hidden="true">{{ AFWIJKING_CODERING.verschoven.icoon }}</span>
+                <span>
+                  De vraagstelling is aangepast — beantwoord de vraag opnieuw. Uw eerdere
+                  antwoord telt mee tot u dat doet; de eerdere formulering staat in de
+                  geschiedenis van de vraag.
+                </span>
+              </p>
+              <!-- ADR-056 besluit 6 — de stille notitie van een verduidelijking: gedempt,
+                   stoort niet; dooft zodra iemand mét antwoord-recht het antwoord aanraakt. -->
+              <p
+                v-else-if="notitieDatum(v.code)"
+                :data-testid="`cs-verduidelijkt-${v.code}`"
+                class="mt-[var(--lk-space-xs)] text-[length:var(--lk-text-xs)] text-[var(--lk-color-text-muted)]"
+              >
+                De formulering is op {{ notitieDatum(v.code) }} bijgewerkt; de betekenis is
+                gelijk gebleven.
+              </p>
+            </td>
             <td>
               <select
                 :id="`cs-score-${v.code}`"
@@ -430,7 +517,7 @@ laad()
                 :class="scoreKleur(huidigeScore(v.code))"
                 @change="onScoreChange(v.code, $event.target.value)"
               >
-                <option value="" disabled>— niet gescoord —</option>
+                <option value="" disabled>{{ isVerouderd(v.code) ? '— beantwoord opnieuw —' : '— niet gescoord —' }}</option>
                 <option v-for="s in opties.score" :key="s" :value="s">{{ label(SCORE, s) }}</option>
               </select>
             </td>
@@ -586,10 +673,13 @@ laad()
                   ></textarea>
                 </div>
                 <div v-if="mag" class="flex items-center gap-[var(--lk-space-sm)]">
+                  <!-- Correctie snede 1 — zelfde vorm als "Vraagtekst opslaan": uit tijdens
+                       de vlucht én uit zolang er niets gewijzigd is (na succes dus meteen). -->
                   <button
                     type="button"
                     :data-testid="`cs-velden-opslaan-${v.code}`"
-                    class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-primary)] text-white font-semibold px-[var(--lk-space-md)] py-[var(--lk-space-xs)] hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)]"
+                    :disabled="veldStatus[v.code] === 'bezig' || !veldenGewijzigd(v.code)"
+                    class="rounded-[var(--lk-radius-input)] bg-[var(--lk-color-primary)] text-white font-semibold px-[var(--lk-space-md)] py-[var(--lk-space-xs)] hover:bg-[#2D6DB5] focus:outline-2 focus:outline-offset-2 focus:outline-[var(--lk-color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
                     @click="opslaanVelden(v.code)"
                   >
                     Opslaan

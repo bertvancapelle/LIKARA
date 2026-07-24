@@ -78,9 +78,11 @@ def test_maak_aan_roept_herbereken(monkeypatch):
 
     session = AsyncMock()
     session.add = lambda o: None
-    # componenttype van profiel, checklist_dragend?, vraag bestaat, geen dup, geen bestaande blokkade (nvt).
+    # componenttype van profiel, checklist_dragend?, vraag bestaat (→ vraagtekst), geen dup,
+    # geen bestaande blokkade (nvt), huidige vraagtekst (ADR-056-leesverrijking in _verrijk).
     session.execute.side_effect = [
-        _result("applicatie"), _result(True), _result(_VRAAG), _result(None), _result(None)
+        _result("applicatie"), _result(True), _result("Vraagtekst?"), _result(None),
+        _result(None), _result("Vraagtekst?"),
     ]
     asyncio.run(svc.maak_aan(session, uuid.uuid4(), _create(score="nvt")))
     assert aangeroepen.get("yes") is True
@@ -217,8 +219,8 @@ def test_werk_bij_zonder_score_raakt_blokkade_en_lifecycle_niet(monkeypatch):
     from services import checklistscore_service as svc, lifecycle_service
 
     score_obj = SimpleNamespace(
-        id=uuid.uuid4(), component_id=_APP, score=ChecklistScore.nee,
-        bevinding=None, verantwoordelijke_id=None, actie=None,
+        id=uuid.uuid4(), component_id=_APP, checklistvraag_id=_VRAAG,
+        score=ChecklistScore.nee, bevinding=None, verantwoordelijke_id=None, actie=None,
     )
 
     async def _haal(*a, **k):
@@ -231,6 +233,12 @@ def test_werk_bij_zonder_score_raakt_blokkade_en_lifecycle_niet(monkeypatch):
         return None
 
     monkeypatch.setattr(svc, "_verzeker_checklist_open_voor", _kv_open)
+    # ADR-056-leesverrijking (vraag_gewijzigd) is een READ-query, geen engine-mutatie —
+    # buiten deze sentinel houden (de sentinel bewaakt blokkade-queries).
+    async def _tekst(*a, **k):
+        return None
+
+    monkeypatch.setattr(svc, "_huidige_vraagtekst", _tekst)
 
     herb = {}
 
@@ -375,6 +383,11 @@ def test_werk_bij_met_antwoord_zonder_score_raakt_engine_niet(monkeypatch):
         return None
 
     monkeypatch.setattr(svc, "_valideer_antwoord_waarde", _valid)
+    # ADR-056-leesverrijking = READ-query, geen engine-mutatie — buiten de sentinel.
+    async def _tekst(*a, **k):
+        return None
+
+    monkeypatch.setattr(svc, "_huidige_vraagtekst", _tekst)
 
     herb = {}
 

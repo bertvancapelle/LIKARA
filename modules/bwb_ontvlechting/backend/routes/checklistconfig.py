@@ -31,6 +31,7 @@ from schemas.checklistconfig import (
     ConfigVraagRead,
     OptieCreate,
     OptieUpdate,
+    VraagAntwoordImpact,
     VraagCreate,
     VraagImpact,
     VraagUpdate,
@@ -130,6 +131,17 @@ async def maak_vraag(
     return await svc.maak_vraag(session, user.tenant_id, body)
 
 
+@router.get("/vragen/{checklistvraag_id}/impact", response_model=VraagAntwoordImpact)
+async def vraag_antwoord_impact(
+    checklistvraag_id: uuid.UUID,
+    _user=Depends(_LEZEN),
+    session: AsyncSession = Depends(get_tenant_session),
+):
+    """ADR-056 besluit 12 — read-only "dit raakt N antwoorden" voor één vraag: de
+    voorspelling in het opslaan-venster, uit dezelfde telling als het beeld erná."""
+    return {"aantal_antwoorden": await svc.antwoord_telling(session, checklistvraag_id)}
+
+
 @router.patch("/vragen/{checklistvraag_id}", response_model=ConfigVraagRead)
 async def werk_vraag_bij(
     checklistvraag_id: uuid.UUID,
@@ -137,7 +149,8 @@ async def werk_vraag_bij(
     _user=Depends(_WIJZIGEN),
     session: AsyncSession = Depends(get_tenant_session),
 ):
-    """Bewerk niet-tellende velden (tekst/categorie/prioriteit); type+code immutable."""
+    """Bewerk een vraag; type+code immutable. ADR-056: een tekstwijziging vergt een
+    `wijzigingsaard` (verduidelijking | wijziging) — zie de service voor het gevolg."""
     return await svc.werk_vraag_bij(session, checklistvraag_id, body)
 
 

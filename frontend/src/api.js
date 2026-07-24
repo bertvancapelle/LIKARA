@@ -576,6 +576,8 @@ export const api = {
       request(`/checklistconfig/categorieen/${id}`, { method: 'DELETE' }),
     impact: (componenttype) =>
       request(`/checklistconfig/impact?componenttype=${encodeURIComponent(componenttype)}`),
+    // ADR-056 besluit 12 — "dit raakt N antwoorden": de voorspelling in het opslaan-venster.
+    impactAntwoorden: (id) => request(`/checklistconfig/vragen/${id}/impact`),
     maakVraag: (data) =>
       request('/checklistconfig/vragen', { method: 'POST', body: JSON.stringify(data) }),
     werkVraagBij: (id, data) =>

@@ -458,4 +458,19 @@
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+
+  /* ADR-056/LI051 — de sleepgreep (SleepGreep in useSleepLijst.js): in rust zichtbaar,
+     gedempt, links op elke versleepbare rij. Op een geselecteerde rij kleurt hij mee
+     (`-mee`), zodat de selectie één geheel blijft. Handgeschreven klasse: Tailwind kan
+     hem niet seeden, dus de build-check kan niet vals-groen worden. */
+  .lk-sleep-greep {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    color: var(--lk-color-text-muted);
+    cursor: grab;
+  }
+  .lk-sleep-greep-mee {
+    color: var(--lk-color-primary);
+  }
 }
