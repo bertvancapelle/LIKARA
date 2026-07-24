@@ -25,21 +25,20 @@ Signaturen — `veld`/`maxlen` ONGEWIJZIGD; `meerregelig` is optioneel met defau
 - `_verplichte_tekst(waarde, veld, maxlen, *, meerregelig=False)` — verplicht veld.
 - `_optionele_tekst(waarde, maxlen, *, meerregelig=False)` — optioneel veld.
 """
-import unicodedata
+from schemas import tekstschoning
 
-# C0/C1-stuurtekens die nooit betekenisdragende tekst zijn. NUL (\x00) staat er expliciet in en
-# wordt in GEEN enkel veld toegestaan. In een meerregelig veld zijn regelovergang/tab/CR wél
-# betekenis (alinea) — die worden dan uit deze set gehaald (zie `_stuurtekens`).
+# Stuurtekens (`Cc`) die nooit betekenisdragende tekst zijn. NUL staat er impliciet in en wordt in
+# GEEN enkel veld toegestaan. In een meerregelig veld zijn regelovergang/tab/CR wél betekenis
+# (alinea) — die worden dan uit deze set gehaald (zie `_stuurtekens`).
 _MEERREGELIG_TOEGESTAAN = frozenset("\n\r\t")
 
 
 def _stuurtekens(waarde: str, *, meerregelig: bool) -> set[str]:
-    """De aangetroffen stuurtekens (C0 < 0x20, plus DEL/C1 0x7f–0x9f). In een meerregelig veld
-    tellen \\n/\\r/\\t niet mee; een nulteken telt ALTIJD mee (nooit toegestaan)."""
+    """De aangetroffen stuurtekens (categorie `Cc`, dezelfde definitie als `tekstschoning`). In een
+    meerregelig veld tellen \\n/\\r/\\t niet mee; een nulteken telt ALTIJD mee (nooit toegestaan)."""
     gevonden = set()
     for ch in waarde:
-        o = ord(ch)
-        if o == 0 or o < 0x20 or 0x7F <= o <= 0x9F:
+        if tekstschoning.is_stuurteken(ch):
             if meerregelig and ch in _MEERREGELIG_TOEGESTAAN:
                 continue
             gevonden.add(ch)
@@ -65,17 +64,21 @@ def _weiger_niet_tekst(waarde: str, *, veld: str | None, meerregelig: bool) -> N
         )
 
 
-def _normaliseer(waarde: str) -> str:
-    """Blok B — NFC: gelijk-uitziende tekst wordt gelijke tekst. Onzichtbaar voor de gebruiker."""
-    return unicodedata.normalize("NFC", waarde)
+def _schoon(waarde: str) -> str:
+    """De gedeelde regel (blok B, LI051), zonder de Cc-policy: NFC + `Zs`-spaties → gewone spatie +
+    `Cf`-opmaaktekens weg, daarna spaties samenvouwen + trimmen. Dezelfde bron als het zoeken
+    (`services/zoektekst.schoon_zoekterm`), zodat een vaste spatie in een opgeslagen naam dezelfde
+    gewone spatie wordt waarop straks gezocht wordt — anders staat het component er wél en is het
+    onvindbaar. Stil: een vaste spatie ziet eruit als een spatie, er valt niets te melden."""
+    return tekstschoning.vouw_spaties(tekstschoning.vervang_onzichtbaar(waarde))
 
 
 def _verplichte_tekst(waarde: str | None, veld: str, maxlen: int, *, meerregelig: bool = False) -> str:
-    """Niet-lege, genormaliseerde, gestripte tekst met max-lengte (verplicht veld).
-    Weigert nul-/stuurtekens (blok A) met een NL-melding (blok C)."""
+    """Niet-lege, opgeschoonde tekst met max-lengte (verplicht veld). Stuurtekens (`Cc`) worden
+    geweigerd met een NL-melding; onzichtbare spaties/opmaaktekens stil genormaliseerd (blok B)."""
     if waarde is None:
         raise ValueError(f"{veld} is verplicht")
-    waarde = _normaliseer(waarde).strip()
+    waarde = _schoon(waarde)
     if not waarde:
         raise ValueError(f"{veld} mag niet leeg zijn")
     _weiger_niet_tekst(waarde, veld=veld, meerregelig=meerregelig)
@@ -85,11 +88,11 @@ def _verplichte_tekst(waarde: str | None, veld: str, maxlen: int, *, meerregelig
 
 
 def _optionele_tekst(waarde: str | None, maxlen: int, *, meerregelig: bool = False) -> str | None:
-    """Genormaliseerde, gestripte optionele tekst; leeg ⇒ None; max-lengte afgedwongen.
-    Weigert nul-/stuurtekens (blok A) met een NL-melding (blok C)."""
+    """Opgeschoonde optionele tekst; leeg ⇒ None; max-lengte afgedwongen. Stuurtekens (`Cc`)
+    geweigerd; onzichtbare spaties/opmaaktekens stil genormaliseerd (blok B)."""
     if waarde is None:
         return None
-    waarde = _normaliseer(waarde).strip()
+    waarde = _schoon(waarde)
     if not waarde:
         return None
     _weiger_niet_tekst(waarde, veld=None, meerregelig=meerregelig)

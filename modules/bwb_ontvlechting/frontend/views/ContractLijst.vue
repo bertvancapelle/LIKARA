@@ -12,6 +12,8 @@ import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import LijstKop from '@/components/LijstKop.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 import { CONTRACTTYPE, CONTRACTTYPE_SEVERITY, label } from '../labels'
 
 const auth = useAuthStore()
@@ -40,6 +42,8 @@ const filterType = ref('')
 const filterDekking = ref('')
 const filterKostenmodel = ref('')
 const filterZoek = ref('')
+// LI051 — opgeschoonde term voor de melding (leeg = geen melding). Eén bron: schoonZoekterm.
+const zoekMelding = ref('')
 const heeftFilters = computed(
   () =>
     !!filterLeverancier.value ||
@@ -106,7 +110,11 @@ async function laad({ reset = false } = {}) {
     if (filterType.value) params.contracttype = filterType.value
     if (filterDekking.value) params.dekking = filterDekking.value
     if (filterKostenmodel.value) params.kostenmodel = filterKostenmodel.value
-    if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
+    // LI051 — opschonen (onzichtbare tekens weg, NFC); opgeschoonde term tonen + melden.
+    const { schoon, ietsWeggehaald } = schoonZoekterm(filterZoek.value)
+    if (schoon !== filterZoek.value) filterZoek.value = schoon
+    zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+    if (schoon) params.zoek = schoon
     const pagina = await api.contracten.lijst(params)
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
     cursor.value = pagina.volgende_cursor
@@ -229,6 +237,9 @@ onMounted(async () => {
     <p v-if="fout" role="alert" data-testid="lijst-fout" class="mb-[var(--lk-space-md)] rounded-[var(--lk-radius-badge)] border border-[var(--lk-color-danger)] bg-[var(--lk-color-danger)]/10 px-[var(--lk-space-md)] py-[var(--lk-space-sm)] text-[var(--lk-color-danger)]">
       {{ fout }}
     </p>
+
+    <!-- LI051 — melding bij onzichtbare tekens in de zoekterm: vóór de tabel (geen aantal hier). -->
+    <ZoektermMelding v-if="zoekMelding" :term="zoekMelding" class="mb-[var(--lk-space-md)]" />
 
     <DataTable
       :value="items"

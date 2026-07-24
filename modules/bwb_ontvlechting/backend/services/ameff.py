@@ -30,6 +30,8 @@ from pathlib import Path
 from defusedxml import DefusedXmlException
 from defusedxml import ElementTree as veilige_et
 
+from schemas import tekstschoning
+
 _NS = "{http://www.opengroup.org/xsd/archimate/3.0/}"
 _XSI_TYPE = "{http://www.w3.org/2001/XMLSchema-instance}type"
 _XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
@@ -77,6 +79,19 @@ def _tekst_kind(element, lokale_naam: str) -> str | None:
     return tekst or None
 
 
+def _schoon_bron(tekst: str | None) -> str | None:
+    """De gedeelde tekstregel (`schemas/tekstschoning`) op geparste brontekst — LI051 weg 1: schoon
+    de bron één keer op, hier bij de parser-uitvoer, met DEZELFDE regel als het vastleggen en het
+    zoeken (geen eigen kopie). Zo dragen aanmaken, bijwerken én de her-inlees-vergelijking vanzelf
+    dezelfde tekst — geen twee definities die uiteen groeien. `Zs`-spaties → gewone spatie (woordgrens
+    blijft), `Cf`-opmaaktekens weg, spaties samengevouwen + getrimd; `Cc`-stuurtekens blijven staan
+    (die weigert het schema bij het opslaan). Leeg na opschonen ⇒ None (afwezig)."""
+    if tekst is None:
+        return None
+    schoon = tekstschoning.vouw_spaties(tekstschoning.vervang_onzichtbaar(tekst))
+    return schoon or None
+
+
 def lees_ameff(pad: Path | str, *, element_type: str = "BusinessFunction") -> AmeffInhoud:
     """Lees een AMEFF-bestand veilig en extraheer `element_type` + de aggregation-boom.
 
@@ -108,7 +123,7 @@ def lees_ameff(pad: Path | str, *, element_type: str = "BusinessFunction") -> Am
             overgeslagen[soort] = overgeslagen.get(soort, 0) + 1
             continue
         sleutel = (element.get("identifier") or "").strip()
-        naam = _tekst_kind(element, "name")
+        naam = _schoon_bron(_tekst_kind(element, "name"))
         if not sleutel:
             raise AmeffFout(
                 f"Een {element_type}-element heeft geen identifier — zonder bronsleutel "
@@ -124,7 +139,7 @@ def lees_ameff(pad: Path | str, *, element_type: str = "BusinessFunction") -> Am
             raise AmeffFout(f"Elementnaam langer dan {_MAX_NAAM} tekens ({sleutel}).")
         sleutels.add(sleutel)
         functies.append(
-            AmeffFunctie(sleutel=sleutel, naam=naam, definitie=_tekst_kind(element, "documentation"))
+            AmeffFunctie(sleutel=sleutel, naam=naam, definitie=_schoon_bron(_tekst_kind(element, "documentation")))
         )
 
     plaatsingen = frozenset(

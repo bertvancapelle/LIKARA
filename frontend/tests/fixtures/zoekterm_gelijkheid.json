@@ -1,0 +1,85 @@
+{
+  "_toelichting": "Gedeelde reeks voor blok D (LI051 tekenset-verbreden): de VOORKANT (frontend/src/zoekterm.js) en de ACHTERKANT (schemas/tekstschoning + services/zoektekst.schoon_zoekterm) MOETEN elke 'in' naar dezelfde 'uit' opschonen. De reeks komt uit wat plakken ECHT oplevert (Word/Excel/PDF/browser): vaste spatie, brede spaties, zero-width, BOM, dubbele spaties. Onzichtbare tekens staan als \\u-escapes.",
+  "gevallen": [
+    {
+      "in": "zaaksysteem",
+      "uit": "zaaksysteem"
+    },
+    {
+      "in": "zaak systeem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "zaak\u00a0systeem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "zaak\u2003systeem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "zaak\u202fsysteem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "zaak\u3000systeem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "zaak\u200bsysteem",
+      "uit": "zaaksysteem"
+    },
+    {
+      "in": "zaak\u2060systeem",
+      "uit": "zaaksysteem"
+    },
+    {
+      "in": "\ufeffzaaksysteem",
+      "uit": "zaaksysteem"
+    },
+    {
+      "in": "zaak\u0000systeem",
+      "uit": "zaaksysteem"
+    },
+    {
+      "in": "regel1\nregel2",
+      "uit": "regel1regel2"
+    },
+    {
+      "in": "kol1\tkol2",
+      "uit": "kol1kol2"
+    },
+    {
+      "in": "zaak  systeem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "zaak\u00a0\u00a0systeem",
+      "uit": "zaak systeem"
+    },
+    {
+      "in": "  Zaaksysteem  ",
+      "uit": "Zaaksysteem"
+    },
+    {
+      "in": "Jos\u00e9",
+      "uit": "Jos\u00e9"
+    },
+    {
+      "in": "Jose\u0301",
+      "uit": "Jos\u00e9"
+    },
+    {
+      "in": "Bevo\u0308lkerung",
+      "uit": "Bev\u00f6lkerung"
+    },
+    {
+      "in": " ",
+      "uit": ""
+    },
+    {
+      "in": "",
+      "uit": ""
+    }
+  ]
+}

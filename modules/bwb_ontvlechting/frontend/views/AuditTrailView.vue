@@ -15,12 +15,16 @@ import { api } from '@/api'
 import { AUDIT_ACTIE, AUDIT_ENTITEIT, actorWeergave, diffWeergave, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import ZoekSelect from './ZoekSelect.vue'
 import LijstKop from '@/components/LijstKop.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 
 const gebeurtenissen = ref([])
 const cursor = ref(null)
 const laden = ref(false)
 const fout = ref(null)
 const filters = reactive({ actor_naam: '', component_id: '', actie: '', van: '', tot: '' })
+// LI051 — opgeschoonde "wie"-term voor de melding (leeg = geen melding). Eén bron: schoonZoekterm.
+const zoekMelding = ref('')
 const uitgeklapt = ref({}) // LI019 — expandedRows-map { correlatie_id: true } (DataTable dataKey-vorm)
 
 // LI019 — Onderdeel: entiteit-type + objectnaam (fallback: entiteit_id bij verwijderd/naamloos object).
@@ -73,6 +77,11 @@ async function laad({ meer = false } = {}) {
   laden.value = true
   fout.value = null
   try {
+    // LI051 — schoon de "wie"-zoekterm op (onzichtbare tekens weg, NFC); toon de opgeschoonde
+    // term en meld wat er is weggehaald. Dezelfde regel als de achterkant (`schoonZoekterm`).
+    const { schoon, ietsWeggehaald } = schoonZoekterm(filters.actor_naam)
+    if (schoon !== filters.actor_naam) filters.actor_naam = schoon
+    zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
     const pagina = await api.auditlog.lijst(_params(meer && cursor.value ? { after: cursor.value } : {}))
     const items = pagina.items || []
     gebeurtenissen.value = meer ? [...gebeurtenissen.value, ...items] : items
@@ -128,6 +137,10 @@ laad()
         </div>
       </template>
     </LijstKop>
+
+    <!-- LI051 — melding bij onzichtbare tekens in de "wie"-zoekterm: direct onder het zoekveld
+         (geen aantal hier). Alleen zichtbaar als er werkelijk iets is weggehaald. -->
+    <ZoektermMelding v-if="zoekMelding" :term="zoekMelding" class="mb-[var(--lk-space-md)]" />
 
     <!-- Filterbalk — blijft onder de kop staan; deze vier verfijnen de zoekopdracht. -->
     <div class="flex flex-wrap items-end gap-[var(--lk-space-md)] mb-[var(--lk-space-md)]">

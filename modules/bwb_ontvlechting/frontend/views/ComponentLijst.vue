@@ -21,6 +21,8 @@ import { api } from '@/api'
 import MultiSelectDropdown from '@/components/MultiSelectDropdown.vue'
 import FilterResultaatRegel from '@/components/FilterResultaatRegel.vue'
 import LijstKop from '@/components/LijstKop.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 import ComponentFormulier from '@modules/bwb_ontvlechting/frontend/views/ComponentFormulier.vue'
 import ZoekSelect from '@modules/bwb_ontvlechting/frontend/views/ZoekSelect.vue'
 import {
@@ -73,6 +75,9 @@ const filterEigenaarId = ref(null)
 // id) → de gekozen naam meebewaren en als `initieel-weergave` teruggeven.
 const filterEigenaarNaam = ref('')
 const filterZoek = ref('')
+// LI051 — de opgeschoonde term waarop werkelijk is gezocht, getoond zodra er onzichtbare
+// tekens zijn weggehaald (anders leeg). Eén bron: `schoonZoekterm` (gelijk aan de achterkant).
+const zoekMelding = ref('')
 // ADR-028 — rol (multi-select). LI040 — BIV is ÉÉN filter geworden: de hoogste van de
 // drie assen ≥ drempel ('' = alle · catalogus-sleutel · '__zonder__' = nog niet
 // vastgelegd, d.w.z. geen enkele as ingevuld). De waarden komen uit de beheerbare
@@ -337,7 +342,12 @@ async function laad({ reset = false } = {}) {
     const params = { limit: 25, after: reset ? undefined : cursor.value, ..._paramsUit(_refs) }
     // Het zoeken staat BUITEN het filtervenster (het blijft bovenin) en reist dus niet mee in
     // de conceptstaat — vandaar hier, niet in `_paramsUit`.
-    if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
+    // LI051 — schoon de term op (onzichtbare tekens weg, NFC); toon de opgeschoonde term in het
+    // veld en meld wat er is weggehaald. Dezelfde regel als de achterkant (`schoonZoekterm`).
+    const { schoon, ietsWeggehaald } = schoonZoekterm(filterZoek.value)
+    if (schoon !== filterZoek.value) filterZoek.value = schoon
+    zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+    if (schoon) params.zoek = schoon
     if (sortVeld.value) {
       params.sort = sortVeld.value
       params.order = sortRichting.value
@@ -850,6 +860,10 @@ onMounted(async () => {
     >
       {{ fout }}
     </p>
+
+    <!-- LI051 — melding als de zoekterm onzichtbare tekens bevatte: tussen zoekveld en aantal,
+         daar beoordeel je je resultaat. Alleen zichtbaar als er werkelijk iets is weggehaald. -->
+    <ZoektermMelding v-if="zoekMelding" :term="zoekMelding" class="mb-[var(--lk-space-md)]" />
 
     <!-- LI040 — de resultaatregel: aantal (altijd) + elk actief filter uitgeschreven en
          los wisbaar. De lege-melding in de tabel staat zo náást zijn eigen reden.

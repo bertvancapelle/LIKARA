@@ -64,6 +64,28 @@ describe('AuditTrailView', () => {
     expect(api.auditlog.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ actor_naam: 'Jan' }))
   })
 
+  // LI051 — soort "zoekveld zonder aantal": geplakte rommel in de "wie"-zoekterm toont de melding
+  // met de opgeschoonde term, direct onder het zoekveld; de achterkant krijgt de opgeschoonde term.
+  it('LI051 — geplakte rommel in "zoek op wie": melding met de opgeschoonde term', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="filter-naam"]').setValue('Ja\x00n')
+    await w.find('[data-testid="audit-toepassen"]').trigger('click')
+    await flushPromises()
+    const melding = w.find('[data-testid="zoek-opschoon-melding"]')
+    expect(melding.exists()).toBe(true)
+    expect(melding.text()).toContain('Jan')
+    expect(w.find('[data-testid="filter-naam"]').element.value).toBe('Jan')
+    expect(api.auditlog.lijst).toHaveBeenLastCalledWith(expect.objectContaining({ actor_naam: 'Jan' }))
+  })
+
+  it('LI051 — een gewone "wie"-zoekopdracht toont geen melding', async () => {
+    const w = await mountView()
+    await w.find('[data-testid="filter-naam"]').setValue('Jan')
+    await w.find('[data-testid="audit-toepassen"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-testid="zoek-opschoon-melding"]').exists()).toBe(false)
+  })
+
   it('filterwijziging reset de cursor (geen after meer)', async () => {
     api.auditlog.lijst.mockResolvedValueOnce(_pagina({ volgende_cursor: 'CUR1' }))
     const w = await mountView()

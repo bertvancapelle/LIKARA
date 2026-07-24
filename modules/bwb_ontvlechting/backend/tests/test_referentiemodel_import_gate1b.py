@@ -125,6 +125,29 @@ def test_parser_filtert_hard_op_xsi_type(tmp_path):
     assert per["id-b"].definitie is None  # geen documentation = leeg, geen fout
 
 
+def test_parser_schoont_bron_op_met_de_gedeelde_regel(tmp_path):
+    """LI051 weg 1 — de parser schoont naam én definitie op bij de uitvoer, met de gedeelde regel
+    (`schemas/tekstschoning`): een vaste spatie wordt een gewone (woordgrens blijft), een zero-width
+    teken verdwijnt, dubbele spaties vouwen samen. Omdat aanmaken (via het schema), bijwerken (directe
+    toewijzing) én de her-inlees-vergelijking allemaal deze ene opgeschoonde brontekst gebruiken,
+    dragen ze vanzelf identieke tekst — geen twee definities die uiteen groeien."""
+    from services.ameff import lees_ameff
+
+    nbsp = chr(0x00A0)
+    zwsp = chr(0x200B)
+    pad = _schrijf(tmp_path, _AMEFF_KOP + f"""
+<elements>
+  <element identifier="id-a" xsi:type="BusinessFunction">
+    <name xml:lang="nl">Zaak{nbsp}systeem  beheer</name>
+    <documentation xml:lang="nl">Regel  met{zwsp}   ruis.</documentation>
+  </element>
+</elements>
+</model>""")
+    f = lees_ameff(pad).functies[0]
+    assert f.naam == "Zaak systeem beheer"   # NBSP -> spatie, dubbele spatie samengevouwen
+    assert f.definitie == "Regel met ruis."  # zero-width weg, spaties samengevouwen
+
+
 def test_parser_weigert_onveilige_xml(tmp_path):
     """XXE-borging: een bestand met DTD/entiteiten (external entity of
     entity-expansion) wordt geweigerd met één leesbare fout."""

@@ -38,6 +38,8 @@ import { api } from '@/api'
 import LijstKop from '@/components/LijstKop.vue'
 import BevestigVerwijderDialog from '@/components/BevestigVerwijderDialog.vue'
 import MeldingBanner from '@/components/MeldingBanner.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 import RijActies from '@/components/RijActies.vue'
 import { STAND_CODERING, standPillStyle } from '../standCodering'
 import { meervoudBoomStructuur } from '../procesBoom'
@@ -65,6 +67,14 @@ const dekking = ref([])
 const standen = ref([])
 
 const zoekterm = ref('')
+// LI051 — dit veld filtert de al geladen boom CLIENT-side; toch dezelfde regel: schoon de term op
+// (onzichtbare tekens weg, NFC) zodat een plakactie niet stil een lege boom oplevert, en meld het.
+const zoekMelding = ref('')
+function onZoekOpschonen() {
+  const { schoon, ietsWeggehaald } = schoonZoekterm(zoekterm.value)
+  if (schoon !== zoekterm.value) zoekterm.value = schoon
+  zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+}
 // ADR-044 — uitklap-staat is PLEK-gebonden: sleutels zijn plek-paden ('wortel>…>functie',
 // functie-ids '>'-gescheiden), niet functie-ids. Zo laat Toezicht openklappen onder de
 // ene ouder de andere verschijning dicht. (Array → serialiseerbare lijststaat.)
@@ -919,6 +929,7 @@ onMounted(async () => {
             maxlength="255"
             data-testid="filter-zoek"
             aria-label="Zoek op functienaam"
+            @input="onZoekOpschonen"
             placeholder="Zoek op naam…"
             class="lk-veld w-full"
           />
@@ -1006,6 +1017,14 @@ onMounted(async () => {
       soort="info"
       :tekst="wijkMelding"
       testid="functie-wijk-melding"
+      class="mb-[var(--lk-space-md)]"
+    />
+
+    <!-- LI051 — melding bij onzichtbare tekens in de zoekterm: bij het resultaat (de boom),
+         net als bij een lijst. Alleen zichtbaar als er werkelijk iets is weggehaald. -->
+    <ZoektermMelding
+      v-if="weergave === 'boom' && zoekMelding"
+      :term="zoekMelding"
       class="mb-[var(--lk-space-md)]"
     />
 

@@ -13,6 +13,8 @@ import { useAuthStore } from '@/store/auth'
 import { useLijstStaat } from '@/composables/useLijstStaat'
 import { api } from '@/api'
 import LijstKop from '@/components/LijstKop.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 import { PARTIJ_AARD, label } from '@modules/bwb_ontvlechting/frontend/labels'
 import IdentiteitLabel from '@modules/bwb_ontvlechting/frontend/views/IdentiteitLabel.vue'
 
@@ -40,6 +42,8 @@ const primeSortOrder = computed(() =>
   sortRichting.value === 'asc' ? 1 : sortRichting.value === 'desc' ? -1 : 0,
 )
 const filterZoek = ref('')
+// LI051 — opgeschoonde term voor de melding (leeg = geen melding). Eén bron: schoonZoekterm.
+const zoekMelding = ref('')
 const filterAard = ref('')
 const heeftFilters = computed(() => !!filterZoek.value.trim() || !!filterAard.value)
 
@@ -69,7 +73,11 @@ async function laad({ reset = false } = {}) {
       params.sort = sortVeld.value
       params.order = sortRichting.value
     }
-    if (filterZoek.value.trim()) params.zoek = filterZoek.value.trim()
+    // LI051 — opschonen (onzichtbare tekens weg, NFC); opgeschoonde term tonen + melden.
+    const { schoon, ietsWeggehaald } = schoonZoekterm(filterZoek.value)
+    if (schoon !== filterZoek.value) filterZoek.value = schoon
+    zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+    if (schoon) params.zoek = schoon
     if (filterAard.value) params.aard = filterAard.value
     const pagina = await api.partijen.lijst(params)
     items.value = reset ? pagina.items : items.value.concat(pagina.items)
@@ -184,6 +192,9 @@ onMounted(() => {
     >
       {{ fout }}
     </p>
+
+    <!-- LI051 — melding bij onzichtbare tekens in de zoekterm: vóór de tabel (geen aantal hier). -->
+    <ZoektermMelding v-if="zoekMelding" :term="zoekMelding" class="mb-[var(--lk-space-md)]" />
 
     <DataTable
       :value="items"

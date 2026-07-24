@@ -818,4 +818,48 @@ describe('ComponentLijst — LI048: de gedeelde lijstkop', () => {
     const w = await mountLijst()
     expect(w.findAll('input[type="search"]').length).toBe(1)
   })
+
+  // LI051 — lijst-soort: melding tussen zoekveld en aantal wanneer de zoekterm onzichtbare tekens
+  // bevatte; de opgeschoonde term staat in het veld én in de melding, en gaat opgeschoond naar de API.
+  it('LI051 — geplakte rommel in het zoekveld: melding met de opgeschoonde term, veld toont schoon', async () => {
+    vi.useFakeTimers()
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 1, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-zoek"]').setValue('zaak\x00systeem') // rommel geplakt
+    await vi.advanceTimersByTimeAsync(300) // debounce → laad()
+    vi.useRealTimers()
+    await flushPromises()
+    const melding = w.find('[data-testid="zoek-opschoon-melding"]')
+    expect(melding.exists()).toBe(true)
+    expect(melding.text()).toContain('zaaksysteem')
+    expect(w.find('[data-testid="filter-zoek"]').element.value).toBe('zaaksysteem')
+    expect(api.componenten.lijst.mock.calls.at(-1)[0].zoek).toBe('zaaksysteem') // opgeschoond naar de API
+  })
+
+  it('LI051 — een gewone zoekopdracht toont geen melding', async () => {
+    vi.useFakeTimers()
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 1, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-zoek"]').setValue('zaaksysteem')
+    await vi.advanceTimersByTimeAsync(300)
+    vi.useRealTimers()
+    await flushPromises()
+    expect(w.find('[data-testid="zoek-opschoon-melding"]').exists()).toBe(false)
+  })
+
+  // LI051 blok C — een vaste spatie wordt een gewone: de woordgrens blijft (zaak systeem, niet
+  // zaaksysteem), er verandert niets zichtbaars → GEEN melding.
+  it('LI051 — vaste spatie: woordgrens blijft, veld toont een gewone spatie, geen melding', async () => {
+    vi.useFakeTimers()
+    api.componenten.lijst.mockResolvedValue({ items: [], volgende_cursor: null, totaal: 1, totaal_ongefilterd: 19 })
+    const w = await mountLijst()
+    const nbsp = String.fromCharCode(0x00a0)
+    await w.find('[data-testid="filter-zoek"]').setValue('zaak' + nbsp + 'systeem')
+    await vi.advanceTimersByTimeAsync(300)
+    vi.useRealTimers()
+    await flushPromises()
+    expect(w.find('[data-testid="filter-zoek"]').element.value).toBe('zaak systeem') // gewone spatie
+    expect(api.componenten.lijst.mock.calls.at(-1)[0].zoek).toBe('zaak systeem') // woordgrens naar de API
+    expect(w.find('[data-testid="zoek-opschoon-melding"]').exists()).toBe(false) // niets verdwenen
+  })
 })

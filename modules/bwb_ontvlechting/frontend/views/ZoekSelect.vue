@@ -16,6 +16,8 @@
  * (eerste aanslag vervangt), en het ×-wis-gebaar maakt "ik wil een ander item" één handeling.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 
 const VENSTER = 10 // toon maximaal 10; vraag er 11 op om "meer" te detecteren
 
@@ -52,6 +54,9 @@ const gekozenLabel = ref('')
 defineExpose({ focus: () => inputRef.value?.focus() })
 const open = ref(false)
 const resultaten = ref([])
+// LI051 — de opgeschoonde term voor de melding IN de dropdown (leeg = geen melding). Eén bron:
+// schoonZoekterm (gelijk aan de achterkant). Verdwijnt met de dropdown mee (staat erin).
+const zoekMelding = ref('')
 const meer = ref(false)
 const laden = ref(false)
 const fout = ref(null)
@@ -70,7 +75,15 @@ async function zoek(term) {
   fout.value = null
   try {
     // `term` expliciet meegegeven (bv. '' bij openen → volledige startlijst); anders de getypte query.
-    const zoekterm = (term ?? query.value).trim() || undefined
+    // LI051 — schoon de term op (onzichtbare tekens weg, NFC), gelijk aan de achterkant. Alleen bij
+    // de getypte query (term == null) tonen we de opgeschoonde term en melden we wat er weg is;
+    // bij een expliciete term (startlijst) niet.
+    const { schoon, ietsWeggehaald } = schoonZoekterm(term ?? query.value)
+    if (term == null) {
+      if (schoon !== query.value) query.value = schoon
+      zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+    }
+    const zoekterm = schoon || undefined
     const params = { zoek: zoekterm, limit: VENSTER + 1, ...props.extraFilters }
     const pagina = await props.zoekFunctie(params)
     const items = Array.isArray(pagina) ? pagina : pagina?.items ?? []
@@ -98,6 +111,7 @@ onBeforeUnmount(() => clearTimeout(_timer))
 function openen() {
   if (props.disabled) return
   open.value = true
+  zoekMelding.value = '' // elke opening begint schoon; de startlijst meldt niets
   // Bij openen ALTIJD de volledige (scope-)startlijst tonen — nooit filteren op een voorgevulde
   // waarde (LI032). De input-tekst selecteren zodat de eerste toetsaanslag de prefill vervangt.
   inputRef.value?.select?.()
@@ -257,6 +271,11 @@ watch(
       :data-testid="`${props.testid}-listbox`"
       class="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-surface)] shadow-[var(--lk-shadow-md)]"
     >
+      <!-- LI051 — melding IN de openklappende lijst, boven de resultaten: verdwijnt met de lijst
+           mee. Alleen als er onzichtbare tekens uit de zoekterm zijn weggehaald. -->
+      <li v-if="zoekMelding" :data-testid="`${props.testid}-zoek-melding`" class="p-[var(--lk-space-xs)]">
+        <ZoektermMelding :term="zoekMelding" :testid="`${props.testid}-zoek-opschoon-melding`" />
+      </li>
       <li v-if="laden" :data-testid="`${props.testid}-laden`" class="px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[var(--lk-color-text-muted)] text-[length:var(--lk-text-sm)]">
         Laden…
       </li>

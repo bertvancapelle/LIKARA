@@ -147,6 +147,27 @@ describe('BedrijfsfunctieLijst — boomweergave', () => {
     expect(boom).toContain('Primair')
     expect(boom).not.toContain('Besturend') // geen treffer in die boom
   })
+
+  // LI051 — boom-soort (filter op een al geladen lijst): dezelfde regel, dezelfde melding bij het
+  // resultaat. Dit veld gaat NIET naar de achterkant, maar wordt toch opgeschoond (geen stille lege
+  // boom bij een plakactie).
+  it('LI051 — geplakte rommel in het boom-zoekveld: melding met de opgeschoonde term', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-zoek"]').setValue('klantcon\x00tact') // rommel geplakt
+    await flushPromises()
+    const melding = w.find('[data-testid="zoek-opschoon-melding"]')
+    expect(melding.exists()).toBe(true)
+    expect(melding.text()).toContain('klantcontact')
+    expect(w.find('[data-testid="filter-zoek"]').element.value).toBe('klantcontact')
+    expect(w.find('[data-testid="functies-boom"]').text()).toContain('Klantcontact') // vindt het toch
+  })
+
+  it('LI051 — een gewone boom-zoekopdracht toont geen melding', async () => {
+    const w = await mountLijst()
+    await w.find('[data-testid="filter-zoek"]').setValue('klantcon')
+    await flushPromises()
+    expect(w.find('[data-testid="zoek-opschoon-melding"]').exists()).toBe(false)
+  })
 })
 
 describe('BedrijfsfunctieLijst — ADR-044 meervoudige plekken', () => {

@@ -25,6 +25,8 @@ import { humaniseer, veldLabel } from '../labels'
 import { STAND_CODERING, STAND_LEGENDA, standKaartKleur } from '../standCodering'
 import { baanVerdeling, baanLabel, hoedanigheidVan } from '../kaartBanen'
 import ZoekMultiSelect from './ZoekMultiSelect.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 import KaartBeginscherm from './KaartBeginscherm.vue'
 
 const router = useRouter()
@@ -140,6 +142,20 @@ const verbergLegeLanes = ref(false) // LI019 1d-v2 — lege banen verbergen voor
 const toonRegistratiegaps = ref(false) // LI019 1d-v7 — losse nodes (registratiegaps) óók tonen (default UIT)
 const bandPx = ref([]) // schermposities van de lane-banden (top/height px), gesynct met cy pan/zoom
 const zoekterm = ref('')
+// LI051 — beide kaart-zoekvelden filteren CLIENT-side, maar dezelfde regel geldt: schoon de term op
+// (onzichtbare tekens weg, NFC) zodat een plakactie niet stil een lege lijst oplevert, en meld het.
+// Eén gedeelde melding boven het resultaat-aantal; welk veld de rommel had, staat in de term zelf.
+const zoekMelding = ref('')
+function onZoekOpschonen() {
+  const { schoon, ietsWeggehaald } = schoonZoekterm(zoekterm.value)
+  if (schoon !== zoekterm.value) zoekterm.value = schoon
+  zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+}
+function onZoekResultatenOpschonen() {
+  const { schoon, ietsWeggehaald } = schoonZoekterm(zoekResultaten.value)
+  if (schoon !== zoekResultaten.value) zoekResultaten.value = schoon
+  zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
+}
 const filterTypes = ref([]) // LI019 1b — componenttype-multiselect (optie_sleutels)
 const filterLeveranciers = ref([]) // LI019 1b-v2 — leverancier-multiselect (partij-ids)
 const filterHosting = ref([]) // LI019 1b-v2 — hostingmodel-multiselect (enum-sleutels)
@@ -2925,7 +2941,7 @@ const typeLabel = (t) => humaniseer(t)
              kijkinstellingen die een getekend beeld versmallen. Zo verdwijnt de dubbeling én blijft
              het beheer bereikbaar wanneer de kolom er (op de lege kaart) niet is. -->
 
-        <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="lk-veld" />
+        <input v-model="zoekterm" type="search" data-testid="lk-zoek" placeholder="🔍 Zoek naam/domein/leverancier…" class="lk-veld" @input="onZoekOpschonen" />
 
         <!-- LI029 — zoekresultaten direct onder de zoekbalk. Alleen in kaart-modus (beginscherm dicht)
              én bij een actieve zoekopdracht óf filter (het beginscherm heeft zijn eigen zoek). -->
@@ -2934,6 +2950,9 @@ const typeLabel = (t) => humaniseer(t)
           data-testid="lk-kaartzoek"
           class="flex flex-col gap-[var(--lk-space-xs)] rounded-[var(--lk-radius-card)] border border-[var(--lk-color-border)] bg-[var(--lk-color-accent)]/30 p-[var(--lk-space-sm)]"
         >
+          <!-- LI051 — melding bij onzichtbare tekens in een van de twee kaart-zoekvelden: boven het
+               resultaat-aantal (bij het resultaat, zoals bij een lijst). Alleen als er iets weg is. -->
+          <ZoektermMelding v-if="zoekMelding" :term="zoekMelding" />
           <p class="font-semibold text-[length:var(--lk-text-sm)]">
             Componenten ({{ zoekResultaten.trim() ? `${gefilterdeResultaten.length} van ${gefilterdeNodes.length}` : gefilterdeNodes.length }})
           </p>
@@ -2944,6 +2963,7 @@ const typeLabel = (t) => humaniseer(t)
             data-testid="lk-zoek-resultaten"
             aria-label="Zoek in resultaten"
             class="lk-veld"
+            @input="onZoekResultatenOpschonen"
           />
           <ul class="flex max-h-64 flex-col gap-1 overflow-y-auto" data-testid="lk-resultaten">
             <!-- Klikken op de naam = toevoegen/verwijderen uit de set + detail tonen (kiesComponent);

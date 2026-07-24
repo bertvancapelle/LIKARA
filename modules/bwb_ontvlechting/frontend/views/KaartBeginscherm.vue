@@ -18,6 +18,8 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { api } from '@/api'
 import ZoekSelect from './ZoekSelect.vue'
+import ZoektermMelding from '@/components/ZoektermMelding.vue'
+import { schoonZoekterm } from '@/zoekterm'
 import { humaniseer } from '../labels'
 
 const props = defineProps({
@@ -41,6 +43,8 @@ const HOSTING_OPTIES = ['on_premise', 'private_cloud', 'saas', 'iaas', 'paas', '
 // ── Zoekroute (hoofdroute) ──────────────────────────────────────────────────────
 const gekozenType = ref('applicatie') // standaard 'applicatie' (gewone type-filterwaarde, geen aparte ingang)
 const zoekterm = ref('')
+// LI051 — opgeschoonde term voor de melding (leeg = geen melding). Eén bron: schoonZoekterm.
+const zoekMelding = ref('')
 const resultaten = ref([])
 const zoekLaden = ref(false)
 const zoekOpen = ref(false)
@@ -66,6 +70,11 @@ function _zoekParams() {
 async function zoek() {
   zoekLaden.value = true
   zoekOpen.value = true
+  // LI051 — schoon de term op (onzichtbare tekens weg, NFC), gelijk aan de achterkant; toon de
+  // opgeschoonde term in het veld en meld wat er is weggehaald.
+  const { schoon, ietsWeggehaald } = schoonZoekterm(zoekterm.value)
+  if (schoon !== zoekterm.value) zoekterm.value = schoon
+  zoekMelding.value = ietsWeggehaald && schoon ? schoon : ''
   try {
     const r = await api.componenten.lijst(_zoekParams())
     resultaten.value = r?.items || []
@@ -252,6 +261,11 @@ defineExpose({ zoek, zoekterm, gekozenType, filterLaag, filterHosting, eigenaarI
             <li v-if="!zoekLaden && !resultaten.length" class="px-[var(--lk-space-sm)] py-[var(--lk-space-xs)] text-[length:var(--lk-text-sm)] text-[var(--lk-color-text-muted)]">Geen resultaten.</li>
           </ul>
         </div>
+
+        <!-- LI051 — melding bij onzichtbare tekens in de zoekterm: direct onder het zoekveld
+             (de resultatenlijst is een transiënte overlay; deze melding staat in de normale flow).
+             Alleen zichtbaar als er werkelijk iets is weggehaald. -->
+        <ZoektermMelding v-if="zoekMelding" :term="zoekMelding" class="mt-[var(--lk-space-xs)]" />
 
         <!-- Filters (weggevouwen): verfijnen dezelfde /componenten-query (AND) -->
         <div>
