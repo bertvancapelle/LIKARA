@@ -13,6 +13,7 @@ import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 
 from models.models import GebruikerPersoon, Partij
 
@@ -58,11 +59,7 @@ async def resolveer_naam(session: AsyncSession, tenant_id, *, sub: str | None, e
     return email
 
 
-_LIKE_ESCAPE = "\\"
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 
 async def subs_voor_naam(session: AsyncSession, tenant_id, fragment: str) -> set[str]:
@@ -78,7 +75,7 @@ async def subs_voor_naam(session: AsyncSession, tenant_id, fragment: str) -> set
             .join(Partij, Partij.id == GebruikerPersoon.persoon_id)
             .where(
                 GebruikerPersoon.tenant_id == _tid(tenant_id),
-                Partij.naam.ilike(f"%{_escape_like(frag)}%", escape=_LIKE_ESCAPE),
+                zoektekst.zoek_clause(Partij.naam, frag),
             )
         )
     ).scalars().all()

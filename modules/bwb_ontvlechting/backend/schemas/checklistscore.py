@@ -83,7 +83,7 @@ class ChecklistscoreCreate(BaseModel):
     @field_validator("bevinding", "actie")
     @classmethod
     def _v_lange_tekst(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
     @field_validator("antwoord_waarde")
     @classmethod
@@ -110,7 +110,7 @@ class ChecklistscoreUpdate(BaseModel):
     @field_validator("bevinding", "actie")
     @classmethod
     def _v_lange_tekst(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
     @field_validator("antwoord_waarde")
     @classmethod

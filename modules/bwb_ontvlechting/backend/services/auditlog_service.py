@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.models import AuditLog
 from services import actor_resolutie, entiteit_resolutie
+from services import zoektekst
 
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
@@ -313,12 +314,8 @@ def _record_filters(tid: uuid.UUID, *, actor, entiteit_type, entiteit_id, compon
         # gevonden worden op zijn e-mailadres — dus op iets wat op dit scherm nergens staat.
         wie = [AuditLog.actor_sub.in_(subs)]
         if wie_fragment:
-            # Escaping uit actor_resolutie hergebruiken — één plek waar `%`/`_` in een
-            # zoekterm onschadelijk wordt gemaakt, niet twee die uiteen kunnen lopen.
-            email_treffer = AuditLog.actor_email.ilike(
-                f"%{actor_resolutie._escape_like(wie_fragment)}%",
-                escape=actor_resolutie._LIKE_ESCAPE,
-            )
+            # LI051 — de gedeelde zoek-bron: accent-ongevoelig, met de jokertekst-escape op één plek.
+            email_treffer = zoektekst.zoek_clause(AuditLog.actor_email, wie_fragment)
             if gekoppeld:
                 email_treffer = and_(email_treffer, AuditLog.actor_sub.notin_(gekoppeld))
             wie.append(email_treffer)

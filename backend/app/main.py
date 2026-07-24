@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.api.v1 import auth, health, platform
 from app.core.config import validate_startup_config
+from app.core.zoekfunctie import valideer_zoekfunctie
 from app.middleware.auth import (
     NietGeauthenticeerd,
     TenantMismatch,
@@ -109,6 +110,9 @@ from services.errors import (  # noqa: E402
 async def lifespan(app: FastAPI):
     # Leesbare foutmelding bij ontbrekende verplichte configuratie
     validate_startup_config()
+    # LI051 — accent-ongevoelig zoeken vereist de `unaccent`-DB-functie; ontbreekt die, dan
+    # start LIKARA niet (leesbare melding) i.p.v. pas bij de eerste zoekopdracht te knappen.
+    await valideer_zoekfunctie()
     yield
 
 

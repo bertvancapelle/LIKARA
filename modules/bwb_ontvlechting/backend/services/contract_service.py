@@ -18,6 +18,7 @@ from datetime import date, datetime
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 
 from models.models import (
     Component,
@@ -72,11 +73,7 @@ _TAG_DIMENSIE = {
     "kostenmodel": ContractConfigDimensie.kostenmodel,
 }
 
-_LIKE_ESCAPE = "\\"
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -286,7 +283,7 @@ async def lijst(
     if contracttype:
         stmt = stmt.where(Contract.contracttype == ContractType(contracttype))
     if zoek:
-        stmt = stmt.where(Contract.contractnaam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+        stmt = stmt.where(zoektekst.zoek_clause(Contract.contractnaam, zoek))
     if dekking:
         stmt = stmt.where(
             Contract.id.in_(

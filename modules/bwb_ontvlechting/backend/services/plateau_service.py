@@ -21,6 +21,7 @@ from datetime import datetime, timezone
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 
 from app.core.tenant_context import huidige_actor
 from models.models import (
@@ -47,11 +48,7 @@ _ENTITEIT = "plateau"
 _AGGREGATION = "aggregation"
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
-_LIKE_ESCAPE = "\\"
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 # Toegestane lid-element-typen in deze slice (E1). Datatype/gebruikersgroep later additief.
 _TOEGESTANE_LID_TYPES = frozenset({ElementType.component.value, ElementType.contract.value})
@@ -132,7 +129,7 @@ async def lijst(
     tid = _tenant_uuid(tenant_id)
     stmt = select(Plateau).where(Plateau.tenant_id == tid)
     if zoek:
-        stmt = stmt.where(Plateau.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+        stmt = stmt.where(zoektekst.zoek_clause(Plateau.naam, zoek))
     if after:
         _s, _o, waarde_str, c_id = decode_sort_cursor(after)
         c_waarde = datetime.fromisoformat(waarde_str)

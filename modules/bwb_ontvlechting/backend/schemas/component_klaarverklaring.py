@@ -10,14 +10,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from schemas._validators import _verplichte_tekst
+
 
 def _verplichte_reden(v: str) -> str:
-    if v is None or not str(v).strip():
-        raise ValueError("reden is verplicht")
-    v = str(v).strip()
-    if len(v) > 2000:
-        raise ValueError("reden mag maximaal 2000 tekens zijn")
-    return v
+    # LI051 — via de gedeelde tekst-validator (blok A/B: NFC-normalisatie + nul-/stuurteken-
+    # weigering). Een reden is een toelichting → meerregelig (alinea's toegestaan).
+    return _verplichte_tekst(v, "reden", 2000, meerregelig=True)
 
 
 class KlaarverklaringCreate(BaseModel):

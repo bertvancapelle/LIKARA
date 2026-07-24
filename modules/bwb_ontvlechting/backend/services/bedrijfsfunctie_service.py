@@ -36,6 +36,7 @@ from datetime import datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 from sqlalchemy.orm import aliased
 
 from models.models import Bedrijfsfunctie, Element, ElementType, Referentiemodel, Relatie
@@ -54,7 +55,6 @@ _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
 _STANDAARD_SORT = "created_at"
 _STANDAARD_ORDER = "asc"
-_LIKE_ESCAPE = "\\"
 
 # ADR-017 — sorteer-allowlist (rauwe kolomnaam komt NOOIT in ORDER BY); v2n-keyset.
 _SORTEERBARE_KOLOMMEN = {
@@ -66,9 +66,6 @@ _WAARDE_PARSERS = {
     "naam": str,
 }
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -442,7 +439,7 @@ async def lijst(
     stmt = select(Bedrijfsfunctie).where(Bedrijfsfunctie.tenant_id == tid)
     if zoek:
         stmt = stmt.where(
-            Bedrijfsfunctie.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE)
+            zoektekst.zoek_clause(Bedrijfsfunctie.naam, zoek)
         )
     if after:
         c_sort, c_order, c_is_null, c_waarde_str, c_id = decode_sort_cursor_nullable(after)

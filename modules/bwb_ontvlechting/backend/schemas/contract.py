@@ -85,7 +85,7 @@ class ContractCreate(BaseModel):
     @field_validator("omschrijving", "toelichting")
     @classmethod
     def _v_tekst(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
     @field_validator("dekking", "kostenmodel")
     @classmethod
@@ -127,7 +127,7 @@ class ContractUpdate(BaseModel):
     @field_validator("omschrijving", "toelichting")
     @classmethod
     def _v_tekst(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
     @field_validator("dekking", "kostenmodel")
     @classmethod

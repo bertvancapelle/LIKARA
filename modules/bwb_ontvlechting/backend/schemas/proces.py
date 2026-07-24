@@ -36,7 +36,7 @@ class ProcesCreate(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class ProcesUpdate(BaseModel):
@@ -57,7 +57,7 @@ class ProcesUpdate(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class ProcesRead(BaseModel):

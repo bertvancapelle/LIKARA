@@ -105,7 +105,7 @@ class PartijCreate(BaseModel):
     @field_validator("omschrijving")
     @classmethod
     def _v_omschrijving(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class PartijUpdate(BaseModel):
@@ -169,7 +169,7 @@ class PartijUpdate(BaseModel):
     @field_validator("omschrijving")
     @classmethod
     def _v_omschrijving(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
     @model_validator(mode="after")
     def _verbied_null_op_verplicht(self) -> "PartijUpdate":

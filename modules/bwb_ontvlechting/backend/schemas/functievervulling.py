@@ -42,7 +42,7 @@ class FunctievervullingAanmaken(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _vt(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
     @field_validator("oordeel")
     @classmethod
@@ -62,7 +62,7 @@ class GeenSysteemAanmaken(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _vt(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class OordeelWijzigen(BaseModel):

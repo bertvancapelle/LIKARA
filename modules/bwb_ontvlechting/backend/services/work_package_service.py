@@ -19,6 +19,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 
 from models.models import Element, ElementType, WorkPackage
 from schemas.work_package import WorkPackageCreate, WorkPackageUpdate
@@ -28,11 +29,7 @@ from services.pagination import decode_sort_cursor, encode_sort_cursor
 _ENTITEIT = "work_package"
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
-_LIKE_ESCAPE = "\\"
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -173,7 +170,7 @@ async def lijst(
     tid = _tenant_uuid(tenant_id)
     stmt = select(WorkPackage).where(WorkPackage.tenant_id == tid)
     if zoek:
-        stmt = stmt.where(WorkPackage.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+        stmt = stmt.where(zoektekst.zoek_clause(WorkPackage.naam, zoek))
     if after:
         _s, _o, waarde_str, c_id = decode_sort_cursor(after)
         c_waarde = datetime.fromisoformat(waarde_str)

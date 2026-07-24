@@ -30,7 +30,7 @@ class PlateauCreate(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class PlateauUpdate(BaseModel):
@@ -47,7 +47,7 @@ class PlateauUpdate(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class PlateauRead(BaseModel):

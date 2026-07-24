@@ -10,6 +10,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 from sqlalchemy.orm import aliased
 
 from models.models import (
@@ -64,7 +65,6 @@ _DEFAULT_ROL = "interne_applicatie"
 _BIV_VELDEN = ("biv_beschikbaarheid", "biv_integriteit", "biv_vertrouwelijkheid")
 _STANDAARD_LIMIT = 25
 _MAX_LIMIT = 100
-_LIKE_ESCAPE = "\\"
 
 # Allowlist (ADR-017 B2). Meerdere kolommen zijn nullable — en `lifecycle_status` komt van
 # een LEFT JOIN op `component_profiel` (niet elk type draagt een profiel) → de hele lijst
@@ -105,9 +105,6 @@ _WAARDE_PARSERS = {
 def _tenant_uuid(tenant_id) -> uuid.UUID:
     return tenant_id if isinstance(tenant_id, uuid.UUID) else uuid.UUID(str(tenant_id))
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 
 async def _toestand_tellingen(
@@ -390,7 +387,7 @@ async def _pas_filters_toe(
         ).exists()
         stmt = stmt.where(or_(_rt_lev, _ct_lev))
     if zoek:
-        stmt = stmt.where(Component.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+        stmt = stmt.where(zoektekst.zoek_clause(Component.naam, zoek))
     # ADR-028 — rol-filter (multi-select → IN; onbekende sleutel matcht simpelweg niets).
     if componentrol:
         stmt = stmt.where(Component.componentrol.in_(componentrol))

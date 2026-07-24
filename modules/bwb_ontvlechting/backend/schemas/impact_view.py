@@ -10,14 +10,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from schemas._validators import _verplichte_tekst
+
 
 def _verplichte_naam(v: str) -> str:
-    if v is None or not str(v).strip():
-        raise ValueError("naam is verplicht")
-    v = str(v).strip()
-    if len(v) > 150:
-        raise ValueError("naam mag maximaal 150 tekens zijn")
-    return v
+    # LI051 — via de gedeelde tekst-validator (blok A/B: NFC + nul-/stuurteken-weigering).
+    # Een view-naam is een enkelregelige aanduiding.
+    return _verplichte_tekst(v, "naam", 150)
 
 
 def _dedup(ids: list[uuid.UUID]) -> list[uuid.UUID]:

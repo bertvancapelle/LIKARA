@@ -9,16 +9,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from schemas._validators import _optionele_tekst
+
 
 def _optionele_toelichting(v):
-    if v is None:
-        return None
-    v = str(v).strip()
-    if not v:
-        return None
-    if len(v) > 2000:
-        raise ValueError("toelichting mag maximaal 2000 tekens zijn")
-    return v
+    # LI051 — via de gedeelde tekst-validator (blok A/B: NFC + nul-/stuurteken-weigering).
+    # Een toelichting is vrije tekst → meerregelig (alinea's toegestaan).
+    return _optionele_tekst(v, 2000, meerregelig=True)
 
 
 class BevindingCreate(BaseModel):

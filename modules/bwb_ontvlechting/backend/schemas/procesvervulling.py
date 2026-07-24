@@ -10,7 +10,7 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
-from schemas._validators import _optionele_tekst
+from schemas._validators import _optionele_tekst, _verplichte_tekst
 
 
 class ProcesvervullingAanmaken(BaseModel):
@@ -24,17 +24,14 @@ class ProcesvervullingAanmaken(BaseModel):
     @field_validator("applicatiefunctie")
     @classmethod
     def _v_functie(cls, v: str) -> str:
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("applicatiefunctie is verplicht")
-        if len(v) > 60:
-            raise ValueError("applicatiefunctie is te lang")
-        return v
+        # LI051 — via de gedeelde tekst-validator (blok A/B); applicatiefunctie is een
+        # enkelregelige catalogus-sleutel.
+        return _verplichte_tekst(v, "applicatiefunctie", 60)
 
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class ProcesvervullingWijzigen(BaseModel):
@@ -50,19 +47,14 @@ class ProcesvervullingWijzigen(BaseModel):
     @field_validator("applicatiefunctie")
     @classmethod
     def _v_functie(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        v = v.strip()
-        if not v:
-            raise ValueError("applicatiefunctie mag niet leeg zijn")
-        if len(v) > 60:
-            raise ValueError("applicatiefunctie is te lang")
-        return v
+        # LI051 — via de gedeelde tekst-validator (blok A/B); enkelregelige catalogus-sleutel.
+        # In Update mag het veld ontbreken (partieel), maar niet leeg zijn als het meekomt.
+        return None if v is None else _verplichte_tekst(v, "applicatiefunctie", 60)
 
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class ProcesvervullingUit(BaseModel):

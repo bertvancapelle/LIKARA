@@ -9,6 +9,8 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from schemas._validators import _verplichte_tekst
+
 
 class RoltoewijzingAanmaken(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -20,12 +22,9 @@ class RoltoewijzingAanmaken(BaseModel):
     @field_validator("rol")
     @classmethod
     def _v_rol(cls, v: str) -> str:
-        v = (v or "").strip()
-        if not v:
-            raise ValueError("rol is verplicht")
-        if len(v) > 60:
-            raise ValueError("rol is te lang")
-        return v
+        # LI051 — via de gedeelde tekst-validator (blok A/B: NFC + nul-/stuurteken-weigering).
+        # Een rol is een enkelregelige sleutel-aanduiding.
+        return _verplichte_tekst(v, "rol", 60)
 
 
 class RoltoewijzingUit(BaseModel):

@@ -27,7 +27,7 @@ class WorkPackageCreate(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class WorkPackageUpdate(BaseModel):
@@ -48,7 +48,7 @@ class WorkPackageUpdate(BaseModel):
     @field_validator("toelichting")
     @classmethod
     def _v_toelichting(cls, v: str | None) -> str | None:
-        return _optionele_tekst(v, 10_000)
+        return _optionele_tekst(v, 10_000, meerregelig=True)
 
 
 class WorkPackageRead(BaseModel):

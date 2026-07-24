@@ -37,6 +37,7 @@ from models.models import (
 )
 from schemas.gebruikersgroep import GebruikersgroepCreate, GebruikersgroepUpdate
 from services import component_service, componentconfig_catalog, organisatiegebruik_service
+from services import zoektekst
 from services.errors import NietGevonden, OngeldigeRegistratie
 from services.pagination import (
     decode_sort_cursor_nullable,
@@ -204,11 +205,6 @@ async def componenten_met_gebruikersgroep(session: AsyncSession, tenant_id, comp
     return {r.id for r in rijen}
 
 
-def _escape_like(term: str) -> str:
-    """LIKE/ILIKE-wildcard-escaping (volgorde \\ → % → _), zoals de andere zoek-endpoints (CD017)."""
-    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-
-
 async def contexten(session: AsyncSession, tenant_id, *, zoek: str | None = None) -> list[dict]:
     """Fase B slice 2a (LI022) — distinct `(organisatie, afdeling)`-gebruikercontexten over alle
     gebruikersgroepen, met geresolveerde namen + een telling van bijbehorende componenten (distinct
@@ -238,8 +234,9 @@ async def contexten(session: AsyncSession, tenant_id, *, zoek: str | None = None
         .order_by(org.naam.nulls_last(), afd.naam.nulls_last())
     )
     if zoek and zoek.strip():
-        like = f"%{_escape_like(zoek.strip())}%"
-        stmt = stmt.where(or_(org.naam.ilike(like, escape="\\"), afd.naam.ilike(like, escape="\\")))
+        # LI051 — accent-ongevoelig zoeken op organisatie- OF afdeling-naam, via de gedeelde bron.
+        term = zoek.strip()
+        stmt = stmt.where(or_(zoektekst.zoek_clause(org.naam, term), zoektekst.zoek_clause(afd.naam, term)))
     rijen = (await session.execute(stmt)).all()
     return [
         {

@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from schemas._validators import _verplichte_tekst
+
 
 class RelatieCreate(BaseModel):
     model_config = {"extra": "forbid"}
@@ -22,10 +24,9 @@ class RelatieCreate(BaseModel):
     @field_validator("relatietype")
     @classmethod
     def _strip_type(cls, v: str) -> str:
-        v = v.strip()
-        if not v:
-            raise ValueError("relatietype mag niet leeg zijn")
-        return v
+        # LI051 — via de gedeelde tekst-validator (blok A/B); relatietype is een enkelregelige
+        # catalogus-sleutel (de service valideert 'm bovendien tegen de gesloten set).
+        return _verplichte_tekst(v, "relatietype", 40)
 
     @model_validator(mode="after")
     def _naam_verplicht_voor_flow(self):

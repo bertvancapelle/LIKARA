@@ -13,6 +13,7 @@ from datetime import datetime
 
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from services import zoektekst
 from sqlalchemy.orm import aliased
 
 from models.models import (
@@ -53,11 +54,7 @@ _WAARDE_PARSERS = {
     "aard": str,
 }
 
-_LIKE_ESCAPE = "\\"
 
-
-def _escape_like(term: str) -> str:
-    return term.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2).replace("%", r"\%").replace("_", r"\_")
 
 
 def _tenant_uuid(tenant_id) -> uuid.UUID:
@@ -253,7 +250,7 @@ async def lijst(
     if afdeling_id is not None:
         stmt = stmt.where(Partij.afdeling_id == afdeling_id)
     if zoek:
-        stmt = stmt.where(Partij.naam.ilike(f"%{_escape_like(zoek)}%", escape=_LIKE_ESCAPE))
+        stmt = stmt.where(zoektekst.zoek_clause(Partij.naam, zoek))
     if after:
         c_sort, c_order, c_is_null, c_waarde_str, c_id = decode_sort_cursor_nullable(after)
         if c_sort != sort or c_order != order:
