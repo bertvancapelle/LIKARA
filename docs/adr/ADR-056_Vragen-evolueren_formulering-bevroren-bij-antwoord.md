@@ -2,11 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | Voorstel — besloten (LI050); bouw volgt, sliceverdeling apart |
+| **Status** | Voorstel — besloten (LI050, aangescherpt LI051); bouw volgt, sliceverdeling apart |
 | **Datum** | 2026-07-23 |
+| **Bijgewerkt** | 2026-07-24 — LI051-besluiten verwerkt: één sein per vraag (besluit 7), opnieuw antwoorden als bevestiging (besluit 8, vervangt de "klopt nog"-knop), tabbladgetal telt beide soorten werk (besluit 10), vraag-geschiedenis voor de consultant (besluit 17), nulpunt bij invoering (besluit 18), doving stille notitie (besluit 6) |
 | **Beslissers** | Bert van Capelle (G. van Capelle Beheer B.V.) |
 | **Gerelateerd** | ADR-019 (gestructureerd antwoord + optie-catalogus, stabiele sleutels) · ADR-022 W1–W5 (vraagbeheer: beheerder-only, categorie-entiteit, code van het scherm, sleep-volgorde) · ADR-052 (norm = lat niet poort; neutraal "lat verschoven" vs. amber "bewust afgeweken"; klaarverklaring-snapshot; "bewust geen"-demping) · ADR-006 (audit-trail) · ADR-013/016 (score = enige lifecycle-driver) · LI048 (Open punten als tabblad, teller = lijst) · LI050 (uitgezette vraag telt niet mee) |
-| **Grond** | `docs/Checkpoint-vraagevolutie-V050.md` (read-only meting, LI050) |
+| **Grond** | `docs/Checkpoint-vraagevolutie-V050.md` (read-only meting, LI050) · `docs/Checkpoint-vraagevolutie-bouwkant-V051.md` (read-only meting bouwkant, LI051) |
 | **Invariant (onschendbaar)** | **LIKARA schrijft nooit een uitspraak toe aan een formulering die de antwoorder niet zag.** En: vraagevolutie raakt de beoordeling nooit — een verouderd antwoord landt **nooit** in het blok "dit moet nog" (dat voedt de klaarverklaring-snapshot) en "verouderd" wordt **nooit** uitgedrukt door de score te legen (de score is de enige bron van de beoordelingsstatus). |
 
 ---
@@ -32,7 +33,7 @@ signaalcategorie ("dit valt op", Open punten blok 3) bestaat al.
 *Wat de gebruiker merkt:* de beheerder verbetert een typefout of scherpt een vraag aan zonder de
 vraag te hoeven uitzetten en opnieuw op te voeren.
 *Vangrail:* het bestaande wijzigpad (`PATCH /vragen/{id}`) blijft de ingang; wat er verandert is
-wat er ómheen gebeurt (besluiten 2–12).
+wat er ómheen gebeurt (besluiten 2–18).
 
 ### 2. De beheerder zegt zelf wat de wijziging is
 
@@ -50,6 +51,8 @@ zodanig geauditeerd.
 sets, waar hernoemen vandaag stil kan.
 *Vangrail:* er bestaat geen stil pad ernaast: elke mutatie die de betekenis van een vraag kan
 verschuiven loopt door deze keuze.
+*Vangrail (LI051):* deze aanleidingen leveren géén eigen soort melding op — wat er ook wijzigde,
+aan de antwoordkant is het één sein per vraag (besluit 7).
 
 ### 4. De formulering wordt bevroren bij het antwoord
 
@@ -65,8 +68,9 @@ niet); bij een **echte wijziging** blijft hij staan.
 
 ### 5. Voor de keuzelijst geen snapshot, maar een moment
 
-*Wat de gebruiker merkt:* of er een optie is bijgekomen **ná** zijn antwoord — meer hoeft hij niet
-te weten.
+*Wat de gebruiker merkt:* niets aparts (LI051) — een optie die **ná** zijn antwoord bijkwam is,
+bij een echte wijziging, een aanleiding voor hetzelfde ene sein van besluit 7; geen eigen soort
+melding.
 *Vangrail:* een hele lijst bevriezen bij elk antwoord is zwaar voor wat je wilt weten. Het enige
 dat ontbreekt is dat een optie vandaag geen moment van ontstaan draagt (geen `created_at`,
 models.py:1050) — dát moment is de minimale drager.
@@ -75,35 +79,63 @@ models.py:1050) — dát moment is de minimale drager.
 
 *Wat de gebruiker merkt:* de consultant wordt **niet gestoord**; wie kijkt, kan terugzien dat de
 formulering is bijgewerkt.
+*Beslist (LI051 — was subknoop 3):* de notitie blijft bij het antwoord staan tot **iemand mét het
+recht om te antwoorden** het antwoord aanraakt — dan verdwijnt hij. Het antwoord is van het team,
+niet van één persoon; is de notitie gezien, dan is hij gezien.
 
-### 7. Echte wijziging → verouderd, in neutrale toon
+### 7. Echte wijziging → één sein per vraag, verouderd in neutrale toon (aangescherpt LI051)
 
 *Wat de gebruiker merkt:* zijn antwoord leest als **verouderd** — er is niets fout gegaan; de vraag
-eronder is veranderd. Nooit een waarschuwingskleur, nooit verwijt-taal.
+eronder is veranderd. Nooit een waarschuwingskleur, nooit verwijt-taal. Verandert er íéts aan de
+vraagstelling — de tekst, een antwoordmogelijkheid erbij, een bestaande die anders gaat heten — dan
+is dat **één** melding bij het antwoord: niet per onderdeel, geen soorten met eigen gedrag. De
+consultant hoeft niet te weten wélk onderdeel verschoof; hij loopt de vraag in zijn geheel na.
+*Vangrail (LI051):* het sein geldt voor **iedereen die op die vraag antwoordde**, ook wie het
+keuzeveld leeg liet — juist die persoon vond zijn antwoord er misschien niet in. Er wordt niet
+onderscheiden tussen antwoorden mét en zónder gekozen optie.
 *Vangrail:* dit is dezelfde scheiding als bij een verschoven organisatienorm (ADR-052 besluiten
 8–11: "lat verschoven" = neutraal, "bewust afgeweken" = amber), één laag lager — de presentatie
 volgt dat bestaande patroon.
 
-### 8. De consultant kan het wegwerken — per formulering
+### 8. Opnieuw antwoorden ís de bevestiging (herzien LI051 — vervangt de "klopt nog"-knop)
 
-*Wat de gebruiker merkt:* één klik "**mijn antwoord klopt nog**" en de melding is weg.
+*Wat de gebruiker merkt:* de consultant **geeft zijn antwoord opnieuw**, óók als hij dezelfde keuze
+maakt; zodra hij dat gedaan heeft, dooft het sein. Alle onderdelen openen **leeg** (afhandeling én
+keuze); zijn **toelichting blijft staan** — die heeft hij zelf geschreven.
+*Verworpen (LI051):* de eerdere knop "**mijn antwoord klopt nog**" — dat vinkje klik je weg zonder
+de vraag opnieuw te lezen, en dan staat er een bevestiging in het systeem die niets bevestigt.
 *Vangrail:* de bevestiging geldt voor **díé formulering**: wijzigt de beheerder de vraag daarna
-opnieuw (als echte wijziging), dan komt de melding terug. Het patroon is de bestaande "bewust
-geen"-vorm (ADR-052 besluit 9/10): een expliciete, geauditeerde menshandeling dooft een
-systeem-signaal.
+opnieuw (als echte wijziging), dan komt het sein terug.
+*Vangrail (essentieel):* het oude antwoord **blijft meetellen** tot er opnieuw geantwoord is —
+anders zet één herformulering tientallen componenten terug op onvolledig, precies wat dit ADR
+belooft nooit te doen (besluit 11 + de invariant). Het sein staat op de werklijst; het blokkeert
+niets en leegt niets.
 
-### 9. De oude formulering leeft in de geschiedenis
+### 9. De oude formulering leeft in de geschiedenis van de vraag (herzien LI051)
 
 *Wat de gebruiker merkt:* bij het antwoord staat alleen **dát** er iets gewijzigd is; wie de oude
-formulering wil nalezen vindt haar in de **geschiedenis van het component** — niet uitklapbaar bij
-het antwoord zelf.
+formulering wil nalezen vindt haar in de **wijzigingsgeschiedenis van de vraag** (besluit 17) —
+niet uitklapbaar bij het antwoord zelf, niet in een tweede paneel ernaast.
+*Herzien (LI051):* hier stond eerder "de geschiedenis van het component" — gemeten
+(Checkpoint-bouwkant-V051 §M4) landt een vraagwijziging daar niet en kán hij er zonder
+component-anker niet landen: een vraag is tenant-breed. De vraag krijgt zijn eigen leesbare
+geschiedenis.
 
-### 10. Verouderd telt mee in Open punten
+### 10. Verouderd telt mee in Open punten — het tabbladgetal telt beide soorten werk (aangescherpt LI051)
 
 *Wat de gebruiker merkt:* een verouderd antwoord staat op de **werkvoorraad** van de consultant:
-het telt mee in het Open punten-getal op het tabblad.
-*Vangrail:* het landt in het blok voor **niet-blokkerende** signalen ("dit valt op") — de categorie
-bestaat al en voedt niets anders dan het getal en de lijst (LI048 besluit 14: teller = lijst).
+het telt mee in het Open punten-getal op het tabblad. De consultant stelt bij dat getal één vraag:
+*moet ik hier nog iets?* Een vraag die nooit beantwoord is en een vraag die opnieuw beantwoord moet
+worden zijn voor hem hetzelfde soort werk — het verschil in herkomst is geen verschil in werk.
+*Vangrail (gevolg voor de bouw, LI051):* het tabbladgetal telt vandaag **alleen** het blok "dit
+moet nog" (gemeten: Checkpoint-bouwkant-V051 §M3); dat verbreedt naar beide soorten werk. **Het
+getal blijft geen poort**: een component kan klaar verklaard worden terwijl er een herevaluatie
+openstaat.
+*Vangrail:* binnen het overzicht blijft de herkomst zichtbaar: het punt landt in het blok voor
+**niet-blokkerende** signalen ("dit valt op"), in de rustige toon die daarvoor bestaat — de
+categorie bestaat al en voedt niets anders dan het getal en de lijst (LI048 besluit 14: teller =
+lijst). Het blok "dit moet nog" (dat de klaarverklaring-snapshot voedt) blijft buiten bereik
+(invariant).
 
 ### 11. Het blokkeert niets
 
@@ -120,8 +152,8 @@ totaal, bij de wijziging die het veroorzaakte. En **vóór** het opslaan ziet hi
 "dit raakt N antwoorden" — in het éne opslaan-venster van besluit 13.
 *Vangrail:* de voorspelling vóór en het getal ná komen uit **dezelfde telling** — nooit twee
 afleidingen (het bestaande `impact_telling` + bevestig-patroon is de vorm). En: **de beheerder kan
-niet namens de consultant aftekenen** — het oordeel "klopt mijn antwoord nog" hoort bij wie het
-antwoord gaf.
+niet namens de antwoorders opnieuw antwoorden** — het sein dooft alleen door een nieuw antwoord van
+wie het recht heeft te antwoorden (besluit 8).
 
 ### 13. Eén opslaan-moment per vraag, niet per veld
 
@@ -166,6 +198,28 @@ een formaliteit.
 *Vangrail:* dezelfde lijn als de bestaande regel dat een vinkje een uitspraak is en nooit een
 stille default.
 
+### 17. De consultant mag de geschiedenis van een vraag inzien (nieuw, LI051)
+
+*Wat de gebruiker merkt:* wie de vragenlijst mag lezen, mag ook de **wijzigingsgeschiedenis van
+een checklistvraag** inzien — daar leest hij de oude formulering na (besluit 9). Hij leest die
+lijst elke dag; dit volgt de bestaande lijn dat wie een ding mag zien, ook de geschiedenis van dat
+ding mag zien (toegang volgt het object).
+*Vangrail:* het afgeschermde tenant-logboek gaat hiermee **niet** open — dat blijft
+beheerder/auditor-only; dit is een eigen, vraag-gebonden leesingang. Gemeten grond
+(Checkpoint-bouwkant-V051 §M4): een vraagwijziging landt vandaag nergens waar de consultant kan
+komen — niet in de componentgeschiedenis (geen component-anker) en niet in het voor hem gesloten
+logboek.
+
+### 18. Vandaag is het nulpunt (nieuw, LI051 — was subknoop 1)
+
+*Wat de gebruiker merkt:* niets — en dat is het besluit: de bestaande antwoorden gelden als
+gegeven op de **huidige** vraagstelling; pas een volgende wijziging levert een melding op.
+*Waarom:* ze markeren als "onbekende formulering" zou betekenen dat honderden antwoorden opnieuw
+gegeven moeten worden voor iets wat niemand fout heeft gedaan.
+*Vangrail:* de invoering bevriest de huidige formulering bij elk bestaand antwoord — de enige
+beschikbare vulling; het invoeringsmoment is het moment waarop de teller voor iedereen op nul
+staat.
+
 ## Dichtgetimmerde sluippaden (invariant, geen aandachtspunt)
 
 Uit de meting (M6), hier vastgelegd als onschendbaar:
@@ -176,7 +230,12 @@ Uit de meting (M6), hier vastgelegd als onschendbaar:
    beoordelingsstatus (ADR-013/016); legen zou de status terugdraaien. Besluit 4 sluit dit al uit
    (het antwoord blijft bestaan) — het staat hier zodat het ook bij de bouw niemand "handig" lijkt.
 
-## Gevolgen — drie teksten worden onwaar bij de bouw
+## Gevolgen — vijf teksten worden onwaar bij de bouw
+
+*(Was "drie" — de lijst telde er al vier (gemeten: Checkpoint-bouwkant-V051 §M7, alle vier nog
+aanwezig); nummer 5 komt uit besluit 10/LI051. Voor besluit 8 wordt géén code-tekst onwaar: de
+bevestigingsknop is nooit gebouwd — de verwijzingen ernaar leefden alleen in dit ADR en zijn
+hierboven herschreven.)*
 
 1. De **VraagUpdate-docstring** ("bewerkbare (niet-tellende) velden… geen fan-out",
    `schemas/checklistconfig.py:132-134`) — een tekstwijziging krijgt gevolgen (markering/melding)
@@ -193,19 +252,18 @@ Uit de meting (M6), hier vastgelegd als onschendbaar:
    niet van antwoordtype wisselen (de server weigert dat)", ChecklistConfigBeheer.vue) — de
    beperking verhuist naar het veld zelf (dicht, met de reden in één zin, besluit 14); de
    voetnoot-vorm vervalt.
+5. Het **tabbladgetal "Open punten (N)"** telt alleen het blok "dit moet nog"
+   (`ComponentDetail.vue` — de `moetNog`-computed voedt het tablabel; de toelichting bovenin
+   `OpenPuntenSectie.vue` beschrijft die koppeling) — met besluit 10 telt het getal beide soorten
+   werk; telling én toelichting gaan mee.
 
 ## Open subknopen (bij de bouw te beslissen — geen besluiten hier)
 
-*(Twee eerdere subknopen zijn inmiddels besloten: waar de bewerking en de keuze in het beheerscherm
-landen → besluit 13/16; optie-heractiveren → besluit 15.)*
+*(Vijf eerdere subknopen zijn inmiddels besloten: waar de bewerking en de keuze in het beheerscherm
+landen → besluit 13/16; optie-heractiveren → besluit 15; het nulpunt bij invoering → besluit 18;
+de doving van de stille notitie → besluit 6; meerkeuze zonder gestructureerd antwoord → besluit 7 —
+één sein voor iedereen die antwoordde, mét of zónder gekozen optie.)*
 
-1. **Bestaande antwoorden bij invoering**: de 267 antwoorden van vandaag kennen geen bevroren
-   formulering — bevriezen op de huidige tekst is de enige beschikbare vulling; het moment van
-   invoering wordt dan het nulpunt. Vaststellen of dat volstaat.
-2. **De opslag-vorm in detail** (kolomnaam/plek van de bevroren formulering, de
-   verouderd-markering, de "klopt nog"-bevestiging en wat heractiveren technisch vergt,
-   besluit 15) — binnen de kaders van besluit 4/5/8/15.
-3. **De stille notitie** (besluit 6): waar die precies leeft en hoe lang ze zichtbaar blijft.
-4. **Meerkeuze zonder gestructureerd antwoord**: alle 267 huidige antwoorden hebben geen
-   `antwoord_waarde` — wat "een optie kwam bij ná jouw antwoord" betekent voor een antwoord dat
-   alleen een score droeg.
+1. **De opslag-vorm in detail** (kolomnaam/plek van de bevroren formulering, de
+   verouderd-markering, en wat heractiveren technisch vergt, besluit 15) — een bouwkeuze binnen de
+   kaders van besluit 4/5/8/15, geen ontwerpvraag.
